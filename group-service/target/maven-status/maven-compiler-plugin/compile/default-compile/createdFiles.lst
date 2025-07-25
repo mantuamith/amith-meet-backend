@@ -1,0 +1,5 @@
+com/algomeet/groupservice/repository/GroupRepository.class
+com/algomeet/groupservice/GroupServiceApplication.class
+com/algomeet/groupservice/controller/GroupController.class
+com/algomeet/groupservice/model/Group.class
+com/algomeet/groupservice/controller/BaseController.class

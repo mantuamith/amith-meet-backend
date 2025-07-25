@@ -1,0 +1,24 @@
+spring:
+  profiles:
+    active: local
+
+---
+
+spring:
+  config:
+    activate:
+      on-profile: local
+  datasource:
+    url: jdbc:postgresql://192.168.0.156:5432/clorameet_db
+    username: clorameet_sandro
+    password: algo@123
+    driver-class-name: org.postgresql.Driver
+
+  redis:
+    host: localhost
+    port: 6379
+  jackson:
+    serialization:
+      INDENT_OUTPUT: true
+server:
+  port: 8083

@@ -1,0 +1,68 @@
+# ================================
+# Spring Profile Configuration
+# ================================
+spring:
+  profiles:
+    active: local
+  autoconfigure:
+    exclude: org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+
+# ================================
+# Local Profile Specific Settings
+# ================================
+---
+spring:
+  config:
+    activate:
+      on-profile: local
+
+  # ================================
+  # MongoDB Configuration
+  # ================================
+  data:
+    mongodb:
+      uri: mongodb://chatadmin:securePass123@192.168.0.156:27017/chatdb?authSource=admin
+      # TODO: Move credentials to a secure .env file
+      # TODO: Use db.createUser({...}) to set up user with readWrite role on chatdb:
+      #       use admin
+      #       db.createUser({
+      #         user: "chatadmin",
+      #         pwd: "securePass123",
+      #         roles: [{ role: "readWrite", db: "chatdb" }]
+      #       })
+
+  # ================================
+  # Redis Configuration
+  # ================================
+  redis:
+    host: ${REDIS_HOST:localhost}
+    port: ${REDIS_PORT:6379}
+    # TODO: Ensure Redis in production is:
+    # - Password protected via requirepass
+    # - Bound to internal IPs only (127.0.0.1 or private VPC)
+    # - Configured with TLS if exposed
+    # - Proper eviction policy and maxmemory set
+    # - Persistence configured (AOF/RDB) as needed
+
+  # ================================
+  # JSON Formatting (Optional)
+  # ================================
+  jackson:
+    serialization:
+      INDENT_OUTPUT: true
+
+  application:
+    name: chat-service
+
+group:
+    service:
+      url: http://localhost:8083
+jwt:
+   secret: Y0h4TkFxWkd6Um9TTktOVlFobU9naFN3SzY5cWhVY08=
+
+# ================================
+# Server Port
+# ================================
+server:
+  port: ${SERVER_PORT:8084}
+  # TODO: Move to .env for deployment-based overrides

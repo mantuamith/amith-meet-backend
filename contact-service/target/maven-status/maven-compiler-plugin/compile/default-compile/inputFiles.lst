@@ -1,0 +1,11 @@
+/Users/sandro/cloromeet/chat-app-microservices/contact-service/src/main/java/com/algomeet/contactservice/repository/ContactRepository.java
+/Users/sandro/cloromeet/chat-app-microservices/contact-service/src/main/java/com/algomeet/contactservice/security/JwtUtil.java
+/Users/sandro/cloromeet/chat-app-microservices/contact-service/src/main/java/com/algomeet/contactservice/ContactServiceApplication.java
+/Users/sandro/cloromeet/chat-app-microservices/contact-service/src/main/java/com/algomeet/contactservice/client/UserClient.java
+/Users/sandro/cloromeet/chat-app-microservices/contact-service/src/main/java/com/algomeet/contactservice/config/InterceptorConfig.java
+/Users/sandro/cloromeet/chat-app-microservices/contact-service/src/main/java/com/algomeet/contactservice/service/ContactService.java
+/Users/sandro/cloromeet/chat-app-microservices/contact-service/src/main/java/com/algomeet/contactservice/controller/ContactController.java
+/Users/sandro/cloromeet/chat-app-microservices/contact-service/src/main/java/com/algomeet/contactservice/dto/AddContactRequest.java
+/Users/sandro/cloromeet/chat-app-microservices/contact-service/src/main/java/com/algomeet/contactservice/entity/Contact.java
+/Users/sandro/cloromeet/chat-app-microservices/contact-service/src/main/java/com/algomeet/contactservice/security/JwtInterceptor.java
+/Users/sandro/cloromeet/chat-app-microservices/contact-service/src/main/java/com/algomeet/contactservice/dto/UserResponse.java

@@ -1,0 +1,9 @@
+/Users/sandro/cloromeet/chat-app-microservices/user-service/src/main/java/com/algomeet/userservice/model/User.java
+/Users/sandro/cloromeet/chat-app-microservices/user-service/src/main/java/com/algomeet/userservice/repository/UserRepository.java
+/Users/sandro/cloromeet/chat-app-microservices/user-service/src/main/java/com/algomeet/userservice/UserServiceApplication.java
+/Users/sandro/cloromeet/chat-app-microservices/user-service/src/main/java/com/algomeet/userservice/controller/BaseController.java
+/Users/sandro/cloromeet/chat-app-microservices/user-service/src/main/java/com/algomeet/userservice/controller/UserController.java
+/Users/sandro/cloromeet/chat-app-microservices/user-service/src/main/java/com/algomeet/userservice/dto/UserDto.java
+/Users/sandro/cloromeet/chat-app-microservices/user-service/src/main/java/com/algomeet/userservice/config/SecurityConfig.java
+/Users/sandro/cloromeet/chat-app-microservices/user-service/src/main/java/com/algomeet/userservice/dto/UserResponse.java
+/Users/sandro/cloromeet/chat-app-microservices/user-service/src/main/java/com/algomeet/userservice/dto/UserRequest.java

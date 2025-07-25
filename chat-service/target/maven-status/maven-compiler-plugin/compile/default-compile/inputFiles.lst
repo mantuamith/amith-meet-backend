@@ -1,0 +1,14 @@
+/Users/sandro/cloromeet/chat-app-microservices/chat-service/src/main/java/com/algomeet/chatservice/dto/GroupDto.java
+/Users/sandro/cloromeet/chat-app-microservices/chat-service/src/main/java/com/algomeet/chatservice/controller/ChatWebSocketController.java
+/Users/sandro/cloromeet/chat-app-microservices/chat-service/src/main/java/com/algomeet/chatservice/controller/MessageController.java
+/Users/sandro/cloromeet/chat-app-microservices/chat-service/src/main/java/com/algomeet/chatservice/repository/MessageRepository.java
+/Users/sandro/cloromeet/chat-app-microservices/chat-service/src/main/java/com/algomeet/chatservice/config/JwtHandshakeInterceptor.java
+/Users/sandro/cloromeet/chat-app-microservices/chat-service/src/main/java/com/algomeet/chatservice/model/MessageType.java
+/Users/sandro/cloromeet/chat-app-microservices/chat-service/src/main/java/com/algomeet/chatservice/config/WebSocketConfig.java
+/Users/sandro/cloromeet/chat-app-microservices/chat-service/src/main/java/com/algomeet/chatservice/controller/BaseController.java
+/Users/sandro/cloromeet/chat-app-microservices/chat-service/src/main/java/com/algomeet/chatservice/config/GlobalCorsConfig.java
+/Users/sandro/cloromeet/chat-app-microservices/chat-service/src/main/java/com/algomeet/chatservice/model/Message.java
+/Users/sandro/cloromeet/chat-app-microservices/chat-service/src/main/java/com/algomeet/chatservice/client/GroupClient.java
+/Users/sandro/cloromeet/chat-app-microservices/chat-service/src/main/java/com/algomeet/chatservice/ChatServiceApplication.java
+/Users/sandro/cloromeet/chat-app-microservices/chat-service/src/main/java/com/algomeet/chatservice/dto/MessageRequest.java
+/Users/sandro/cloromeet/chat-app-microservices/chat-service/src/main/java/com/algomeet/chatservice/dto/MessageResponse.java

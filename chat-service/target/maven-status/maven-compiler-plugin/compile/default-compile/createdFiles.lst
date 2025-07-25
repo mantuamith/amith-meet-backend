@@ -1,0 +1,14 @@
+com/algomeet/chatservice/controller/ChatWebSocketController.class
+com/algomeet/chatservice/repository/MessageRepository.class
+com/algomeet/chatservice/dto/MessageRequest.class
+com/algomeet/chatservice/config/GlobalCorsConfig.class
+com/algomeet/chatservice/controller/MessageController.class
+com/algomeet/chatservice/model/MessageType.class
+com/algomeet/chatservice/config/WebSocketConfig.class
+com/algomeet/chatservice/dto/MessageResponse.class
+com/algomeet/chatservice/model/Message.class
+com/algomeet/chatservice/ChatServiceApplication.class
+com/algomeet/chatservice/dto/GroupDto.class
+com/algomeet/chatservice/client/GroupClient.class
+com/algomeet/chatservice/config/JwtHandshakeInterceptor.class
+com/algomeet/chatservice/controller/BaseController.class

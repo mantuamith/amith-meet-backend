@@ -1,0 +1,25 @@
+spring:
+  profiles:
+    active: local
+
+---
+
+spring:
+  config:
+    activate:
+      on-profile: local
+  datasource:
+    url: jdbc:postgresql://localhost:5432/chatdb
+    username: chatuser
+    password: chatpass
+  data:
+    mongodb:
+      uri: mongodb://localhost:27017/chatdb
+  redis:
+    host: localhost
+    port: 6379
+  jackson:
+    serialization:
+      INDENT_OUTPUT: true
+server:
+  port: 8080
