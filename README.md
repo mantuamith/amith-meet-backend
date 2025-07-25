@@ -1,1 +1,0 @@
-# algomeet-backend
