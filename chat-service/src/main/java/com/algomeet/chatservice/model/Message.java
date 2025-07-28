@@ -17,7 +17,7 @@ public class Message {
     private boolean groupMessage;
 
     @NotBlank
-    String sender;
+    private String sender;
     @NotBlank// sender user ID
     private String receiver;   // receiver user ID (for direct messages)
 

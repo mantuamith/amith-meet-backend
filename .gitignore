@@ -1,8 +1,10 @@
-# Maven
-target/
+# Ignore all target folders in all modules
+**/target/
+
+# Allow the Maven Wrapper JAR
 !.mvn/wrapper/maven-wrapper.jar
 
-# IntelliJ
+# IntelliJ IDEA
 .idea/
 *.iml
 *.iws
@@ -14,4 +16,12 @@ out/
 # OS-specific
 .DS_Store
 Thumbs.db
+
+# Ignore compiled JARs if they accidentally land in root/module
+*.jar
+*.war
+*.class
+
+# VS Code (if used)
+.vscode/
 
