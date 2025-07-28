@@ -2,6 +2,15 @@ server:
   port: 8086
 
 spring:
+  profiles:
+    active: local
+
+---
+
+spring:
+  config:
+    activate:
+      on-profile: local
   application:
     name: contact-service
   datasource:
