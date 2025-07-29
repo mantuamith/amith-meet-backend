@@ -1,5 +1,8 @@
-server:
-  port: 8085
+spring:
+  profiles:
+    active: local
+
+---
 
 spring:
   config:
@@ -31,6 +34,9 @@ spring:
           auth: true
           starttls:
             enable: true
+
+server:
+  port: 8085
 
 jwt:
   secret: Y0h4TkFxWkd6Um9TTktOVlFobU9naFN3SzY5cWhVY08=

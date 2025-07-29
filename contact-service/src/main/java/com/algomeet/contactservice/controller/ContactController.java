@@ -1,8 +1,6 @@
 package com.algomeet.contactservice.controller;
 
-import com.algomeet.contactservice.dto.AddContactRequest;
 import com.algomeet.contactservice.dto.UserDto;
-import com.algomeet.contactservice.dto.UserResponse;
 import com.algomeet.contactservice.service.ContactService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -12,7 +10,7 @@ import java.security.Principal;
 import java.util.List;
 
 @RestController
-@RequestMapping("/contacts")
+@RequestMapping("/api/contacts")
 @RequiredArgsConstructor
 public class ContactController {
 
@@ -41,7 +39,7 @@ public class ContactController {
     }
 
     //  4. Get pending requests
-    @GetMapping("/requests")
+    @GetMapping("/pending-requests")
     public ResponseEntity<List<UserDto>> getPendingRequests(Principal principal) {
         return ResponseEntity.ok(contactService.getPendingRequests(principal.getName()));
     }
