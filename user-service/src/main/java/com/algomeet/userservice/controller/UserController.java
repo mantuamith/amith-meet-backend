@@ -5,12 +5,14 @@ import com.algomeet.userservice.dto.UserRequest;
 import com.algomeet.userservice.dto.UserResponse;
 import com.algomeet.userservice.model.User;
 import com.algomeet.userservice.repository.UserRepository;
+import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @RestController
@@ -65,9 +67,7 @@ public class UserController {
 
     @PostMapping("/batch")
     public ResponseEntity<List<UserDto>> getUsersByIds(@RequestBody List<String> userIds) {
-        /*List<Long> longIds = userIds.stream()
-                .map(Long::parseLong)
-                .collect(Collectors.toList());*/
+
 
         List<UserDto> users = userRepository.findAllByEmailIn(userIds)
                 .stream()
@@ -95,4 +95,17 @@ public class UserController {
         return ResponseEntity.ok(result);
     }
 
+    @DeleteMapping("/email/{email}")
+    @Transactional  // 👈 Works as a quick fix
+    public ResponseEntity<?> deleteUserByEmail(@PathVariable String email) {
+        if (!userRepository.existsByEmail(email)) {
+            return ResponseEntity.status(404).body(Map.of("error", "User not found"));
+        }
+
+        userRepository.deleteByEmail(email);
+        return ResponseEntity.ok(Map.of("message", "User deleted successfully"));
+    }
+
 }
+
+//TODO: Add Service layer

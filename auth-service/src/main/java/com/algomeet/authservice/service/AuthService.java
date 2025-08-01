@@ -47,4 +47,9 @@ public class AuthService {
         }
         return Optional.empty();
     }
+
+    public void deleteUser(String token) {
+        String email = jwtUtil.extractEmail(token);
+        userClient.deleteUserByEmail(email);
+    }
 }

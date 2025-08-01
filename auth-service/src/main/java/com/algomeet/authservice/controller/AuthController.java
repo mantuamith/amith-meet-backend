@@ -41,4 +41,16 @@ public class AuthController {
                 )))
                 .orElse(ResponseEntity.status(401).body(Map.of("error", "Invalid credentials")));
     }
+
+
+    @DeleteMapping("/delete")
+    public ResponseEntity<?> deleteAccount(@RequestHeader("Authorization") String authHeader) {
+        try {
+            String token = authHeader.replace("Bearer ", "");
+            authService.deleteUser(token);
+            return ResponseEntity.ok(Map.of("message", "User deleted successfully"));
+        } catch (Exception e) {
+            return ResponseEntity.status(400).body(Map.of("error", e.getMessage()));
+        }
+    }
 }
