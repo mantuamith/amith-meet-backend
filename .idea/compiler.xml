@@ -13,7 +13,6 @@
         <module name="media-service" />
         <module name="signaling-service" />
         <module name="meeting-service" />
-        <module name="chat-service" />
         <module name="common-lib" />
         <module name="notification-service" />
       </profile>

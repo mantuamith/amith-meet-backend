@@ -1,4 +1,4 @@
-package com.algomeet.chatservice.dto;
+package com.algomeet.chatservice.document;
 
 import java.util.List;
 

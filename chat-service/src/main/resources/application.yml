@@ -22,14 +22,7 @@ spring:
   data:
     mongodb:
       uri: mongodb://chatadmin:securePass123@192.168.0.156:27017/chatdb?authSource=admin
-      # TODO: Move credentials to a secure .env file
-      # TODO: Use db.createUser({...}) to set up user with readWrite role on chatdb:
-      #       use admin
-      #       db.createUser({
-      #         user: "chatadmin",
-      #         pwd: "securePass123",
-      #         roles: [{ role: "readWrite", db: "chatdb" }]
-      #       })
+
 
   # ================================
   # Redis Configuration
