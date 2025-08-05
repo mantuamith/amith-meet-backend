@@ -18,8 +18,8 @@ import java.util.function.Function;
 public class JwtUtil {
 
     private final Key secretKey;
-    private final long EXPIRATION_TIME = 24 * 60 * 60 * 1000; // 24 hours
-
+    private final long EXPIRATION_TIME = 24 * 60 * 60 * 1000; // 24 hours  TODO: Externalize this
+    private final long REFRESH_EXPIRATION_TIME = 30L * 24 * 60 * 60 * 1000; // 30 days  TODO: Externalize this
     public JwtUtil(@Value("${jwt.secret}") String secret) {
         this.secretKey = Keys.hmacShaKeyFor(Base64.getDecoder().decode(secret));
     }
@@ -34,6 +34,27 @@ public class JwtUtil {
                 .signWith(secretKey, SignatureAlgorithm.HS256)
                 .compact();
     }
+
+    public String generateRefreshToken(UserResponse user) {
+        return Jwts.builder()
+                .setSubject(user.getEmail())
+                .claim("id", user.getId())  // Useful for lookup if needed
+                .claim("type", "refresh")
+                .setIssuedAt(new Date())
+                .setExpiration(new Date(System.currentTimeMillis() + REFRESH_EXPIRATION_TIME))
+                .signWith(secretKey, SignatureAlgorithm.HS256)
+                .compact();
+    }
+
+    public boolean isRefreshToken(String token) {
+        try {
+            Claims claims = extractAllClaims(token);
+            return "refresh".equals(claims.get("type"));
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
 
     public String extractEmail(String token) {
         return extractClaim(token, Claims::getSubject);
@@ -52,7 +73,7 @@ public class JwtUtil {
                 .getBody();
     }
 
-    // ✅ Validate if token is expired or malformed
+    // Validate if token is expired or malformed
     public boolean isTokenValid(String token) {
         try {
             Claims claims = extractAllClaims(token);

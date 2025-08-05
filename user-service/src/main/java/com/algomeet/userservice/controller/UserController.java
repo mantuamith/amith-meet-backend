@@ -1,12 +1,14 @@
 package com.algomeet.userservice.controller;
 
 import com.algomeet.userservice.dto.UserDto;
+import com.algomeet.userservice.enums.ResponseCode;
 import com.algomeet.userservice.dto.UserRequest;
 import com.algomeet.userservice.dto.UserResponse;
 import com.algomeet.userservice.model.User;
 import com.algomeet.userservice.repository.UserRepository;
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.web.bind.annotation.*;
@@ -26,19 +28,29 @@ public class UserController {
 
     // Feign client will call this from auth-service to register user
     @PostMapping
-    public ResponseEntity<UserResponse> createUser(@RequestBody UserRequest request) {
+    public ResponseEntity<?> createUser(@RequestBody UserRequest request) {
         if (userRepository.findByEmail(request.getEmail()).isPresent()) {
-            return ResponseEntity.badRequest().build();
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
+                    "code", ResponseCode.AUTH_DUPLICATE_REGISTER_REQUEST.getCode(),
+                    "message", ResponseCode.AUTH_DUPLICATE_REGISTER_REQUEST.getDefaultMessage()
+            ));
         }
 
         User user = new User();
         user.setUsername(request.getUsername());
         user.setEmail(request.getEmail());
         user.setPassword(passwordEncoder.encode(request.getPassword()));
+        //user.setRole("USER"); //TODO: User Based Registeration needs to handled
+        //user.setEnabled(true);
         userRepository.save(user);
 
-        return ResponseEntity.ok(new UserResponse(user));
+        return ResponseEntity.ok(Map.of(
+                "code", ResponseCode.AUTH_REGISTER_SUCCESS.getCode(),
+                "message", ResponseCode.AUTH_REGISTER_SUCCESS.getDefaultMessage(),
+                "user", new UserResponse(user)
+        ));
     }
+
 
     @GetMapping("/username/{username}")
     public ResponseEntity<UserResponse> getUserByUsername(@PathVariable String username) {
