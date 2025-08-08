@@ -1,6 +1,8 @@
 package com.algomeet.meetservice.service;
 
+import com.algomeet.meetservice.Dto.MeetingRequest;
 import com.algomeet.meetservice.model.Meeting;
+import com.algomeet.meetservice.model.MeetingStatus;
 import com.algomeet.meetservice.repository.MeetingRepository;
 import com.algomeet.meetservice.util.RandomIdGenerator;
 import jakarta.mail.MessagingException;
@@ -10,13 +12,12 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
+import org.springframework.security.access.AccessDeniedException;
 
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 
 @Service
 public class MeetingService {
@@ -30,16 +31,14 @@ public class MeetingService {
     @Value("${meeting.expiration.minutes:60}")
     private int expirationMinutes;
 
-    private static final List<String> WORDS_3 = List.of("fox", "hat", "bit", "sun", "zen");
-    private static final List<String> WORDS_4 = List.of("zoom", "chat", "meet", "link", "room");
-
     private static final SecureRandom RANDOM = new SecureRandom();
 
-    public Meeting createMeeting(String email) {
+    public Meeting createMeeting(String email, MeetingRequest request) {
         //String id = generateReadableId();
         String id = RandomIdGenerator.generateId();
         String token = UUID.randomUUID().toString();
         Instant expiry = Instant.now().plus(expirationMinutes, ChronoUnit.MINUTES);
+
 
         Meeting meeting = new Meeting();
         meeting.setId(id);
@@ -48,19 +47,69 @@ public class MeetingService {
         meeting.setExpiresAt(expiry);
         meeting.setHostEmail(email);
 
-        Meeting saved = meetingRepository.save(meeting);
+        // Status is always SCHEDULED at creation
+        meeting.setStatus(MeetingStatus.SCHEDULED);
+
+        meeting.setPassword(request.getPassword());
+        meeting.setMeetingName(request.getMeetingName());
+        meeting.setMeetingTime(request.getMeetingTime());
+        meeting.setInvitedParticipants(request.getAttendees() != null ? new HashSet<>(request.getAttendees()) : new HashSet<>());
+        meeting.setRecurrence(request.getRecurrence());
+        meeting.setReminderEnabled(request.isReminderEnabled());
+        meeting.setReminderMinutes(request.getReminderMinutes());
+        meeting.setLobbyEnabled(request.isLobbyEnabled());
+        meeting.setPendingParticipants(new HashSet<>());
+        meeting.setAttendees(new HashSet<>());
+
         //sendEmailInvite(email, id, token);
-        return saved;
+        return meetingRepository.save(meeting);
     }
 
-    public Optional<Meeting> getMeetingById(String id, String token) {
-        return meetingRepository.findById(id)
-                .filter(m -> m.getToken().equals(token))
-                .filter(m -> m.getExpiresAt().isAfter(Instant.now()));
+    //Mark a meeting as COMPLETED
+    public boolean markMeetingAsCompleted(String meetingId, String email) {
+        Optional<Meeting> meetingOpt = meetingRepository.findById(meetingId);
+        if (meetingOpt.isPresent()) {
+            Meeting meeting = meetingOpt.get();
+
+            // Only host can mark as completed
+            if (meeting.getHostEmail().equals(email)) {
+                meeting.setStatus(MeetingStatus.COMPLETED);
+                meetingRepository.save(meeting);
+                return true;
+            }
+        }
+        return false;
     }
 
-    public List<Meeting> getMeetingsByHostEmail(String email) {
-        return meetingRepository.findAllByHostEmail(email);
+    public Optional<Meeting> getMeetingById(String id, String email, String token) {
+        Optional<Meeting> meetingOpt = meetingRepository.findById(id);
+        if (meetingOpt.isEmpty()) return Optional.empty();
+
+        Meeting meeting = meetingOpt.get();
+
+        boolean isHost = meeting.getHostEmail().equals(email);
+        boolean isInvited = meeting.getInvitedParticipants().contains(email);
+        boolean isApprovedAttendee = meeting.getAttendees().contains(email);
+        boolean isValidToken = token != null && token.equals(meeting.getToken());
+
+        if (!isHost && !isApprovedAttendee && !isValidToken) {
+            return Optional.empty();
+        }
+
+// If lobby is enabled and user is invited but not approved yet
+        if (meeting.isLobbyEnabled() && !isHost && isInvited && !isApprovedAttendee) {
+            meeting.getPendingParticipants().add(email);
+            meetingRepository.save(meeting);
+            throw new AccessDeniedException("Awaiting host approval");
+        }
+
+        return Optional.of(meeting);
+    }
+
+
+    //Get meetings hosted by user
+    public List<Meeting> getMeetingsByHostEmail(String hostEmail) {
+        return meetingRepository.findAllByHostEmail(hostEmail);
     }
 
     public void deleteExpiredMeetings() {
@@ -69,11 +118,16 @@ public class MeetingService {
         meetingRepository.deleteAll(expiredMeetings);
     }
 
-    private String generateReadableId() {
-        return String.format("%s-%s-%s",
-                randomFrom(WORDS_4),
-                randomFrom(WORDS_3),
-                randomFrom(WORDS_4));
+    //Get all meetings where user is host or attendee
+    public List<Meeting> getMeetingsForUser(String email) {
+        List<Meeting> hostedMeetings = meetingRepository.findAllByHostEmail(email);
+        List<Meeting> attendeeMeetings = meetingRepository.findAllByAttendeeEmail(email);
+
+        Set<Meeting> allMeetings = new HashSet<>();
+        allMeetings.addAll(hostedMeetings);
+        allMeetings.addAll(attendeeMeetings);
+
+        return new ArrayList<>(allMeetings);
     }
 
     private String randomFrom(List<String> words) {
@@ -92,4 +146,41 @@ public class MeetingService {
             e.printStackTrace();
         }
     }
+
+    public boolean approveParticipant(String meetingId, String hostEmail, String attendeeEmail) {
+        Optional<Meeting> optional = meetingRepository.findById(meetingId);
+        if (optional.isEmpty()) return false;
+
+        Meeting meeting = optional.get();
+
+        // Ensure only host can approve
+        if (!meeting.getHostEmail().equals(hostEmail)) return false;
+
+        if (meeting.getPendingParticipants().remove(attendeeEmail)) {
+            meeting.getAttendees().add(attendeeEmail);
+            meetingRepository.save(meeting);
+            return true;
+        }
+        return false;
+    }
+
+    public boolean rejectParticipant(String meetingId, String hostEmail, String attendeeEmail) {
+        Optional<Meeting> optional = meetingRepository.findById(meetingId);
+        if (optional.isEmpty()) return false;
+
+        Meeting meeting = optional.get();
+
+        // Ensure only host can reject
+        if (!meeting.getHostEmail().equalsIgnoreCase(hostEmail)) return false;
+
+        if (meeting.getPendingParticipants() != null && meeting.getPendingParticipants().remove(attendeeEmail)) {
+            // TODO: optionally track rejection or notify user
+            meetingRepository.save(meeting);
+            return true;
+        }
+
+        return false;
+    }
+
+
 }
