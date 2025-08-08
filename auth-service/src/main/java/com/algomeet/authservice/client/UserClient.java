@@ -5,11 +5,13 @@ import com.algomeet.authservice.dto.UserResponse;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Map;
+
 @FeignClient(name = "user-service", url = "http://localhost:8082") // You can externalize this later
 public interface UserClient {
 
     @PostMapping("/internal/users")
-    UserResponse createUser(@RequestBody UserRequest request);
+    Map<String, Object> createUser(@RequestBody UserRequest request);
 
     @GetMapping("/internal/users/username/{username}")
     UserResponse getUserByUsername(@PathVariable String username);
