@@ -28,9 +28,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                     FilterChain filterChain)
             throws ServletException, IOException {
 
+        // 1) Skip preflight
+        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
         String authHeader = request.getHeader("Authorization");
 
-        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+        // 2) Only proceed if Bearer token is present AND no auth already set
+        if (authHeader != null && authHeader.startsWith("Bearer ")
+                && SecurityContextHolder.getContext().getAuthentication() == null) {
+
             String token = authHeader.substring(7);
 
             if (jwtUtil.isTokenValid(token)) {
@@ -41,10 +50,22 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             } else {
-                System.out.println("JWT token is invalid or expired.");
+                // Optional: you can short-circuit with 401 here if you want strict behavior
+                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                return;
             }
         }
 
         filterChain.doFilter(request, response);
     }
+
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        String path = request.getServletPath();
+        return path.startsWith("/auth/register")
+                || path.startsWith("/auth/login")
+                || path.startsWith("/auth/refresh")
+                || "OPTIONS".equalsIgnoreCase(request.getMethod());
+    }
+
 }
