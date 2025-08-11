@@ -1,6 +1,6 @@
 package com.algomeet.chatservice.client;
 
-import com.algomeet.chatservice.dto.GroupDto;
+import com.algomeet.chatservice.document.GroupDto;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;

@@ -112,6 +112,8 @@ public class ContactService {
         // 1. Get all matching users
         List<UserDto> allMatches = userClient.searchUsers(query);
 
+        //TODO: Also Exclude already in Pending Requests
+
         // 2. Get user's existing contact user IDs
         List<String> existingContactIds = contactRepository.findContactUserIdsByUserId(currentUserId);
 

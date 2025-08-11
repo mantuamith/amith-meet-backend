@@ -20,5 +20,6 @@ spring:
   jackson:
     serialization:
       INDENT_OUTPUT: true
-server:
-  port: 8083
+group:
+  service:
+    url: http://localhost:8083

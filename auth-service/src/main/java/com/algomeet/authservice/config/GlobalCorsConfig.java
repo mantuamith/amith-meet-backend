@@ -1,3 +1,4 @@
+/*
 package com.algomeet.authservice.config;
 
 import org.springframework.context.annotation.Bean;
@@ -16,8 +17,9 @@ public class GlobalCorsConfig {
                         .allowedOrigins("http://localhost:5173") // ✅ allow your Vue UI
                         .allowedMethods("*")
                         .allowedHeaders("*")
-                        .allowCredentials(true); // only true if you’re using cookies or auth headers
+                        .allowCredentials(false); // only true if you’re using cookies or auth headers
             }
         };
     }
 }
+*/

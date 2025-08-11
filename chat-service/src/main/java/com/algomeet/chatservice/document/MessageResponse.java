@@ -1,0 +1,28 @@
+package com.algomeet.chatservice.document;
+
+import com.algomeet.chatservice.model.MessageStatus;
+import com.algomeet.chatservice.model.MessageType;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import lombok.*;
+
+import java.util.List;
+
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+@JsonInclude(JsonInclude.Include.NON_NULL)
+public class MessageResponse {
+    private String id;
+    private String from;
+    private String to;
+    private Long timestamp;
+    private MessageType type;
+    private MessageStatus status;
+    private String text;
+    private List<MediaItem> mediaGroup;
+    private MessageMetaData meta;
+    private ForwardInfo forwarded;
+    private Integer nMessages;
+    private List<String> failedRecipients;
+}
