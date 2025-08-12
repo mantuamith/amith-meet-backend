@@ -1,5 +1,6 @@
 package com.algomeet.meetservice.service;
 
+import com.algomeet.meetservice.Dto.EditMeetingRequest;
 import com.algomeet.meetservice.Dto.MeetingRequest;
 import com.algomeet.meetservice.model.Meeting;
 import com.algomeet.meetservice.model.MeetingStatus;
@@ -13,6 +14,7 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
 import java.time.Instant;
@@ -52,7 +54,9 @@ public class MeetingService {
 
         meeting.setPassword(request.getPassword());
         meeting.setMeetingName(request.getMeetingName());
-        meeting.setMeetingTime(request.getMeetingTime());
+        meeting.setMeetingStartTime(request.getMeetingStartTime());
+        meeting.setMeetingEndTime(request.getMeetingEndTime());
+        meeting.setMeetingDescription(request.getMeetDescription());
         meeting.setInvitedParticipants(request.getAttendees() != null ? new HashSet<>(request.getAttendees()) : new HashSet<>());
         meeting.setRecurrence(request.getRecurrence());
         meeting.setReminderEnabled(request.isReminderEnabled());
@@ -60,6 +64,8 @@ public class MeetingService {
         meeting.setLobbyEnabled(request.isLobbyEnabled());
         meeting.setPendingParticipants(new HashSet<>());
         meeting.setAttendees(new HashSet<>());
+
+        //TODO: Send Notification all users in Attendees that meeting is created
 
         //sendEmailInvite(email, id, token);
         return meetingRepository.save(meeting);
@@ -78,12 +84,14 @@ public class MeetingService {
                 return true;
             }
         }
+        //TODO: Meeting End Complete Notification
         return false;
     }
 
     public Optional<Meeting> getMeetingById(String id, String email, String token) {
         Optional<Meeting> meetingOpt = meetingRepository.findById(id);
-        if (meetingOpt.isEmpty()) return Optional.empty();
+        if (meetingOpt.isEmpty())
+            return Optional.empty();
 
         Meeting meeting = meetingOpt.get();
 
@@ -102,6 +110,8 @@ public class MeetingService {
             meetingRepository.save(meeting);
             throw new AccessDeniedException("Awaiting host approval");
         }
+
+        //TODO: USER JOined Notification
 
         return Optional.of(meeting);
     }
@@ -180,6 +190,60 @@ public class MeetingService {
         }
 
         return false;
+    }
+
+    @Transactional
+    public Meeting updateMeeting(String email, String id, EditMeetingRequest req) {
+        Meeting m = meetingRepository.findById(id)
+                .orElseThrow(() -> new AccessDeniedException("Meeting not found"));
+
+        // host-only
+        if (!m.getHostEmail().equals(email)) {
+            throw new AccessDeniedException("Only host can edit");
+        }
+        // optional: disallow editing expired/completed
+        if (m.getExpiresAt() != null && m.getExpiresAt().isBefore(Instant.now())) {
+            throw new AccessDeniedException("Meeting already expired");
+        }
+        if (m.getStatus() != null && m.getStatus() != MeetingStatus.SCHEDULED) {
+            throw new AccessDeniedException("Only scheduled meetings can be edited");
+        }
+
+        // apply partial updates
+        if (req.getMeetingName() != null)
+            m.setMeetingName(req.getMeetingName());
+        if (req.getMeetDescription() != null)
+            m.setMeetingDescription(req.getMeetDescription());
+        if (req.getMeetingStartTime() != null)
+            m.setMeetingStartTime(req.getMeetingStartTime());
+        if (req.getMeetingEndTime() != null)
+            m.setMeetingEndTime(req.getMeetingEndTime());
+        if (req.getRecurrence() != null)
+            m.setRecurrence(req.getRecurrence());
+        if (req.getReminderEnabled() != null)
+            m.setReminderEnabled(req.getReminderEnabled());
+        if (req.getReminderMinutes() != null)
+            m.setReminderMinutes(req.getReminderMinutes());
+        if (req.getLobbyEnabled() != null)
+            m.setLobbyEnabled(req.getLobbyEnabled());
+        if (req.getAttendees() != null)
+            m.setInvitedParticipants(new HashSet<>(req.getAttendees()));
+
+        //Send Notification to update the participents.
+
+        return meetingRepository.save(m);
+    }
+
+    @Transactional
+    public void deleteMeeting(String email, String id) {
+        Meeting m = meetingRepository.findById(id)
+                .orElseThrow(() -> new AccessDeniedException("Meeting not found"));
+
+        if (!m.getHostEmail().equals(email)) {
+            throw new AccessDeniedException("Only host can delete");
+        }
+
+        meetingRepository.delete(m);
     }
 
 

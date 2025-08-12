@@ -13,7 +13,11 @@ public class MeetingRequest {
 
     private String password;          // Optional password
 
-    private Instant meetingTime;      // Scheduled start time
+    private Instant meetingStartTime;      // Scheduled start time
+
+    private Instant meetingEndTime;
+
+    private String meetDescription;
 
     private List<String> attendees;   // List of attendee emails
 
@@ -24,4 +28,6 @@ public class MeetingRequest {
     private Integer reminderMinutes = 10;   // Default: 10 minutes before
 
     private boolean lobbyEnabled = false;   // Default: disabled
+
+    private  boolean passwordEnabled = false;
 }

@@ -15,5 +15,5 @@ public interface MeetingRepository extends JpaRepository<Meeting, String> {
     @Query("SELECT m FROM Meeting m JOIN m.attendees a WHERE a = :email")
     List<Meeting> findAllByAttendeeEmail(@Param("email") String email);
 
-    List<Meeting> findByMeetingTimeBetween(Instant start, Instant end);
+    List<Meeting> findByMeetingStartTimeBetween(Instant start, Instant end);
 }

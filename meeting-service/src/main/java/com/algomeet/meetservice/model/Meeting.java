@@ -5,7 +5,6 @@ import lombok.Data;
 
 import java.time.Instant;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 
 @Data
@@ -27,7 +26,17 @@ public class Meeting {
 
     private String meetingName; // Friendly meeting title
 
-    private Instant meetingTime; // Scheduled start time
+    @Column(name = "meeting_start_time", nullable = false)  // renamed from meeting_time
+    private Instant meetingStartTime; // was meetingTime
+
+    @Column(name = "meeting_end_time")
+    private Instant meetingEndTime;   // NEW
+
+    @Column(name = "meeting_description")
+    private String meetingDescription = "AlgoMeet Meeting -- Default Description";
+
+    @Column (name = "password_enable", nullable = true)
+    private boolean passwordEnabled = false;
 
     @Enumerated(EnumType.STRING)
     private MeetingStatus status = MeetingStatus.SCHEDULED;
