@@ -1,5 +1,6 @@
 package com.algomeet.meetservice.controller;
 
+import com.algomeet.meetservice.Dto.EditMeetingRequest;
 import com.algomeet.meetservice.Dto.MeetingRequest;
 import com.algomeet.meetservice.Dto.MeetingResponse;
 import com.algomeet.meetservice.Dto.ApproveRejectRequest;
@@ -9,7 +10,6 @@ import com.algomeet.meetservice.service.MeetingService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.security.access.AccessDeniedException;
@@ -151,6 +151,53 @@ public class MeetingController {
         return success
                 ? ResponseEntity.ok(Map.of("message", "Participant rejected"))
                 : ResponseEntity.status(403).body(Map.of("error", "Not allowed or invalid"));
+    }
+
+    // TODO: Move exception handling to a global @RestControllerAdvice later.
+    @PutMapping("/{id}")
+    public ResponseEntity<MeetingResponse> editMeeting(
+            @PathVariable String id,
+            @RequestBody EditMeetingRequest request) {
+
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+
+        try {
+            Meeting updated = meetingService.updateMeeting(email, id, request);
+            return ResponseEntity.ok(
+                    MeetingResponse.success("SUCCESS", "Meeting updated", updated)
+            );
+        } catch (AccessDeniedException ade) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(MeetingResponse.error("MEETING_ACCESS_DENIED", ade.getMessage()));
+        } catch (IllegalArgumentException iae) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(MeetingResponse.error("BAD_REQUEST", iae.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(MeetingResponse.error("INTERNAL_ERROR", "Unexpected error while updating meeting"));
+        }
+    }
+
+    // TODO: Move exception handling to a global @RestControllerAdvice later.
+    @DeleteMapping("/{id}")
+    public ResponseEntity<MeetingResponse> deleteMeeting(@PathVariable String id) {
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+
+        try {
+            meetingService.deleteMeeting(email, id);
+            return ResponseEntity.ok(
+                    MeetingResponse.success("SUCCESS", "Meeting deleted", null)
+            );
+        } catch (AccessDeniedException ade) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(MeetingResponse.error("MEETING_ACCESS_DENIED", ade.getMessage()));
+        } catch (IllegalArgumentException iae) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(MeetingResponse.error("BAD_REQUEST", iae.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(MeetingResponse.error("INTERNAL_ERROR", "Unexpected error while deleting meeting"));
+        }
     }
 
 }
