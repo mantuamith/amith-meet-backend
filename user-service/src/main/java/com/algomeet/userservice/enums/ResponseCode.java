@@ -2,7 +2,12 @@ package com.algomeet.userservice.enums;
 
 public enum ResponseCode {
     AUTH_REGISTER_SUCCESS("AUTH_REGISTER_SUCCESS", "User registered successfully"),
-    AUTH_DUPLICATE_REGISTER_REQUEST("USER_DUPLICATE_EMAIL", "User with this email already exists.");
+    AUTH_DUPLICATE_BOTH("AUTH_DUPLICATE_BOTH", "User and email both already exists."),
+    AUTH_DUPLICATE_EMAIL("AUTH_DUPLICATE_EMAIL","Email already exists."),
+    AUTH_DUPLICATE_USERNAME("AUTH_DUPLICATE_USERNAME","User name already exists")
+    ;
+
+
 
     private final String code;
     private final String defaultMessage;

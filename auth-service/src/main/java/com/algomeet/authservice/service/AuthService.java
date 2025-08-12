@@ -16,6 +16,10 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.Map;
+import java.util.Set;
+
+import static com.algomeet.authservice.util.FeignErrorUtil.extractCode;
+import static com.algomeet.authservice.util.FeignErrorUtil.extractDuplicateFields;
 
 @Service
 public class AuthService {
@@ -45,8 +49,22 @@ public class AuthService {
 
             // Extract and map "user" object to UserResponse
             return objectMapper.convertValue(responseMap.get("user"), UserResponse.class);
-        } catch (FeignException.Conflict ex) {
-            throw new UserAlreadyExistsException("User with this email already exists.");
+        } catch (FeignException.Conflict e) {
+            Set<String> fields = extractDuplicateFields(e);
+
+            if (fields.isEmpty()) {
+                String code = extractCode(e);
+                if (ResponseCode.AUTH_DUPLICATE_EMAIL.getCode().equals(code))
+                    fields = Set.of("email");
+                else if (ResponseCode.AUTH_DUPLICATE_USERNAME.getCode().equals(code))
+                    fields = Set.of("username");
+                else if (ResponseCode.AUTH_DUPLICATE_BOTH.getCode().equals(code))
+                    fields = Set.of("email", "username");
+            }
+
+            if (fields.isEmpty()) fields = Set.of("unknown");
+            throw new UserAlreadyExistsException(fields);
+
         }
     }
 

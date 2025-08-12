@@ -8,6 +8,7 @@ import com.algomeet.userservice.model.User;
 import com.algomeet.userservice.repository.UserRepository;
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -29,10 +30,28 @@ public class UserController {
     // Feign client will call this from auth-service to register user
     @PostMapping
     public ResponseEntity<?> createUser(@RequestBody UserRequest request) {
-        if (userRepository.findByEmail(request.getEmail()).isPresent()) {
+        boolean emailTaken    = userRepository.existsByEmail(request.getEmail());
+        boolean usernameTaken = userRepository.existsByUsername(request.getUsername());
+
+        if (emailTaken && usernameTaken) {
             return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
-                    "code", ResponseCode.AUTH_DUPLICATE_REGISTER_REQUEST.getCode(),
-                    "message", ResponseCode.AUTH_DUPLICATE_REGISTER_REQUEST.getDefaultMessage()
+                    "code", ResponseCode.AUTH_DUPLICATE_BOTH.getCode(),
+                    "message", ResponseCode.AUTH_DUPLICATE_BOTH.getDefaultMessage(),
+                    "fields", List.of("email", "username")
+            ));
+        }
+        if (emailTaken) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
+                    "code", ResponseCode.AUTH_DUPLICATE_EMAIL.getCode(),
+                    "message", ResponseCode.AUTH_DUPLICATE_EMAIL.getDefaultMessage(),
+                    "fields", List.of("email")
+            ));
+        }
+        if (usernameTaken) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
+                    "code", ResponseCode.AUTH_DUPLICATE_USERNAME.getCode(),
+                    "message", ResponseCode.AUTH_DUPLICATE_USERNAME.getDefaultMessage(),
+                    "fields", List.of("username")
             ));
         }
 
@@ -40,16 +59,24 @@ public class UserController {
         user.setUsername(request.getUsername());
         user.setEmail(request.getEmail());
         user.setPassword(passwordEncoder.encode(request.getPassword()));
-        //user.setRole("USER"); //TODO: User Based Registeration needs to handled
-        //user.setEnabled(true);
-        userRepository.save(user);
+        // TODO: user.setRole(...); user.setEnabled(...);
 
-        return ResponseEntity.ok(Map.of(
-                "code", ResponseCode.AUTH_REGISTER_SUCCESS.getCode(),
-                "message", ResponseCode.AUTH_REGISTER_SUCCESS.getDefaultMessage(),
-                "user", new UserResponse(user)
-        ));
+        try {
+            userRepository.save(user);
+            return ResponseEntity.ok(Map.of(
+                    "code", ResponseCode.AUTH_REGISTER_SUCCESS.getCode(),
+                    "message", ResponseCode.AUTH_REGISTER_SUCCESS.getDefaultMessage(),
+                    "user", new UserResponse(user)
+            ));
+        } catch (DataIntegrityViolationException ex) {
+            // Safety net in case of race condition vs. DB unique constraints
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
+                    "code", ResponseCode.AUTH_DUPLICATE_BOTH.getCode(),
+                    "message", "Email or username already exists"
+            ));
+        }
     }
+
 
 
     @GetMapping("/username/{username}")
