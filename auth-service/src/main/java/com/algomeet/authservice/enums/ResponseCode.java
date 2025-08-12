@@ -13,7 +13,10 @@ public enum ResponseCode {
     AUTH_REFRESH_FAILED("AUTH_REFRESH_FAILED", "Unexpected error during token refresh"),
     AUTH_LOGOUT_SUCCESS("AUTH_LOGOUT_SUCCESS", "User logged out successfully"),
     AUTH_LOGOUT_FAILED("AUTH_LOGOUT_FAILED", "Logout failed"),
-    ;
+    AUTH_DUPLICATE_BOTH("AUTH_DUPLICATE_BOTH", "User and email both already exists."),
+    AUTH_DUPLICATE_EMAIL("AUTH_DUPLICATE_EMAIL","Email already exists."),
+    AUTH_DUPLICATE_USERNAME("AUTH_DUPLICATE_USERNAME","User name already exists");
+
 
     private final String code;
     private final String defaultMessage;
