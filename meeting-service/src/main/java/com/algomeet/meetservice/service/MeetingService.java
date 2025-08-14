@@ -58,12 +58,19 @@ public class MeetingService {
         meeting.setMeetingEndTime(request.getMeetingEndTime());
         meeting.setMeetingDescription(request.getMeetDescription());
         meeting.setInvitedParticipants(request.getAttendees() != null ? new HashSet<>(request.getAttendees()) : new HashSet<>());
+
         meeting.setRecurrence(request.getRecurrence());
         meeting.setReminderEnabled(request.isReminderEnabled());
         meeting.setReminderMinutes(request.getReminderMinutes());
         meeting.setLobbyEnabled(request.isLobbyEnabled());
         meeting.setPendingParticipants(new HashSet<>());
-        meeting.setAttendees(new HashSet<>());
+
+        if(!request.isLobbyEnabled()){
+            meeting.setAttendees(new HashSet<>(request.getAttendees()));
+        }else {
+            System.out.println("Lobby is Enabled");
+            meeting.setAttendees(new HashSet<>());
+        }
 
         //TODO: Send Notification all users in Attendees that meeting is created
 
@@ -128,17 +135,16 @@ public class MeetingService {
         meetingRepository.deleteAll(expiredMeetings);
     }
 
-    //Get all meetings where user is host or attendee
+    // Get all meetings where user is host or attendee
     public List<Meeting> getMeetingsForUser(String email) {
-        List<Meeting> hostedMeetings = meetingRepository.findAllByHostEmail(email);
-        List<Meeting> attendeeMeetings = meetingRepository.findAllByAttendeeEmail(email);
+        //List<Meeting> hostedMeetings = meetingRepository.findAllByHostEmail(email);
+        //List<Meeting> attendeeMeetings = meetingRepository.findAllByAttendeeEmail(email);
 
-        Set<Meeting> allMeetings = new HashSet<>();
-        allMeetings.addAll(hostedMeetings);
-        allMeetings.addAll(attendeeMeetings);
 
-        return new ArrayList<>(allMeetings);
+        return meetingRepository
+                .findDistinctByHostEmailOrAttendeesContainingOrderByMeetingStartTimeAsc(email,email);
     }
+
 
     private String randomFrom(List<String> words) {
         return words.get(RANDOM.nextInt(words.size()));
