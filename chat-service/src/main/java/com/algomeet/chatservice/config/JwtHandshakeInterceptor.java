@@ -4,6 +4,8 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import jakarta.annotation.PostConstruct;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.server.ServerHttpRequest;
 import org.springframework.http.server.ServerHttpResponse;
@@ -20,7 +22,7 @@ import java.util.Map;
 @Component
 public class JwtHandshakeInterceptor implements HandshakeInterceptor {
 
-
+    private static final Logger log = LoggerFactory.getLogger(JwtHandshakeInterceptor.class);
 
     @Value("${jwt.secret}")
     private String jwtSecret;
@@ -36,6 +38,8 @@ public class JwtHandshakeInterceptor implements HandshakeInterceptor {
     public boolean beforeHandshake(ServerHttpRequest request, ServerHttpResponse response,
                                    WebSocketHandler wsHandler, Map<String, Object> attributes) throws Exception {
         String query = request.getURI().getQuery();
+        log.info("[WS HANDSHAKE] URI: {}", request.getURI());
+
         if (query != null && query.contains("token=")) {
             String token = Arrays.stream(query.split("&"))
                     .filter(s -> s.startsWith("token="))
@@ -50,20 +54,25 @@ public class JwtHandshakeInterceptor implements HandshakeInterceptor {
                         .parseClaimsJws(token)
                         .getBody();
 
-                attributes.put("principal", (Principal) () -> claims.getSubject());
+                String username = claims.getSubject();
+                log.info("[WS HANDSHAKE] JWT Subject (username): {}", username);
+
+                attributes.put("principal", (Principal) () -> username);
+                return true;
 
             } catch (Exception e) {
+                log.warn("[WS HANDSHAKE] Invalid token: {}", e.getMessage());
                 return false;
             }
-        } else {
-            return false;
         }
 
-        return true;
+        log.warn("[WS HANDSHAKE] Missing token in query params");
+        return false;
     }
 
     @Override
     public void afterHandshake(ServerHttpRequest request, ServerHttpResponse response,
                                WebSocketHandler wsHandler, Exception exception) {
+        log.info("[WS HANDSHAKE] After handshake");
     }
 }
