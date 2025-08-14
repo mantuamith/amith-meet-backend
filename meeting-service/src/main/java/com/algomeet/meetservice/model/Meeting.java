@@ -18,6 +18,7 @@ public class Meeting {
 
     private String hostEmail;  // Added field
 
+
     private Instant createdAt;
 
     private Instant expiresAt;
