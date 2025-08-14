@@ -6,15 +6,15 @@ import com.algomeet.chatservice.dto.RecentReceivedMessageResponse;
 import com.algomeet.chatservice.mapper.MessageMapper;
 import com.algomeet.chatservice.repository.MessageRepository;
 import com.algomeet.chatservice.service.MessageService;
+import com.algomeet.chatservice.dto.ResetUnreadRequest;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.http.ResponseEntity;
 
 import java.security.Principal;
-import java.time.Instant;
 import java.util.List;
 
 @RestController
@@ -79,8 +79,9 @@ public class MessageController {
 
     //Reset unread count API
     @PostMapping("/reset-unread")
-    public void resetUnread(@RequestParam String sender, @RequestParam String receiver) {
-        messageService.resetUnreadCount(sender, receiver);
+    public ResponseEntity<Void> resetUnread(@Valid @RequestBody ResetUnreadRequest request) {
+        messageService.resetUnreadCount(request.getSender(), request.getReceiver());
+        return ResponseEntity.noContent().build();
     }
 
 }

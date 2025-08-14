@@ -7,6 +7,7 @@ import com.algomeet.chatservice.mapper.MessageMapper;
 import com.algomeet.chatservice.model.MessageStatus;
 import com.algomeet.chatservice.repository.MessageRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
@@ -22,34 +23,15 @@ public class MessageService {
     private final MessageRepository messageRepository;
     private final SimpMessagingTemplate messagingTemplate;
 
+    @Autowired
+    private final MessageMapper messageMapper;
+
     public List<MessageResponse> getRecentUnreadMessages(String userId) {
-        List<MessageDocument> unreadMessages = messageRepository.findByReceiverAndStatusNot(userId, com.algomeet.chatservice.model.MessageStatus.READ);
-
-        Map<String, List<MessageDocument>> groupedBySender = unreadMessages.stream()
-                .collect(Collectors.groupingBy(MessageDocument::getSender));
-
-        List<MessageResponse> responses = new ArrayList<>();
-
-        for (Map.Entry<String, List<MessageDocument>> entry : groupedBySender.entrySet()) {
-            List<MessageDocument> messages = entry.getValue();
-            messages.sort(Comparator.comparing(MessageDocument::getTimestamp).reversed());
-
-            MessageDocument latest = messages.get(0);
-
-            responses.add(MessageResponse.builder()
-                    .id(latest.getId())
-                    .from(latest.getSender())
-                    .to(userId)
-                    .timestamp(latest.getTimestamp().toEpochMilli())
-                    .type(latest.getType())
-                    .status(latest.getStatus())
-                    .text(latest.getContent())
-                    .nMessages(messages.size())
-                    .build()
-            );
-        }
-
-        return responses;
+        return messageRepository.findByReceiverAndStatusNot(userId, MessageStatus.READ)
+                .stream()
+                .sorted(Comparator.comparing(MessageDocument::getTimestamp).reversed())
+                .map(messageMapper::toResponse)
+                .toList();
     }
 
     public void resetUnreadCount(String sender, String receiver) {

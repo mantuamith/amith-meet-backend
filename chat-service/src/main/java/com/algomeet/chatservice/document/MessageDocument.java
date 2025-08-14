@@ -24,7 +24,7 @@ public class MessageDocument {
     @Field("isGroupMessage")
     private boolean groupMessage;
 
-    @NotBlank
+
     private String sender;   // sender user ID (from)
 
     @NotBlank
