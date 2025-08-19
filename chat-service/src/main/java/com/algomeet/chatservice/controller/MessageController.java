@@ -10,6 +10,7 @@ import com.algomeet.chatservice.dto.ResetUnreadRequest;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -42,14 +43,23 @@ public class MessageController {
     public List<MessageResponse> getDirectMessages(@PathVariable String otherUser, @RequestParam(defaultValue = "false") boolean paged
     , @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size) {
         String currentUser = getCurrentUserName();
-        List<MessageDocument> docs = paged ?
-                messageRepository.findPagedBySenderAndReceiver(currentUser, otherUser, otherUser, currentUser,
-                        PageRequest.of(page, Math.min(size, 100), Sort.by(Sort.Direction.DESC, "timestamp"))) :
-                messageRepository.findTop100BySenderAndReceiverOrReceiverAndSenderOrderByTimestampDesc(currentUser, otherUser, otherUser, currentUser);
 
-        return docs.stream()
-                .map(messageMapper::toResponse)
-                .toList();
+        List<MessageDocument> docs;
+        if (paged) {
+            Pageable p = PageRequest.of(page, Math.min(size, 100),
+                    Sort.by(Sort.Direction.ASC, "timestamp"));
+            docs = messageRepository
+                    .findConversation(currentUser, otherUser, p)
+                    .getContent();
+        } else {
+            docs = messageRepository
+                    .findConversationAll(currentUser, otherUser,
+                            Sort.by(Sort.Direction.ASC, "timestamp"))
+                    .stream()
+                    .toList();
+        }
+        return docs.stream().map(messageMapper::toResponse).toList();
+
     }
 
     // Get messages for a group (group chat)
