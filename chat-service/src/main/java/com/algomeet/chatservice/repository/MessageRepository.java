@@ -2,8 +2,11 @@ package com.algomeet.chatservice.repository;
 
 import com.algomeet.chatservice.document.MessageDocument;
 import com.algomeet.chatservice.model.MessageStatus;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.repository.MongoRepository;
+import org.springframework.data.mongodb.repository.Query;
 
 import java.util.List;
 
@@ -29,4 +32,11 @@ public interface MessageRepository extends MongoRepository<MessageDocument, Stri
     List<MessageDocument> findByReceiverAndStatusNot(String userId, MessageStatus messageStatus);
 
     List<MessageDocument> findBySenderOrReceiver(String userId, String userId1);
+
+    @Query("{ '$or': [ { 'sender': ?0, 'receiver': ?1 }, { 'sender': ?1, 'receiver': ?0 } ] }")
+    Page<MessageDocument> findConversation(String userA, String userB, Pageable pageable);
+
+    // Non-paged (if you really want a list):
+    @Query(value = "{ '$or': [ { 'sender': ?0, 'receiver': ?1 }, { 'sender': ?1, 'receiver': ?0 } ] }")
+    List<MessageDocument> findConversationAll(String userA, String userB, Sort sort);
 }
