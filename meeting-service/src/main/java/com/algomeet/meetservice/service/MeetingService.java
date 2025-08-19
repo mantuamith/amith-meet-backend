@@ -123,6 +123,24 @@ public class MeetingService {
         return Optional.of(meeting);
     }
 
+    public Optional<Meeting> getOpenMeetingById(String id, String token) {
+        Optional<Meeting> meetingOpt = meetingRepository.findById(id);
+        if (meetingOpt.isEmpty())
+            return Optional.empty();
+
+        Meeting meeting = meetingOpt.get();
+
+
+        boolean isValidToken = token != null && token.equals(meeting.getToken());
+
+        if ( !isValidToken) {
+            return Optional.empty();
+        }
+
+
+        return Optional.of(meeting);
+    }
+
 
     //Get meetings hosted by user
     public List<Meeting> getMeetingsByHostEmail(String hostEmail) {

@@ -22,6 +22,7 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/auth/**").permitAll()
+                        .requestMatchers("/api/meetings/open/**").permitAll()   // allow open meetings
                         .requestMatchers("/api/meetings/**").authenticated()
                         .anyRequest().denyAll()
                 )

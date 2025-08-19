@@ -80,6 +80,29 @@ public class MeetingController {
     }
 
 
+    //For open meetings Eg: Users invited may not be logged and would not use our applicatio
+    //But ensures that valid meeting hosted are exposed to join.
+
+    @GetMapping("/open/{id}")
+    public ResponseEntity<MeetingResponse> getOpenMeeting(
+            @PathVariable String id,
+            @RequestParam(required = false) String token) {
+
+        try {
+            Optional<Meeting> meeting = meetingService.getOpenMeetingById(id, token);
+            if (meeting.isPresent()) {
+                return ResponseEntity.ok(MeetingResponse.success("MEETING_JOINED_SUCCESS","Meeting fetch Successful",meeting.get()));
+            } else {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(MeetingResponse.error("MEETING_ACCESS_DENIED", "Unauthorized or invalid token"));
+            }
+        } catch (AccessDeniedException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(MeetingResponse.error("MEETING_ACCESS_DENIED", e.getMessage()));
+        }
+    }
+
+
 
     @GetMapping("/ping")
     public ResponseEntity<String> ping() {
