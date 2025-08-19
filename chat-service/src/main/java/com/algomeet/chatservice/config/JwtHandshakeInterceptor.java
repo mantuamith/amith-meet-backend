@@ -54,9 +54,11 @@ public class JwtHandshakeInterceptor implements HandshakeInterceptor {
                         .parseClaimsJws(token)
                         .getBody();
 
-                String username = claims.getSubject();
-                log.info("[WS HANDSHAKE] JWT Subject (username): {}", username);
-
+                String username = (String) claims.get("username"); // <-- canonical
+                if (username == null || username.isBlank()) {
+                    log.warn("[WS HANDSHAKE] username claim missing/blank");
+                    return false;
+                }
                 attributes.put("principal", (Principal) () -> username);
                 return true;
 

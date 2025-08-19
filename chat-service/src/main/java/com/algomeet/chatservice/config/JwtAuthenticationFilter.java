@@ -43,13 +43,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         .parseClaimsJws(token)
                         .getBody();
 
-                String username = claims.getSubject();
-                if (username != null) {
-                    // For now, no roles are extracted. Add authorities here if needed.
-                    UsernamePasswordAuthenticationToken authentication =
-                            new UsernamePasswordAuthenticationToken(username, null, Collections.emptyList());
+                String username = claims.get("username",String.class);
+                if (username == null && username.isBlank()) {
 
-                    SecurityContextHolder.getContext().setAuthentication(authentication);
+                    username = claims.getSubject();
+
+
+
+                }
+                if(username != null){
+                    // For now, no roles are extracted. Add authorities here if needed.
+                    var auth = new UsernamePasswordAuthenticationToken(username, null, Collections.emptyList());
+                    SecurityContextHolder.getContext().setAuthentication(auth);
                 }
 
             } catch (Exception ex) {
