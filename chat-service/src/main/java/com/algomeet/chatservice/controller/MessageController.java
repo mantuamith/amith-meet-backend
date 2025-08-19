@@ -11,6 +11,8 @@ import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.http.ResponseEntity;
 
@@ -36,13 +38,14 @@ public class MessageController {
     }
 
     // Get messages between two users (direct chat)
-    @GetMapping("/user/{user1}/{user2}")
-    public List<MessageResponse> getDirectMessages(@PathVariable String user1, @PathVariable String user2, @RequestParam(defaultValue = "false") boolean paged
+    @GetMapping("/user/{otherUser}")
+    public List<MessageResponse> getDirectMessages(@PathVariable String otherUser, @RequestParam(defaultValue = "false") boolean paged
     , @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size) {
+        String currentUser = getCurrentUserName();
         List<MessageDocument> docs = paged ?
-                messageRepository.findPagedBySenderAndReceiver(user1, user2, user2, user1,
+                messageRepository.findPagedBySenderAndReceiver(currentUser, otherUser, otherUser, currentUser,
                         PageRequest.of(page, Math.min(size, 100), Sort.by(Sort.Direction.DESC, "timestamp"))) :
-                messageRepository.findTop100BySenderAndReceiverOrReceiverAndSenderOrderByTimestampDesc(user1, user2, user1, user2);
+                messageRepository.findTop100BySenderAndReceiverOrReceiverAndSenderOrderByTimestampDesc(currentUser, otherUser, otherUser, currentUser);
 
         return docs.stream()
                 .map(messageMapper::toResponse)
@@ -71,7 +74,7 @@ public class MessageController {
     }
 
 
-    // Recent unread messages API
+    // Recent unread messages API = TO Address
     @GetMapping("/recent/{userId}")
     public List<MessageResponse> getRecentUnread(@PathVariable String userId) {
         return messageService.getRecentUnreadMessages(userId);
@@ -82,6 +85,12 @@ public class MessageController {
     public ResponseEntity<Void> resetUnread(@Valid @RequestBody ResetUnreadRequest request) {
         messageService.resetUnreadCount(request.getSender(), request.getReceiver());
         return ResponseEntity.noContent().build();
+    }
+
+
+    private String getCurrentUserName() {
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        return auth.getName(); // now returns username instead of email
     }
 
 }

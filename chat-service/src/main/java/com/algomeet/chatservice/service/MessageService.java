@@ -52,8 +52,16 @@ public class MessageService {
 
     public MessageDocument saveMessage(MessageDocument message, Principal principal) {
         message.setSender(principal.getName());
-        message.setTimestamp(Instant.now());
-        message.setStatus(com.algomeet.chatservice.model.MessageStatus.SENT);
+        if (message.getStatus() == null) {
+            message.setStatus(com.algomeet.chatservice.model.MessageStatus.SENT);
+        }
+        if (message.getTimestamp() == null) {
+            message.setTimestamp(java.time.Instant.now());
+        }
+        // reject self-messages
+        // if (message.getSender().equals(message.getReceiver())) {
+        //     throw new IllegalArgumentException("Sender and receiver cannot be the same");
+        // }
         return messageRepository.save(message);
     }
 
@@ -64,26 +72,41 @@ public class MessageService {
     }
 
     public List<RecentReceivedMessageResponse> getRecentMessages(String userId) {
-        List<MessageDocument> allMessages = messageRepository.findByReceiver(userId);
+        List<MessageDocument> all = messageRepository.findBySenderOrReceiver(userId, userId);
+        if (all.isEmpty()) return List.of();
 
-        return allMessages.stream()
-                .collect(Collectors.groupingBy(MessageDocument::getSender))
-                .entrySet().stream()
-                .map(entry -> {
-                    String contactId = entry.getKey();
-                    List<MessageDocument> messages = entry.getValue();
-                    MessageDocument latest = messages.stream()
-                            .max(Comparator.comparing(MessageDocument::getTimestamp))
-                            .orElse(null);
+        // 2) group by "the other participant"
+        Map<String, List<MessageDocument>> byContact = all.stream()
+                .collect(Collectors.groupingBy(m ->
+                        userId.equals(m.getSender()) ? m.getReceiver() : m.getSender()
+                ));
 
-                    long timestamp = latest != null ? latest.getTimestamp().toEpochMilli() : 0;
-                    String newMessage = latest != null ? latest.getContent() : null;
-                    long unreadCount = messages.stream()
-                            .filter(m -> m.getStatus() != MessageStatus.DELIVERED)
-                            .count();
+        // 3) for each contact, pick latest message in the thread (either direction)
+        List<RecentReceivedMessageResponse> result = new ArrayList<>();
+        for (Map.Entry<String, List<MessageDocument>> e : byContact.entrySet()) {
+            String contactId = e.getKey();
+            List<MessageDocument> thread = e.getValue();
 
-                    return new RecentReceivedMessageResponse(contactId, newMessage, timestamp, (int) unreadCount);
-                })
+            // latest by timestamp
+            MessageDocument latest = thread.stream()
+                    .max(Comparator.comparing(MessageDocument::getTimestamp))
+                    .orElse(null);
+
+            long ts = latest != null ? latest.getTimestamp().toEpochMilli() : 0L;
+            String lastText = latest != null ? latest.getContent() : null;
+
+            // 4) unread count ONLY from contact -> user and not READ
+            int unread = (int) thread.stream()
+                    .filter(m -> contactId.equals(m.getSender()))   // from contact
+                    .filter(m -> userId.equals(m.getReceiver()))    // to current user
+                    .filter(m -> m.getStatus() != MessageStatus.READ)
+                    .count();
+
+            result.add(new RecentReceivedMessageResponse(contactId, lastText, ts, unread));
+        }
+
+        // 5) sort by latest desc
+        return result.stream()
                 .sorted(Comparator.comparingLong(RecentReceivedMessageResponse::getTimestamp).reversed())
                 .toList();
     }

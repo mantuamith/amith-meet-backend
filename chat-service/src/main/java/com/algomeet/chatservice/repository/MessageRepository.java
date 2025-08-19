@@ -27,4 +27,6 @@ public interface MessageRepository extends MongoRepository<MessageDocument, Stri
     int countBySenderAndReceiverAndStatusNot(String sender, String receiver, MessageStatus messageStatus);
 
     List<MessageDocument> findByReceiverAndStatusNot(String userId, MessageStatus messageStatus);
+
+    List<MessageDocument> findBySenderOrReceiver(String userId, String userId1);
 }
