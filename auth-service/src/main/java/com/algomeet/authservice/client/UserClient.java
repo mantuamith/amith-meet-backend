@@ -7,7 +7,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 
-@FeignClient(name = "user-service", url = "http://localhost:8082") // You can externalize this later
+@FeignClient(name = "user-service", url = "${feign.client.user-service.url}") // You can externalize this later
 public interface UserClient {
 
     @PostMapping("/internal/users")

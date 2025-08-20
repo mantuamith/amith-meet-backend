@@ -1,22 +1,18 @@
 server:
   port: 8086
 
-spring:
-  profiles:
-    active: local
-
 ---
 
 spring:
   config:
     activate:
-      on-profile: local
+      on-profile: prod
   application:
     name: contact-service
   datasource:
-    url: jdbc:postgresql://192.168.0.156:5432/clorameet_db
-    username: clorameet_sandro
-    password: algo@123
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
@@ -34,4 +30,4 @@ jwt:
 feign:
   client:
     user-service:
-      url: http://localhost:8082
+      url: http://user-service:8082
