@@ -55,7 +55,7 @@ while [[ $# -gt 0 ]]; do
         SELECTED_SERVICES=("$2")
         shift 2
       else
-        echo "❗ Missing service name after --service"
+        echo "Warning: Missing service name after --service"
         exit 1
       fi
       ;;
@@ -68,7 +68,7 @@ while [[ $# -gt 0 ]]; do
       exit 0
       ;;
     *)
-      echo "❗ Unknown option: $1"
+      echo "Unknown option: $1"
       show_help
       exit 1
       ;;
@@ -78,23 +78,23 @@ done
 # Main logic
 for SERVICE in "${SELECTED_SERVICES[@]}"; do
   echo "----------------------------"
-  echo "📦 Processing: $SERVICE"
+  echo " Processing: $SERVICE"
   echo "----------------------------"
 
   # Check service directory exists
   if [[ ! -d "$SERVICE" ]]; then
-    echo "❌ Service directory '$SERVICE' not found. Skipping."
+    echo "ERROR: Service directory '$SERVICE' not found. Skipping."
     continue
   fi
 
-  cd "$SERVICE" || { echo "❌ Failed to enter $SERVICE"; exit 1; }
+  cd "$SERVICE" || { echo "ERROR: Failed to enter $SERVICE"; exit 1; }
 
   if [ "$BUILD_IMAGES" = true ]; then
-    echo "🔧 Building JAR..."
-    mvn clean package -DskipTests || { echo "❌ Maven build failed for $SERVICE"; exit 1; }
+    echo "Building JAR..."
+    mvn clean package -DskipTests || { echo "ERROR: Maven build failed for $SERVICE"; exit 1; }
 
     LOCAL_IMAGE="$SERVICE:latest"
-    echo "🐳 Building Docker image: $LOCAL_IMAGE"
+    echo "Building Docker image: $LOCAL_IMAGE"
     docker build -t "$LOCAL_IMAGE" .
   fi
 
@@ -102,13 +102,13 @@ for SERVICE in "${SELECTED_SERVICES[@]}"; do
     REMOTE_IMAGE="ghcr.io/$GITHUB_ORG/$SERVICE:latest"
     LOCAL_IMAGE="$SERVICE:latest"
 
-    echo "🔁 Tagging and pushing: $REMOTE_IMAGE"
+    echo "Tagging and pushing: $REMOTE_IMAGE"
     docker tag "$LOCAL_IMAGE" "$REMOTE_IMAGE"
-    docker push "$REMOTE_IMAGE" || { echo "❌ Failed to push $SERVICE"; exit 1; }
+    docker push "$REMOTE_IMAGE" || { echo "ERROR: Failed to push $SERVICE"; exit 1; }
   fi
 
   cd ..
 done
 
 echo ""
-echo "✅ Completed: ${BUILD_IMAGES:+Build }${PUSH_IMAGES:+Push }for selected service(s)."
+echo "Completed: ${BUILD_IMAGES:+Build }${PUSH_IMAGES:+Push }for selected service(s)."

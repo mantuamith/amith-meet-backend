@@ -25,7 +25,7 @@ spring:
 
 
 jwt:
-  secret: Y0h4TkFxWkd6Um9TTktOVlFobU9naFN3SzY5cWhVY08=
+  secret: ${SPRING_JWT_SECRET}
 
 feign:
   client:
