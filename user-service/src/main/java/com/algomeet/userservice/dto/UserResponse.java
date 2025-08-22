@@ -1,9 +1,7 @@
 package com.algomeet.userservice.dto;
 
 import com.algomeet.userservice.model.User;
-import lombok.AllArgsConstructor;
 import lombok.Data;
-import lombok.NoArgsConstructor;
 
 @Data
 public class UserResponse {
@@ -13,14 +11,17 @@ public class UserResponse {
     private String password;
     private String role;
     private boolean enabled;
+    private String activeDeviceId;
+
+    // NEW: expose loginTypePolicy so auth-service can enforce device policy
+    private Short loginTypePolicy;
 
     public UserResponse(User user) {
         this.id = user.getId();
         this.username = user.getUsername();
         this.email = user.getEmail();
         this.password = user.getPassword();
-
+        this.loginTypePolicy = user.getLoginTypePolicy(); // <-- added
+        this.activeDeviceId = user.getActiveDeviceId();
     }
-
-
 }

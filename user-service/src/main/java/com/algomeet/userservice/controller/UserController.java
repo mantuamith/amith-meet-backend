@@ -6,12 +6,15 @@ import com.algomeet.userservice.dto.UserRequest;
 import com.algomeet.userservice.dto.UserResponse;
 import com.algomeet.userservice.model.User;
 import com.algomeet.userservice.repository.UserRepository;
+import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -20,12 +23,13 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/internal/users")
+@RequiredArgsConstructor
 public class UserController {
 
-    @Autowired
-    private UserRepository userRepository;
 
-    private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
+    private final UserRepository userRepository;
+
+    private final PasswordEncoder passwordEncoder;
 
     // Feign client will call this from auth-service to register user
     @PostMapping
@@ -144,6 +148,18 @@ public class UserController {
 
         userRepository.deleteByEmail(email);
         return ResponseEntity.ok(Map.of("message", "User deleted successfully"));
+    }
+
+
+    @PatchMapping("/internal/users/{id}/active-device")
+    public ResponseEntity<Void> updateActiveDevice(
+            @PathVariable Long id,
+            @RequestParam String deviceId) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("User not found"));
+        user.setActiveDeviceId(deviceId);
+        userRepository.save(user);
+        return ResponseEntity.ok().build();
     }
 
 }
