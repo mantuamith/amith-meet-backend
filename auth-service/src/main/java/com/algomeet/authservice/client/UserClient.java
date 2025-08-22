@@ -22,5 +22,9 @@ public interface UserClient {
     @DeleteMapping("/internal/users/email/{email}")
     void deleteUserByEmail(@PathVariable("email") String email);
 
+    @PatchMapping("/{id}/active-device")
+    void updateActiveDevice(@PathVariable("id") Long id,
+                            @RequestParam("deviceId") String deviceId);
+
 
 }

@@ -3,7 +3,6 @@ spring:
     active: local
 
 ---
-
 spring:
   config:
     activate:
@@ -11,14 +10,15 @@ spring:
 
   datasource:
     url: jdbc:postgresql://192.168.0.156:5432/clorameet_db
-    ##url: jdbc:postgresql://localhost:5432/clorameet_db
+    # url: jdbc:postgresql://localhost:5432/clorameet_db
     username: clorameet_sandro
     password: algo@123
     driver-class-name: org.postgresql.Driver
 
   data:
     mongodb:
-      uri: mongodb://localhost:27017/authdb  # used for logs, OTPs, etc.
+      uri: mongodb://chatadmin:securePass123@192.168.0.156:27017/chatdb?authSource=admin
+      auto-index-creation: true
 
   redis:
     host: localhost
@@ -26,7 +26,7 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: update   # use 'validate' or 'none' in prod
+      ddl-auto: update      # use 'validate' or 'none' in prod
     show-sql: true
     properties:
       hibernate:
@@ -37,7 +37,26 @@ spring:
       INDENT_OUTPUT: true
 
 server:
-  port: 8081  # Use 8081 if chat-service is on 8080
+  port: 8081  # keep 8081 if chat-service is on 8080
+
+# === Auth/OTP/2FA/JWT settings ===
+auth:
+  requireVerifiedEmail: false
+  requireVerifiedPhone: false
+  singleActiveDevice: true          # lock login to one device at a time
+  loginTypePolicyDefault: 0         # 0:any, 1:mobile, 2:web, 3:desktop
+
+otp:
+  ttlSeconds: 300                   # 5 minutes
+  maxAttempts: 5
+  resendThrottleSeconds: 60
+  pepper: CHANGE_ME_ADD_SECRET_PEPPER  # used to hash OTP codes; move to a secret store
+
+two-fa:
+  enabled: true
+  allowedTypes: [EMAIL_OTP, SMS_OTP, TOTP, SEAMOON]
 
 jwt:
   secret: Y0h4TkFxWkd6Um9TTktOVlFobU9naFN3SzY5cWhVY08=
+  accessTtlMinutes: 30
+  refreshTtlDays: 7
