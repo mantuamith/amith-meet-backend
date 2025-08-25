@@ -25,4 +25,5 @@ public class MessageResponse {
     private ForwardInfo forwarded;
     private Integer nMessages;
     private List<String> failedRecipients;
+    private String clientMessageId;
 }
