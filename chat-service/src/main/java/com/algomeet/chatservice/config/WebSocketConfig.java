@@ -26,5 +26,9 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                 .setHandshakeHandler(new StompPrincipalHandshakeHandler())
                 .setAllowedOriginPatterns("*")
                 .withSockJS();
+        registry.addEndpoint("/chat-ws-plain") //For IOS
+                .addInterceptors(jwtHandshakeInterceptor)
+                .setHandshakeHandler(new StompPrincipalHandshakeHandler())
+                .setAllowedOriginPatterns("*");
     }
 }

@@ -11,10 +11,10 @@ import com.algomeet.authservice.enums.ResponseCode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import feign.FeignException;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -68,25 +68,36 @@ public class AuthService {
         }
     }
 
-    public AuthResponse login(String email, String rawPassword) {
+    public AuthResponse login(String login, String rawPassword) {
         try {
-            UserResponse user = userClient.getUserByEmail(email);
-            if (!passwordEncoder.matches(rawPassword, user.getPassword())) {
-                // return error response instead of throwing
+            String key = normalize(login);
+
+            UserResponse user = userClient.getUserByLogin(key);
+            if (user == null || user.getPassword() == null) {
                 return AuthResponse.from(ResponseCode.AUTH_INVALID_CREDENTIALS, null, null, null);
             }
 
-            String accessToken = jwtUtil.generateToken(user);
+            if (!passwordEncoder.matches(rawPassword, user.getPassword())) {
+                return AuthResponse.from(ResponseCode.AUTH_INVALID_CREDENTIALS, null, null, null);
+            }
+
+            String accessToken  = jwtUtil.generateToken(user);
             String refreshToken = jwtUtil.generateRefreshToken(user);
 
-            refreshTokenStore.save(refreshToken, user.getEmail());
+            refreshTokenStore.save(refreshToken, user.getEmail()); // or user.getId()
 
             return AuthResponse.from(ResponseCode.AUTH_LOGIN_SUCCESS, user, accessToken, refreshToken);
 
+        } catch (FeignException.NotFound e) {
+            return AuthResponse.from(ResponseCode.AUTH_INVALID_CREDENTIALS, null, null, null);
         } catch (Exception e) {
-            e.printStackTrace();
-            throw new RuntimeException("Login failed: " + e.getMessage());  // You can replace with a custom AuthException
+            // log appropriately
+            return AuthResponse.from(ResponseCode.AUTH_LOGIN_ERROR, null, null, null);
         }
+    }
+
+    private static String normalize(String s) {
+        return s == null ? "" : s.trim().toLowerCase(Locale.ROOT);
     }
 
     public void deleteUser(String token) {
