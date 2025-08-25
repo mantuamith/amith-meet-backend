@@ -1,5 +1,7 @@
 package com.algomeet.authservice.service;
 
+import com.algomeet.authservice.config.AuthProperties;
+import com.algomeet.authservice.notify.EmailSender;
 import com.algomeet.authservice.otp.Otp;
 import com.algomeet.authservice.otp.OtpRepository;
 import lombok.RequiredArgsConstructor;
@@ -18,9 +20,11 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class OtpService {
 
+    private final AuthProperties props;
     private final OtpRepository otpRepository;
     private final Clock clock;
     private final BCryptPasswordEncoder encoder = new BCryptPasswordEncoder(); // only for hashing codes
+    private final EmailSender emailSender;
 
     // from application.yml -> otp.*
     private final int ttlSeconds = 300;           // or inject via @Value("${otp.ttlSeconds}")
@@ -31,16 +35,31 @@ public class OtpService {
 
     private String generateNumericCode(int digits) {
         int bound = (int) Math.pow(10, digits);
-        int base  = (int) Math.pow(10, digits - 1);
+        int base = (int) Math.pow(10, digits - 1);
         int n = RNG.nextInt(bound - base) + base; // ensure fixed length
         return String.valueOf(n);
     }
 
     public String initEmailLoginOtp(String email) {
+        int ttlSecs = props.getOtp().getTtlSeconds();
         String code = generateNumericCode(6);
         persistOtp(email, "EMAIL", "LOGIN", code);
         // send via your Email client (stub/log)
         log.info("OTP: email code dispatched to {}", mask(email));
+        String subject = "Your AlgoMeet OTP Code";
+        String html = """
+                    <div style="font-family:Inter,Arial,sans-serif;font-size:14px;color:#111">
+                      <p>Hi,</p>
+                      <p>Your one-time code is:</p>
+                      <p style="font-size:24px;font-weight:700;letter-spacing:2px;margin:12px 0;">%s</p>
+                      <p>This code expires in %d minutes.</p>
+                      <p>If you didn’t request this, you can ignore this email.</p>
+                      <hr style="border:none;border-top:1px solid #eee;margin:16px 0;">
+                      <p style="color:#666">— The AlgoMeet Team</p>
+                    </div>
+                """.formatted(code, ttlSecs / 60);
+        emailSender.send(email, subject, html);
+        log.info("OTP: dispatched EMAIL OTP to {} (ttl={}s)", mask(email), ttlSecs);
         return "OTP sent to your email";
     }
 
@@ -125,5 +144,21 @@ public class OtpService {
         if (at > 2) return s.substring(0, 2) + "***" + s.substring(at);
         if (s.length() > 4) return s.substring(0, 2) + "***";
         return "***";
+    }
+
+    public void initEmailRegistrationOtp(String email) {
+    }
+
+    public void initSmsRegistrationOtp(String phone) {
+    }
+
+    public boolean verifyEmailRegistrationOtp(String email, String code) {
+
+        return false;
+    }
+
+    public boolean verifySmsRegistrationOtp(String phone, String code) {
+
+        return false;
     }
 }

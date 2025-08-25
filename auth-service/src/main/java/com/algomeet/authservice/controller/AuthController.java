@@ -5,6 +5,7 @@ import com.algomeet.authservice.dto.*;
 import com.algomeet.authservice.enums.LoginPolicy;
 import com.algomeet.authservice.enums.LoginResponseType;
 import com.algomeet.authservice.enums.ResponseCode;
+import com.algomeet.authservice.otp.RegistrationService;
 import com.algomeet.authservice.policy.LoginPolicyEnforcer;
 import com.algomeet.authservice.policy.LoginPolicyResolver;
 import com.algomeet.authservice.policy.SingleDeviceEnforcer;
@@ -13,6 +14,7 @@ import com.algomeet.authservice.service.OtpService;
 import com.algomeet.authservice.service.UserLookupService;
 import com.algomeet.authservice.token.RefreshTokenStore;
 import com.algomeet.authservice.util.JwtUtil;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -38,6 +40,7 @@ public class AuthController {
     private final UserLookupService userLookupService;
     private final OtpService otpService;
     private final LoginPolicyResolver loginPolicyResolver;
+    private final RegistrationService registration;
 
     // ---------- Helpers (masking, safe logs) ----------
     private String mLogin(String v){ return v == null ? "null" : v.replaceAll("^(.{2}).+(@.*)?$","$1***$2"); }
@@ -334,6 +337,28 @@ public class AuthController {
         );
     }
 
+    @PostMapping("/init")
+    public RegisterInitResponse init(@Valid @RequestBody RegisterInitRequest req,
+                                     HttpServletRequest http) {
+        String ip = http.getRemoteAddr();
+        log.info("REGISTER:init username={} email={} phone={} deviceId={}",
+                mask(req.getUsername()), maskEmail(req.getEmail()), maskPhone(req.getPhone()), req.getDeviceId());
+        return registration.init(req, ip);
+    }
 
+    @PostMapping("/verify")
+    public AuthTokensResponse verify(@Valid @RequestBody RegisterVerifyRequest req,
+                                     HttpServletRequest http) {
+        String ip = http.getRemoteAddr();
+        log.info("REGISTER:verify txn={} deviceId={}", req.getTransactionId(), req.getDeviceId());
+        return registration.verify(req, ip);
+    }
 
+    private String mask(String s){ return s==null?"":(s.length()<=2?s:"**"+s.substring(Math.max(0,s.length()-2))); }
+    private String maskEmail(String e){ return e==null?"":e.replaceAll("(^.).*(@.*$)","$1***$2"); }
+    private String maskPhone(String p){ return p==null?"":p.replaceAll(".(?=.{2})","*"); }
 }
+
+
+
+

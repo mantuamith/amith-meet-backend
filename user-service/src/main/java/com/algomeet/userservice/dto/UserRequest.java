@@ -1,17 +1,34 @@
 package com.algomeet.userservice.dto;
 
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.math.BigDecimal;
+
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class UserRequest {
-    private String username;
     private String email;
-    private String password;
+    private String phone;
+    private String username;
+    private String password;              // already BCrypted
 
-    // Getters and Setters
-    public String getUsername() { return username; }
-    public void setUsername(String username) { this.username = username; }
+    private String country;
+    private String region;
+    private String city;
+    private BigDecimal latitude;
+    private BigDecimal longitude;
 
-    public String getEmail() { return email; }
-    public void setEmail(String email) { this.email = email; }
+    private Boolean isEmailVerified;      // from auth-service channel
+    private Boolean isPhoneVerified;
 
-    public String getPassword() { return password; }
-    public void setPassword(String password) { this.password = password; }
+    private String registrationIp;
+    private String registrationDeviceId;
+    private String registrationDeviceType;
+
+    private Integer loginTypePolicy;
 }
