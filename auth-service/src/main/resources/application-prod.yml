@@ -1,19 +1,12 @@
 spring:
-  profiles:
-    active: local
-
----
-
-spring:
   config:
     activate:
-      on-profile: local
+      on-profile: prod
 
   datasource:
-    url: jdbc:postgresql://192.168.0.156:5432/clorameet_db
-    ##url: jdbc:postgresql://localhost:5432/clorameet_db
-    username: clorameet_sandro
-    password: algo@123
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
     driver-class-name: org.postgresql.Driver
 
   data:
@@ -40,9 +33,9 @@ server:
   port: 8081  # Use 8081 if chat-service is on 8080
 
 jwt:
-  secret: Y0h4TkFxWkd6Um9TTktOVlFobU9naFN3SzY5cWhVY08=
+  secret: ${SPRING_JWT_SECRET}
 
 feign:
   client:
     user-service:
-      url: http://localhost:8082
+      url: http://user-service:8082
