@@ -1,6 +1,7 @@
 package com.algomeet.authservice.controller;
 
 import com.algomeet.authservice.dto.AuthResponse;
+import com.algomeet.authservice.dto.LoginRequest;
 import com.algomeet.authservice.dto.RefreshTokenRequest;
 import com.algomeet.authservice.dto.UserResponse;
 import com.algomeet.authservice.enums.ResponseCode;
@@ -58,25 +59,11 @@ public class AuthController {
     }
 
 
+
+
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody Map<String, String> payload) {
-        String email = payload.get("email");
-        String password = payload.get("password");
-
-        try {
-            AuthResponse response = authService.login(email, password);
-
-            if (ResponseCode.AUTH_INVALID_CREDENTIALS.getCode().equals(response.getCode())) {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
-            }
-
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
-                    "code", ResponseCode.AUTH_LOGIN_FAILED.getCode(),
-                    "message", ResponseCode.AUTH_LOGIN_FAILED.getDefaultMessage()
-            ));
-        }
+    public AuthResponse login(@RequestBody LoginRequest req) {
+        return authService.login(req.getEffectiveLogin(), req.getPassword());
     }
 
 

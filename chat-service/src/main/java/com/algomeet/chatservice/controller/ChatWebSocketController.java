@@ -45,7 +45,12 @@ public class ChatWebSocketController {
         System.out.println("[STOMP /chat] From: " + principal.getName() + ", To: " + message.getReceiver() + ", Content: " + message.getContent());
         message.setSender(principal.getName());
         message.setTimestamp(Instant.now());
+        if (message.getStatus() == null)
+        {
+            message.setStatus(MessageStatus.SENT);
+        }
         try {
+
             MessageDocument savedMessage = messageRepository.save(message);
             MessageResponse response = messageMapper.toResponse(savedMessage);
             List<String> failedMembers = new ArrayList<>();

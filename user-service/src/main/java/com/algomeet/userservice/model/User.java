@@ -3,6 +3,8 @@ package com.algomeet.userservice.model;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.util.Locale;
+
 @Getter
 @Setter
 @NoArgsConstructor
@@ -22,4 +24,10 @@ public class User {
 
     @Column(unique = true)
     private String email;
+
+    @PrePersist @PreUpdate
+    void normalize() {
+        if (username != null) username = username.trim().toLowerCase(Locale.ROOT);
+        if (email != null)    email    = email.trim().toLowerCase(Locale.ROOT);
+    }
 }
