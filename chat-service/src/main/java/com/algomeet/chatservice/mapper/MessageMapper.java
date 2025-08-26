@@ -14,6 +14,7 @@ public class MessageMapper {
                 .to(document.getReceiver())
                 .timestamp(document.getTimestamp() != null ? document.getTimestamp().toEpochMilli() : null)
                 .type(document.getType())
+                .clientMessageId(document.getClientMessageId())
                 .status(document.getStatus())
                 .text(document.getContent())
                 .mediaGroup(document.getMediaGroup())

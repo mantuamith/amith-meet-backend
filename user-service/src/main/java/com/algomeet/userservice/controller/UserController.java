@@ -190,6 +190,10 @@ public class UserController {
 
     }
 
+    private static String normalize(String s) {
+        return s == null ? "" : s.trim().toLowerCase(Locale.ROOT);
+    }
+
 }
 
 //TODO: Add Service layer
