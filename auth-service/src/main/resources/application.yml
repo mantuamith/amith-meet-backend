@@ -3,22 +3,36 @@ spring:
     active: local
 
 ---
-
 spring:
   config:
     activate:
       on-profile: local
 
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: mantu.amith@gmail.com
+    password: hstp ltwn dgze lryf   # Use a Gmail App Password; do NOT commit this
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
+
   datasource:
     url: jdbc:postgresql://192.168.0.156:5432/clorameet_db
-    ##url: jdbc:postgresql://localhost:5432/clorameet_db
     username: clorameet_sandro
     password: algo@123
     driver-class-name: org.postgresql.Driver
 
   data:
     mongodb:
-      uri: mongodb://localhost:27017/authdb  # used for logs, OTPs, etc.
+      uri: mongodb://chatadmin:securePass123@192.168.0.156:27017/chatdb?authSource=admin
+      auto-index-creation: true
 
   redis:
     host: localhost
@@ -26,7 +40,7 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: update   # use 'validate' or 'none' in prod
+      ddl-auto: update
     show-sql: true
     properties:
       hibernate:
@@ -37,10 +51,37 @@ spring:
       INDENT_OUTPUT: true
 
 server:
-  port: 8081  # Use 8081 if chat-service is on 8080
+  port: 8081
+
+# === App mail defaults for From header ===
+app:
+  mail:
+    from: "mantu.amith@gmail.com"
+    fromName: "AlgoMeet - Alert"
+
+# === Auth/OTP/2FA/JWT settings ===
+auth:
+  requireVerifiedEmail: false
+  requireVerifiedPhone: false
+  singleActiveDevice: true
+  # LoginPolicy: 0=DIRECT, 1=EMAIL, 2=PHONE, 3=TOTP
+  loginTypePolicyDefault: 0
+
+otp:
+  ttlSeconds: 600
+  maxAttempts: 5
+  resendThrottleSeconds: 600
+  pepper: CHANGE_ME_ADD_SECRET_PEPPER
+
+twoFa:
+  enabled: true
+  allowedTypes: [EMAIL_OTP, SMS_OTP, TOTP, SEAMOON]
 
 jwt:
   secret: Y0h4TkFxWkd6Um9TTktOVlFobU9naFN3SzY5cWhVY08=
+  accessTtlMinutes: 30
+  refreshTtlDays: 7
+
 
 feign:
   client:

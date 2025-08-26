@@ -3,7 +3,11 @@ package com.algomeet.userservice.model;
 import jakarta.persistence.*;
 import lombok.*;
 
+
+import java.math.BigDecimal;
+
 import java.util.Locale;
+
 
 @Getter
 @Setter
@@ -25,9 +29,50 @@ public class User {
     @Column(unique = true)
     private String email;
 
+
+    @Column(unique = true)
+    private String phone;
+
+    /**
+     * 0:any, 1:mobile, 2:web, 3:desktop
+     * Matches Step-1R migration: login_type_policy SMALLINT NOT NULL DEFAULT 0
+     */
+    @Column(name = "login_type_policy", nullable = false)
+    private Short loginTypePolicy = 0;
+
+    @Column(name = "active_device_id", length = 128)
+    private String activeDeviceId;
+
+
+    private String country;
+    private String region;
+    private String city;
+
+    @Column(precision = 9, scale = 6)       // numeric(9,6)
+    private BigDecimal latitude;
+
+    @Column(precision = 9, scale = 6)
+    private BigDecimal longitude;
+
+    @Column(name = "is_email_verified", nullable = false)
+    private boolean isEmailVerified = false;
+
+    @Column(name = "is_phone_verified", nullable = false)
+    private boolean isPhoneVerified = false;
+
+    @Column(name = "registration_ip")       // inet
+    private String registrationIp;
+
+    @Column(name = "registration_device_id", length = 128)
+    private String registrationDeviceId;
+    @Column(name = "registration_device_type", length = 32)
+    private String registrationDeviceType;
+
+
     @PrePersist @PreUpdate
     void normalize() {
         if (username != null) username = username.trim().toLowerCase(Locale.ROOT);
         if (email != null)    email    = email.trim().toLowerCase(Locale.ROOT);
     }
+
 }

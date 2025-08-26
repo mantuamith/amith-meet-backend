@@ -1,29 +1,44 @@
 package com.algomeet.authservice.dto;
 
+import lombok.AllArgsConstructor;
+import lombok.Data;
+
+import java.util.Map;
+
+@Data
+@AllArgsConstructor
 public class UserResponse {
     private Long id;
     private String username;
     private String email;
+    private String phone;
     private String password;
     private String role;
     private boolean enabled;
+    private Short loginTypePolicy;
+    private String activeDeviceId;
 
-    // Getters and Setters
-    public Long getId() { return id; }
-    public void setId(Long id) { this.id = id; }
+    @SuppressWarnings("unchecked")
+    public UserResponse(Map<String, Object> map) {
+        if (map == null) return;
 
-    public String getUsername() { return username; }
-    public void setUsername(String username) { this.username = username; }
+        this.id = map.get("id") != null ? ((Number) map.get("id")).longValue() : null;
+        this.username = (String) map.get("username");
+        this.email = (String) map.get("email");
+        this.password = (String) map.get("password");
+        this.activeDeviceId = (String) map.get("activeDeviceId");
 
-    public String getEmail() { return email; }
-    public void setEmail(String email) { this.email = email; }
+        Object ltp = map.get("loginTypePolicy");
+        if (ltp instanceof Number) {
+            this.loginTypePolicy = ((Number) ltp).shortValue();
+        } else if (ltp instanceof String) {
+            try {
+                this.loginTypePolicy = Short.valueOf((String) ltp);
+            } catch (NumberFormatException ignored) {}
+        }
 
-    public String getPassword() { return password; }
-    public void setPassword(String password) { this.password = password; }
-
-    public String getRole() { return role; }
-    public void setRole(String role) { this.role = role; }
-
-    public boolean isEnabled() { return enabled; }
-    public void setEnabled(boolean enabled) { this.enabled = enabled; }
+        // role & enabled are optional in response
+        this.role = (String) map.get("role");
+        this.enabled = map.get("enabled") != null && Boolean.TRUE.equals(map.get("enabled"));
+    }
 }

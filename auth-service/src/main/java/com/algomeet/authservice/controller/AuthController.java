@@ -1,55 +1,92 @@
 package com.algomeet.authservice.controller;
 
+
+import com.algomeet.authservice.config.AuthProperties;
+import com.algomeet.authservice.dto.*;
+import com.algomeet.authservice.enums.LoginPolicy;
+import com.algomeet.authservice.enums.LoginResponseType;
 import com.algomeet.authservice.dto.AuthResponse;
 import com.algomeet.authservice.dto.LoginRequest;
 import com.algomeet.authservice.dto.RefreshTokenRequest;
 import com.algomeet.authservice.dto.UserResponse;
+
 import com.algomeet.authservice.enums.ResponseCode;
+import com.algomeet.authservice.service.RegistrationService;
+import com.algomeet.authservice.policy.LoginPolicyEnforcer;
+import com.algomeet.authservice.policy.LoginPolicyResolver;
+import com.algomeet.authservice.policy.SingleDeviceEnforcer;
 import com.algomeet.authservice.service.AuthService;
+import com.algomeet.authservice.service.OtpService;
+import com.algomeet.authservice.service.UserLookupService;
 import com.algomeet.authservice.token.RefreshTokenStore;
 import com.algomeet.authservice.util.JwtUtil;
-import org.springframework.beans.factory.annotation.Autowired;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Map;
 
+@Slf4j
 @RestController
 @RequestMapping("/auth")
+@RequiredArgsConstructor
 public class AuthController {
 
-    @Autowired
-    private AuthService authService;
+    private final AuthService authService;
+    private final RefreshTokenStore refreshTokenStore;
+    private final JwtUtil jwtUtil;
+    private final AuthProperties props;
+    private final UserLookupService userLookupService;
+    private final OtpService otpService;
+    private final LoginPolicyResolver loginPolicyResolver;
+    private final RegistrationService registration;
 
-    @Autowired
-    private RefreshTokenStore refreshTokenStore;
+    // ---------- Helpers (masking, safe logs) ----------
+    private String mLogin(String v){ return v == null ? "null" : v.replaceAll("^(.{2}).+(@.*)?$","$1***$2"); }
+    private String mDev(String v){ return v == null ? "null" : (v.length()<=6? "***" : v.substring(0,3)+"***"+v.substring(v.length()-3)); }
 
-    @Autowired
-    private JwtUtil jwtUtil;
-
+    // ----------------- Registration -------------------
     @PostMapping("/register")
     public ResponseEntity<?> register(@RequestBody Map<String, String> payload) {
-        String username = payload.get("username");
-        String email = payload.get("email");
-        String password = payload.get("password");
-
-        UserResponse user = authService.registerUser(username, email, password);
-        return ResponseEntity.ok(AuthResponse.from(ResponseCode.AUTH_REGISTER_SUCCESS, user));
+        final String username = payload.get("username");
+        final String email = payload.get("email");
+        // DO NOT LOG raw password
+        log.info("REGISTER: attempt username={} email={}", username, mLogin(email));
+        try {
+            UserResponse user = authService.registerUser(username, email, payload.get("password"));
+            log.info("REGISTER: success userId={} username={} email={}", user.getId(), user.getUsername(), mLogin(user.getEmail()));
+            return ResponseEntity.ok(AuthResponse.from(ResponseCode.AUTH_REGISTER_SUCCESS, user));
+        } catch (Exception e) {
+            log.error("REGISTER: failed username={} email={} error={}", username, mLogin(email), e.toString(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
+                    "code", ResponseCode.AUTH_REGISTER_FAILED.getCode(),
+                    "message", ResponseCode.AUTH_REGISTER_FAILED.getDefaultMessage(),
+                    "error", e.getMessage()
+            ));
+        }
     }
 
+    // ----------------- Token Refresh ------------------
     @PostMapping("/refresh")
     public ResponseEntity<?> refresh(@RequestBody RefreshTokenRequest request) {
+        // DO NOT LOG refresh token
+        log.info("REFRESH: attempt");
         try {
             AuthResponse response = authService.refreshAccessToken(request.getRefreshToken());
-
             if (ResponseCode.AUTH_INVALID_REFRESH_TOKEN.getCode().equals(response.getCode())) {
+                log.warn("REFRESH: invalid refresh token");
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
             }
-
+            log.info("REFRESH: success for userId={}", response.getUser() != null ? response.getUser().getId() : "unknown");
             return ResponseEntity.ok(response);
         } catch (Exception e) {
+            log.error("REFRESH: failed error={}", e.toString(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
                     "code", ResponseCode.AUTH_REFRESH_FAILED.getCode(),
                     "message", ResponseCode.AUTH_REFRESH_FAILED.getDefaultMessage(),
@@ -57,29 +94,27 @@ public class AuthController {
             ));
         }
     }
-
-
-
-
     @PostMapping("/login")
     public AuthResponse login(@RequestBody LoginRequest req) {
         return authService.login(req.getEffectiveLogin(), req.getPassword());
+
     }
 
-
-
-
+    // ----------------- Delete Account -----------------
     @DeleteMapping("/delete")
     public ResponseEntity<?> deleteAccount(@RequestHeader("Authorization") String authHeader) {
+        // DO NOT LOG tokens
+        log.info("DELETE: attempt");
         try {
             String token = authHeader.replace("Bearer ", "");
             authService.deleteUser(token);
-
+            log.info("DELETE: success");
             return ResponseEntity.ok(Map.of(
                     "code", ResponseCode.AUTH_USER_DELETED.getCode(),
                     "message", ResponseCode.AUTH_USER_DELETED.getDefaultMessage()
             ));
         } catch (Exception e) {
+            log.error("DELETE: failed error={}", e.toString(), e);
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of(
                     "code", ResponseCode.AUTH_DELETE_FAILED.getCode(),
                     "message", ResponseCode.AUTH_DELETE_FAILED.getDefaultMessage(),
@@ -88,15 +123,18 @@ public class AuthController {
         }
     }
 
+    // ----------------- Logout -------------------------
     @PostMapping("/logout")
     public ResponseEntity<?> logout(@RequestBody RefreshTokenRequest request,
                                     @RequestHeader("Authorization") String authHeader) {
+        log.info("LOGOUT: attempt");
         try {
             String accessToken = authHeader.replace("Bearer ", "");
             String emailFromAccessToken = jwtUtil.extractEmail(accessToken);
-
             String storedEmail = refreshTokenStore.getEmailForToken(request.getRefreshToken());
+
             if (storedEmail == null || !storedEmail.equals(emailFromAccessToken)) {
+                log.warn("LOGOUT: refresh token mismatch storedEmail={} tokenEmail={}", mLogin(storedEmail), mLogin(emailFromAccessToken));
                 return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of(
                         "code", ResponseCode.AUTH_LOGOUT_FAILED.getCode(),
                         "message", "Refresh token does not belong to the authenticated user"
@@ -104,12 +142,13 @@ public class AuthController {
             }
 
             refreshTokenStore.remove(request.getRefreshToken());
-
+            log.info("LOGOUT: success email={}", mLogin(emailFromAccessToken));
             return ResponseEntity.ok(Map.of(
                     "code", ResponseCode.AUTH_LOGOUT_SUCCESS.getCode(),
                     "message", ResponseCode.AUTH_LOGOUT_SUCCESS.getDefaultMessage()
             ));
         } catch (Exception e) {
+            log.error("LOGOUT: failed error={}", e.toString(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
                     "code", ResponseCode.AUTH_LOGOUT_FAILED.getCode(),
                     "message", ResponseCode.AUTH_LOGOUT_FAILED.getDefaultMessage(),
@@ -118,6 +157,200 @@ public class AuthController {
         }
     }
 
+    // ----------------- New Flow: INIT -----------------
+    @PostMapping("/login/init")
+    public ResponseEntity<?> initLogin(@Valid @RequestBody LoginInitRequest request) {
+        log.info("LOGIN:init attempt login={} deviceId={} deviceType={}",
+                mLogin(request.getLogin()), mDev(request.getDeviceId()), request.getDeviceType());
+
+        // 1) Lookup user
+        UserResponse user = userLookupService.findByLoginOr404(request.getLogin());
+
+        // 2) Resolve policy
+        LoginPolicy policy = loginPolicyResolver.resolve(user);
+
+        // 3) Enforce high-level policy constraints
+        try {
+            LoginPolicyEnforcer.enforce(policy, request.getDeviceType());
+        } catch (Exception ex) {
+            log.warn("LOGIN:init policy blocked login={} policy={} deviceType={} reason={}",
+                    mLogin(request.getLogin()), policy, request.getDeviceType(), ex.getMessage());
+            throw ex;
+        }
+
+        // 4) Single-device lock (if enabled)
+        try {
+            SingleDeviceEnforcer.enforce(
+                    props.getAuth().isSingleActiveDevice(),
+                    user.getActiveDeviceId(),
+                    request.getDeviceId()
+            );
+        } catch (Exception ex) {
+            log.warn("LOGIN:init single-device blocked login={} activeDeviceId={} incomingDeviceId={} reason={}",
+                    mLogin(request.getLogin()), mDev(user.getActiveDeviceId()), mDev(request.getDeviceId()), ex.getMessage());
+            throw ex;
+        }
+
+        // 5) Branch by policy (direct vs OTP channel)
+        switch (policy) {
+            case DIRECT: {
+                AuthResponse auth = authService.login(request.getLogin(), request.getPassword());
+                if (!ResponseCode.AUTH_LOGIN_SUCCESS.getCode().equals(auth.getCode())) {
+                    throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials");
+                }
+
+                // optional: bind device
+                try {
+                    authService.bindActiveDevice(user.getId(), request.getDeviceId()); }
+                catch (Exception e) { log.warn("bind device failed: {}", e.toString()); }
+
+                return ResponseEntity.ok(
+                        AuthResponse.from(
+                                ResponseCode.AUTH_LOGIN_SUCCESS,
+                                user,                          // the actual UserResponse
+                                auth.getAccessToken(),
+                                auth.getRefreshToken()
+                        )
+                );
+            }
+            case EMAIL: {
+                String msg = otpService.initEmailLoginOtp(request.getLogin());
+                log.info("LOGIN:init OTP dispatched login={} type=email", mLogin(request.getLogin()));
+                return ResponseEntity.ok(LoginResponse.emailOtp(msg));
+            }
+            case PHONE: {
+                String msg = otpService.initSmsLoginOtp(request.getLogin());
+                log.info("LOGIN:init OTP dispatched login={} type=phone", mLogin(request.getLogin()));
+                return ResponseEntity.ok(LoginResponse.phoneOtp(msg));
+            }
+            case TOTP: {
+                // No dispatch; client should prompt for app code
+                log.info("LOGIN:init requires TOTP login={}", mLogin(request.getLogin()));
+                return ResponseEntity.ok(LoginResponse.totp("Enter your authenticator code"));
+            }
+            default:
+                // Defensive — should never hit because enforce() rejects unknowns.
+                throw new IllegalArgumentException("Unsupported login policy: " + policy);
+        }
+    }
 
 
+    // ----------------- New Flow: VERIFY ---------------
+    @PostMapping("/login/verify")
+    public ResponseEntity<AuthResponse> verifyLogin(@Valid @RequestBody LoginVerifyRequest request) {
+        log.info("LOGIN:verify attempt login={} type={} deviceId={} deviceType={}",
+                mLogin(request.getLogin()), request.getType(), mDev(request.getDeviceId()), request.getDeviceType());
+
+        // 1) Lookup
+        UserResponse user = userLookupService.findByLoginOr404(request.getLogin());
+
+        // 2) Policy
+        LoginPolicy policy = loginPolicyResolver.resolve(user);
+
+        // 3) Enforce device type constraints
+        LoginPolicyEnforcer.enforce(policy, request.getDeviceType());
+
+        // 4) Single-device
+        SingleDeviceEnforcer.enforce(
+                props.getAuth().isSingleActiveDevice(),
+                user.getActiveDeviceId(),
+                request.getDeviceId()
+        );
+
+        // 5) Type match
+        LoginResponseType expectedType = switch (policy) {
+            case DIRECT -> LoginResponseType.DIRECT;
+            case EMAIL  -> LoginResponseType.EMAIL;
+            case PHONE  -> LoginResponseType.PHONE;
+            case TOTP   -> LoginResponseType.TOTP;
+        };
+        LoginResponseType providedType = (request.getType().toResponseType());
+        if (providedType != expectedType) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, "Verification type does not match login policy (expected " + expectedType + ")");
+        }
+
+        // 6) Verify by policy and mint tokens
+        AuthResponse result = null;
+        switch (policy) {
+
+            case DIRECT -> {
+                // shouldn't normally hit verify for DIRECT, but allow password check here
+                AuthResponse auth = authService.login(user.getEmail(), request.getPassword());
+                if (!ResponseCode.AUTH_LOGIN_SUCCESS.getCode().equals(auth.getCode())) {
+                    throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials");
+                }
+                result = auth; // stash for response below
+            }
+            case EMAIL -> {
+                if (request.getCode() == null || request.getCode().isBlank()) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "OTP is required for EMAIL verification");
+                }
+                boolean ok = otpService.verifyEmailLoginOtp(user.getEmail(), request.getCode());
+                if (!ok) throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid or expired OTP");
+                result = authService.issueTokensFor(user);
+            }
+            case PHONE -> {
+                if (request.getCode() == null || request.getCode().isBlank()) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "OTP is required for PHONE verification");
+                }
+                boolean ok = otpService.verifySmsLoginOtp(user.getEmail() /* or user.getPhone() */, request.getCode());
+                if (!ok) throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid or expired OTP");
+                result = authService.issueTokensFor(user);
+            }
+            case TOTP -> {
+                if (request.getCode() == null || request.getCode().isBlank()) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "TOTP is required");
+                }
+                // TODO: totpService.verify(user, request.getCode());
+                result = authService.issueTokensFor(user);
+            }
+        }
+
+        // 7) Bind device if enabled
+        if (props.getAuth().isSingleActiveDevice()) {
+            try {
+                authService.bindActiveDevice(user.getId(), request.getDeviceId());
+            } catch (Exception e) {
+                log.warn("LOGIN:verify bind device failed userId={} deviceId={} err={}",
+                        user.getId(), mDev(request.getDeviceId()), e.getMessage());
+            }
+        }
+
+
+
+        return ResponseEntity.ok(
+                AuthResponse.from(
+                        ResponseCode.AUTH_LOGIN_SUCCESS,  // type/message will map to "EMAIL" flow msg
+                        user,
+                        result.getAccessToken(),
+                        result.getRefreshToken()
+                )
+        );
+    }
+
+    @PostMapping("/register/init")
+    public RegisterInitResponse init(@Valid @RequestBody RegisterInitRequest req,
+                                     HttpServletRequest http) {
+        String ip = http.getRemoteAddr();
+        log.info("REGISTER:init username={} email={} phone={} deviceId={}",
+                mask(req.getUsername()), maskEmail(req.getEmail()), maskPhone(req.getPhone()), req.getDeviceId());
+        return registration.init(req, ip);
+    }
+
+    @PostMapping("/register/verify")
+    public RegisterVerifyResponse verify(@Valid @RequestBody RegisterVerifyRequest req,
+                                         HttpServletRequest http) {
+        String ip = http.getRemoteAddr();
+        log.info("REGISTER:verify txn={} deviceId={}", req.getTransactionId(), req.getDeviceId());
+        return registration.verify(req, ip);
+    }
+
+    private String mask(String s){ return s==null?"":(s.length()<=2?s:"**"+s.substring(Math.max(0,s.length()-2))); }
+    private String maskEmail(String e){ return e==null?"":e.replaceAll("(^.).*(@.*$)","$1***$2"); }
+    private String maskPhone(String p){ return p==null?"":p.replaceAll(".(?=.{2})","*"); }
 }
+
+
+
+
