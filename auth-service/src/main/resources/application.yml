@@ -68,9 +68,9 @@ auth:
   loginTypePolicyDefault: 0
 
 otp:
-  ttlSeconds: 300
+  ttlSeconds: 600
   maxAttempts: 5
-  resendThrottleSeconds: 60
+  resendThrottleSeconds: 600
   pepper: CHANGE_ME_ADD_SECRET_PEPPER
 
 twoFa:

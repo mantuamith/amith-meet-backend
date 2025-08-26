@@ -7,24 +7,23 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 
-@FeignClient(name = "user-service", url = "http://localhost:8082") // You can externalize this later
+@FeignClient(name = "user-service", url = "http://localhost:8082")
 public interface UserClient {
-
     @PostMapping("/internal/users")
     Map<String, Object> createUser(@RequestBody UserRequest request);
 
+    // Reads return plain DTOs (no wrapper)
     @GetMapping("/internal/users/username/{username}")
     UserResponse getUserByUsername(@PathVariable String username);
 
     @GetMapping("/internal/users/email/{email}")
     UserResponse getUserByEmail(@PathVariable("email") String email);
 
-    @DeleteMapping("/internal/users/email/{email}")
-    void deleteUserByEmail(@PathVariable("email") String email);
-
-    @PatchMapping("/{id}/active-device")
+    // Device bind: switch to POST to avoid PATCH transport issues
+    @PostMapping("/internal/users/{id}/active-device")
     void updateActiveDevice(@PathVariable("id") Long id,
                             @RequestParam("deviceId") String deviceId);
 
-
+    @DeleteMapping("/internal/users/email/{email}")
+    void deleteUserByEmail(@PathVariable("email") String email);
 }

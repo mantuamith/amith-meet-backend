@@ -17,6 +17,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -38,10 +39,11 @@ public class UserController {
         boolean usernameTaken = userRepository.existsByUsername(request.getUsername());
 
         if (emailTaken && usernameTaken) {
-            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(
+            Map.of(
                     "code", ResponseCode.AUTH_DUPLICATE_BOTH.getCode(),
                     "message", ResponseCode.AUTH_DUPLICATE_BOTH.getDefaultMessage(),
-                    "fields", List.of("email", "username")
+                   "fields", List.of("email", "username")
             ));
         }
         if (emailTaken) {
@@ -62,7 +64,25 @@ public class UserController {
         User user = new User();
         user.setUsername(request.getUsername());
         user.setEmail(request.getEmail());
-        user.setPassword(passwordEncoder.encode(request.getPassword()));
+
+        user.setPassword(request.getPassword()); // already BCrypted by auth-service
+
+          user.setPhone(request.getPhone());
+          user.setCountry(request.getCountry());
+          user.setRegion(request.getRegion());
+          user.setCity(request.getCity());
+           if (request.getLatitude()!=null)
+               user.setLatitude(request.getLatitude());
+           if (request.getLongitude()!=null)
+               user.setLongitude(request.getLongitude());
+           user.setEmailVerified(Boolean.TRUE.equals(request.getIsEmailVerified()));
+           user.setPhoneVerified(Boolean.TRUE.equals(request.getIsPhoneVerified()));
+           user.setRegistrationIp(request.getRegistrationIp());
+           user.setRegistrationDeviceId(request.getRegistrationDeviceId());
+           user.setRegistrationDeviceType(request.getRegistrationDeviceType());
+           if (request.getLoginTypePolicy()!=null)
+                 user.setLoginTypePolicy(request.getLoginTypePolicy().shortValue());
+
         // TODO: user.setRole(...); user.setEnabled(...);
 
         try {
@@ -140,7 +160,7 @@ public class UserController {
     }
 
     @DeleteMapping("/email/{email}")
-    @Transactional  // 👈 Works as a quick fix
+    @Transactional  //  Works as a quick fix
     public ResponseEntity<?> deleteUserByEmail(@PathVariable String email) {
         if (!userRepository.existsByEmail(email)) {
             return ResponseEntity.status(404).body(Map.of("error", "User not found"));
@@ -151,10 +171,9 @@ public class UserController {
     }
 
 
-    @PatchMapping("/internal/users/{id}/active-device")
+    @PostMapping("/{id}/active-device")
     public ResponseEntity<Void> updateActiveDevice(
-            @PathVariable Long id,
-            @RequestParam String deviceId) {
+            @PathVariable Long id, @RequestParam String deviceId) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("User not found"));
         user.setActiveDeviceId(deviceId);

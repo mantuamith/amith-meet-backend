@@ -147,18 +147,50 @@ public class OtpService {
     }
 
     public void initEmailRegistrationOtp(String email) {
+        int ttlSecs = props.getOtp().getTtlSeconds();
+        String code = generateNumericCode(6);
+
+        // Save OTP (same collection)
+        persistOtp(email, "EMAIL", "REGISTER", code);
+        log.info("OTP: registration EMAIL code dispatched to {}", mask(email));
+
+        // Send email
+        String subject = "Your AlgoMeet Registration OTP";
+        String html = """
+        <div style="font-family:Inter,Arial,sans-serif;font-size:14px;color:#111">
+          <p>Hi,</p>
+          <p>Your registration OTP code is:</p>
+          <p style="font-size:24px;font-weight:700;letter-spacing:2px;margin:12px 0;">%s</p>
+          <p>This code expires in %d minutes.</p>
+          <p>If you didn’t request this, ignore this email.</p>
+          <hr style="border:none;border-top:1px solid #eee;margin:16px 0;">
+          <p style="color:#666">— The AlgoMeet Team</p>
+        </div>
+    """.formatted(code, ttlSecs / 60);
+
+        try {
+            emailSender.send(email, subject, html);
+        } catch (Exception e) {
+            log.error("Failed to send registration OTP email to {}", email, e);
+            throw new RuntimeException("Email send failed: " + e.getMessage(), e);
+        }
     }
 
     public void initSmsRegistrationOtp(String phone) {
+        String code = generateNumericCode(6);
+        persistOtp(phone, "PHONE", "REGISTER", code);
+        // TODO: integrate SMS gateway here
+        log.info("OTP: registration SMS code dispatched to {}", mask(phone));
     }
 
     public boolean verifyEmailRegistrationOtp(String email, String code) {
 
-        return false;
+        return verifyOtp(email, "REGISTER", code, "EMAIL");
     }
 
     public boolean verifySmsRegistrationOtp(String phone, String code) {
 
-        return false;
+        return verifyOtp(phone, "REGISTER", code, "PHONE");
     }
+
 }

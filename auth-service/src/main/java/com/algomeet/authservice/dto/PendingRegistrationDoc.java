@@ -31,6 +31,7 @@ public class PendingRegistrationDoc {
     private String city;
     private Double latitude;
     private Double longitude;
+    private Integer loginTypePolicy;
 
     private Instant createdAt;
 
@@ -38,6 +39,28 @@ public class PendingRegistrationDoc {
     @Indexed(expireAfterSeconds = 900)  // will be overridden at runtime if you want; or keep constant
     private Instant expireAt;
 
-    public PendingRegistrationDoc(String txn, String username, String email, String phone, String encode, String deviceId, DeviceType deviceType, Instant now, Instant instant) {
+    public PendingRegistrationDoc(
+            String txn,
+            String username,
+            String email,
+            String phone,
+
+            String passwordHash,
+            String deviceId,
+            DeviceType deviceType,
+            Instant createdAt,
+            Instant expireAt
+    ) {
+        this.txn = txn;
+        this.username = username;
+        this.email = email;
+        this.phone = phone;
+        this.passwordHash = passwordHash;
+        this.deviceId = deviceId;
+        this.deviceType = deviceType;
+        this.createdAt = createdAt;
+        this.expireAt = expireAt;
     }
+
+
 }

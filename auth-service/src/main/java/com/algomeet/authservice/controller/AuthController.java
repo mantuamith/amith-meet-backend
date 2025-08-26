@@ -5,7 +5,7 @@ import com.algomeet.authservice.dto.*;
 import com.algomeet.authservice.enums.LoginPolicy;
 import com.algomeet.authservice.enums.LoginResponseType;
 import com.algomeet.authservice.enums.ResponseCode;
-import com.algomeet.authservice.otp.RegistrationService;
+import com.algomeet.authservice.service.RegistrationService;
 import com.algomeet.authservice.policy.LoginPolicyEnforcer;
 import com.algomeet.authservice.policy.LoginPolicyResolver;
 import com.algomeet.authservice.policy.SingleDeviceEnforcer;
@@ -18,7 +18,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -177,7 +176,7 @@ public class AuthController {
 
     // ----------------- New Flow: INIT -----------------
     @PostMapping("/login/init")
-    public ResponseEntity<LoginResponse> initLogin(@Valid @RequestBody LoginInitRequest request) {
+    public ResponseEntity<?> initLogin(@Valid @RequestBody LoginInitRequest request) {
         log.info("LOGIN:init attempt login={} deviceId={} deviceType={}",
                 mLogin(request.getLogin()), mDev(request.getDeviceId()), request.getDeviceType());
 
@@ -223,9 +222,13 @@ public class AuthController {
                 catch (Exception e) { log.warn("bind device failed: {}", e.toString()); }
 
                 return ResponseEntity.ok(
-                        LoginResponse.direct("Login successful (direct).",
+                        AuthResponse.from(
+                                ResponseCode.AUTH_LOGIN_SUCCESS,
+                                user,                          // the actual UserResponse
                                 auth.getAccessToken(),
-                                auth.getRefreshToken()));
+                                auth.getRefreshToken()
+                        )
+                );
             }
             case EMAIL: {
                 String msg = otpService.initEmailLoginOtp(request.getLogin());
@@ -251,7 +254,7 @@ public class AuthController {
 
     // ----------------- New Flow: VERIFY ---------------
     @PostMapping("/login/verify")
-    public ResponseEntity<LoginResponse> verifyLogin(@Valid @RequestBody LoginVerifyRequest request) {
+    public ResponseEntity<AuthResponse> verifyLogin(@Valid @RequestBody LoginVerifyRequest request) {
         log.info("LOGIN:verify attempt login={} type={} deviceId={} deviceType={}",
                 mLogin(request.getLogin()), request.getType(), mDev(request.getDeviceId()), request.getDeviceType());
 
@@ -331,13 +334,19 @@ public class AuthController {
             }
         }
 
-        // 8) Response (keep type same as policy, include tokens)
+
+
         return ResponseEntity.ok(
-                new LoginResponse(expectedType, "Login successful.", result.getAccessToken(), result.getRefreshToken())
+                AuthResponse.from(
+                        ResponseCode.AUTH_LOGIN_SUCCESS,  // type/message will map to "EMAIL" flow msg
+                        user,
+                        result.getAccessToken(),
+                        result.getRefreshToken()
+                )
         );
     }
 
-    @PostMapping("/init")
+    @PostMapping("/register/init")
     public RegisterInitResponse init(@Valid @RequestBody RegisterInitRequest req,
                                      HttpServletRequest http) {
         String ip = http.getRemoteAddr();
@@ -346,9 +355,9 @@ public class AuthController {
         return registration.init(req, ip);
     }
 
-    @PostMapping("/verify")
-    public AuthTokensResponse verify(@Valid @RequestBody RegisterVerifyRequest req,
-                                     HttpServletRequest http) {
+    @PostMapping("/register/verify")
+    public RegisterVerifyResponse verify(@Valid @RequestBody RegisterVerifyRequest req,
+                                         HttpServletRequest http) {
         String ip = http.getRemoteAddr();
         log.info("REGISTER:verify txn={} deviceId={}", req.getTransactionId(), req.getDeviceId());
         return registration.verify(req, ip);

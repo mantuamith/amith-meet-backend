@@ -52,10 +52,11 @@ public class AuthService {
         request.setEmail(email);
         request.setPassword(password);
         try {
-            Map<String, Object> responseMap = userClient.createUser(request);
+            Map<String,Object> responseMap = userClient.createUser(request);
+
 
             // Extract and map "user" object to UserResponse
-            return objectMapper.convertValue(responseMap.get("user"), UserResponse.class);
+            return objectMapper.convertValue(responseMap, UserResponse.class);
         } catch (FeignException.Conflict e) {
             Set<String> fields = extractDuplicateFields(e);
 
