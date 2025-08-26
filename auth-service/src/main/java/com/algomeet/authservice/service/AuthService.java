@@ -93,18 +93,18 @@ public class AuthService {
             // 1) Lookup user. Treat 'not found' as invalid creds (don’t leak which one failed)
             UserResponse user;
             try {
-                user = userClient.getUserByEmail(email);
+
+                String key = normalize(email);
+
+                user = userClient.getUserByLogin(key);
+                if (user == null || user.getPassword() == null) {
+                    return AuthResponse.from(ResponseCode.AUTH_INVALID_CREDENTIALS, null, null, null);
+                }
             } catch (feign.FeignException.NotFound nf) {
                 log.warn("LOGIN: user not found email={}", maskEmail(email));
                 return AuthResponse.from(ResponseCode.AUTH_INVALID_CREDENTIALS, null, null, null);
             }
-            log.info("AuthService: encoder={}", passwordEncoder.getClass().getName());
-            log.info("AuthService: raw='{}' len={}", rawPassword, rawPassword == null ? null : rawPassword.length());
-            log.info("AuthService: hashLen={} hash='{}'",
-                    user.getPassword() == null ? null : user.getPassword().length(),
-                    user.getPassword());
-            boolean ok = passwordEncoder.matches(rawPassword, user.getPassword());
-            log.info("AuthService: matches={}", ok);
+
             // 2) Verify password
             if (!passwordEncoder.matches(rawPassword, user.getPassword())) {
                 log.warn("LOGIN: bad credentials email={}", maskEmail(email));
@@ -139,6 +139,9 @@ public class AuthService {
         String email = jwtUtil.extractEmail(token);
         refreshTokenStore.clearAllForEmail(email);//Clear all refresh Tokens
         userClient.deleteUserByEmail(email);
+    }
+    private static String normalize(String s) {
+        return s == null ? "" : s.trim().toLowerCase(Locale.ROOT);
     }
 
     //TODO: automatically log out from all devices by clearing their refresh tokens
