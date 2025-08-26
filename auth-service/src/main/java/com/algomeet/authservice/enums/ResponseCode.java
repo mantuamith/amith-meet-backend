@@ -21,6 +21,12 @@ public enum ResponseCode {
     AUTH_LOGOUT_FAILED("AUTH_LOGOUT_FAILED", "Logout failed"),
     AUTH_USER_DELETED("AUTH_USER_DELETED", "User Account De-activated Successfully"),
     AUTH_DELETE_FAILED("AUTH_DELETE_FAILED", "Account Deletion Failed");
+    AUTH_DUPLICATE_BOTH("AUTH_DUPLICATE_BOTH", "User and email both already exists."),
+    AUTH_DUPLICATE_EMAIL("AUTH_DUPLICATE_EMAIL","Email already exists."),
+    AUTH_DUPLICATE_USERNAME("AUTH_DUPLICATE_USERNAME","User name already exists"),
+    AUTH_LOGIN_ERROR("AUTH_LOGIN_ERROR", "Login error ");
+
+
 
     private final String code;
     private final String defaultMessage;

@@ -7,7 +7,9 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 
-@FeignClient(name = "user-service", url = "http://localhost:8082")
+
+@FeignClient(name = "user-service", url = "${feign.client.user-service.url}")
+
 public interface UserClient {
     @PostMapping("/internal/users")
     Map<String, Object> createUser(@RequestBody UserRequest request);
@@ -26,4 +28,11 @@ public interface UserClient {
 
     @DeleteMapping("/internal/users/email/{email}")
     void deleteUserByEmail(@PathVariable("email") String email);
+
+
+    @GetMapping("/internal/users/lookup")
+    UserResponse getUserByLogin(@RequestParam("login") String login);
+
+
 }
+

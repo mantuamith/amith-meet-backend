@@ -19,7 +19,9 @@ import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @RestController
@@ -110,12 +112,19 @@ public class UserController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    @GetMapping("/email/{email}")
-    public ResponseEntity<UserResponse> getUserByEmail(@PathVariable String email) {
-        return userRepository.findByEmail(email)
-                .or(() -> userRepository.findByUsername(email))
-                .map(user -> ResponseEntity.ok(new UserResponse(user)))
+    @GetMapping("/lookup")
+    public ResponseEntity<UserResponse> getUserByLogin(@RequestParam("login") String login) {
+        String key = normalize(login);
+        Optional<User> user = userRepository.findByEmail(key)
+                .or(() -> userRepository.findByUsername(key));
+        return user.map(u -> ResponseEntity.ok(new UserResponse(u)))
                 .orElse(ResponseEntity.notFound().build());
+    }
+
+
+    @GetMapping("/email/{emailOrUsername}")
+    public ResponseEntity<UserResponse> getUserByEmail(@PathVariable String emailOrUsername) {
+        return getUserByLogin(emailOrUsername);
     }
 
     @GetMapping("/{id}")
@@ -170,7 +179,6 @@ public class UserController {
         return ResponseEntity.ok(Map.of("message", "User deleted successfully"));
     }
 
-
     @PostMapping("/{id}/active-device")
     public ResponseEntity<Void> updateActiveDevice(
             @PathVariable Long id, @RequestParam String deviceId) {
@@ -179,6 +187,7 @@ public class UserController {
         user.setActiveDeviceId(deviceId);
         userRepository.save(user);
         return ResponseEntity.ok().build();
+
     }
 
 }

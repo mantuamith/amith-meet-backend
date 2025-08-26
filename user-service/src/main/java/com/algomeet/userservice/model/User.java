@@ -3,7 +3,11 @@ package com.algomeet.userservice.model;
 import jakarta.persistence.*;
 import lombok.*;
 
+
 import java.math.BigDecimal;
+
+import java.util.Locale;
+
 
 @Getter
 @Setter
@@ -24,6 +28,7 @@ public class User {
 
     @Column(unique = true)
     private String email;
+
 
     @Column(unique = true)
     private String phone;
@@ -62,5 +67,12 @@ public class User {
     private String registrationDeviceId;
     @Column(name = "registration_device_type", length = 32)
     private String registrationDeviceType;
+
+
+    @PrePersist @PreUpdate
+    void normalize() {
+        if (username != null) username = username.trim().toLowerCase(Locale.ROOT);
+        if (email != null)    email    = email.trim().toLowerCase(Locale.ROOT);
+    }
 
 }

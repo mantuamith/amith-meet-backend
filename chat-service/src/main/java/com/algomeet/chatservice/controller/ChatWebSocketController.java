@@ -45,7 +45,12 @@ public class ChatWebSocketController {
         System.out.println("[STOMP /chat] From: " + principal.getName() + ", To: " + message.getReceiver() + ", Content: " + message.getContent());
         message.setSender(principal.getName());
         message.setTimestamp(Instant.now());
+        if (message.getStatus() == null)
+        {
+            message.setStatus(MessageStatus.SENT);
+        }
         try {
+
             MessageDocument savedMessage = messageRepository.save(message);
             MessageResponse response = messageMapper.toResponse(savedMessage);
             List<String> failedMembers = new ArrayList<>();
@@ -75,15 +80,27 @@ public class ChatWebSocketController {
                     }
                 }
             } else {
+                //Send the new message to the receiver
                 messagingTemplate.convertAndSendToUser(message.getReceiver(), "/queue/messages", response);
+                // Update receiver’s unread counts
                 messageService.sendUnreadCountUpdate(message.getReceiver()); // real-time update
-                // Send unread count update to receiver
                 int unread = messageService.getUnreadCountFor(message.getReceiver(), message.getSender());
                 messagingTemplate.convertAndSendToUser(
                         message.getReceiver(),
                         "/queue/unread/contact",
                         new UnreadCountResponse(message.getSender(), unread)
 
+                );
+                messagingTemplate.convertAndSendToUser(message.getSender(), "/queue/update_message", response);
+
+                // Also update sender’s side (so their recent panel shows latest msg)
+                messageService.sendUnreadCountUpdate(message.getSender());
+                int unreadForSender = messageService.getUnreadCountFor(message.getSender(), message.getReceiver());
+                // Typically 0, but we still send event so FE refreshes “last message” row
+                messagingTemplate.convertAndSendToUser(
+                        message.getSender(),
+                        "/queue/unread/contact",
+                        new UnreadCountResponse(message.getReceiver(), unreadForSender)
                 );
 
             }

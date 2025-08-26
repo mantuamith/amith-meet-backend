@@ -15,6 +15,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -76,6 +77,7 @@ public class AuthService {
         }
     }
 
+
     public void bindActiveDevice(Long userId, String deviceId) {
         userClient.updateActiveDevice(userId, deviceId);
     }
@@ -116,8 +118,10 @@ public class AuthService {
             // 4) Persist refresh token binding
             refreshTokenStore.save(refreshToken, user.getEmail());
 
+
             log.info("LOGIN: success email={}", maskEmail(email));
             return AuthResponse.from(ResponseCode.AUTH_LOGIN_SUCCESS, user, accessToken, refreshToken);
+
 
         } catch (feign.FeignException fe) {
             // External call failed (4xx/5xx). Don’t leak details to client.
@@ -128,9 +132,9 @@ public class AuthService {
         } catch (Exception e) {
             log.error("LOGIN: unexpected error email={}, err={}", maskEmail(email), e.toString());
             return AuthResponse.from(ResponseCode.AUTH_LOGIN_FAILED, null, null, null);
+
         }
     }
-
     public void deleteUser(String token) {
         String email = jwtUtil.extractEmail(token);
         refreshTokenStore.clearAllForEmail(email);//Clear all refresh Tokens

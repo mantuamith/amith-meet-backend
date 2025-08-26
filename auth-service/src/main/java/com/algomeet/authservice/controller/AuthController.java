@@ -1,9 +1,15 @@
 package com.algomeet.authservice.controller;
 
+
 import com.algomeet.authservice.config.AuthProperties;
 import com.algomeet.authservice.dto.*;
 import com.algomeet.authservice.enums.LoginPolicy;
 import com.algomeet.authservice.enums.LoginResponseType;
+import com.algomeet.authservice.dto.AuthResponse;
+import com.algomeet.authservice.dto.LoginRequest;
+import com.algomeet.authservice.dto.RefreshTokenRequest;
+import com.algomeet.authservice.dto.UserResponse;
+
 import com.algomeet.authservice.enums.ResponseCode;
 import com.algomeet.authservice.service.RegistrationService;
 import com.algomeet.authservice.policy.LoginPolicyEnforcer;
@@ -88,33 +94,10 @@ public class AuthController {
             ));
         }
     }
-
-    // ----------------- Legacy Login (direct) ----------
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody Map<String, String> payload) {
-        final String email = payload.get("email");
-        log.info("LOGIN(legacy): attempt email={}", mLogin(email));
-        try {
-            AuthResponse response = authService.login(email, payload.get("password"));
-            if (ResponseCode.AUTH_INVALID_CREDENTIALS.getCode().equals(response.getCode())) {
-                log.warn("LOGIN(legacy): invalid credentials email={}", mLogin(email));
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
-            }
-            log.info("LOGIN(legacy): success userId={} email={}", response.getUser()!=null?response.getUser().getId():"unknown", mLogin(email));
-            return ResponseEntity.ok(response);
-        } catch (BadCredentialsException bce) {
-            log.warn("LOGIN(legacy): bad credentials email={}", mLogin(email));
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of(
-                    "code", ResponseCode.AUTH_INVALID_CREDENTIALS.getCode(),
-                    "message", ResponseCode.AUTH_INVALID_CREDENTIALS.getDefaultMessage()
-            ));
-        } catch (Exception e) {
-            log.error("LOGIN(legacy): failed email={} error={}", mLogin(email), e.toString(), e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
-                    "code", ResponseCode.AUTH_LOGIN_FAILED.getCode(),
-                    "message", ResponseCode.AUTH_LOGIN_FAILED.getDefaultMessage()
-            ));
-        }
+    public AuthResponse login(@RequestBody LoginRequest req) {
+        return authService.login(req.getEffectiveLogin(), req.getPassword());
+
     }
 
     // ----------------- Delete Account -----------------
