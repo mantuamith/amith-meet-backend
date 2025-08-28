@@ -8,6 +8,7 @@ import com.algomeet.chatservice.repository.MessageRepository;
 import com.algomeet.chatservice.service.MessageService;
 import com.algomeet.chatservice.dto.ResetUnreadRequest;
 import jakarta.validation.Valid;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -21,8 +22,9 @@ import java.security.Principal;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.stream.Collectors;
-
+@Slf4j
 @RestController
 @RequestMapping("/api/messages")
 public class MessageController {
@@ -49,40 +51,77 @@ public class MessageController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
 
+        final long t0 = System.nanoTime();
         final String currentUser = getCurrentUserName();
 
+        int originalPage = page;
+        int originalSize = size;
+
         // clamp page >= 0, size in 1..100
-        final int safePage    = Math.max(page, 0);
-        final int pageSize    = Math.min(Math.max(size, 1), 100);
+        final int safePage = Math.max(page, 0);
+        final int pageSize = Math.min(Math.max(size, 1), 100);
 
-        if (paged) {
-            // Newest page first (DESC) for fetch; then present ASC within the page
-            Pageable pageable = PageRequest.of(
-                    safePage,
-                    pageSize,
-                    Sort.by(Sort.Direction.DESC, "timestamp").and(Sort.by(Sort.Direction.DESC, "_id")) // deterministic
-            );
-
-            var pageResult = messageRepository.findConversation(currentUser, otherUser, pageable);
-
-            // Reverse a *mutable* copy to present oldest->newest within this page
-            List<MessageDocument> docs = new ArrayList<>(pageResult.getContent());
-            Collections.reverse(docs);
-
-            return docs.stream()
-                    .map(messageMapper::toResponse)
-                    .collect(Collectors.toList()); // mutable list (avoid Stream.toList())
+        if (originalPage != safePage || originalSize != pageSize) {
+            log.warn("DM list clamp applied: user={} otherUser={} paged={} reqPage={} reqSize={} -> safePage={} safeSize={}",
+                    currentUser, otherUser, paged, originalPage, originalSize, safePage, pageSize);
         } else {
-            // One shot full fetch in ASC order → no reverse needed
-            List<MessageDocument> docs = messageRepository.findConversationAll(
-                    currentUser,
-                    otherUser,
-                    Sort.by(Sort.Direction.ASC, "timestamp").and(Sort.by(Sort.Direction.ASC, "_id"))
-            );
+            log.debug("DM list request: user={} otherUser={} paged={} page={} size={}",
+                    currentUser, otherUser, paged, safePage, pageSize);
+        }
 
-            return docs.stream()
-                    .map(messageMapper::toResponse)
-                    .collect(Collectors.toList());
+        try {
+            if (paged) {
+                // Fetch newest first (DESC); present ASC within the page by iterating backwards
+                Pageable pageable = PageRequest.of(
+                        safePage,
+                        pageSize,
+                        Sort.by(Sort.Direction.DESC, "timestamp")
+                                .and(Sort.by(Sort.Direction.DESC, "_id")) // deterministic
+                );
+                log.trace("DM pageable built: {}", pageable);
+
+                var pageResult = messageRepository.findConversation(currentUser, otherUser, pageable);
+                var content = pageResult.getContent();
+
+                log.debug("DM paged fetch: user={} otherUser={} page={} size={} contentSize={} hasNext={} hasPrev={}",
+                        currentUser, otherUser, safePage, pageSize, content.size(),
+                        pageResult.hasNext(), pageResult.hasPrevious());
+
+                // Build ASC without mutating content
+                List<MessageResponse> out = new ArrayList<>(content.size());
+                for (ListIterator<MessageDocument> it = content.listIterator(content.size()); it.hasPrevious(); ) {
+                    out.add(messageMapper.toResponse(it.previous()));
+                }
+
+                log.info("DM paged response: user={} otherUser={} page={} size={} outSize={} tookMs={}",
+                        currentUser, otherUser, safePage, pageSize, out.size(),
+                        (System.nanoTime() - t0) / 1_000_000);
+
+                return out;
+
+            } else {
+                // One-shot full fetch in ASC order (no reordering)
+                Sort sortAsc = Sort.by(Sort.Direction.ASC, "timestamp")
+                        .and(Sort.by(Sort.Direction.ASC, "_id"));
+                var docs = messageRepository.findConversationAll(currentUser, otherUser, sortAsc);
+
+                log.debug("DM full fetch: user={} otherUser={} sort={} fetched={}",
+                        currentUser, otherUser, sortAsc, docs.size());
+
+                List<MessageResponse> out = docs.stream()
+                        .map(messageMapper::toResponse)
+                        .collect(Collectors.toList()); // mutable list
+
+                log.info("DM full response: user={} otherUser={} outSize={} tookMs={}",
+                        currentUser, otherUser, out.size(),
+                        (System.nanoTime() - t0) / 1_000_000);
+
+                return out;
+            }
+        } catch (RuntimeException ex) {
+            log.error("DM fetch error: user={} otherUser={} paged={} page={} size={} msg={}",
+                    currentUser, otherUser, paged, safePage, pageSize, ex.getMessage(), ex);
+            throw ex;
         }
     }
 
