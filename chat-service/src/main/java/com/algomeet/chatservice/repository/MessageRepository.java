@@ -33,17 +33,10 @@ public interface MessageRepository extends MongoRepository<MessageDocument, Stri
 
     List<MessageDocument> findBySenderOrReceiver(String userId, String userId1);
 
-    @Query(value = "{ 'isGroupMessage': false, '$or': [ "
-            + "{ '$and': [ { 'sender': ?0 }, { 'receiver': ?1 } ] }, "
-            + "{ '$and': [ { 'sender': ?1 }, { 'receiver': ?0 } ] } "
-            + "] }")
+    @Query("{ '$or': [ { 'sender': ?0, 'receiver': ?1 }, { 'sender': ?1, 'receiver': ?0 } ] }")
     Page<MessageDocument> findConversation(String userA, String userB, Pageable pageable);
 
-    // Non-paged (controller supplies Sort: e.g., ASC by timestamp, then _id)
-    @Query(value = "{ 'isGroupMessage': false, '$or': [ "
-            + "{ '$and': [ { 'sender': ?0 }, { 'receiver': ?1 } ] }, "
-            + "{ '$and': [ { 'sender': ?1 }, { 'receiver': ?0 } ] } "
-            + "] }")
+    // Non-paged (if you really want a list):
+    @Query(value = "{ '$or': [ { 'sender': ?0, 'receiver': ?1 }, { 'sender': ?1, 'receiver': ?0 } ] }")
     List<MessageDocument> findConversationAll(String userA, String userB, Sort sort);
-
 }
