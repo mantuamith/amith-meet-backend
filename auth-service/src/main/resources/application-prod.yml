@@ -11,7 +11,8 @@ spring:
 
   data:
     mongodb:
-      uri: mongodb://localhost:27017/authdb  # used for logs, OTPs, etc.
+      uri: ${SPRING_MONGODB_URI_AUTHDB}  # used for logs, OTPs, etc.
+      auto-index-creation: true
 
   redis:
     host: localhost
@@ -28,14 +29,54 @@ spring:
   jackson:
     serialization:
       INDENT_OUTPUT: true
+  mail:
+    host: ${SPRING_SMTP_HOST}
+    port: ${SPRING_SMTP_PORT}
+    username: ${SPRING_SMTP_USERNAME}
+    password: ${SPRING_SMTP_PASSWORD}   # Use a Gmail App Password; do NOT commit this
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
 
 server:
   port: 8081  # Use 8081 if chat-service is on 8080
 
 jwt:
   secret: ${SPRING_JWT_SECRET}
+  accessTtlMinutes: 30
+  refreshTtlDays: 7
 
 feign:
   client:
     user-service:
       url: http://user-service:8082
+
+# === App mail defaults for From header ===
+app:
+  mail:
+    from: ${SPRING_SMTP_FROM_MAIL}
+    fromName: "${SPRING_SMTP_FROM_NAME}"
+
+# === Auth/OTP/2FA/JWT settings ===
+auth:
+  requireVerifiedEmail: false
+  requireVerifiedPhone: false
+  singleActiveDevice: true
+  # LoginPolicy: 0=DIRECT, 1=EMAIL, 2=PHONE, 3=TOTP
+  loginTypePolicyDefault: 0
+
+otp:
+  ttlSeconds: 600
+  maxAttempts: 5
+  resendThrottleSeconds: 600
+  pepper: ${SPRING_OTP_SECRET}
+
+twoFa:
+  enabled: true
+  allowedTypes: [EMAIL_OTP, SMS_OTP, TOTP, SEAMOON]
