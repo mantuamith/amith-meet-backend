@@ -50,26 +50,30 @@ public class MessageController {
             @RequestParam(defaultValue = "20") int size) {
 
         final String currentUser = getCurrentUserName();
-        final int pageSize = Math.min(Math.max(size, 1), 100); // clamp 1..100
+
+        // clamp page >= 0, size in 1..100
+        final int safePage    = Math.max(page, 0);
+        final int pageSize    = Math.min(Math.max(size, 1), 100);
 
         if (paged) {
-            // Newest page first (DESC), then reverse the *mutable copy* so items are ASC within the page
+            // Newest page first (DESC) for fetch; then present ASC within the page
             Pageable pageable = PageRequest.of(
-                    page,
+                    safePage,
                     pageSize,
                     Sort.by(Sort.Direction.DESC, "timestamp").and(Sort.by(Sort.Direction.DESC, "_id")) // deterministic
             );
 
             var pageResult = messageRepository.findConversation(currentUser, otherUser, pageable);
 
-            List<MessageDocument> docs = new ArrayList<>(pageResult.getContent()); // make it mutable
-            Collections.reverse(docs); // now oldest->newest inside the page
+            // Reverse a *mutable* copy to present oldest->newest within this page
+            List<MessageDocument> docs = new ArrayList<>(pageResult.getContent());
+            Collections.reverse(docs);
 
             return docs.stream()
                     .map(messageMapper::toResponse)
-                    .collect(Collectors.toList()); // mutable collector (avoid Stream.toList())
+                    .collect(Collectors.toList()); // mutable list (avoid Stream.toList())
         } else {
-            // Fetch already in ASC order → no reverse needed
+            // One shot full fetch in ASC order → no reverse needed
             List<MessageDocument> docs = messageRepository.findConversationAll(
                     currentUser,
                     otherUser,
@@ -81,6 +85,7 @@ public class MessageController {
                     .collect(Collectors.toList());
         }
     }
+
 
 
     // Get messages for a group (group chat)
