@@ -18,8 +18,10 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.http.ResponseEntity;
 
 import java.security.Principal;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/messages")
@@ -41,40 +43,45 @@ public class MessageController {
 
     // Get messages between two users (direct chat)
     @GetMapping("/user/{otherUser}")
-    public List<MessageResponse> getDirectMessages(@PathVariable String otherUser, @RequestParam(defaultValue = "false") boolean paged
-    , @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size) {
-        String currentUser = getCurrentUserName();
+    public List<MessageResponse> getDirectMessages(
+            @PathVariable String otherUser,
+            @RequestParam(defaultValue = "false") boolean paged,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+
+        final String currentUser = getCurrentUserName();
+        final int pageSize = Math.min(Math.max(size, 1), 100); // clamp 1..100
 
         if (paged) {
-            // 1) fetch newest page first (DESC)
-            Pageable p = PageRequest.of(page, Math.min(size, 100),
-                    Sort.by(Sort.Direction.DESC, "timestamp"));
-            List<MessageDocument> content = messageRepository
-                    .findConversation(currentUser, otherUser, p)
-                    .getContent();
+            // Newest page first (DESC), then reverse the *mutable copy* so items are ASC within the page
+            Pageable pageable = PageRequest.of(
+                    page,
+                    pageSize,
+                    Sort.by(Sort.Direction.DESC, "timestamp").and(Sort.by(Sort.Direction.DESC, "_id")) // deterministic
+            );
 
-            // 2) reverse so FE gets ascending order inside the page
-            Collections.reverse(content);
+            var pageResult = messageRepository.findConversation(currentUser, otherUser, pageable);
 
-            return content.stream()
+            List<MessageDocument> docs = new ArrayList<>(pageResult.getContent()); // make it mutable
+            Collections.reverse(docs); // now oldest->newest inside the page
+
+            return docs.stream()
                     .map(messageMapper::toResponse)
-                    .toList();
+                    .collect(Collectors.toList()); // mutable collector (avoid Stream.toList())
         } else {
-            // Non-paged: get all in DESC then reverse to ASC
-            List<MessageDocument> allDesc = messageRepository
-                    .findConversationAll(currentUser, otherUser,
-                            Sort.by(Sort.Direction.DESC, "timestamp"))
-                    .stream()
-                    .toList();
+            // Fetch already in ASC order → no reverse needed
+            List<MessageDocument> docs = messageRepository.findConversationAll(
+                    currentUser,
+                    otherUser,
+                    Sort.by(Sort.Direction.ASC, "timestamp").and(Sort.by(Sort.Direction.ASC, "_id"))
+            );
 
-            Collections.reverse(allDesc);
-
-            return allDesc.stream()
+            return docs.stream()
                     .map(messageMapper::toResponse)
-                    .toList();
+                    .collect(Collectors.toList());
         }
-
     }
+
 
     // Get messages for a group (group chat)
     @GetMapping("/group/{groupId}")
@@ -84,26 +91,48 @@ public class MessageController {
             @RequestParam(defaultValue = "false") boolean paged,
             @RequestParam(defaultValue = "20") int size) {
 
-        List<MessageDocument> docs;
+        final int clampedPage = Math.max(page, 0);
+        final int pageSize    = Math.min(Math.max(size, 1), 100);
+
+        // Newest first from DB (DESC), with deterministic tie-breaker
+        final Sort descSort = Sort.by(Sort.Direction.DESC, "timestamp")
+                .and(Sort.by(Sort.Direction.DESC, "_id"));
 
         if (paged) {
-            // Fetch newest page first
-            Pageable p = PageRequest.of(page, Math.min(size, 100),
-                    Sort.by(Sort.Direction.DESC, "timestamp"));
-            docs = messageRepository.findByReceiver(groupId, p);
+            // Get "newest page first" then flip to ASC within the page for UI
+            Pageable p = PageRequest.of(clampedPage, pageSize, descSort);
 
-            // Return page in ascending order for UI rendering
-            Collections.reverse(docs);
+            // If your repo returns List<MessageDocument>
+            List<MessageDocument> pageDesc = messageRepository.findByReceiver(groupId, p);
+
+            // If your repo returns Page<MessageDocument>, use:
+            // List<MessageDocument> pageDesc = messageRepository.findByReceiver(groupId, p).getContent();
+
+            List<MessageDocument> pageAsc = new ArrayList<>(pageDesc); // ensure mutable
+            Collections.reverse(pageAsc);
+
+            return pageAsc.stream()
+                    .map(messageMapper::toResponse)
+                    .collect(Collectors.toList());
         } else {
-            // Grab latest 100 (DESC) then present ASC
-            docs = messageRepository.findTop100ByReceiverOrderByTimestampDesc(groupId);
-            Collections.reverse(docs);
-        }
+            // Non-paged: fetch latest 100 (DESC) then present ASC
+            Pageable p = PageRequest.of(0, 100, descSort);
 
-        return docs.stream()
-                .map(messageMapper::toResponse)
-                .toList();
+            // If your repo returns List<MessageDocument>
+            List<MessageDocument> latestDesc = messageRepository.findByReceiver(groupId, p);
+
+            // If your repo returns Page<MessageDocument>, use:
+            // List<MessageDocument> latestDesc = messageRepository.findByReceiver(groupId, p).getContent();
+
+            List<MessageDocument> latestAsc = new ArrayList<>(latestDesc); // mutable copy
+            Collections.reverse(latestAsc);
+
+            return latestAsc.stream()
+                    .map(messageMapper::toResponse)
+                    .collect(Collectors.toList());
+        }
     }
+
 
 
 
