@@ -193,4 +193,35 @@ public class OtpService {
         return verifyOtp(phone, "REGISTER", code, "PHONE");
     }
 
+
+    public String initEmailResetOtp(String email) {
+        String code = generateNumericCode(6);
+        persistOtp(email, "EMAIL", "RESET", code);
+        emailSender.send(email, "Your AlgoMeet Password Reset Code",
+                """
+                <div style="font-family:Inter,Arial,sans-serif">
+                  <p>Your password reset code is:</p>
+                  <p style="font-size:24px;font-weight:700;letter-spacing:2px;margin:12px 0;">%s</p>
+                  <p>This code expires in %d minutes.</p>
+                </div>
+                """.formatted(code, props.getOtp().getTtlSeconds()/60));
+        log.info("OTP: dispatched EMAIL RESET to {}", mask(email));
+        return "OTP sent to your email";
+    }
+
+    public String initSmsResetOtp(String phone) {
+        String code = generateNumericCode(6);
+        persistOtp(phone, "PHONE", "RESET", code);
+        log.info("OTP: dispatched SMS RESET to {}", mask(phone));
+        return "OTP sent to your phone";
+    }
+
+    public boolean verifyEmailResetOtp(String email, String code) {
+        return verifyOtp(email, "RESET", code, "EMAIL");
+    }
+
+    public boolean verifySmsResetOtp(String phone, String code) {
+        return verifyOtp(phone, "RESET", code, "PHONE");
+    }
+
 }

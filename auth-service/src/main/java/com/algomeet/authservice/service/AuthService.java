@@ -160,6 +160,11 @@ public class AuthService {
         return AuthResponse.from(ResponseCode.AUTH_REFRESH_SUCCESS, user, newAccessToken, refreshToken);
     }
 
+    public void updatePassword(Long userId, String rawPassword) {
+        String hash = passwordEncoder.encode(rawPassword); // keep same encoder used elsewhere
+        userClient.updatePassword(userId, hash);
+    }
+
 
     private String maskEmail(String email) {
         if (email == null) return "null";

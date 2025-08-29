@@ -346,6 +346,63 @@ public class AuthController {
         return registration.verify(req, ip);
     }
 
+
+
+    @PostMapping("/password/forgot/init")
+    public ResponseEntity<Map<String,Object>> forgotPasswordInit(
+            @Valid @RequestBody ForgotPasswordInitRequest request) {
+
+        // Resolve user (email/username/phone)
+        UserResponse user = userLookupService.findByLoginOr404(request.getLogin());
+
+        // Decide channel: if user has email -> email OTP; else phone -> SMS OTP
+        String msg;
+        if (user.getEmail() != null && !user.getEmail().isBlank()) {
+            msg = otpService.initEmailResetOtp(user.getEmail());
+        } else if (user.getPhone() != null && !user.getPhone().isBlank()) {
+            msg = otpService.initSmsResetOtp(user.getPhone());
+        } else {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No reachable channel on account");
+        }
+
+        return ResponseEntity.ok(Map.of(
+                "type", (user.getEmail()!=null ? "EMAIL" : "PHONE"),
+                "message", msg
+        ));
+    }
+
+    @PostMapping("/password/forgot/verify")
+    public ResponseEntity<Map<String,Object>> forgotPasswordVerify(
+            @Valid @RequestBody ForgotPasswordVerifyRequest request) {
+
+        // Resolve user
+        UserResponse user = userLookupService.findByLoginOr404(request.getLogin());
+
+        // Verify OTP
+        boolean ok;
+        if (user.getEmail() != null && !user.getEmail().isBlank()) {
+            ok = otpService.verifyEmailResetOtp(user.getEmail(), request.getCode());
+        } else if (user.getPhone() != null && !user.getPhone().isBlank()) {
+            ok = otpService.verifySmsResetOtp(user.getPhone(), request.getCode());
+        } else {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No reachable channel on account");
+        }
+        if (!ok) throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid or expired OTP");
+
+        // Update password (BCrypt in auth-service)
+        authService.updatePassword(user.getId(), request.getNewPassword());
+
+        return ResponseEntity.ok(Map.of(
+                "type", (user.getEmail()!=null ? "EMAIL" : "PHONE"),
+                "message", "Password updated successfully."
+        ));
+    }
+
+
+
+
+
+
     private String mask(String s){ return s==null?"":(s.length()<=2?s:"**"+s.substring(Math.max(0,s.length()-2))); }
     private String maskEmail(String e){ return e==null?"":e.replaceAll("(^.).*(@.*$)","$1***$2"); }
     private String maskPhone(String p){ return p==null?"":p.replaceAll(".(?=.{2})","*"); }

@@ -190,6 +190,18 @@ public class UserController {
 
     }
 
+    @PutMapping("/{id}/password")
+    public ResponseEntity<Void> updatePassword(
+            @PathVariable Long id,
+            @RequestParam("passwordHash") String passwordHash) {
+
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("User not found"));
+        user.setPassword(passwordHash); // already BCrypted by auth-service
+        userRepository.save(user);
+        return ResponseEntity.ok().build();
+    }
+
     private static String normalize(String s) {
         return s == null ? "" : s.trim().toLowerCase(Locale.ROOT);
     }
