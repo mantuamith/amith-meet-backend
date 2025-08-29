@@ -29,6 +29,9 @@ public interface UserClient {
     @DeleteMapping("/internal/users/email/{email}")
     void deleteUserByEmail(@PathVariable("email") String email);
 
+    @PutMapping("/internal/users/{id}/password")
+    void updatePassword(@PathVariable("id") Long id, @RequestParam("passwordHash") String passwordHash);
+
 
     @GetMapping("/internal/users/lookup")
     UserResponse getUserByLogin(@RequestParam("login") String login);
