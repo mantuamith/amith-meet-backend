@@ -11,8 +11,8 @@ spring:
   mail:
     host: smtp.gmail.com
     port: 587
-    username: mantu.amith@gmail.com
-    password: hstp ltwn dgze lryf   # Use a Gmail App Password; do NOT commit this
+    username: info.algomeet@gmail.com
+    password: yxiq emlr hidd zsey   # Use a Gmail App Password; do NOT commit this
     properties:
       mail:
         smtp:
