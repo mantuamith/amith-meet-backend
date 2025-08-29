@@ -7,6 +7,9 @@ import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.CompoundIndex;
+import org.springframework.data.mongodb.core.index.CompoundIndexes;
+import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
 
@@ -16,6 +19,14 @@ import java.util.List;
 @Data
 @NoArgsConstructor
 @Document(collection = "messages")
+@CompoundIndexes({
+        // For queries: { sender: A, receiver: B } sorted by timestamp/_id
+        @CompoundIndex(name = "idx_sender_receiver_ts_id",
+                def  = "{'sender': 1, 'receiver': 1, 'timestamp': -1, '_id': -1}"),
+        // For the reversed branch in $or: { receiver: A, sender: B }
+        @CompoundIndex(name = "idx_receiver_sender_ts_id",
+                def  = "{'receiver': 1, 'sender': 1, 'timestamp': -1, '_id': -1}")
+})
 public class MessageDocument {
 
     @Id
@@ -25,6 +36,13 @@ public class MessageDocument {
     private boolean groupMessage;
 
     private String clientMessageId;
+
+    private Boolean deletedForAll;                 // sender deleted for everyone?
+    @Indexed
+    private Long deletedAt;                        // epoch seconds when deleted for all
+
+    // Per-user "delete for me"
+    private java.util.Set<String> deletedForUsers; // usernames who shouldn't see this
 
 
 
