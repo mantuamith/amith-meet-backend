@@ -4,12 +4,16 @@ import com.algomeet.chatservice.client.GroupClient;
 import com.algomeet.chatservice.document.GroupDto;
 import com.algomeet.chatservice.document.MessageDocument;
 import com.algomeet.chatservice.document.MessageResponse;
+import com.algomeet.chatservice.dto.MessageDeleteCommand;
 import com.algomeet.chatservice.dto.MessageStatusUpdate;
 import com.algomeet.chatservice.dto.UnreadCountResponse;
 import com.algomeet.chatservice.mapper.MessageMapper;
 import com.algomeet.chatservice.model.MessageStatus;
 import com.algomeet.chatservice.repository.MessageRepository;
+import com.algomeet.chatservice.service.MessageDeleteService;
 import com.algomeet.chatservice.service.MessageService;
+import lombok.AllArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
@@ -23,26 +27,20 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @RestController
+@AllArgsConstructor
+@Slf4j
 public class ChatWebSocketController {
 
-    @Autowired
-    private SimpMessagingTemplate messagingTemplate;
-
-    @Autowired
-    private MessageRepository messageRepository;
-
-    @Autowired
-    private GroupClient groupClient;
-
-    @Autowired
-    private MessageMapper messageMapper;
-
-    @Autowired
-    private MessageService messageService;
+    private final SimpMessagingTemplate messagingTemplate;
+    private final MessageRepository messageRepository;
+    private final GroupClient groupClient;
+    private final MessageMapper messageMapper;
+    private final MessageService messageService;
+    private final MessageDeleteService deleteService;
 
     @MessageMapping("/chat")
     public void handleChatMessage(MessageDocument message, Principal principal) {
-        System.out.println("[STOMP /chat] From: " + principal.getName() + ", To: " + message.getReceiver() + ", Content: " + message.getContent());
+        log.info("[STOMP /chat] From: {}, To: {}, Content: {}", principal.getName(), message.getReceiver(), message.getContent());
         message.setSender(principal.getName());
         message.setTimestamp(Instant.now());
         if (message.getStatus() == null)
@@ -142,5 +140,13 @@ public class ChatWebSocketController {
         System.out.println("[STOMP /read] User: " + principal.getName() + ", Message IDs: " + payload.getMessageIds());
         messageService.markMessagesAsRead(payload.getMessageIds(), principal.getName());
     }
+
+    @MessageMapping("/message-delete")
+    public void wsDeleteMessage(@Payload MessageDeleteCommand cmd, Principal principal) {
+        String requester = principal.getName();
+        deleteService.deleteMessages(cmd.getMessageIds(), requester, cmd.isDeleteForEveryone());
+        // No return; events are pushed to the appropriate queues inside the service.
+    }
+
 
 }

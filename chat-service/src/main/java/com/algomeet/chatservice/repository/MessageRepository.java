@@ -9,6 +9,7 @@ import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.data.mongodb.repository.Query;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface MessageRepository extends MongoRepository<MessageDocument, String> {
     // Direct chat hybrid support
@@ -39,4 +40,47 @@ public interface MessageRepository extends MongoRepository<MessageDocument, Stri
     // Non-paged (if you really want a list):
     @Query(value = "{ '$or': [ { 'sender': ?0, 'receiver': ?1 }, { 'sender': ?1, 'receiver': ?0 } ] }")
     List<MessageDocument> findConversationAll(String userA, String userB, Sort sort);
+
+
+    @Query("""
+       {
+         $and: [
+           { deletedForAll: { $ne: true } },
+           { $or: [
+                { sender: ?0, receiver: ?1 },
+                { sender: ?1, receiver: ?0 }
+           ]},
+           { $or: [
+                { deletedForUsers: { $exists: false } },
+                { deletedForUsers: { $nin: ?2 } }
+           ]}
+         ]
+       }
+    """)
+    List<MessageDocument> findVisibleConversation(String userA, String userB, String viewer,
+                                                  Pageable pageable);
+
+    @Query(value = """
+    {
+      $and: [
+        { deletedForAll: { $ne: true } },
+        {
+          $or: [
+            { sender: ?0, receiver: ?1 },
+            { sender: ?1, receiver: ?0 }
+          ]
+        },
+        {
+          $or: [
+            { deletedForUsers: { $exists: false } },
+            { deletedForUsers: { $nin: ?2 } }
+          ]
+        }
+      ]
+    }
+    """)
+    List<MessageDocument> findVisibleConversationAll(String userA, String userB, String viewer, Sort sort);
+
+    // For a single message load (and checks)
+    Optional<MessageDocument> findById(String id);
 }
