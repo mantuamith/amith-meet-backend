@@ -10,14 +10,12 @@ import com.algomeet.authservice.dto.LoginRequest;
 import com.algomeet.authservice.dto.RefreshTokenRequest;
 import com.algomeet.authservice.dto.UserResponse;
 
+import com.algomeet.authservice.enums.OtpChannel;
 import com.algomeet.authservice.enums.ResponseCode;
-import com.algomeet.authservice.service.RegistrationService;
+import com.algomeet.authservice.service.*;
 import com.algomeet.authservice.policy.LoginPolicyEnforcer;
 import com.algomeet.authservice.policy.LoginPolicyResolver;
 import com.algomeet.authservice.policy.SingleDeviceEnforcer;
-import com.algomeet.authservice.service.AuthService;
-import com.algomeet.authservice.service.OtpService;
-import com.algomeet.authservice.service.UserLookupService;
 import com.algomeet.authservice.token.RefreshTokenStore;
 import com.algomeet.authservice.util.JwtUtil;
 import jakarta.servlet.http.HttpServletRequest;
@@ -46,6 +44,7 @@ public class AuthController {
     private final OtpService otpService;
     private final LoginPolicyResolver loginPolicyResolver;
     private final RegistrationService registration;
+    private final PasswordResetService passwordResetService;
 
     // ---------- Helpers (masking, safe logs) ----------
     private String mLogin(String v){ return v == null ? "null" : v.replaceAll("^(.{2}).+(@.*)?$","$1***$2"); }
@@ -346,8 +345,6 @@ public class AuthController {
         return registration.verify(req, ip);
     }
 
-
-
     @PostMapping("/password/forgot/init")
     public ResponseEntity<Map<String,Object>> forgotPasswordInit(
             @Valid @RequestBody ForgotPasswordInitRequest request) {
@@ -357,16 +354,19 @@ public class AuthController {
 
         // Decide channel: if user has email -> email OTP; else phone -> SMS OTP
         String msg;
+        String type;
         if (user.getEmail() != null && !user.getEmail().isBlank()) {
             msg = otpService.initEmailResetOtp(user.getEmail());
+            type = String.valueOf(OtpChannel.valueOf("EMAIL"));
         } else if (user.getPhone() != null && !user.getPhone().isBlank()) {
             msg = otpService.initSmsResetOtp(user.getPhone());
+            type = String.valueOf(OtpChannel.valueOf("PHONE"));
         } else {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No reachable channel on account");
         }
-
+        log.info("FORGOT:init login={} channel={}", mLogin(request.getLogin()), type);
         return ResponseEntity.ok(Map.of(
-                "type", (user.getEmail()!=null ? "EMAIL" : "PHONE"),
+                "type", type,
                 "message", msg
         ));
     }
@@ -379,29 +379,52 @@ public class AuthController {
         UserResponse user = userLookupService.findByLoginOr404(request.getLogin());
 
         // Verify OTP
+        String channel;
         boolean ok;
         if (user.getEmail() != null && !user.getEmail().isBlank()) {
             ok = otpService.verifyEmailResetOtp(user.getEmail(), request.getCode());
+            channel = String.valueOf(OtpChannel.valueOf("EMAIL"));
         } else if (user.getPhone() != null && !user.getPhone().isBlank()) {
             ok = otpService.verifySmsResetOtp(user.getPhone(), request.getCode());
+            channel = String.valueOf(OtpChannel.valueOf("PHONE"));
         } else {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No reachable channel on account");
         }
-        if (!ok) throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid or expired OTP");
+        if (!ok)
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid or expired OTP");
 
-        // Update password (BCrypt in auth-service)
-        authService.updatePassword(user.getId(), request.getNewPassword());
+        // Create short-lived reset ticket
+        String ticketId = passwordResetService.issueResetTicket(user.getEmail() != null ? user.getEmail()
+                        : user.getPhone(),
+                channel);
+
+        log.info("FORGOT:verify OK login={} channel={} ticket={}",
+                mLogin(request.getLogin()), channel, ticketId.substring(0,8)+"...");
 
         return ResponseEntity.ok(Map.of(
-                "type", (user.getEmail()!=null ? "EMAIL" : "PHONE"),
-                "message", "Password updated successfully."
+                "type", channel,
+                "message", "OTP verified. You may now reset your password.",
+                "ticketId", ticketId
         ));
     }
 
+    @PostMapping("/password/reset")
+    public ResponseEntity<Map<String,Object>> forgotPasswordReset(
+            @Valid @RequestBody ForgotPasswordResetRequest request) {
 
+        var ticket = passwordResetService.consumeResetTicketOrThrow(request.getTicketId());
 
+        // Resolve user again from ticket.login
+        UserResponse user = userLookupService.findByLoginOr404(ticket.getLogin());
 
+        // Update password
+        authService.updatePassword(user.getId(), request.getNewPassword());
 
+        log.info("FORGOT:reset OK login={}", mLogin(ticket.getLogin()));
+        return ResponseEntity.ok(Map.of(
+                "message", "Password updated successfully."
+        ));
+    }
 
     private String mask(String s){ return s==null?"":(s.length()<=2?s:"**"+s.substring(Math.max(0,s.length()-2))); }
     private String maskEmail(String e){ return e==null?"":e.replaceAll("(^.).*(@.*$)","$1***$2"); }

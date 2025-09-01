@@ -178,6 +178,103 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body);
     }
 
+    @ExceptionHandler({
+            OtpNotFoundException.class,
+            OtpInvalidCodeException.class,
+    })
+    public ResponseEntity<Map<String,Object>> handleOtpInvalid(RuntimeException ex, HttpServletRequest req) {
+        log.warn("401 OTP invalid path={} method={} msg={}", req.getRequestURI(), req.getMethod(), ex.getMessage());
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of(
+                "status", 401,
+                "error", "Unauthorized",
+                "code", ResponseCode.AUTH_FORGOT_INVALID_OTP.getCode(),
+                "message", ResponseCode.AUTH_FORGOT_INVALID_OTP.getDefaultMessage(),
+                "path", req.getRequestURI(),
+                "method", req.getMethod(),
+                "timestamp", Instant.now().toString()
+        ));
+    }
+
+    @ExceptionHandler(OtpExpiredException.class)
+    public ResponseEntity<Map<String,Object>> handleOtpExpired(OtpExpiredException ex, HttpServletRequest req) {
+        log.warn("401 OTP expired path={} method={}", req.getRequestURI(), req.getMethod());
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of(
+                "status", 401,
+                "error", "Unauthorized",
+                "code", ResponseCode.AUTH_FORGOT_EXPIRED_OTP.getCode(),
+                "message", ResponseCode.AUTH_FORGOT_EXPIRED_OTP.getDefaultMessage(),
+                "path", req.getRequestURI(),
+                "method", req.getMethod(),
+                "timestamp", Instant.now().toString()
+        ));
+    }
+
+    @ExceptionHandler(OtpAttemptsExceededException.class)
+    public ResponseEntity<Map<String,Object>> handleOtpAttempts(OtpAttemptsExceededException ex, HttpServletRequest req) {
+        log.warn("429 OTP attempts exceeded path={} method={}", req.getRequestURI(), req.getMethod());
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(Map.of(
+                "status", 429,
+                "error", "Too Many Requests",
+                "code", ResponseCode.AUTH_FORGOT_ATTEMPTS_EXCEEDED.getCode(),
+                "message", ResponseCode.AUTH_FORGOT_ATTEMPTS_EXCEEDED.getDefaultMessage(),
+                "path", req.getRequestURI(),
+                "method", req.getMethod(),
+                "timestamp", Instant.now().toString()
+        ));
+    }
+
+    @ExceptionHandler(OtpChannelMismatchException.class)
+    public ResponseEntity<Map<String,Object>> handleOtpChannelMismatch(OtpChannelMismatchException ex, HttpServletRequest req) {
+        log.warn("400 OTP channel mismatch path={} method={}", req.getRequestURI(), req.getMethod());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of(
+                "status", 400,
+                "error", "Bad Request",
+                "code", ResponseCode.AUTH_FORGOT_CHANNEL_MISMATCH.getCode(),
+                "message", ResponseCode.AUTH_FORGOT_CHANNEL_MISMATCH.getDefaultMessage(),
+                "path", req.getRequestURI(),
+                "method", req.getMethod(),
+                "timestamp", Instant.now().toString()
+        ));
+    }
+
+    // Invalid (unknown/missing/consumed) ticket -> 400
+    @ExceptionHandler(ResetTicketInvalidException.class)
+    public ResponseEntity<Map<String, Object>> handleResetTicketInvalid(
+            ResetTicketInvalidException ex, HttpServletRequest req) {
+
+        log.warn("400 ResetTicketInvalid path={} method={} msg={}",
+                req.getRequestURI(), req.getMethod(), ex.getMessage());
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of(
+                "status", 400,
+                "error", "Bad Request",
+                "code", ResponseCode.AUTH_FORGOT_INVALID_TICKET.getCode(),
+                "message", ResponseCode.AUTH_FORGOT_INVALID_TICKET.getDefaultMessage(),
+                "path", req.getRequestURI(),
+                "method", req.getMethod(),
+                "timestamp", Instant.now().toString()
+        ));
+    }
+
+    // Expired ticket -> 400 (you can switch to 410 Gone if you prefer)
+    @ExceptionHandler(ResetTicketExpiredException.class)
+    public ResponseEntity<Map<String, Object>> handleResetTicketExpired(
+            ResetTicketExpiredException ex, HttpServletRequest req) {
+
+        log.warn("410 Reset Ticket Expired path={} method={} msg={}",
+                req.getRequestURI(), req.getMethod(), ex.getMessage());
+
+        return ResponseEntity.status(HttpStatus.GONE).body(Map.of(
+                "status", 410,
+                "error", "Gone",
+                "code", ResponseCode.AUTH_FORGOT_EXPIRED_TICKET.getCode(),
+                "message", ResponseCode.AUTH_FORGOT_EXPIRED_TICKET.getDefaultMessage(),
+                "path", req.getRequestURI(),
+                "method", req.getMethod(),
+                "timestamp", Instant.now().toString()
+        ));
+    }
+
     private ResponseCode selectDuplicateCode(Set<String> fields) {
         boolean email = fields.contains("email");
         boolean username = fields.contains("username");
