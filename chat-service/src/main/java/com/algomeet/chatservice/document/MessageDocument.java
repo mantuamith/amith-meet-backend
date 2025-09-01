@@ -15,6 +15,7 @@ import org.springframework.data.mongodb.core.mapping.Field;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Set;
 
 @Data
 @NoArgsConstructor
@@ -42,7 +43,7 @@ public class MessageDocument {
     private Long deletedAt;                        // epoch seconds when deleted for all
 
     // Per-user "delete for me"
-    private java.util.Set<String> deletedForUsers; // usernames who shouldn't see this
+    private Set<String> deletedForUsers; // usernames who shouldn't see this
 
 
 

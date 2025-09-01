@@ -4,6 +4,7 @@ import com.algomeet.chatservice.client.GroupClient;
 import com.algomeet.chatservice.document.GroupDto;
 import com.algomeet.chatservice.document.MessageDocument;
 import com.algomeet.chatservice.document.MessageResponse;
+import com.algomeet.chatservice.dto.MessageDeleteCommand;
 import com.algomeet.chatservice.dto.MessageStatusUpdate;
 import com.algomeet.chatservice.dto.UnreadCountResponse;
 import com.algomeet.chatservice.mapper.MessageMapper;
@@ -141,10 +142,10 @@ public class ChatWebSocketController {
     }
 
     @MessageMapping("/message-delete")
-    public void wsDeleteMessage(@org.springframework.messaging.handler.annotation.Payload
-                                com.algomeet.chatservice.dto.MessageDeleteCommand cmd,
-                                java.security.Principal principal) {
-        deleteService.deleteMessage(cmd.getMessageId(), principal.getName(), cmd.isDeleteForEveryone());
+    public void wsDeleteMessage(@Payload MessageDeleteCommand cmd, Principal principal) {
+        String requester = principal.getName();
+        deleteService.deleteMessages(cmd.getMessageIds(), requester, cmd.isDeleteForEveryone());
+        // No return; events are pushed to the appropriate queues inside the service.
     }
 
 

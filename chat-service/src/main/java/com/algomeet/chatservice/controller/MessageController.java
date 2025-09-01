@@ -3,6 +3,7 @@
     import com.algomeet.chatservice.document.MessageDocument;
     import com.algomeet.chatservice.document.MessageResponse;
     import com.algomeet.chatservice.dto.MessageDeleteRequest;
+    import com.algomeet.chatservice.dto.MessageDeleteResult;
     import com.algomeet.chatservice.dto.RecentReceivedMessageResponse;
     import com.algomeet.chatservice.mapper.MessageMapper;
     import com.algomeet.chatservice.repository.MessageRepository;
@@ -42,10 +43,10 @@
         }
 
         @PostMapping("/delete")
-        public ResponseEntity<Void> deleteMessage(@RequestBody MessageDeleteRequest req) {
+        public ResponseEntity<MessageDeleteResult> deleteMessages(@Valid @RequestBody MessageDeleteRequest req) {
             String requester = SecurityContextHolder.getContext().getAuthentication().getName();
-            deleteService.deleteMessage(req.getMessageId(), requester, req.isDeleteForEveryone());
-            return ResponseEntity.noContent().build();
+            MessageDeleteResult result = deleteService.deleteMessages(req.getMessageIds(), requester, req.isDeleteForEveryone());
+            return ResponseEntity.ok(result);
         }
 
         // Optional: delete entire conversation "for me" (bulk)
