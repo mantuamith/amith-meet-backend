@@ -21,7 +21,13 @@ public enum ResponseCode {
     AUTH_LOGOUT_FAILED("AUTH_LOGOUT_FAILED", "Logout failed"),
     AUTH_USER_DELETED("AUTH_USER_DELETED", "User Account De-activated Successfully"),
     AUTH_DELETE_FAILED("AUTH_DELETE_FAILED", "Account Deletion Failed"),
-    AUTH_LOGIN_ERROR("AUTH_LOGIN_ERROR", "Login error ");
+    AUTH_LOGIN_ERROR("AUTH_LOGIN_ERROR", "Login error "),
+    AUTH_FORGOT_EXPIRED_OTP("AUTH_FORGOT_EXPIRED_OTP", "Otp Expired"),
+    AUTH_FORGOT_INVALID_OTP("AUTH_FORGOT_INVALID_OTP", "Invalid Otp"),
+    AUTH_FORGOT_ATTEMPTS_EXCEEDED("AUTH_FORGOT_ATTEMPTS_EXCEEDED" , "Attempts Exceeded" ),
+    AUTH_FORGOT_CHANNEL_MISMATCH("AUTH_FORGOT_CHANNEL_MISMATCH", "OTP Channel Mismatch"),
+    AUTH_FORGOT_INVALID_TICKET("AUTH_FORGOT_INVALID_TICKET", "Invalid password reset ticket"),
+    AUTH_FORGOT_EXPIRED_TICKET("AUTH_FORGOT_EXPIRED_TICKET", "Password reset ticket expired");
 
 
 

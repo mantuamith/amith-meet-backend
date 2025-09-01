@@ -1,6 +1,7 @@
 package com.algomeet.authservice.service;
 
 import com.algomeet.authservice.config.AuthProperties;
+import com.algomeet.authservice.exception.*;
 import com.algomeet.authservice.notify.EmailSender;
 import com.algomeet.authservice.otp.Otp;
 import com.algomeet.authservice.otp.OtpRepository;
@@ -103,7 +104,7 @@ public class OtpService {
         Otp otp = otpRepository.findFirstByRecipientAndPurposeOrderByCreatedAtDesc(recipient, purpose);
         if (otp == null) {
             log.warn("OTP verify failed: no otp found recipient={} purpose={}", mask(recipient), purpose);
-            return false;
+            throw new OtpNotFoundException("No OTP found");
         }
 
 
@@ -111,31 +112,30 @@ public class OtpService {
         if (!channel.equalsIgnoreCase(otp.getChannel())) {
             log.warn("OTP verify failed: channel mismatch recipient={} stored={} provided={}",
                     mask(recipient), otp.getChannel(), channel);
-            return false;
+            throw new OtpChannelMismatchException("OTP Channel mismatch");
         }
 
         if (Instant.now(clock).isAfter(otp.getExpiresAt())) {
             log.warn("OTP verify failed: expired recipient={}", mask(recipient));
-            return false;
+            throw new OtpExpiredException("OTP expired");
         }
 
         if (otp.getAttempts() >= maxAttempts) {
             log.warn("OTP verify failed: attempts exceeded recipient={}", mask(recipient));
-            return false;
+            throw new OtpAttemptsExceededException("Max attempts exceeded");
         }
 
         boolean ok = encoder.matches(submittedCode + pepper, otp.getCodeHash());
         otp.setAttempts(otp.getAttempts() + 1);
         otpRepository.save(otp);
 
-        if (ok) {
-            // Optionally delete/consume:
-            otpRepository.delete(otp);
-            log.info("OTP verify success recipient={}", mask(recipient));
-        } else {
+        if (!ok) {
             log.warn("OTP verify failed: bad code recipient={}", mask(recipient));
+            throw new OtpInvalidCodeException("Invalid code");
         }
-        return ok;
+        otpRepository.delete(otp);
+        log.info("OTP verify success recipient={}", mask(recipient));
+        return true;
     }
 
     private String mask(String s) {
@@ -195,6 +195,7 @@ public class OtpService {
 
 
     public String initEmailResetOtp(String email) {
+        int ttlSecs = props.getOtp().getTtlSeconds();
         String code = generateNumericCode(6);
         persistOtp(email, "EMAIL", "RESET", code);
         emailSender.send(email, "Your AlgoMeet Password Reset Code",
@@ -204,7 +205,7 @@ public class OtpService {
                   <p style="font-size:24px;font-weight:700;letter-spacing:2px;margin:12px 0;">%s</p>
                   <p>This code expires in %d minutes.</p>
                 </div>
-                """.formatted(code, props.getOtp().getTtlSeconds()/60));
+                """.formatted(code, ttlSecs/60));
         log.info("OTP: dispatched EMAIL RESET to {}", mask(email));
         return "OTP sent to your email";
     }

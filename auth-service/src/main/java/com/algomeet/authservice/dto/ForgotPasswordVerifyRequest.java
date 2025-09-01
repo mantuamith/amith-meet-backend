@@ -11,7 +11,6 @@ public class ForgotPasswordVerifyRequest {
     @NotBlank
     private String code;         // OTP from email/SMS
     @NotBlank
-    private String newPassword;  // raw; will be BCrypted in auth-service
     private String deviceId;
     private DeviceType deviceType;
 }
