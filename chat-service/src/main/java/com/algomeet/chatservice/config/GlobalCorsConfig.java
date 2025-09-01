@@ -17,5 +17,5 @@ public class GlobalCorsConfig implements WebMvcConfigurer {
 /**
  * auth-service behind a gateway-service, remove this CORS config and move it to the gateway (typically using Spring Cloud Gateway's RouteLocatorBuilder or CorsWebFilter).
  *
- * Let me know when you're ready for that setup. --
+ * Let me know when you're ready for that setup.
  */

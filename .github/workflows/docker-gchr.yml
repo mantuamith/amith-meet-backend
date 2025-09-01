@@ -39,7 +39,7 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          password: ${{ secrets.SONAI_PACKAGE_REGISTRTY_TOKEN }}
 
       - name: Check if ${{ matrix.service }} has changes
         id: check_changes
