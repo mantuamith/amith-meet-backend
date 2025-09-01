@@ -100,11 +100,11 @@ jobs:
     runs-on: ubuntu-latest
     needs: build-and-push
     if: >
-      needs.build-and-push.outputs.service-auth-service-changed == 'true' ||
-      needs.build-and-push.outputs.service-chat-service-changed == 'true' ||
-      needs.build-and-push.outputs.service-contact-service-changed == 'true' ||
-      needs.build-and-push.outputs.service-meeting-service-changed == 'true' ||
-      needs.build-and-push.outputs.service-user-service-changed == 'true'
+      needs.build-and-push.outputs.auth-service-changed == 'true' ||
+      needs.build-and-push.outputs.chat-service-changed == 'true' ||
+      needs.build-and-push.outputs.contact-service-changed == 'true' ||
+      needs.build-and-push.outputs.meeting-service-changed == 'true' ||
+      needs.build-and-push.outputs.user-service-changed == 'true'
     steps:
       - name: Trigger deployment in FAT(k8-deployment-config)
         uses: peter-evans/repository-dispatch@v2
