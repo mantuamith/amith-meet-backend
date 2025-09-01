@@ -94,6 +94,6 @@ jobs:
         if: steps.detect.outputs.changed_services != ''
         uses: peter-evans/repository-dispatch@v2
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.SONAI_PACKAGE_REGISTRTY_TOKEN }}
           repository: Algoframe-Private-Limited/k8-deployment-config
           event-type: deploy-latest-image

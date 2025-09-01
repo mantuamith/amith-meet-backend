@@ -21,7 +21,7 @@ public class CoreConfig {
             String hash = pe.encode(raw);
             System.out.println("==== TEST HASH FOR 'test@123' ====");
             System.out.println(hash);
-            System.out.println("==================================");
+            System.out.println("===================================");
         };
     }
 
