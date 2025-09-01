@@ -73,7 +73,7 @@ public interface MessageRepository extends MongoRepository<MessageDocument, Stri
         {
           $or: [
             { deletedForUsers: { $exists: false } },
-            { deletedForUsers: { $nin: ?2 } }
+            { deletedForUsers: { $nin: [ ?2 ] } }
           ]
         }
       ]
