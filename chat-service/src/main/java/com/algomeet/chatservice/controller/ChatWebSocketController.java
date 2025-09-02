@@ -4,7 +4,11 @@ import com.algomeet.chatservice.client.GroupClient;
 import com.algomeet.chatservice.document.GroupDto;
 import com.algomeet.chatservice.document.MessageDocument;
 import com.algomeet.chatservice.document.MessageResponse;
-import com.algomeet.chatservice.dto.*;
+import com.algomeet.chatservice.dto.MessageDeleteCommand;
+import com.algomeet.chatservice.dto.MessageStatusUpdate;
+import com.algomeet.chatservice.dto.SignalMessage;
+import com.algomeet.chatservice.dto.SignalResponse;
+import com.algomeet.chatservice.dto.UnreadCountResponse;
 import com.algomeet.chatservice.mapper.MessageMapper;
 import com.algomeet.chatservice.model.MessageStatus;
 import com.algomeet.chatservice.repository.MessageRepository;
@@ -12,7 +16,6 @@ import com.algomeet.chatservice.service.MessageDeleteService;
 import com.algomeet.chatservice.service.MessageService;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -147,15 +150,14 @@ public class ChatWebSocketController {
     }
 
 
-    @MessageMapping("/calls")
-    public void handleWebRTCSignal(WebRTCSignalMessage message, Principal principal) {
-        log.info("[STOMP /calls] {} -> {} | Type: {}", principal.getName(), message.getTo(), message.getType());
-        // TODO Use Feign client to check if the sender and receiver are friends, before sending
+    @MessageMapping("/call")
+    public void handleWebRTCSignal(SignalMessage message, Principal principal) {
+        log.info("[STOMP /call] {} -> {} | Type: {}", principal.getName(), message.getTo(), message.getType());
         try {
             messagingTemplate.convertAndSendToUser(
                     message.getTo(),
-                    "/queue/calls",
-                    new WebRTCSignalResponse(
+                    "/queue/call",
+                    new SignalResponse(
                             message.getType(),
                             principal.getName(),
                             message.getPayload()
@@ -171,6 +173,4 @@ public class ChatWebSocketController {
             );
         }
     }
-
-
 }

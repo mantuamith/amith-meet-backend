@@ -7,7 +7,7 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class WebRTCSignalResponse {
+public class SignalResponse {
     private String type;     // OFFER, ANSWER, ICE, HANGUP
     private String from;     // sender username
     private String payload;  // actual signaling data (SDP, ICE, etc.)

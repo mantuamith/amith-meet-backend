@@ -7,7 +7,7 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class WebRTCSignalMessage {
+public class SignalMessage {
     private String type;     // OFFER, ANSWER, ICE, HANGUP, etc.
     private String to;       // receiver username
     private String payload;  // SDP offer/answer, ICE candidate, etc.
