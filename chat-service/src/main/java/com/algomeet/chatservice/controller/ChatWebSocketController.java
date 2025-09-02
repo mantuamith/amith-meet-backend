@@ -4,9 +4,7 @@ import com.algomeet.chatservice.client.GroupClient;
 import com.algomeet.chatservice.document.GroupDto;
 import com.algomeet.chatservice.document.MessageDocument;
 import com.algomeet.chatservice.document.MessageResponse;
-import com.algomeet.chatservice.dto.MessageDeleteCommand;
-import com.algomeet.chatservice.dto.MessageStatusUpdate;
-import com.algomeet.chatservice.dto.UnreadCountResponse;
+import com.algomeet.chatservice.dto.*;
 import com.algomeet.chatservice.mapper.MessageMapper;
 import com.algomeet.chatservice.model.MessageStatus;
 import com.algomeet.chatservice.repository.MessageRepository;
@@ -146,6 +144,32 @@ public class ChatWebSocketController {
         String requester = principal.getName();
         deleteService.deleteMessages(cmd.getMessageIds(), requester, cmd.isDeleteForEveryone());
         // No return; events are pushed to the appropriate queues inside the service.
+    }
+
+
+    @MessageMapping("/calls")
+    public void handleWebRTCSignal(WebRTCSignalMessage message, Principal principal) {
+        log.info("[STOMP /calls] {} -> {} | Type: {}", principal.getName(), message.getTo(), message.getType());
+        // TODO Use Feign client to check if the sender and receiver are friends, before sending
+        try {
+            messagingTemplate.convertAndSendToUser(
+                    message.getTo(),
+                    "/queue/calls",
+                    new WebRTCSignalResponse(
+                            message.getType(),
+                            principal.getName(),
+                            message.getPayload()
+                    )
+            );
+        } catch (Exception e) {
+            log.error("Failed to send signal to {}: {}", message.getTo(), e.getMessage());
+
+            messagingTemplate.convertAndSendToUser(
+                    principal.getName(),
+                    "/queue/errors",
+                    "WebRTC signaling failed to deliver to: " + message.getTo()
+            );
+        }
     }
 
 
