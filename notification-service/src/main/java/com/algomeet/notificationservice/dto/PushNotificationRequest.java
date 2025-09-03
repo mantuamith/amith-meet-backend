@@ -23,13 +23,28 @@ public class PushNotificationRequest {
     private NotificationType type;
     private String title;
     private String body;
-    private String senderId;
-    private Set<String> receiverIds;
-    private ReceiverGroup receiverGroup;
-    private String receiverGroupRefId;
-    private Instant createdAt;
-    private Instant expiredAt;
-    private Map<String, Object> data;
+    private String senderId;  
+	/**
+	 * Specify manually the list of receiver users username
+	 */
+	private Set<String> receiverIds;
+	/**
+	 * Used to send notfication to a group of users
+	 */
+	private ReceiverGroup receiverGroup;
+	/**
+	 * Used to store the ID related to the receiver group, which will help finding the list of receiver users.
+	 */
+	private String receiverGroupRefId;
+	/**
+	 * Used for sending custom or additional information regarding the notification
+	 */
+	private Map<String, Object> data;
+	/**
+	 * Set the value to true if you want offline users to receive the message once they are back online
+	 */
 	private boolean deliveryAckRequired;
-    
+	
+    private Instant createdAt;
+    private Instant expiredAt;    
 }

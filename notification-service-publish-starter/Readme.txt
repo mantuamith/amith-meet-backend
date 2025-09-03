@@ -46,9 +46,11 @@ Steps:
     notif.setReceiverIds(Set.of("username1", "username2"));
     
     // If you use receiver group you should also set the receiverGroupRefId, you can use group 
-    // referrence ID to store data such as meeting ID, username, and etc.
+    // referrence ID to store data such as meeting ID, username, and etc this will be used to lookup/ find 
+    // the list of receiver users.
     // To set the receiver group
     notif.setReceiverGroup(ReceiverGroup.USER_FRIENDS);
+    // Use to lookup/ find the list of receiver users
     notif.setReceiverGroupRefId("User username")
         
     notif.setType(NotificationType.USER_ONLINE);
