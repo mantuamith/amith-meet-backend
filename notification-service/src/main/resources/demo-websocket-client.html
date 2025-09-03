@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>WebSocket Test</title></head>
+<body>
+  <h2>Test WebSocket Client</h2>
+  <script>
+  const ws = new WebSocket("ws://localhost:8089/notifications/subscribe");
+
+  // When connection is opened
+  ws.onopen = () => {
+    console.log("Connected to server");
+    // You must send the bearer token and your device ID as first message to avoid get disconnected with in 1 second
+    var auth = { authorization: "Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJtYWRkb3guYWxnb2ZyYW1lQGdtYWlsLmNvbSIsInVzZXJuYW1lIjoibWFkZG94IiwiaWF0IjoxNzU2NTQ2NzI5LCJleHAiOjE3NTgxODY5OTF9.HaXRee0q6iszdweleKOSbH3IRvsFyo9Ef4CKr-0NNlQ", 
+        deviceToken: "Mydevice-token", 
+        deviceInfo: "My device short info (such as phone model, browser info etc.)"};
+    ws.send(JSON.stringify(auth));
+  };
+
+  // Listen for all messages from server (continuous)
+  ws.onmessage = (event) => {
+    console.log("Received:", event.data);    
+    
+    // Use acknowledge only if required (this is only a sample)
+    const ackMessage = {
+          type: "ACK",
+          notificationId: JSON.parse(event.data).id,
+          receiverId: "user-123",
+          status: "DELIVERED",
+          acknowledgedAt: new Date().toISOString(), // use current timestamp
+          metadata: {
+            device: "iPhone-15",
+            appVersion: "2.4.1",
+            deliveryChannel: "PUSH"
+          }
+        };
+
+        ws.send(JSON.stringify(ackMessage));
+        console.log("ACK sent:", ackMessage);
+
+   };
+
+  // Handle connection closed
+  ws.onclose = () => {
+    console.log("Disconnected from server");
+    // Optional: try to reconnect automatically
+    //setTimeout(connect, 3000);
+  };
+
+  // Handle errors
+  ws.onerror = (err) => {
+    console.error("WebSocket error:", err);
+  };
+
+  </script>
+</body>
+</html>
