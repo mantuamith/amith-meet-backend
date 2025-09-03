@@ -43,6 +43,9 @@ public class User {
     @Column(name = "active_device_id", length = 128)
     private String activeDeviceId;
 
+    @Column(name = "active_session_id", length = 128)
+    private String activeSessionId;
+
 
     private String country;
     private String region;

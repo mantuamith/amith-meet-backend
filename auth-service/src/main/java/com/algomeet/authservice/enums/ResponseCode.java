@@ -3,6 +3,7 @@ package com.algomeet.authservice.enums;
 public enum ResponseCode {
 
     // Registration
+
     AUTH_REGISTER_SUCCESS("AUTH_REGISTER_SUCCESS", "User registered successfully"),
     AUTH_REGISTER_FAILED("AUTH_REGISTER_FAILED", "Unexpected error during registration"),
     AUTH_DUPLICATE_REGISTER_REQUEST("AUTH_DUPLICATE_REGISTER_REQUEST", "User with this email/username already exists."),
@@ -27,8 +28,10 @@ public enum ResponseCode {
     AUTH_FORGOT_ATTEMPTS_EXCEEDED("AUTH_FORGOT_ATTEMPTS_EXCEEDED" , "Attempts Exceeded" ),
     AUTH_FORGOT_CHANNEL_MISMATCH("AUTH_FORGOT_CHANNEL_MISMATCH", "OTP Channel Mismatch"),
     AUTH_FORGOT_INVALID_TICKET("AUTH_FORGOT_INVALID_TICKET", "Invalid password reset ticket"),
-    AUTH_FORGOT_EXPIRED_TICKET("AUTH_FORGOT_EXPIRED_TICKET", "Password reset ticket expired");
-
+    AUTH_FORGOT_EXPIRED_TICKET("AUTH_FORGOT_EXPIRED_TICKET", "Password reset ticket expired"),
+    AUTH_SESSION_REVOKED("AUTH_SESSION_REVOKED", "Your session was revoked (signed-in on another device)."),
+    AUTH_DEVICE_LOCKED("AUTH_DEVICE_LOCKED", "This account is active on another device."),
+    AUTH_DUPLICATE_PHONE("AUTH_DUPLICATE_PHONE", "Phone Already exists");
 
 
     private final String code;

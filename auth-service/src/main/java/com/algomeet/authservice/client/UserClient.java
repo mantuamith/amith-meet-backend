@@ -36,6 +36,29 @@ public interface UserClient {
     @GetMapping("/internal/users/lookup")
     UserResponse getUserByLogin(@RequestParam("login") String login);
 
+    @PostMapping("/internal/users/{id}/session")
+    Map<String, String> startSession(@PathVariable("id") Long id,
+                                     @RequestParam("deviceId") String deviceId,
+                                     @RequestParam(value = "sid", required = false) String sid);
+
+    @GetMapping("/internal/users/active-sid")
+    Map<String, String> getActiveSession(@RequestParam("email") String email);
+
+    @GetMapping("/internal/users/exists")
+    Map<String, Boolean> checkExists(
+            @RequestParam(required = false) String email,
+            @RequestParam(required = false) String username,
+            @RequestParam(required = false) String phone
+    );
+
+
+
+    // tiny helper
+    default String getActiveSessionIdByEmail(String email) {
+        Map<String, String> res = getActiveSession(email);
+        return res == null ? null : res.get("sid");
+    }
+
 
 }
 
