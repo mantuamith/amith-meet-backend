@@ -10,6 +10,7 @@ import com.algomeet.chatservice.model.MessageStatus;
 import com.algomeet.chatservice.repository.MessageRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Sort;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
@@ -37,7 +38,7 @@ public class MessageService {
     }
 
     public void resetUnreadCount(String sender, String receiver) {
-        List<MessageDocument> unreadMessages = messageRepository.findBySenderAndReceiverAndStatusNot(sender, receiver, com.algomeet.chatservice.model.MessageStatus.READ);
+        List<MessageDocument> unreadMessages = messageRepository.findBySenderAndReceiverAndStatusNot(sender, receiver, MessageStatus.READ);
 
         for (MessageDocument message : unreadMessages) {
             message.setStatus(com.algomeet.chatservice.model.MessageStatus.READ);
@@ -74,40 +75,47 @@ public class MessageService {
     }
 
     public List<RecentReceivedMessageResponse> getRecentMessages(String userId) {
-        List<MessageDocument> all = messageRepository.findBySenderOrReceiver(userId, userId);
-        if (all.isEmpty()) return List.of();
+        List<MessageDocument> allVisible = messageRepository.findVisibleForViewer(
+                userId,
+                Sort.by(Sort.Direction.DESC, "timestamp").and(Sort.by(Sort.Direction.DESC, "_id"))
+        );
+        if (allVisible.isEmpty()) return List.of();
 
-        // 2) group by "the other participant"
-        Map<String, List<MessageDocument>> byContact = all.stream()
-                .collect(Collectors.groupingBy(m ->
-                        userId.equals(m.getSender()) ? m.getReceiver() : m.getSender()
-                ));
+        // group by "the other participant"
+        Map<String, List<MessageDocument>> byContact = allVisible.stream()
+                .collect(Collectors.groupingBy(m -> {
+                    String sender = String.valueOf(m.getSender());
+                    String receiver = String.valueOf(m.getReceiver());
+                    return userId.equals(sender) ? receiver : sender;
+                }));
 
-        // 3) for each contact, pick latest message in the thread (either direction)
+        // build response per contact
         List<RecentReceivedMessageResponse> result = new ArrayList<>();
         for (Map.Entry<String, List<MessageDocument>> e : byContact.entrySet()) {
             String contactId = e.getKey();
             List<MessageDocument> thread = e.getValue();
 
-            // latest by timestamp
             MessageDocument latest = thread.stream()
+                    .filter(m -> m.isVisibleTo(userId))
                     .max(Comparator.comparing(MessageDocument::getTimestamp))
                     .orElse(null);
+            if (latest == null) {
+                // No visible messages remain in this thread → skip it entirely
+                continue;
+            }
 
-            long ts = latest != null ? latest.getTimestamp().toEpochMilli() : 0L;
-            String lastText = latest != null ? latest.getContent() : null;
+            long ts = latest.getTimestamp().getEpochSecond();
+            String lastText =  latest.getContent();
 
-            // 4) unread count ONLY from contact -> user and not READ
             int unread = (int) thread.stream()
-                    .filter(m -> contactId.equals(m.getSender()))   // from contact
-                    .filter(m -> userId.equals(m.getReceiver()))    // to current user
+                    .filter(m -> contactId.equals(m.getSender()))
+                    .filter(m -> userId.equals(m.getReceiver()))
                     .filter(m -> m.getStatus() != MessageStatus.READ)
                     .count();
 
             result.add(new RecentReceivedMessageResponse(contactId, lastText, ts, unread));
         }
 
-        // 5) sort by latest desc
         return result.stream()
                 .sorted(Comparator.comparingLong(RecentReceivedMessageResponse::getTimestamp).reversed())
                 .toList();

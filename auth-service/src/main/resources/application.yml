@@ -12,7 +12,7 @@ spring:
     host: smtp.gmail.com
     port: 587
     username: info.algomeet@gmail.com
-    password: yxiq emlr hidd zsey   # Use a Gmail App Password; do NOT commit this
+    password: vnha mwch qtpv bbey   # Use a Gmail App Password; do NOT commit this
     properties:
       mail:
         smtp:
@@ -53,11 +53,6 @@ spring:
 server:
   port: 8081
 
-# === App mail defaults for From header ===
-app:
-  mail:
-    from: "mantu.amith@gmail.com"
-    fromName: "AlgoMeet - Alert"
 
 # === Auth/OTP/2FA/JWT settings ===
 auth:
