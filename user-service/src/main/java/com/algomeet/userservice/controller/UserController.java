@@ -18,10 +18,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @RestController
@@ -202,8 +199,58 @@ public class UserController {
         return ResponseEntity.ok().build();
     }
 
+
+    /**
+     * Start/rotate a session for this user. Sets both active_device_id and active_session_id.
+     * Returns the new sid (session id).
+     */
+    @PostMapping("/{id}/session")
+    public ResponseEntity<Map<String, String>> startSession(
+            @PathVariable Long id,
+            @RequestParam String deviceId,
+            @RequestParam(required = false) String sid) {
+
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("User not found"));
+
+        String newSid = (sid == null || sid.isBlank()) ? UUID.randomUUID().toString() : sid;
+
+        user.setActiveDeviceId(deviceId);
+        user.setActiveSessionId(newSid);
+        userRepository.save(user);
+
+        return ResponseEntity.ok(Map.of("sid", newSid));
+    }
+
+    /**
+     * Fetch current active sid by email (used by JWT filter to invalidate old tokens instantly).
+     */
+    @GetMapping("/active-sid")
+    public ResponseEntity<Map<String, String>> getActiveSid(@RequestParam("email") String email) {
+        return userRepository.findByEmail(email)
+                .map(u -> ResponseEntity.ok(Map.of("sid", u.getActiveSessionId())))
+                .orElse(ResponseEntity.notFound().build());
+    }
+
     private static String normalize(String s) {
         return s == null ? "" : s.trim().toLowerCase(Locale.ROOT);
+    }
+
+    @GetMapping("/exists")
+    public Map<String, Object> exists(
+            @RequestParam(required = false) String email,
+            @RequestParam(required = false) String username,
+            @RequestParam(required = false) String phone) {
+
+        boolean emailTaken = (email != null && !email.isBlank()) && userRepository.existsByEmail(email);
+        boolean usernameTaken = (username != null && !username.isBlank()) && userRepository.existsByUsername(username);
+        boolean phoneTaken = (phone != null && !phone.isBlank()) && userRepository.existsByPhone(phone);
+
+        return Map.of(
+                "emailTaken", emailTaken,
+                "usernameTaken", usernameTaken,
+                "phoneTaken", phoneTaken
+        );
     }
 
 }

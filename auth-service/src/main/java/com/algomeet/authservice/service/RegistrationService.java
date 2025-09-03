@@ -3,19 +3,21 @@ package com.algomeet.authservice.service;
 import com.algomeet.authservice.client.UserClient;
 import com.algomeet.authservice.config.AuthProperties;
 import com.algomeet.authservice.dto.*;
+import com.algomeet.authservice.enums.ResponseCode;
+import com.algomeet.authservice.exception.UserAlreadyExistsException;
 import com.algomeet.authservice.otp.PendingRegistrationRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
-import java.util.Map;
-import java.util.UUID;
-
+import java.util.*;
 
 
 @Slf4j
@@ -35,6 +37,9 @@ public class RegistrationService {
     if (!StringUtils.hasText(req.getEmail()) && !StringUtils.hasText(req.getPhone())) {
       throw new IllegalArgumentException("Either email or phone is required");
     }
+
+    Map<String, Boolean> exists = userClient.checkExists(req.getEmail(), req.getUsername(), req.getPhone());
+    checkForDuplicateUser(exists);
 
     String hash = passwordEncoder.encode(req.getPassword());
 
@@ -72,6 +77,47 @@ public class RegistrationService {
     }
 
     return new RegisterInitResponse(txn, channel, "OTP sent.");
+  }
+
+  private void checkForDuplicateUser(Map<String, Boolean> exists) {
+    boolean emailTaken = Boolean.TRUE.equals(exists.get("emailTaken"));
+    boolean userTaken  = Boolean.TRUE.equals(exists.get("usernameTaken"));
+    boolean phoneTaken = Boolean.TRUE.equals(exists.get("phoneTaken"));
+
+    if (emailTaken || userTaken || phoneTaken) {
+      Set<String> fields = new LinkedHashSet<>(3);
+      if (emailTaken) fields.add("email");
+      if (userTaken)  fields.add("username");
+      if (phoneTaken) fields.add("phone");
+
+      String message;
+      ResponseCode code;
+
+      if (emailTaken && userTaken && phoneTaken) {
+        message = "Email, username and phone already exist";
+        code = ResponseCode.AUTH_DUPLICATE_BOTH; // 🔄 maybe create AUTH_DUPLICATE_ALL?
+      } else if (emailTaken && userTaken) {
+        message = "Email and username already exist";
+        code = ResponseCode.AUTH_DUPLICATE_BOTH;
+      } else if (emailTaken && phoneTaken) {
+        message = "Email and phone already exist";
+        code = ResponseCode.AUTH_DUPLICATE_BOTH;
+      } else if (userTaken && phoneTaken) {
+        message = "Username and phone already exist";
+        code = ResponseCode.AUTH_DUPLICATE_BOTH;
+      } else if (emailTaken) {
+        message = "Email already exists";
+        code = ResponseCode.AUTH_DUPLICATE_EMAIL;
+      } else if (userTaken) {
+        message = "Username already exists";
+        code = ResponseCode.AUTH_DUPLICATE_USERNAME;
+      } else {
+        message = "Phone already exists";
+        code = ResponseCode.AUTH_DUPLICATE_PHONE;
+      }
+
+      throw new UserAlreadyExistsException(message, fields, code);
+    }
   }
 
 
