@@ -15,7 +15,7 @@ import com.algomeet.notificationservice.service.NotificationService;
 
 
 @Configuration
-@Import({RedisConfig.class, JacksonConfig.class})
+@Import({JacksonConfig.class})
 public class NotificationServicePublishStarterAutoConfiguration implements InitializingBean{
 	@Value("${spring.redis.host:#{null}}")
 	private String redisHost;
