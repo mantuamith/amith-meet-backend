@@ -74,5 +74,18 @@ public class MessageDocument {
         return groupId != null && !groupId.isEmpty();
     }
 
+    public boolean isVisibleTo(String userId) {
+        // 1) hard delete for all
+        if (deletedForAll) {
+            return false;
+        }
+        // 2) soft delete only for this user
+        if (deletedForUsers != null && deletedForUsers.contains(userId)) {
+            return false;
+        }
+        return true;
+    }
+
+
 
 }
