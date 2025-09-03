@@ -43,7 +43,7 @@ public class NotificationStreamConsumer implements StreamListener<String, MapRec
 			.xGroupCreate(
 					redisStreamConfigProperties.getNotificationStreamKey().getBytes(),
 					GROUP_NAME,
-					ReadOffset.from("0"),  // start at beginning
+					ReadOffset.latest(),  // start at beginning
 					true                   // create stream if not exists
 					);
 			log.info("Consumer group created: {} ", GROUP_NAME);
