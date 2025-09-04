@@ -6,6 +6,8 @@ import com.algomeet.chatservice.document.MessageDocument;
 import com.algomeet.chatservice.document.MessageResponse;
 import com.algomeet.chatservice.dto.MessageDeleteCommand;
 import com.algomeet.chatservice.dto.MessageStatusUpdate;
+import com.algomeet.chatservice.dto.SignalMessage;
+import com.algomeet.chatservice.dto.SignalResponse;
 import com.algomeet.chatservice.dto.UnreadCountResponse;
 import com.algomeet.chatservice.mapper.MessageMapper;
 import com.algomeet.chatservice.model.MessageStatus;
@@ -14,7 +16,6 @@ import com.algomeet.chatservice.service.MessageDeleteService;
 import com.algomeet.chatservice.service.MessageService;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -149,4 +150,27 @@ public class ChatWebSocketController {
     }
 
 
+    @MessageMapping("/call")
+    public void handleWebRTCSignal(SignalMessage message, Principal principal) {
+        log.info("[STOMP /call] {} -> {} | Type: {}", principal.getName(), message.getTo(), message.getType());
+        try {
+            messagingTemplate.convertAndSendToUser(
+                    message.getTo(),
+                    "/queue/call",
+                    new SignalResponse(
+                            message.getType(),
+                            principal.getName(),
+                            message.getPayload()
+                    )
+            );
+        } catch (Exception e) {
+            log.error("Failed to send signal to {}: {}", message.getTo(), e.getMessage());
+
+            messagingTemplate.convertAndSendToUser(
+                    principal.getName(),
+                    "/queue/errors",
+                    "WebRTC signaling failed to deliver to: " + message.getTo()
+            );
+        }
+    }
 }

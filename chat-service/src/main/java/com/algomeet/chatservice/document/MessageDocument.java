@@ -14,6 +14,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
 
 import java.time.Instant;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -37,13 +38,15 @@ public class MessageDocument {
     private boolean groupMessage;
 
     private String clientMessageId;
-
-    private Boolean deletedForAll;                 // sender deleted for everyone?
+    @Field("deletedForAll")
+    private Boolean deletedForAll = false;                 // sender deleted for everyone?
     @Indexed
+    @Field("deletedAt")
     private Long deletedAt;                        // epoch seconds when deleted for all
 
     // Per-user "delete for me"
-    private Set<String> deletedForUsers; // usernames who shouldn't see this
+    @Field("deletedForUsers")
+    private Set<String> deletedForUsers = new HashSet<>(); // usernames who shouldn't see this
 
 
 
@@ -73,6 +76,19 @@ public class MessageDocument {
     public boolean isGroupMessage() {
         return groupId != null && !groupId.isEmpty();
     }
+
+    public boolean isVisibleTo(String userId) {
+        // 1) hard delete for all
+        if (deletedForAll) {
+            return false;
+        }
+        // 2) soft delete only for this user
+        if (deletedForUsers != null && deletedForUsers.contains(userId)) {
+            return false;
+        }
+        return true;
+    }
+
 
 
 }

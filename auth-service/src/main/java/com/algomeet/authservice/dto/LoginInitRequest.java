@@ -22,4 +22,6 @@ public class LoginInitRequest {
     private DeviceType deviceType;   // WEB | ANDROID | IOS | DESKTOP
 
     private String ipAddress;    // optional (server will still detect)
+
+    private Boolean overrideExisting;
 }
