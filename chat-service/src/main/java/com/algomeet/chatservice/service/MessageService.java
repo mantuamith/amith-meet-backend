@@ -5,6 +5,7 @@ import com.algomeet.chatservice.document.MessageResponse;
 import com.algomeet.chatservice.dto.DeliveryReceipt;
 import com.algomeet.chatservice.dto.ReadReceipt;
 import com.algomeet.chatservice.dto.RecentReceivedMessageResponse;
+import com.algomeet.chatservice.dto.UnreadCountResponse;
 import com.algomeet.chatservice.mapper.MessageMapper;
 import com.algomeet.chatservice.model.MessageStatus;
 import com.algomeet.chatservice.repository.MessageRepository;
@@ -48,8 +49,17 @@ public class MessageService {
     }
 
     public void sendUnreadCountUpdate(String userId) {
-        List<MessageResponse> unreadSummary = getRecentUnreadMessages(userId);
-        messagingTemplate.convertAndSendToUser(userId, "/queue/unread/count", unreadSummary);
+        var unread = messageRepository.findByReceiverAndStatusNot(userId, MessageStatus.READ);
+
+        Map<String, Long> countsBySender = unread.stream()
+                .collect(Collectors.groupingBy(MessageDocument::getSender, Collectors.counting()));
+
+        List<UnreadCountResponse> summary = countsBySender.entrySet().stream()
+                .map(e -> new UnreadCountResponse(e.getKey(), e.getValue().intValue()))
+                .sorted(Comparator.comparing(UnreadCountResponse::getContactId))
+                .toList();
+
+        messagingTemplate.convertAndSendToUser(userId, "/queue/unread/count", summary);
     }
 
     public MessageDocument saveMessage(MessageDocument message, Principal principal) {
