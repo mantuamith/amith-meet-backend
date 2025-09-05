@@ -1,7 +1,7 @@
 package com.algomeet.multitenancycore.context;
 
 /**
- * Used to switch off the schema
+ * Used to switch off the tenant aware session
  */
 public class TenantAwareSwitchOffContext {
 
