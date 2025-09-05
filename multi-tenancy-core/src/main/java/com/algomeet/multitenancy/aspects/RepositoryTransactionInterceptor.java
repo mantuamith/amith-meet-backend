@@ -21,6 +21,10 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import lombok.extern.slf4j.Slf4j;
 
+/**
+ * Used to force the switching of schema for code explicitly calling @see #TenantContext.switchTenantExplicitly(String) 
+ * and methods annotated with @see @TenantAwareSwitchOff().
+ */
 @Slf4j
 @Aspect
 public class RepositoryTransactionInterceptor {
