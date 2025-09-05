@@ -2,9 +2,8 @@ package com.algomeet.multitenancycore.hibernate.resolver;
 
 import org.hibernate.context.spi.CurrentTenantIdentifierResolver;
 
-import com.algomeet.multitenancycore.constants.SchemaConstants;
 import com.algomeet.multitenancycore.context.TenantContext;
-import com.algomeet.multitenancycore.util.TenantIdUtil;
+import com.algomeet.multitenancycore.util.SchemaUtil;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -15,10 +14,10 @@ public class TenantIdentifierResolver implements CurrentTenantIdentifierResolver
 
     @Override
     public String resolveCurrentTenantIdentifier() {
-        String tenantId = TenantIdUtil.formatTenantId(TenantContext.getCurrentTenant());
+        String tenantId = TenantContext.getCurrentTenant();
         log.info("Tenant Id: {}", tenantId);
         
-        String schema = (tenantId != null) ? (SchemaConstants.prefix + tenantId): DEFAULT_TENANT;
+        String schema = SchemaUtil.getSchemaName(tenantId); 
         log.info("Using schema: {}", schema);
         
         return schema;

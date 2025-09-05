@@ -13,7 +13,9 @@ import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.DefaultTransactionDefinition;
 
 import com.algomeet.multitenancycore.context.TenantAwareSwitchOffContext;
+import com.algomeet.multitenancycore.context.TenantContext;
 import com.algomeet.multitenancycore.hibernate.resolver.TenantIdentifierResolver;
+import com.algomeet.multitenancycore.util.SchemaUtil;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -35,31 +37,38 @@ public class RepositoryTransactionInterceptor {
     	if (TenantAwareSwitchOffContext.isSwitchOff()) {
     		log.info("Tenant aware is switch off");
     		
-    		DefaultTransactionDefinition def = new DefaultTransactionDefinition();
-    		def.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
-    		TransactionStatus status = txManager.getTransaction(def);    		
-
-    		Session session = em.unwrap(Session.class);
-    		Connection connection = session.doReturningWork(conn -> {
-    		    // If tenant aware is swich-off use the default schema
-    			conn.createStatement().execute("SET search_path TO " + TenantIdentifierResolver.DEFAULT_TENANT);
-    			log.info("Using schema: " + TenantIdentifierResolver.DEFAULT_TENANT);
-    		    return conn;
-    		});
+    		return switchSchema(pjp, TenantIdentifierResolver.DEFAULT_TENANT);
     		
-    		try {
-    			Object result = pjp.proceed(); // run the actual repository method
-    			txManager.commit(status);
-
-    			return result;
-    		} catch (Throwable ex) {
-    			try {
-    				txManager.rollback(status);
-    			} catch (Exception ex2) {}
-    			throw ex;
-    		}
+    	} else if(TenantContext.isTenanSwitchedExplicitly()) {
+    		return switchSchema(pjp, SchemaUtil.getSchemaName(TenantContext.getCurrentTenant()));
     	}
     	
     	return pjp.proceed();
+    }
+    
+    private Object switchSchema(ProceedingJoinPoint pjp, String schemaName) throws Throwable {
+    	DefaultTransactionDefinition def = new DefaultTransactionDefinition();
+		def.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+		TransactionStatus status = txManager.getTransaction(def);    		
+
+		Session session = em.unwrap(Session.class);
+		Connection connection = session.doReturningWork(conn -> {
+		    // If tenant aware is swich-off use the default schema
+			conn.createStatement().execute("SET search_path TO " + schemaName);
+			log.info("Using schema: " + schemaName);
+		    return conn;
+		});
+		
+		try {
+			Object result = pjp.proceed(); // run the actual repository method
+			txManager.commit(status);
+
+			return result;
+		} catch (Throwable ex) {
+			try {
+				txManager.rollback(status);
+			} catch (Exception ex2) {}
+			throw ex;
+		}
     }
 }

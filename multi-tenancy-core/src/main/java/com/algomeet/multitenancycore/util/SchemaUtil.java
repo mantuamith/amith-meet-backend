@@ -2,10 +2,13 @@ package com.algomeet.multitenancycore.util;
 
 import org.springframework.util.StringUtils;
 
+import com.algomeet.multitenancycore.constants.SchemaConstants;
+import com.algomeet.multitenancycore.hibernate.resolver.TenantIdentifierResolver;
+
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-public class TenantIdUtil {
+public class SchemaUtil {
 	public static String formatTenantId(String strId) {
 		if (StringUtils.hasText(strId)) {
 			try {
@@ -20,7 +23,8 @@ public class TenantIdUtil {
 		return null;
 	}
 	
-	private static boolean isNumeric(String str) {
-	    return str != null && str.matches("\\d+");
+	public static String getSchemaName(String tenantId) {
+		return (tenantId != null) ? (SchemaConstants.prefix + formatTenantId(tenantId)) 
+				: TenantIdentifierResolver.DEFAULT_TENANT;
 	}
 }
