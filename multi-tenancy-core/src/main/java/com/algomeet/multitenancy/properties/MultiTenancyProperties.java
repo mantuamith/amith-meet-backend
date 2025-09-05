@@ -12,7 +12,7 @@ import lombok.Data;
 @ConfigurationProperties(prefix = "multi-tenancy")
 public class MultiTenancyProperties {
 	/**
-	 * Entity classes package locations.
+	 * Used to override the default entity classes package locations.
 	 */
 	private List<String> packages;
 }

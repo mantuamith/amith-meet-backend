@@ -11,6 +11,9 @@ import com.algomeet.multitenancy.context.TenantContext;
 
 import lombok.extern.slf4j.Slf4j;
 
+/** 
+ * Used to intercept the methods annotated with @TenantAwareSwitchOff().
+ */
 @Slf4j
 @Aspect
 public class TenantAwareSwitchOffAspect {
