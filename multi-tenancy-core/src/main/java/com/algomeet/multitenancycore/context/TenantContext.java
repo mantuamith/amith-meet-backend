@@ -37,7 +37,7 @@ public class TenantContext {
 	}
 
 	/**
-	 * Method used for explicitly/manually switching tenant schema within your code. It will guarantee the switching of schema even the 
+	 * Method used for explicitly/manually switching tenant schema within the code. It will guarantee the switching of schema even the 
 	 * "getConnection" method was already invoke from Multi-tenant connection provider because it used AOP to force the switching. 
 	 * It must be used for explicitly/manually switch schema within your code.
 	 * 
