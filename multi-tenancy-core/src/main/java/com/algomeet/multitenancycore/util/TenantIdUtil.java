@@ -7,13 +7,13 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class TenantIdUtil {
 	public static String formatTenantId(String strId) {
-		if (StringUtils.hasText(strId) 
-				&& isNumeric(strId.trim())) {
+		if (StringUtils.hasText(strId)) {
 			try {
 				int id = Integer.parseInt(strId.trim());
 				return String.format("%04d", id);
 			} catch (Exception ex) {
 				log.error("Error parsing tenant id: {}", strId, ex);
+				throw ex;
 			}			
 		}
 		
