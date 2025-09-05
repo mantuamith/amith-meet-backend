@@ -1,4 +1,4 @@
-package com.algomeet.multitenancycore.annotations;
+package com.algomeet.multitenancy.annotations;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;

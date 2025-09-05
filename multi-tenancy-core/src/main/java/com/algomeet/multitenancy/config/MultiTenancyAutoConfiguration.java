@@ -1,4 +1,4 @@
-package com.algomeet.multitenancycore.config;
+package com.algomeet.multitenancy.config;
 
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;

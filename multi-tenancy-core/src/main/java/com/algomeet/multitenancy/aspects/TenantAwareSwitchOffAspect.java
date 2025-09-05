@@ -1,13 +1,13 @@
-package com.algomeet.multitenancycore.aspects;
+package com.algomeet.multitenancy.aspects;
 
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.annotation.Pointcut;
 
-import com.algomeet.multitenancycore.annotations.TenantAwareSwitchOff;
-import com.algomeet.multitenancycore.context.TenantAwareSwitchOffContext;
-import com.algomeet.multitenancycore.context.TenantContext;
+import com.algomeet.multitenancy.annotations.TenantAwareSwitchOff;
+import com.algomeet.multitenancy.context.TenantAwareSwitchOffContext;
+import com.algomeet.multitenancy.context.TenantContext;
 
 import lombok.extern.slf4j.Slf4j;
 

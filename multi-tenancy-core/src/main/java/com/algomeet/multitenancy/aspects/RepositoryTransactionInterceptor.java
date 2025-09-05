@@ -1,4 +1,4 @@
-package com.algomeet.multitenancycore.aspects;
+package com.algomeet.multitenancy.aspects;
 
 import java.sql.Connection;
 
@@ -12,10 +12,10 @@ import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.DefaultTransactionDefinition;
 
-import com.algomeet.multitenancycore.context.TenantAwareSwitchOffContext;
-import com.algomeet.multitenancycore.context.TenantContext;
-import com.algomeet.multitenancycore.hibernate.resolver.TenantIdentifierResolver;
-import com.algomeet.multitenancycore.util.SchemaUtil;
+import com.algomeet.multitenancy.context.TenantAwareSwitchOffContext;
+import com.algomeet.multitenancy.context.TenantContext;
+import com.algomeet.multitenancy.hibernate.resolver.TenantIdentifierResolver;
+import com.algomeet.multitenancy.util.SchemaUtil;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;

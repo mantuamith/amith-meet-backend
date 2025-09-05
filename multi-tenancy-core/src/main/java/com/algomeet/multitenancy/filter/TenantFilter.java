@@ -1,9 +1,9 @@
-package com.algomeet.multitenancycore.filter;
+package com.algomeet.multitenancy.filter;
 
 import java.io.IOException;
 
-import com.algomeet.multitenancycore.constants.HttpHeaderConstants;
-import com.algomeet.multitenancycore.context.TenantContext;
+import com.algomeet.multitenancy.constants.HttpHeaderConstants;
+import com.algomeet.multitenancy.context.TenantContext;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;

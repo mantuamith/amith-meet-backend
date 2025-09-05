@@ -1,9 +1,9 @@
-package com.algomeet.multitenancycore.hibernate.resolver;
+package com.algomeet.multitenancy.hibernate.resolver;
 
 import org.hibernate.context.spi.CurrentTenantIdentifierResolver;
 
-import com.algomeet.multitenancycore.context.TenantContext;
-import com.algomeet.multitenancycore.util.SchemaUtil;
+import com.algomeet.multitenancy.context.TenantContext;
+import com.algomeet.multitenancy.util.SchemaUtil;
 
 import lombok.extern.slf4j.Slf4j;
 

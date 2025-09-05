@@ -1,10 +1,10 @@
-package com.algomeet.multitenancycore.config;
+package com.algomeet.multitenancy.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import com.algomeet.multitenancycore.aspects.RepositoryTransactionInterceptor;
-import com.algomeet.multitenancycore.aspects.TenantAwareSwitchOffAspect;
+import com.algomeet.multitenancy.aspects.RepositoryTransactionInterceptor;
+import com.algomeet.multitenancy.aspects.TenantAwareSwitchOffAspect;
 
 @Configuration
 public class AspectConfig {

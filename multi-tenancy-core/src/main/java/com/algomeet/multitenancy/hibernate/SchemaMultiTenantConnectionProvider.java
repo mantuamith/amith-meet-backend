@@ -1,4 +1,4 @@
-package com.algomeet.multitenancycore.hibernate;
+package com.algomeet.multitenancy.hibernate;
 
 import java.sql.Connection;
 import java.sql.SQLException;

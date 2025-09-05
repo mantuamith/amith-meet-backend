@@ -1,4 +1,4 @@
-package com.algomeet.multitenancycore.config;
+package com.algomeet.multitenancy.config;
 
 
 import java.util.HashMap;
@@ -19,9 +19,9 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
 
-import com.algomeet.multitenancycore.hibernate.SchemaMultiTenantConnectionProvider;
-import com.algomeet.multitenancycore.hibernate.resolver.TenantIdentifierResolver;
-import com.algomeet.multitenancycore.properties.MultiTenancyProperties;
+import com.algomeet.multitenancy.hibernate.SchemaMultiTenantConnectionProvider;
+import com.algomeet.multitenancy.hibernate.resolver.TenantIdentifierResolver;
+import com.algomeet.multitenancy.properties.MultiTenancyProperties;
 
 import lombok.extern.slf4j.Slf4j;
 

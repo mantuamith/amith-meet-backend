@@ -1,12 +1,12 @@
-package com.algomeet.multitenancycore.config;
+package com.algomeet.multitenancy.config;
 
 import feign.RequestInterceptor;
 import feign.RequestTemplate;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import com.algomeet.multitenancycore.constants.HttpHeaderConstants;
-import com.algomeet.multitenancycore.context.TenantContext;
+import com.algomeet.multitenancy.constants.HttpHeaderConstants;
+import com.algomeet.multitenancy.context.TenantContext;
 
 @Configuration
 public class FeignConfig {	

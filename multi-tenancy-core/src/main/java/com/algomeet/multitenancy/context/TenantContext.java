@@ -1,4 +1,4 @@
-package com.algomeet.multitenancycore.context;
+package com.algomeet.multitenancy.context;
 
 /**
  * Used to initialize the current tenant globally.

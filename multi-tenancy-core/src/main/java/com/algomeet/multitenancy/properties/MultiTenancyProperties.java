@@ -1,4 +1,4 @@
-package com.algomeet.multitenancycore.properties;
+package com.algomeet.multitenancy.properties;
 
 import java.util.List;
 

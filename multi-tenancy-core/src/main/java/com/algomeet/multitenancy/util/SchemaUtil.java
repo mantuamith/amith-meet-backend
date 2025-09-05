@@ -1,9 +1,9 @@
-package com.algomeet.multitenancycore.util;
+package com.algomeet.multitenancy.util;
 
 import org.springframework.util.StringUtils;
 
-import com.algomeet.multitenancycore.constants.SchemaConstants;
-import com.algomeet.multitenancycore.hibernate.resolver.TenantIdentifierResolver;
+import com.algomeet.multitenancy.constants.SchemaConstants;
+import com.algomeet.multitenancy.hibernate.resolver.TenantIdentifierResolver;
 
 import lombok.extern.slf4j.Slf4j;
 
