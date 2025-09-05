@@ -6,6 +6,7 @@ import org.springframework.data.redis.connection.stream.RecordId;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
+import com.algomeet.multitenancy.context.TenantContext;
 import com.algomeet.notificationservice.constant.Constants;
 import com.algomeet.notificationservice.properties.RedisStreamConfigProperties;
 
@@ -29,6 +30,6 @@ public class NotificationStreamPublisher {
         body.put(Constants.REDIS_STREAM_MESSAGE_KEY_TIMESTAMP, String.valueOf(System.currentTimeMillis()));
 
         RecordId recordId = redisTemplate.opsForStream().add(MapRecord.create(redisStreamConfigProperties.getNotificationStreamKey(), body));
-        log.debug("Produced message ID: {} ", recordId);
+        log.info("Produced message ID: {}  - tenantId: {}", recordId, TenantContext.getCurrentTenant());
     }
 }

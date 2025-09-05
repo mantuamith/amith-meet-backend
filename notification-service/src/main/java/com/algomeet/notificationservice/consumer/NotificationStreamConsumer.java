@@ -77,7 +77,7 @@ public class NotificationStreamConsumer implements StreamListener<String, MapRec
 	@Override
 	public void onMessage(MapRecord<String, String, String> message) {
 		// Update to debug when deploy to prod
-		log.info("Consumer {} received: {} ", consumerName, message.getValue());
+		log.info("Consumer {}, thread-id: {}, received: {} ", consumerName, Thread.currentThread().getId(), message.getValue());
 
 		try {
 			notificationConsumer.handleMessage(message.getValue().get(Constants.REDIS_STREAM_MESSAGE_KEY_MESSAGE));

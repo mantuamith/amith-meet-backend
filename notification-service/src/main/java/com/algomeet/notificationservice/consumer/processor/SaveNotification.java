@@ -7,12 +7,15 @@ import java.util.Objects;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
+import com.algomeet.multitenancy.context.TenantContext;
 import com.algomeet.notificationservice.dto.NotificationDto;
 import com.algomeet.notificationservice.model.Notification;
 import com.algomeet.notificationservice.service.NotificationService;
 import com.algomeet.notificationservice.util.NotificationMapper;
 
+import jakarta.validation.ValidationException;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -46,7 +49,16 @@ public class SaveNotification implements NotificationProcessor{
 				notification.setExpiredAt(expiration);
 			}
 			
-			notificationService.create(notification);		
+			if (!StringUtils.hasLength(notificationDto.getTenantId())) {
+				throw new ValidationException("Notification Tenant Id not found!");
+			}
+			
+			// Switch tenant schema explicitly
+			TenantContext.switchTenantExplicitly(notificationDto.getTenantId());
+			notificationService.create(notification);	
+			
+			// clean-up
+			TenantContext.clear();			
 		} catch(Exception ex) {
 			log.error("Error saving notification {}", ex.getMessage(), ex);
 		}		

@@ -9,6 +9,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
+import com.algomeet.multitenancy.context.TenantContext;
 import com.algomeet.notificationservice.dto.PushNotificationRequest;
 import com.algomeet.notificationservice.enums.ResponseCode;
 import com.algomeet.notificationservice.publisher.NotificationStreamPublisher;
@@ -37,6 +38,10 @@ public class NotificationController {
     	    	
     	if (!(StringUtils.hasLength(notificationRequest.getSenderId()))) {
     		notificationRequest.setSenderId(LoggedInUserUtil.getUsername());
+    	}
+    	
+    	if (!(StringUtils.hasLength(notificationRequest.getTenantId()))) {
+    		notificationRequest.setTenantId(TenantContext.getCurrentTenant());
     	}
     	
     	notificationPublisher.publish(objectMapper.writeValueAsString(notificationRequest));

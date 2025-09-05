@@ -47,8 +47,15 @@
       <artifactId>lombok</artifactId>
        <scope>provided</scope>
     </dependency>
+    
+    <!-- Multi-tenancy -->
+    <dependency>
+      <groupId>com.algomeet</groupId>
+      <artifactId>multi-tenancy-core</artifactId>
+      <version>0.0.1-SNAPSHOT</version>
+    </dependency>  
 
-        <!-- Testing -->
+    <!-- Testing -->
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-test</artifactId>

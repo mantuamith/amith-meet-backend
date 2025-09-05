@@ -8,8 +8,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.util.CollectionUtils;
 
+import com.algomeet.multitenancy.context.TenantContext;
 import com.algomeet.notificationservice.dto.Notification;
-import com.algomeet.notificationservice.events.NotificationCreatedEvent;
+import com.algomeet.notificationservice.event.NotificationCreatedEvent;
 
 import jakarta.validation.ValidationException;
 
@@ -29,6 +30,11 @@ public class NotificationService {
     	
     	if (Objects.isNull(notification.getCreatedAt())) {
     		notification.setCreatedAt(Instant.now());
+    	}
+    	
+    	// Set tenant id manually
+    	if (Objects.isNull(notification.getTenantId())) {
+    		notification.setTenantId(TenantContext.getCurrentTenant());
     	}
 	    
 		// Publish event

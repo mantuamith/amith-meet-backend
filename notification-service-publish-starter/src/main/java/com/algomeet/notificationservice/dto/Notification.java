@@ -43,4 +43,9 @@ public class Notification {
 	private boolean deliveryAckRequired;
 	private Instant expiredAt;	
 	private Instant createdAt;
+	/**
+	 * Used for tenant schema identifier. Notification processing used redis stream queue which 
+	 * consumed by workers with different threads.
+	 */
+	private String tenantId;
 }

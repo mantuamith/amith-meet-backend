@@ -98,5 +98,10 @@
       <artifactId>lombok</artifactId>
        <scope>provided</scope>
     </dependency>
+    <dependency>
+      <groupId>com.algomeet</groupId>
+      <artifactId>multi-tenancy-core</artifactId>
+      <version>0.0.1-SNAPSHOT</version>
+    </dependency>
   </dependencies>
 </project>

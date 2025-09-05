@@ -1,9 +1,10 @@
-package com.algomeet.notificationservice.listener;
+package com.algomeet.notificationservice.event.listener;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.event.EventListener;
+import org.springframework.scheduling.annotation.Async;
 
-import com.algomeet.notificationservice.events.NotificationCreatedEvent;
+import com.algomeet.notificationservice.event.NotificationCreatedEvent;
 import com.algomeet.notificationservice.publisher.NotificationStreamPublisher;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -15,6 +16,7 @@ public class NotificationEventListener {
 	@Autowired
 	private ObjectMapper objectMapper;
 	
+	@Async
     @EventListener
     public void handleNotificationCreated(NotificationCreatedEvent event) throws JsonProcessingException {
 		ObjectWriter ow = objectMapper.writer().withDefaultPrettyPrinter();

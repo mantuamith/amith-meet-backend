@@ -14,6 +14,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 
+import com.algomeet.multitenancy.context.TenantContext;
 import com.algomeet.notificationservice.constant.Constants;
 import com.algomeet.notificationservice.consumer.receiver.processor.ReceiverGroupProcessor;
 import com.algomeet.notificationservice.consumer.receiver.processor.ReceiverGroupProcessorProvider;
@@ -146,8 +147,8 @@ public class PushNotification implements NotificationProcessor{
 		}
 	}
 
-	private UserNotification saveUserNotification(Long userId, NotificationDto dto) {
-		if (Objects.isNull(dto) || !(dto.isDeliveryAckRequired())) {
+	private UserNotification saveUserNotification(Long userId, NotificationDto notificationDto) {
+		if (Objects.isNull(notificationDto) || !(notificationDto.isDeliveryAckRequired())) {
 			return null;
 		}
 
@@ -155,11 +156,18 @@ public class PushNotification implements NotificationProcessor{
 		userNotification.setUserId(userId);
 
 		Notification notification = new Notification();
-		notification.setId(dto.getId());
+		notification.setId(notificationDto.getId());
 
 		userNotification.setNotification(notification);
 
-		return userNotificationRepository.save(userNotification);
+		// Switch tenant schema explicitly
+		TenantContext.switchTenantExplicitly(notificationDto.getTenantId());
+		UserNotification saved = userNotificationRepository.save(userNotification);
+		
+		//Clean up
+		TenantContext.clear();
+		
+		return saved;
 	}
 	
 	private boolean isUserNotificationExists(long userId, UUID notificationId) {

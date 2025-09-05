@@ -6,14 +6,16 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
+import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.util.StringUtils;
 
-import com.algomeet.notificationservice.listener.NotificationEventListener;
+import com.algomeet.notificationservice.event.listener.NotificationEventListener;
 import com.algomeet.notificationservice.properties.RedisStreamConfigProperties;
 import com.algomeet.notificationservice.publisher.NotificationStreamPublisher;
 import com.algomeet.notificationservice.service.NotificationService;
 
 
+@EnableAsync
 @Configuration
 @Import({JacksonConfig.class})
 public class NotificationServicePublishStarterAutoConfiguration implements InitializingBean{

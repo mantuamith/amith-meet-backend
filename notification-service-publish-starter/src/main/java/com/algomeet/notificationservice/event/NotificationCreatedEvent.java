@@ -1,4 +1,4 @@
-package com.algomeet.notificationservice.events;
+package com.algomeet.notificationservice.event;
 
 
 import org.springframework.context.ApplicationEvent;

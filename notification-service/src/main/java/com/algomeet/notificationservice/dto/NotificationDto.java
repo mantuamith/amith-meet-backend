@@ -28,4 +28,10 @@ public class NotificationDto {
     private Instant expiredAt;
     private Map<String, Object> data;
 	private boolean deliveryAckRequired;
+	
+	/**
+	 * Used for tenant schema identifier.Notification processing used redis stream queue which 
+	 * consumed by workers that running different threads.
+	 */
+	private String tenantId;
 }
