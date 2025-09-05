@@ -24,7 +24,7 @@ public class SchemaUtil {
 	}
 	
 	public static String getSchemaName(String tenantId) {
-		return (tenantId != null) ? (SchemaConstants.prefix + formatTenantId(tenantId)) 
+		return (StringUtils.hasLength(tenantId)) ? (SchemaConstants.prefix + formatTenantId(tenantId)) 
 				: TenantIdentifierResolver.DEFAULT_TENANT;
 	}
 }

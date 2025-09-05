@@ -55,7 +55,7 @@ public class RepositoryTransactionInterceptor {
 		Connection connection = session.doReturningWork(conn -> {
 		    // If tenant aware is swich-off use the default schema
 			conn.createStatement().execute("SET search_path TO " + schemaName);
-			log.info("Using schema: " + schemaName);
+			log.info("AOP - Using schema: " + schemaName);
 		    return conn;
 		});
 		
