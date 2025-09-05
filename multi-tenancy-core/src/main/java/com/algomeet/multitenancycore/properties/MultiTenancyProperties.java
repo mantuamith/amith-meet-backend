@@ -11,5 +11,8 @@ import lombok.Data;
 @Configuration
 @ConfigurationProperties(prefix = "multi-tenancy")
 public class MultiTenancyProperties {
+	/**
+	 * Entity classes package locations.
+	 */
 	private List<String> packages;
 }

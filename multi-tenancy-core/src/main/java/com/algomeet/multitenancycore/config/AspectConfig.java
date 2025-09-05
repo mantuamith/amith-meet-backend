@@ -6,8 +6,6 @@ import org.springframework.context.annotation.Configuration;
 import com.algomeet.multitenancycore.aspects.RepositoryTransactionInterceptor;
 import com.algomeet.multitenancycore.aspects.TenantAwareSwitchOffAspect;
 
-import lombok.extern.slf4j.Slf4j;
-
 @Configuration
 public class AspectConfig {
 	
