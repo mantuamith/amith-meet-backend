@@ -5,25 +5,25 @@ package com.algomeet.multitenancycore.context;
  */
 public class TenantAwareSwitchOffContext {
 
-    private static final ThreadLocal<Boolean> switchOff = new ThreadLocal<>();
+    private static final ThreadLocal<Boolean> SWITCH_OFF = new ThreadLocal<>();
 
     private TenantAwareSwitchOffContext() {
         // Utility class
     }
 
     public static void switchOff(){
-    	switchOff.set(true);
+    	SWITCH_OFF.set(true);
     }
 
     public static boolean isSwitchOff() {    	
-    	if(switchOff.get() != null) {
-    		return switchOff.get();
+    	if(SWITCH_OFF.get() != null) {
+    		return SWITCH_OFF.get();
     	}
     	
         return false;
     }
 
     public static void clear() {
-    	switchOff.remove();
+    	SWITCH_OFF.remove();
     }
 }
