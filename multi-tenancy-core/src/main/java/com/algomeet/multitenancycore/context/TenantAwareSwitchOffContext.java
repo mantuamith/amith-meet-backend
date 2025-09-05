@@ -15,13 +15,12 @@ public class TenantAwareSwitchOffContext {
     	switchOff.set(true);
     }
 
-    public static boolean isSwitchOff() {
-    	
-    	if(switchOff.get() == null) {
-    		return false;
+    public static boolean isSwitchOff() {    	
+    	if(switchOff.get() != null) {
+    		return switchOff.get();
     	}
     	
-        return true;
+        return false;
     }
 
     public static void clear() {
