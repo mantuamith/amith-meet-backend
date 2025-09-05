@@ -15,10 +15,10 @@ public class TenantContext {
 	/**
 	 * Method used for switching current tenant schema, it must be used in web request level schema switching only
 	 * such as inside web filters and interceptors. But once the database connection has been established you 
-	 * must use @see #switchTenantExplicitly(String) method instead unless you have properly configured your 
-	 * code to renew connection from Multi-tenant connection provider every JPA repository method invocation.
+	 * must use @see #switchTenantExplicitly(String) method instead unless you have properly configured the 
+	 * hibernate to get new connection from Multi-tenant connection provider every JPA repository method invocation.
 	 * 
-	 * To switch the current tenant explicitly/manually within your code.
+	 * To switch current schema explicitly/manually within your code.
 	 * @see #switchTenantExplicitly(String)
 	 *    
 	 * @param tenantId
@@ -37,12 +37,12 @@ public class TenantContext {
 	}
 
 	/**
-	 * Method used for explicitly/manually switch tenant schema within your code. It will guarantee the switching of schema even the 
+	 * Method used for explicitly/manually switching tenant schema within your code. It will guarantee the switching of schema even the 
 	 * "getConnection" method was already invoke from Multi-tenant connection provider because it used AOP to force the switching. 
-	 * It must be used for explicitly/manually switch schema within you code.
+	 * It must be used for explicitly/manually switch schema within your code.
 	 * 
 	 * Caution: Don't use this method at web request level schema switching such as inside filters and interceptors. It might cause a lot of 
-	 * side effects specially in the application performance and data integrity instead use @see #setCurrentTenant(String) for 
+	 * side effects specially in the application performance and possible data integrity instead use @see #setCurrentTenant(String) for 
 	 * web request level switching.
 	 * 
 	 * Note: After calling this method you have to manually call the @see #clear(String) for housekeeping.
