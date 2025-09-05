@@ -31,7 +31,8 @@ public class RepositoryTransactionInterceptor {
 	@PersistenceContext
     private EntityManager em;
 
-    @Around("execution(* org.springframework.data.jpa.repository.JpaRepository+.*(..))")
+    @Around("execution(* org.springframework.data.jpa.repository.JpaRepository+.*(..)) || " +
+    		"execution(* com.algomeet..repository..*(..))")
     public Object forceNewTransaction(ProceedingJoinPoint pjp) throws Throwable {
     	
     	if (TenantAwareSwitchOffContext.isSwitchOff()) {
