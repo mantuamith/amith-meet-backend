@@ -54,7 +54,7 @@ public class TenantContext {
 		SWITCH_TENANT_EXPLICITLY.set(true);
 	}
 
-	public static boolean isTenanSwitchedExplicitly() {
+	public static boolean isTenantSwitchedExplicitly() {
 		if (SWITCH_TENANT_EXPLICITLY.get() != null) {
 			return SWITCH_TENANT_EXPLICITLY.get();
 		}

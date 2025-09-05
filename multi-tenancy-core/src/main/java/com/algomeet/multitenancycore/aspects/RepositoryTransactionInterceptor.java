@@ -39,7 +39,7 @@ public class RepositoryTransactionInterceptor {
     		
     		return switchSchema(pjp, TenantIdentifierResolver.DEFAULT_TENANT);
     		
-    	} else if(TenantContext.isTenanSwitchedExplicitly()) {
+    	} else if(TenantContext.isTenantSwitchedExplicitly()) {
     		return switchSchema(pjp, SchemaUtil.getSchemaName(TenantContext.getCurrentTenant()));
     	}
     	
