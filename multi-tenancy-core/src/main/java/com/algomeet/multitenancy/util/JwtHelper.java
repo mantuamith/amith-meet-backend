@@ -28,6 +28,10 @@ public class JwtHelper {
 
 	public String getTenantId(HttpServletRequest request) {     
 		String token = getAuthorizationToken(request);
+		return getTenantId(token);
+	}
+	
+	public String getTenantId(String token) {     
 		if (StringUtils.hasLength(token)) {
 			try {
 
