@@ -4,14 +4,14 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import com.algomeet.multitenancy.aspects.RepositoryTransactionInterceptor;
-import com.algomeet.multitenancy.aspects.TenantAwareSwitchOffAspect;
+import com.algomeet.multitenancy.aspects.UsePublicSchemaAspect;
 
 @Configuration
 public class AspectConfig {
 	
 	@Bean
-	public TenantAwareSwitchOffAspect tenantAwareSwitchOffAspect() {
-		return new TenantAwareSwitchOffAspect();
+	public UsePublicSchemaAspect tenantAwareSwitchOffAspect() {
+		return new UsePublicSchemaAspect();
 	}
 	
 	@Bean

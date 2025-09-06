@@ -8,7 +8,7 @@ import com.algomeet.multitenancy.hibernate.resolver.TenantIdentifierResolver;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-public class SchemaUtil {
+public final class SchemaUtil {
 	public static String formatTenantId(String strId) {
 		if (StringUtils.hasText(strId)) {
 			try {

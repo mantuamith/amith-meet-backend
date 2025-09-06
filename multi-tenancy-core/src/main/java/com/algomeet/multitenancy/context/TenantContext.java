@@ -41,8 +41,13 @@ public class TenantContext {
 	 * "getConnection" method was already invoke from Multi-tenant connection provider because it used AOP to force the switching. 
 	 * It must be used for explicitly/manually switch schema within your code.
 	 * 
+	 * Warning: Be careful when using this method each JPA repository method call is manually committed using AOP interceptor, annotating the 
+	 * caller method with @Transactional won't work. Once call to JPA repository is executed successfully rollback is not possible.
+	 * Meaning you cannot have a sequence of JPA repository method calls then rollback in the later part. In order to rollback the 
+	 * data you have to programmatically remove them.
+	 * 
 	 * Caution: Don't use this method at web request level schema switching such as inside filters and interceptors. It might cause a lot of 
-	 * side effects specially in the application performance and possible data integrity instead use @see #setCurrentTenant(String) for 
+	 * side effects specially in the application performance and rollback issues instead use @see #setCurrentTenant(String) for 
 	 * web request level switching.
 	 * 
 	 * Note: After calling this method you have to manually call the @see #clear(String) for housekeeping.

@@ -12,7 +12,7 @@ import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.DefaultTransactionDefinition;
 
-import com.algomeet.multitenancy.context.TenantAwareSwitchOffContext;
+import com.algomeet.multitenancy.context.UsePublicSchemaContext;
 import com.algomeet.multitenancy.context.TenantContext;
 import com.algomeet.multitenancy.hibernate.resolver.TenantIdentifierResolver;
 import com.algomeet.multitenancy.util.SchemaUtil;
@@ -39,7 +39,7 @@ public class RepositoryTransactionInterceptor {
     		"execution(* com.algomeet..repository..*(..))")
     public Object forceNewTransaction(ProceedingJoinPoint pjp) throws Throwable {
     	
-    	if (TenantAwareSwitchOffContext.isSwitchOff()) {
+    	if (UsePublicSchemaContext.isSwitchedToPublicSchema()) {
     		log.info("Tenant aware is switch off");
     		
     		return switchSchema(pjp, TenantIdentifierResolver.DEFAULT_TENANT);
@@ -60,7 +60,7 @@ public class RepositoryTransactionInterceptor {
 		Connection connection = session.doReturningWork(conn -> {
 		    // If tenant aware is swich-off use the default schema
 			conn.createStatement().execute("SET search_path TO " + schemaName);
-			log.info("AOP - Using schema: " + schemaName);
+			log.info("AOP - Swith to schema: " + schemaName);
 		    return conn;
 		});
 		

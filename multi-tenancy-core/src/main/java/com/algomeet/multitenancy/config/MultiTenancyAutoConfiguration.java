@@ -5,6 +5,6 @@ import org.springframework.context.annotation.Import;
 
 
 @Configuration
-@Import({HibernateConfig.class, FeignConfig.class, WebConfig.class, AspectConfig.class})
+@Import({HibernateConfig.class, FeignConfig.class, WebConfig.class, AspectConfig.class, JwtConfig.class})
 public class MultiTenancyAutoConfiguration {	
 }
