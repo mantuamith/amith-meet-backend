@@ -1,5 +1,7 @@
 package com.algomeet.notificationservice.websocket.processor;
 
+import org.springframework.web.socket.WebSocketSession;
+
 public interface WebSocketMessageProcessor {
 	default int getOrder() {
 		return 0;
@@ -11,5 +13,5 @@ public interface WebSocketMessageProcessor {
 	 * @return return true if message processed, otherwise false so that next processor
 	 * will process the message.
 	 */
-	boolean doProcess(String payload);
+	boolean doProcess(WebSocketSession session, String payload);
 }

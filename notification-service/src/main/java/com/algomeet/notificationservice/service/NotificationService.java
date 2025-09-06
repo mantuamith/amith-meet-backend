@@ -20,7 +20,7 @@ public class NotificationService {
 
     public Notification create(Notification notification) {
         notification.setCreatedAt(Instant.now());
-        return notificationRepository.save(notification);
+        return notificationRepository.saveAndFlush(notification);
     }
 
     public Optional<Notification> getById(UUID id) {

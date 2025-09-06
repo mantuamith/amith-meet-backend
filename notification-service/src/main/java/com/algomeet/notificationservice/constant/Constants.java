@@ -4,6 +4,7 @@ public class Constants {
 	
 	public final static String SESSION_ATTR_TIME_CONNECTED = "time-connected";
 	public final static String SESSION_ATTR_USERNAME = "username";
+	public final static String SESSION_ATTR_TENANT_ID = "tenant-id";
 	public final static String SESSION_ATTR_DEVICE_TOKEN = "device-token";
 	
 	public static final String TOKEN_PREFIX = "Bearer";

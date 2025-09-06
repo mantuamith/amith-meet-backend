@@ -8,7 +8,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
-import com.algomeet.multitenancy.context.TenantContext;
 import com.algomeet.notificationservice.dto.NotificationDto;
 import com.algomeet.notificationservice.dto.UserContactDto;
 import com.algomeet.notificationservice.dto.UserDto;
@@ -33,11 +32,7 @@ public class UserFriendstReceiverGroup implements ReceiverGroupProcessor{
 			throw new ValidationException("Receiver group referrence id fiels is empty");
 		}
 
-		// Switch tenant schema explicitly
-		TenantContext.switchTenantExplicitly(notificationDto.getTenantId());
 		List<UserContactDto> userContactList = userContactNativeRepository.getUserFriendList(notificationDto.getReceiverGroupRefId());
-		// Clean up
-		TenantContext.clear();
 
 		if (!CollectionUtils.isEmpty(userContactList)) {
 			return userContactList.stream().map(c -> {

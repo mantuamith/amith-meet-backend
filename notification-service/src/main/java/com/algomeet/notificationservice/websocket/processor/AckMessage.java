@@ -5,6 +5,7 @@ import java.util.Objects;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
+import org.springframework.web.socket.WebSocketSession;
 
 import com.algomeet.notificationservice.dto.NotificationAckDto;
 import com.algomeet.notificationservice.service.UserNotificationService;
@@ -23,7 +24,7 @@ public class AckMessage implements WebSocketMessageProcessor{
 	private UserNotificationService userNotificationService;
 	
 	@Override
-	public boolean doProcess(String payload) {
+	public boolean doProcess(WebSocketSession session, String payload) {
 		if(!(StringUtils.hasLength(payload))) {
 			return false;
 		}
@@ -35,6 +36,7 @@ public class AckMessage implements WebSocketMessageProcessor{
 				log.info("ACK Status: {}, NotificationId: {}",  ack.getStatus(), ack.getNotificationId());
 				
 				userNotificationService.markAsDelivered(ack.getNotificationId());
+				
 				return true;
 			}
 		} 

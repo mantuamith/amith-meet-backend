@@ -15,7 +15,9 @@ import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
+import com.algomeet.multitenancy.context.TenantContext;
 import com.algomeet.notificationservice.constant.Constants;
+import com.algomeet.notificationservice.dto.UserAuthInfo;
 import com.algomeet.notificationservice.dto.UserAuthenticationRequest;
 import com.algomeet.notificationservice.service.AuthService;
 import com.algomeet.notificationservice.util.MessageUtil;
@@ -67,14 +69,17 @@ public class NotificationWebSocketHandler extends TextWebSocketHandler {
 					UserAuthenticationRequest authRequest = objectMapper.readValue(payload, UserAuthenticationRequest.class);
 					log.info("Auth payload: {}", authRequest);
 
-					String username = authService.getUsername(authRequest.getAuthorization());
-					if (StringUtils.hasText(username)) {						
+					UserAuthInfo userAuthInfo = authService.getUsername(authRequest.getAuthorization());
+					if (userAuthInfo != null && StringUtils.hasText(userAuthInfo.getUsername())) {						
 
-						Set<WebSocketSession> userSessions = authenticatedUserSessions.getOrDefault(username, new CopyOnWriteArraySet<>());
+						Set<WebSocketSession> userSessions = authenticatedUserSessions.getOrDefault(
+								userAuthInfo.getUsername(), new CopyOnWriteArraySet<>());
 						userSessions.add(session);	
-						authenticatedUserSessions.put(username, userSessions);
+						authenticatedUserSessions.put(userAuthInfo.getUsername(), userSessions);
 
-						session.getAttributes().put(Constants.SESSION_ATTR_USERNAME, username.trim());	
+						session.getAttributes().put(Constants.SESSION_ATTR_USERNAME, userAuthInfo.getUsername().trim());	
+						session.getAttributes().put(Constants.SESSION_ATTR_TENANT_ID, userAuthInfo.getTenantId());
+						
 						if (StringUtils.hasText(authRequest.getDeviceToken())){
 							session.getAttributes().put(Constants.SESSION_ATTR_DEVICE_TOKEN, authRequest.getDeviceToken().trim());
 						}
@@ -95,24 +100,31 @@ public class NotificationWebSocketHandler extends TextWebSocketHandler {
 		} 
 
 		// Process received message
-		processReceivedMesssage(payload);
+		processReceivedMesssage(session, payload);
 		
 		log.info("Received message: " + payload);
 	}
 	
-	private void processReceivedMesssage(String payload) {
+	private void processReceivedMesssage(WebSocketSession session, String payload) {
 		if (!(StringUtils.hasLength(payload))) {
 			return;
 		}
 		
+		String tenantId = (String) session.getAttributes().get(Constants.SESSION_ATTR_TENANT_ID);
+		
+		// Switch db schema
+		TenantContext.switchTenantExplicitly(tenantId);
     	// Retrieve websocket message processors
     	List<WebSocketMessageProcessor> processors = messageProcessorProvider.getProcessors();
     	for (WebSocketMessageProcessor processor : processors) {
-    		if (processor.doProcess(payload)) {
+    		if (processor.doProcess(session, payload)) {
     			// Message processed 
     			break;
     		}
     	}
+    	
+    	// Cleanup
+    	TenantContext.clear();
 	}
 	
 	public static Set<WebSocketSession> getUnauthenticatedsessions() {
