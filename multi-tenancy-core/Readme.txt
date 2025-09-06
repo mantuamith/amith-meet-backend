@@ -23,9 +23,9 @@ Steps:
  2. Make sure that the Autorization token is added every authenticated requests.
     If tenant ID is not set in the JWT token, it will use the "public" schema as default.
  
- 3. (This is not applicable to http requests) For websocket communications only, the client must pass the JWT token to the BE server either thru 
-    request header or as first message during authentication, then in the BE server will get the tenant Id from the token using JwtHelper class 
-    to use this helper class just autowired it in your code.
+ 3. (This is not applicable to http requests no developers action needed) For websocket communications only, the client must pass the JWT token 
+    to the BE server either thru request header or as first message during authentication, then in the BE server will get the tenant Id from 
+    the token using JwtHelper class to use this helper class just autowired it in your code.
     
     Example:
     
