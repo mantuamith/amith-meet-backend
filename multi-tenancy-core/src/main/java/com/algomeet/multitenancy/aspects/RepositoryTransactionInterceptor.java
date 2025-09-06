@@ -13,9 +13,7 @@ import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.DefaultTransactionDefinition;
 import org.springframework.util.StringUtils;
 
-import com.algomeet.multitenancy.context.UsePublicSchemaContext;
 import com.algomeet.multitenancy.context.TenantContext;
-import com.algomeet.multitenancy.hibernate.resolver.TenantIdentifierResolver;
 import com.algomeet.multitenancy.util.SchemaUtil;
 
 import jakarta.persistence.EntityManager;
