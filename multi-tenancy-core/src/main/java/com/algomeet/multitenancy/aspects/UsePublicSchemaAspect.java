@@ -54,19 +54,19 @@ public class UsePublicSchemaAspect {
         tenantId = StringUtils.hasLength(annotation.tenantId()) ? annotation.tenantId() : null;
 		
 		try {    
-			log.info("Tenant aware switch off - start");
-			
-			// Clear the tenant Id to use the default 
+			log.info("Using public schema - start");			
+			// Clear the tenant Id 
 			TenantContext.clear();
-			// Switch off
-			UsePublicSchemaContext.switchToPublicSchema();
+			
+			// Set public tenant Id
+			TenantContext.setCurrentTenant(tenantId);
 
 			// Continue execution
 			result = pjp.proceed();               
 
 		} finally {
 			UsePublicSchemaContext.clear();
-			log.info("Tenant aware switch off - end");
+			log.info("Using public schema - end");
 			
 			// Re-initialize back the tenant Id
 			TenantContext.setCurrentTenant(tenantId);	
@@ -77,16 +77,20 @@ public class UsePublicSchemaAspect {
 		return result;
 	}
 	
-	private void switchSchema(String schemaName) {
+	private void switchSchema(String newSchema) {
+		Session session = em.unwrap(Session.class);
+    	if (session == null) {
+    		return;
+    	}
+    	
     	DefaultTransactionDefinition def = new DefaultTransactionDefinition();
 		def.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
 		TransactionStatus status = txManager.getTransaction(def);    		
 
-		Session session = em.unwrap(Session.class);
 		Connection connection = session.doReturningWork(conn -> {
-		    // If tenant aware is swich-off use the default schema
-			conn.createStatement().execute("SET search_path TO " + schemaName);
-			log.info("AOP - Switching to schema: " + schemaName);
+		    // Switch schema
+			conn.createStatement().execute("SET search_path TO " + newSchema);
+			log.info("AOP - Switching to schema: " + newSchema);
 		    return conn;
 		});
 		// Commit 

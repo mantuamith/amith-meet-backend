@@ -11,6 +11,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.DefaultTransactionDefinition;
+import org.springframework.util.StringUtils;
 
 import com.algomeet.multitenancy.context.UsePublicSchemaContext;
 import com.algomeet.multitenancy.context.TenantContext;
@@ -37,30 +38,30 @@ public class RepositoryTransactionInterceptor {
 
     @Around("execution(* org.springframework.data.jpa.repository.JpaRepository+.*(..)) || " +
     		"execution(* com.algomeet..repository..*(..))")
-    public Object forceNewTransaction(ProceedingJoinPoint pjp) throws Throwable {
-    	
-    	if (UsePublicSchemaContext.isSwitchedToPublicSchema()) {
-    		log.info("Tenant aware is switch off");
-    		
-    		return switchSchema(pjp, TenantIdentifierResolver.DEFAULT_TENANT);
-    		
-    	} else if(TenantContext.isTenantSwitchedExplicitly()) {
-    		return switchSchema(pjp, SchemaUtil.getSchemaName(TenantContext.getCurrentTenant()));
-    	}
-    	
-    	return pjp.proceed();
+    public Object forceNewTransaction(ProceedingJoinPoint pjp) throws Throwable {    	
+   		return switchSchema(pjp, SchemaUtil.getSchemaName(TenantContext.getCurrentTenant()));
     }
     
-    private Object switchSchema(ProceedingJoinPoint pjp, String schemaName) throws Throwable {
+    private Object switchSchema(ProceedingJoinPoint pjp, String newSchema) throws Throwable {    	
+    	Session session = em.unwrap(Session.class);
+    	if (session == null) {
+    		return pjp.proceed();
+    	}
+    	
     	DefaultTransactionDefinition def = new DefaultTransactionDefinition();
 		def.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
 		TransactionStatus status = txManager.getTransaction(def);    		
 
-		Session session = em.unwrap(Session.class);
-		Connection connection = session.doReturningWork(conn -> {
-		    // If tenant aware is swich-off use the default schema
-			conn.createStatement().execute("SET search_path TO " + schemaName);
-			log.info("AOP - Swith to schema: " + schemaName);
+		Connection connection = session.doReturningWork(conn -> {			
+			if (StringUtils.hasLength(newSchema) 
+					&& newSchema.trim().equalsIgnoreCase(conn.getSchema().trim())) {
+				// Current and new schema is the same.
+				return conn;
+			}
+			
+		    // Switch schema
+			conn.createStatement().execute("SET search_path TO " + newSchema);
+			log.info("AOP - Swith to schema: " + newSchema);
 		    return conn;
 		});
 		
