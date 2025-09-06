@@ -38,13 +38,13 @@ Steps:
     
     Then use static method "switchTenantExplicitly(tenantId)" of TenantContext class to switch database schema based on tenant Id.
     // Example code
-    com.algomeet.multitenancy.context.switchTenantExplicitly(tenantId);
+    com.algomeet.multitenancy.context.TenantContext.switchTenantExplicitly(tenantId);
     
     // More JPA operations
     ...
     
     // then clean-up after the JPA operations.
- 	com.algomeet.multitenancy.context.clear();
+ 	com.algomeet.multitenancy.context.TenantContext.clear();
    
    
     
@@ -52,7 +52,7 @@ Steps:
  FAQ:
     
     Q: How to explicitly switch database schema in my code?
-    A: You can use the static method "com.algomeet.multitenancy.context.switchTenantExplicitly(tenantId)".
+    A: You can use the static method "com.algomeet.multitenancy.context.TenantContext.switchTenantExplicitly(tenantId)".
        Make sure you have properly read the documentation within the method comments. It is only advisable 
        to manually switch your database connection for the batch processes, websocket communications and 
        processes with multi-threads. Take note that all http requests were already supported by this library
