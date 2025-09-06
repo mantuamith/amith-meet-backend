@@ -36,8 +36,12 @@ public class RepositoryTransactionInterceptor {
 
     @Around("execution(* org.springframework.data.jpa.repository.JpaRepository+.*(..)) || " +
     		"execution(* com.algomeet..repository..*(..))")
-    public Object forceNewTransaction(ProceedingJoinPoint pjp) throws Throwable {    	
-   		return switchSchema(pjp, SchemaUtil.getSchemaName(TenantContext.getCurrentTenant()));
+    public Object forceNewTransaction(ProceedingJoinPoint pjp) throws Throwable {  
+    	if(TenantContext.isTenantSwitchedExplicitly()) {
+    		return switchSchema(pjp, SchemaUtil.getSchemaName(TenantContext.getCurrentTenant()));
+    	} 
+    	
+    	return pjp.proceed();
     }
     
     private Object switchSchema(ProceedingJoinPoint pjp, String newSchema) throws Throwable {    	

@@ -18,7 +18,6 @@ import org.springframework.util.StringUtils;
 
 import com.algomeet.multitenancy.annotations.UsePublicSchema;
 import com.algomeet.multitenancy.context.TenantContext;
-import com.algomeet.multitenancy.context.UsePublicSchemaContext;
 import com.algomeet.multitenancy.util.SchemaUtil;
 
 import jakarta.persistence.EntityManager;
@@ -65,9 +64,9 @@ public class UsePublicSchemaAspect {
 			result = pjp.proceed();               
 
 		} finally {
-			UsePublicSchemaContext.clear();
 			log.info("Using public schema - end");
-			
+			// Clear the tenant Id 
+			TenantContext.clear();
 			// Re-initialize back the tenant Id
 			TenantContext.setCurrentTenant(tenantId);	
 			// Switch back to previous schema

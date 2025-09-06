@@ -15,7 +15,7 @@ public class TenantContext {
 	/**
 	 * Method used for switching current tenant schema, it must be used in web request level schema switching only
 	 * such as inside web filters and interceptors. But once the database connection has been established you 
-	 * must use @see #switchTenantExplicitly(String) method instead unless you have properly configured the 
+	 * must use @see #switchTenantExplicitly(String) method instead, unless you have properly configured the 
 	 * hibernate to get new connection from Multi-tenant connection provider every JPA repository method invocation.
 	 * 
 	 * To switch current schema explicitly/manually within your code.
