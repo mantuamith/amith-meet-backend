@@ -1,7 +1,6 @@
 package com.algomeet.multitenancy.filter;
 
 import java.io.IOException;
-import java.util.Objects;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.util.StringUtils;
