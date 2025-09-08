@@ -11,3 +11,7 @@ public class ReadReceipt {
     private List<String> messageIds;  // which messages got read
     private long atEpochSec;          // when it was marked READ
 }
+
+//TODO(migration):
+// later, add contactKey or senderKey/receiverKey in addition to existing fields,
+// and make the server accept either.

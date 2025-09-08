@@ -71,6 +71,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 // 2b) Extract email + sid from token
                 String email = jwtUtil.extractEmail(token);
                 String tokenSid = jwtUtil.extractSid(token);
+                String userKey = jwtUtil.extractUserKey(token);
 
                 if (email == null || tokenSid == null) {
                     unauthorized(response, ResponseCode.AUTH_SESSION_REVOKED);
@@ -88,6 +89,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
                 // 2d) All good → set Authentication (principal=email)
                 var auth = new UsernamePasswordAuthenticationToken(email, null, Collections.emptyList());
+                auth.setDetails(java.util.Map.of(
+                        "user_key", userKey,
+                        "sid", tokenSid));
                 SecurityContextHolder.getContext().setAuthentication(auth);
 
             } catch (Exception ex) {

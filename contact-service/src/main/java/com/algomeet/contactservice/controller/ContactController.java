@@ -53,7 +53,7 @@ public class ContactController {
 
     @GetMapping("/search")
     public ResponseEntity<List<UserDto>> searchUsers(@RequestParam String query,  Principal principal) {
-        return ResponseEntity.ok(contactService.searchUsers(query, principal.getName()));
+        return ResponseEntity.ok(contactService.searchUsers(query, principal));
     }
 
     @PostMapping("/reject")

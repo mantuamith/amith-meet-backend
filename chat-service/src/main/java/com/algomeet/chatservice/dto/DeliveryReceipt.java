@@ -12,3 +12,7 @@ public class DeliveryReceipt {
     private List<String> messageIds;  // delivered message IDs
     private long deliveredAt;         // epoch seconds
 }
+
+//TODO(migration):
+// later, add contactKey or senderKey/receiverKey in addition to existing fields,
+// and make the server accept either.
