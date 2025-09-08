@@ -42,7 +42,7 @@ public interface UserClient {
                                      @RequestParam(value = "sid", required = false) String sid);
 
     @GetMapping("/internal/users/active-sid")
-    Map<String, String> getActiveSession(@RequestParam("email") String email);
+    Map<String, String> getActiveSid(@RequestParam("email") String email);
 
     @GetMapping("/internal/users/exists")
     Map<String, Boolean> checkExists(
@@ -55,7 +55,7 @@ public interface UserClient {
 
     // tiny helper
     default String getActiveSessionIdByEmail(String email) {
-        Map<String, String> res = getActiveSession(email);
+        Map<String, String> res = getActiveSid(email);
         return res == null ? null : res.get("sid");
     }
 
