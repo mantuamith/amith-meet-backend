@@ -19,7 +19,7 @@ public class SidCache {
     private final Map<String, Entry> cache = new ConcurrentHashMap<>();
 
     // keep short; we want near-real-time enforcement
-    private static final long TTL_SECONDS = 20;
+    private static final long TTL_SECONDS = 2;
 
     public String getCurrentSid(String email) {
         Entry e = cache.get(email);
@@ -30,7 +30,7 @@ public class SidCache {
         // fetch fresh
         String sid = null;
         try {
-            var resp = userClient.getActiveSession(email);
+            var resp = userClient.getActiveSid(email);
             if (resp != null) sid = (String) resp.get("sid");
         } catch (Exception ignored) {
             // If user-service is down, we’ll fail SAFE below (treat as mismatch => revoke)
