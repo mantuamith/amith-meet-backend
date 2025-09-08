@@ -69,7 +69,7 @@ public class NotificationWebSocketHandler extends TextWebSocketHandler {
 					UserAuthenticationRequest authRequest = objectMapper.readValue(payload, UserAuthenticationRequest.class);
 					log.info("Auth payload: {}", authRequest);
 
-					UserAuthInfo userAuthInfo = authService.getUsername(authRequest.getAuthorization());
+					UserAuthInfo userAuthInfo = authService.getAuthInfo(authRequest.getAuthorization());
 					if (userAuthInfo != null && StringUtils.hasText(userAuthInfo.getUsername())) {						
 
 						Set<WebSocketSession> userSessions = authenticatedUserSessions.getOrDefault(
@@ -86,7 +86,9 @@ public class NotificationWebSocketHandler extends TextWebSocketHandler {
 						isAuthenticated = true;
 					} 
 				}
-			} catch(Exception ex) {}	
+			} catch(Exception ex) {
+				log.error("auth error {}", ex.getMessage(), ex);
+			}	
 
 			if (!isAuthenticated) {
 				session.sendMessage(new TextMessage(
@@ -113,7 +115,7 @@ public class NotificationWebSocketHandler extends TextWebSocketHandler {
 		String tenantId = (String) session.getAttributes().get(Constants.SESSION_ATTR_TENANT_ID);
 		
 		// Switch db schema
-		TenantContext.switchTenantExplicitly(tenantId);
+		TenantContext.switchTenantExplicitly(StringUtils.hasLength(tenantId) ? tenantId : null);
     	// Retrieve websocket message processors
     	List<WebSocketMessageProcessor> processors = messageProcessorProvider.getProcessors();
     	for (WebSocketMessageProcessor processor : processors) {
