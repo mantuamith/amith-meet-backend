@@ -10,6 +10,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.security.Key;
+import java.time.Instant;
 import java.util.Base64;
 import java.util.Date;
 import java.util.function.Function;
@@ -25,6 +26,7 @@ public class JwtUtil {
     }
 
     public String generateToken(UserResponse user) {
+        
         return Jwts.builder()
                 .setSubject(user.getEmail())
                 .claim("username", user.getUsername())
@@ -35,6 +37,24 @@ public class JwtUtil {
                 .compact();
     }
 
+    public String generateToken(UserResponse user, String sid) {
+        return Jwts.builder()
+                .setSubject(user.getEmail())
+                .claim("username", user.getUsername())
+                .claim("sid", sid)  // NEW
+                .setIssuedAt(new Date())
+                .setExpiration(new Date(System.currentTimeMillis() + EXPIRATION_TIME))
+                .signWith(secretKey, SignatureAlgorithm.HS256)
+                .compact();
+    }
+
+
+
+
+    public String extractSid(String token) {
+        return extractClaim(token, claims -> claims.get("sid", String.class));
+    }
+
     public String generateRefreshToken(UserResponse user) {
         return Jwts.builder()
                 .setSubject(user.getEmail())
@@ -43,6 +63,19 @@ public class JwtUtil {
                 .claim("type", "refresh")
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(System.currentTimeMillis() + REFRESH_EXPIRATION_TIME))
+                .signWith(secretKey, SignatureAlgorithm.HS256)
+                .compact();
+    }
+
+    public String generateRefreshToken(UserResponse user, String sessionId) {
+        return Jwts.builder()
+                .setSubject(user.getEmail())
+                .claim("username", user.getUsername())
+                .claim("id", user.getId())
+                .claim("type", "refresh")
+                .claim("sid", sessionId)
+                .setIssuedAt(new Date())
+                .setExpiration(Date.from(Instant.now().plusSeconds(REFRESH_EXPIRATION_TIME)))
                 .signWith(secretKey, SignatureAlgorithm.HS256)
                 .compact();
     }

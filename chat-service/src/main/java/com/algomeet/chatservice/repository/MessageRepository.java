@@ -81,6 +81,37 @@ public interface MessageRepository extends MongoRepository<MessageDocument, Stri
     """)
     List<MessageDocument> findVisibleConversationAll(String userA, String userB, String viewer, Sort sort);
 
+
+    @Query("""
+{
+  $and: [
+    { deletedForAll: { $ne: true } },
+    { $or: [ { sender: ?0 }, { receiver: ?0 } ] },
+    { $or: [
+        { deletedForUsers: { $exists: false } },
+        { deletedForUsers: { $nin: [ ?0 ] } }
+    ]}
+  ]
+}
+""")
+    List<MessageDocument> findVisibleForViewer(String viewer);
+
+    @Query("""
+{
+  $and: [
+    { deletedForAll: { $ne: true } },
+    { $or: [ { sender: ?0 }, { receiver: ?0 } ] },
+    { $or: [
+        { deletedForUsers: { $exists: false } },
+        { deletedForUsers: { $nin: [ ?0 ] } }
+    ]}
+  ]
+}
+""")
+    List<MessageDocument> findVisibleForViewer(String viewer, Sort sort);
+
+
+
     // For a single message load (and checks)
     Optional<MessageDocument> findById(String id);
 }

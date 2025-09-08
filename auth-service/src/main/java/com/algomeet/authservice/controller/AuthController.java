@@ -1,6 +1,7 @@
 package com.algomeet.authservice.controller;
 
 
+import com.algomeet.authservice.client.UserClient;
 import com.algomeet.authservice.config.AuthProperties;
 import com.algomeet.authservice.dto.*;
 import com.algomeet.authservice.enums.LoginPolicy;
@@ -22,6 +23,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -45,6 +47,8 @@ public class AuthController {
     private final LoginPolicyResolver loginPolicyResolver;
     private final RegistrationService registration;
     private final PasswordResetService passwordResetService;
+
+    private final UserClient userClient;
 
     // ---------- Helpers (masking, safe logs) ----------
     private String mLogin(String v){ return v == null ? "null" : v.replaceAll("^(.{2}).+(@.*)?$","$1***$2"); }
@@ -124,30 +128,79 @@ public class AuthController {
 
     // ----------------- Logout -------------------------
     @PostMapping("/logout")
-    public ResponseEntity<?> logout(@RequestBody RefreshTokenRequest request,
-                                    @RequestHeader("Authorization") String authHeader) {
+    public ResponseEntity<?> logout(@RequestBody(required = false) RefreshTokenRequest request,
+                                    @RequestHeader("Authorization") String authHeader,
+                                    @RequestHeader(value = "X-Device-Id", required = false) String deviceId) {
         log.info("LOGOUT: attempt");
-        try {
-            String accessToken = authHeader.replace("Bearer ", "");
-            String emailFromAccessToken = jwtUtil.extractEmail(accessToken);
-            String storedEmail = refreshTokenStore.getEmailForToken(request.getRefreshToken());
 
-            if (storedEmail == null || !storedEmail.equals(emailFromAccessToken)) {
-                log.warn("LOGOUT: refresh token mismatch storedEmail={} tokenEmail={}", mLogin(storedEmail), mLogin(emailFromAccessToken));
-                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of(
+        // 0) Defensive default if request is null
+        final String refreshToken = (request == null) ? null : request.getRefreshToken();
+
+        try {
+            // 1) Extract and validate access token
+            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of(
                         "code", ResponseCode.AUTH_LOGOUT_FAILED.getCode(),
-                        "message", "Refresh token does not belong to the authenticated user"
+                        "message", "Missing or invalid Authorization header"
+                ));
+            }
+            final String accessToken = authHeader.substring(7);
+            if (!jwtUtil.isTokenValid(accessToken)) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of(
+                        "code", ResponseCode.AUTH_LOGOUT_FAILED.getCode(),
+                        "message", "Invalid access token"
                 ));
             }
 
-            refreshTokenStore.remove(request.getRefreshToken());
-            log.info("LOGOUT: success email={}", mLogin(emailFromAccessToken));
+            // 2) Pull identity + sid from token
+            final String email = jwtUtil.extractEmail(accessToken);
+            final String sidFromToken = jwtUtil.extractSid(accessToken); // new method you added in Step #2
+
+            // 3) If a refresh token is provided, ensure it belongs to the same user and revoke it
+            if (refreshToken != null && !refreshToken.isBlank()) {
+                String owner = refreshTokenStore.getEmailForToken(refreshToken);
+                if (owner == null || !owner.equals(email)) {
+                    log.warn("LOGOUT: refresh token mismatch storedEmail={} tokenEmail={}", mLogin(owner), mLogin(email));
+                    return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of(
+                            "code", ResponseCode.AUTH_LOGOUT_FAILED.getCode(),
+                            "message", "Refresh token does not belong to the authenticated user"
+                    ));
+                }
+                refreshTokenStore.remove(refreshToken); // idempotent
+            }
+
+            // 4) Rotate server-side session to invalidate current access token immediately
+            //    We need userId for startSession; resolve it once (cheap via user-service)
+            UserResponse user = userLookupService.findByLoginOr404(email);
+
+            // Prefer to keep the same deviceId when not provided: fall back to user's active device
+            String effectiveDeviceId = (deviceId != null && !deviceId.isBlank())
+                    ? deviceId
+                    : user.getActiveDeviceId();
+
+            // If we have somewhere to write the new sid, rotate it.
+            if (effectiveDeviceId != null) {
+                // Generate a fresh sid and push it to user-service, invalidating old tokens by mismatch
+                String newSid = java.util.UUID.randomUUID().toString();
+                try {
+                    // startSession can accept an explicit sid (your user-service supports &sid=)
+                    userClient.startSession(user.getId(), effectiveDeviceId, newSid);
+                } catch (Exception e) {
+                    // If session rotation fails, continue — refresh token is already revoked,
+                    // access token will expire naturally. We just won't force immediate invalidation.
+                    log.warn("LOGOUT: session rotation failed for userId={} deviceId={} err={}",
+                            user.getId(), effectiveDeviceId, e.toString());
+                }
+            }
+
+            log.info("LOGOUT: success email={}", mLogin(email));
             return ResponseEntity.ok(Map.of(
                     "code", ResponseCode.AUTH_LOGOUT_SUCCESS.getCode(),
                     "message", ResponseCode.AUTH_LOGOUT_SUCCESS.getDefaultMessage()
             ));
+
         } catch (Exception e) {
-            log.error("LOGOUT: failed error={}", e.toString(), e);
+            log.error("LOGOUT: failed error={}", e.toString());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
                     "code", ResponseCode.AUTH_LOGOUT_FAILED.getCode(),
                     "message", ResponseCode.AUTH_LOGOUT_FAILED.getDefaultMessage(),
@@ -156,11 +209,14 @@ public class AuthController {
         }
     }
 
+
     // ----------------- New Flow: INIT -----------------
     @PostMapping("/login/init")
     public ResponseEntity<?> initLogin(@Valid @RequestBody LoginInitRequest request) {
         log.info("LOGIN:init attempt login={} deviceId={} deviceType={}",
                 mLogin(request.getLogin()), mDev(request.getDeviceId()), request.getDeviceType());
+
+        final boolean override = Boolean.TRUE.equals(request.getOverrideExisting());
 
         // 1) Lookup user
         UserResponse user = userLookupService.findByLoginOr404(request.getLogin());
@@ -179,11 +235,16 @@ public class AuthController {
 
         // 4) Single-device lock (if enabled)
         try {
-            SingleDeviceEnforcer.enforce(
-                    props.getAuth().isSingleActiveDevice(),
-                    user.getActiveDeviceId(),
-                    request.getDeviceId()
-            );
+            if (props.getAuth().isSingleActiveDevice()
+                    && user.getActiveDeviceId() != null
+                    && !user.getActiveDeviceId().equals(request.getDeviceId())
+                    && !override) {
+                return ResponseEntity.status(423).body(Map.of(
+                        "code", "AUTH_DEVICE_LOCKED",
+                        "message", "This account is active on another device.",
+                        "activeDeviceId", user.getActiveDeviceId()
+                ));
+            }
         } catch (Exception ex) {
             log.warn("LOGIN:init single-device blocked login={} activeDeviceId={} incomingDeviceId={} reason={}",
                     mLogin(request.getLogin()), mDev(user.getActiveDeviceId()), mDev(request.getDeviceId()), ex.getMessage());
@@ -193,24 +254,15 @@ public class AuthController {
         // 5) Branch by policy (direct vs OTP channel)
         switch (policy) {
             case DIRECT: {
+                // Password check — we only need to validate; we will mint fresh tokens with sid.
                 AuthResponse auth = authService.login(request.getLogin(), request.getPassword());
                 if (!ResponseCode.AUTH_LOGIN_SUCCESS.getCode().equals(auth.getCode())) {
                     throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials");
                 }
 
-                // optional: bind device
-                try {
-                    authService.bindActiveDevice(user.getId(), request.getDeviceId()); }
-                catch (Exception e) { log.warn("bind device failed: {}", e.toString()); }
-
-                return ResponseEntity.ok(
-                        AuthResponse.from(
-                                ResponseCode.AUTH_LOGIN_SUCCESS,
-                                user,                          // the actual UserResponse
-                                auth.getAccessToken(),
-                                auth.getRefreshToken()
-                        )
-                );
+                // Centralized: start/rotate session in user-service, revoke (if override), mint JWTs with sid
+                AuthResponse finalTokens = authService.issueTokensFor(user, request.getDeviceId(), override);
+                return ResponseEntity.ok(finalTokens);
             }
             case EMAIL: {
                 String msg = otpService.initEmailLoginOtp(request.getLogin());
@@ -250,11 +302,20 @@ public class AuthController {
         LoginPolicyEnforcer.enforce(policy, request.getDeviceType());
 
         // 4) Single-device
-        SingleDeviceEnforcer.enforce(
-                props.getAuth().isSingleActiveDevice(),
-                user.getActiveDeviceId(),
-                request.getDeviceId()
-        );
+        boolean override = Boolean.TRUE.equals(request.getOverrideExisting());
+        if (props.getAuth().isSingleActiveDevice()
+                && user.getActiveDeviceId() != null
+                && !user.getActiveDeviceId().equals(request.getDeviceId())
+                && !override) {
+            return ResponseEntity.status(423).body(
+                    AuthResponse.from(
+                            ResponseCode.AUTH_DEVICE_LOCKED,
+                            user,
+                            null,
+                            null
+                    )
+            );
+        }
 
         // 5) Type match
         LoginResponseType expectedType = switch (policy) {
@@ -274,12 +335,15 @@ public class AuthController {
         switch (policy) {
 
             case DIRECT -> {
-                // shouldn't normally hit verify for DIRECT, but allow password check here
+                if (request.getPassword() == null || request.getPassword().isBlank()) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Password is required for DIRECT login");
+                }
                 AuthResponse auth = authService.login(user.getEmail(), request.getPassword());
                 if (!ResponseCode.AUTH_LOGIN_SUCCESS.getCode().equals(auth.getCode())) {
                     throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials");
                 }
-                result = auth; // stash for response below
+                // re-mint via centralized path to add sid + (optional) revocation
+                result = authService.issueTokensFor(user, request.getDeviceId(), override);
             }
             case EMAIL -> {
                 if (request.getCode() == null || request.getCode().isBlank()) {
@@ -287,7 +351,7 @@ public class AuthController {
                 }
                 boolean ok = otpService.verifyEmailLoginOtp(user.getEmail(), request.getCode());
                 if (!ok) throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid or expired OTP");
-                result = authService.issueTokensFor(user);
+                result = authService.issueTokensFor(user, request.getDeviceId(), override);
             }
             case PHONE -> {
                 if (request.getCode() == null || request.getCode().isBlank()) {
@@ -295,37 +359,21 @@ public class AuthController {
                 }
                 boolean ok = otpService.verifySmsLoginOtp(user.getEmail() /* or user.getPhone() */, request.getCode());
                 if (!ok) throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid or expired OTP");
-                result = authService.issueTokensFor(user);
+                result = authService.issueTokensFor(user, request.getDeviceId(), override);
             }
             case TOTP -> {
                 if (request.getCode() == null || request.getCode().isBlank()) {
                     throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "TOTP is required");
                 }
                 // TODO: totpService.verify(user, request.getCode());
-                result = authService.issueTokensFor(user);
+                result = authService.issueTokensFor(user, request.getDeviceId(), override);
             }
-        }
-
-        // 7) Bind device if enabled
-        if (props.getAuth().isSingleActiveDevice()) {
-            try {
-                authService.bindActiveDevice(user.getId(), request.getDeviceId());
-            } catch (Exception e) {
-                log.warn("LOGIN:verify bind device failed userId={} deviceId={} err={}",
-                        user.getId(), mDev(request.getDeviceId()), e.getMessage());
-            }
+            default -> throw new IllegalArgumentException("Unsupported login policy: " + policy);
         }
 
 
 
-        return ResponseEntity.ok(
-                AuthResponse.from(
-                        ResponseCode.AUTH_LOGIN_SUCCESS,  // type/message will map to "EMAIL" flow msg
-                        user,
-                        result.getAccessToken(),
-                        result.getRefreshToken()
-                )
-        );
+        return ResponseEntity.ok(result);
     }
 
     @PostMapping("/register/init")

@@ -22,6 +22,9 @@ jobs:
         with:
           fetch-depth: 2  # or 2, depending on your needs
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Set up JDK 17
         uses: actions/setup-java@v3
         with:
@@ -59,9 +62,7 @@ jobs:
           IMAGE=ghcr.io/algoframe-private-limited/${{ matrix.service }}
           COMMIT_SHA=$(git rev-parse --short HEAD)
 
-          docker build -t $IMAGE:$COMMIT_SHA -t $IMAGE:latest ./${{ matrix.service }}
-          docker push $IMAGE:$COMMIT_SHA
-          docker push $IMAGE:latest
+          docker buildx build --platform linux/amd64,linux/arm64 -t $IMAGE:$COMMIT_SHA -t $IMAGE:latest ./${{ matrix.service }} --push
 
   trigger-deployment:
     runs-on: ubuntu-latest
