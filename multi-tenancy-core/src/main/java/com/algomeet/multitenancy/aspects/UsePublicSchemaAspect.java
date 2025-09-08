@@ -50,7 +50,7 @@ public class UsePublicSchemaAspect {
 
         // Get annotation
         UsePublicSchema annotation = method.getAnnotation(UsePublicSchema.class);
-        tenantId = StringUtils.hasLength(annotation.tenantId()) ? annotation.tenantId() : null;
+        String publicTenantId = StringUtils.hasLength(annotation.tenantId()) ? annotation.tenantId() : null;
 		
 		try {    
 			log.info("Using public schema - start");			
@@ -58,7 +58,7 @@ public class UsePublicSchemaAspect {
 			TenantContext.clear();
 			
 			// Set public tenant Id
-			TenantContext.setCurrentTenant(tenantId);
+			TenantContext.setCurrentTenant(publicTenantId);
 
 			// Continue execution
 			result = pjp.proceed();               
