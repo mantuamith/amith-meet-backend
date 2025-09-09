@@ -26,4 +26,7 @@ public class MessageResponse {
     private Integer nMessages;
     private List<String> failedRecipients;
     private String clientMessageId;
+
+    private String fromKey;  // UUID string
+    private String toKey;    // UUID string
 }

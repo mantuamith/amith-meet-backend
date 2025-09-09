@@ -77,6 +77,12 @@ public class MessageService {
     // -------- PERSIST --------
     public MessageDocument saveMessage(MessageDocument message, Principal principal) {
         message.setSender(principal.getName());
+
+        if (principal instanceof com.algomeet.chatservice.config.StompUserPrincipal up) {
+            if (message.getSenderKey() == null) {
+                message.setSenderKey(up.userKey());
+            }
+        }
         if (message.getStatus() == null) {
             message.setStatus(MessageStatus.SENT);
         }

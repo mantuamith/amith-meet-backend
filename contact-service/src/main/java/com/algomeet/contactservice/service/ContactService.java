@@ -5,12 +5,17 @@ import com.algomeet.contactservice.dto.UserDto;
 import com.algomeet.contactservice.entity.Contact;
 import com.algomeet.contactservice.entity.ContactStatus;
 import com.algomeet.contactservice.repository.ContactRepository;
-import com.algomeet.contactservice.dto.UserResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 
+import java.security.Principal;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -43,36 +48,48 @@ public class ContactService {
     }
 
     // 1. Send a contact request
-    public void sendContactRequest(String senderId, String receiverId) {
-        if (contactRepository.existsByUserIdAndContactUserId(senderId, receiverId)) {
-            throw new RuntimeException("Contact request already exists.");
+    public void sendContactRequest(String senderLogin, String receiverLoginOrId) {
+        UUID me = currentUserKey(senderLogin);
+        UUID other = resolveKeyFlexible(receiverLoginOrId);
+        if (me.equals(other)) throw new IllegalArgumentException("Cannot add yourself.");
+
+        if (contactRepository.existsUuidPair(me, other)) {
+            throw new RuntimeException("Contact or request already exists.");
         }
 
-        Contact contact = new Contact();
-        contact.setUserId(senderId);
-        contact.setContactUserId(receiverId);
-        contact.setStatus(ContactStatus.PENDING);
-        contact.setCreatedAt(Instant.now());
-
-        contactRepository.save(contact);
+        // Keep legacy ids for FE
+        Contact c = Contact.builder()
+                .userKey(me)
+                .contactUserKey(other)
+                .userId(senderLogin == null ? null : senderLogin.trim().toLowerCase())
+                .contactUserId(receiverLoginOrId.trim().toLowerCase())
+                .status(ContactStatus.PENDING)
+                .createdAt(Instant.now())
+                .build();
+        contactRepository.save(c);
     }
 
     // 2. Accept a contact request
-    public void acceptContactRequest(String receiverId, String senderId) {
-        Contact request = contactRepository.findByUserIdAndContactUserId(senderId, receiverId)
+    public void acceptContactRequest(String receiverLogin, String senderLoginOrId) {
+        UUID me = currentUserKey(receiverLogin);
+        UUID other = resolveKeyFlexible(senderLoginOrId);
+
+        Contact req = contactRepository.findByUserKeyAndContactUserKey(other, me)
                 .orElseThrow(() -> new RuntimeException("No contact request found"));
+        req.setStatus(ContactStatus.ACCEPTED);
+        contactRepository.save(req);
 
-        request.setStatus(ContactStatus.ACCEPTED);
-        contactRepository.save(request);
-
-        // Also add reverse contact if not exists (for bidirectional contact)
-        if (!contactRepository.existsByUserIdAndContactUserId(receiverId, senderId)) {
-            Contact reverse = new Contact();
-            reverse.setUserId(receiverId);
-            reverse.setContactUserId(senderId);
-            reverse.setStatus(ContactStatus.ACCEPTED);
-            reverse.setCreatedAt(Instant.now());
-            contactRepository.save(reverse);
+        // Ensure reverse row exists as ACCEPTED
+        if (!contactRepository.existsUuidPair(me, other)) {
+            Contact rev = Contact.builder()
+                    .userKey(me)
+                    .contactUserKey(other)
+                    .userId(receiverLogin == null ? null : receiverLogin.trim().toLowerCase())
+                    .contactUserId(senderLoginOrId == null ? null : senderLoginOrId.trim().toLowerCase())
+                    .status(ContactStatus.ACCEPTED)
+                    .createdAt(Instant.now())
+                    .build();
+            contactRepository.save(rev);
         }
     }
 
@@ -94,10 +111,14 @@ public class ContactService {
         return userClient.getUsersByIds(senderIds);
     }
 
-    public void rejectContactRequest(String receiverId, String senderId) {
-        Contact request = contactRepository.findByUserIdAndContactUserId(senderId, receiverId)
-                .orElseThrow(() -> new RuntimeException("No contact request found"));
-        contactRepository.delete(request);
+    public void rejectContactRequest(String userLogin, String contactLoginOrId) {
+        UUID me = currentUserKey(userLogin);
+        UUID other = resolveKeyFlexible(contactLoginOrId);
+
+        contactRepository.findByUserKeyAndContactUserKey(me, other)
+                .ifPresent(contactRepository::delete);
+        contactRepository.findByUserKeyAndContactUserKey(other, me)
+                .ifPresent(contactRepository::delete);
     }
 
     public void deleteContact(String userId, String contactUserId) {
@@ -108,19 +129,52 @@ public class ContactService {
                 .ifPresent(contactRepository::delete);
     }
 
-    public List<UserDto> searchUsers(String query, String currentUserId) {
-        // 1. Get all matching users
-        List<UserDto> allMatches = userClient.searchUsers(query);
+    public List<UserDto> searchUsers(String query, Principal auth) {
+        if (query == null || query.isBlank())
+            return List.of();
 
-        //TODO: Also Exclude already in Pending Requests
+        var token = (JwtAuthenticationToken) auth;
+        var meKey = UUID.fromString(token.getToken().getClaimAsString("user_key"));
 
-        // 2. Get user's existing contact user IDs
-        List<String> existingContactIds = contactRepository.findContactUserIdsByUserId(currentUserId);
+        // Exact candidate by username/email/UUID
+        UserDto hit = userClient.exact(query);
+        if (hit == null || hit.getId() == null) return List.of();
 
-        // 3. Filter out the current user and existing contacts
-        return allMatches.stream()
-                .filter(user -> !user.getId().toString().equals(currentUserId)) // Exclude self
-                .filter(user -> !existingContactIds.contains(user.getId().toString())) // Exclude already-added
-                .toList();
+        var candidateKey = UUID.fromString(hit.getId().toString());
+        if (candidateKey.equals(meKey)) return List.of();
+
+        var accepted = new java.util.HashSet<>(contactRepository.findAccepted(meKey));
+        var pending  = new java.util.HashSet<>(contactRepository.findPending(meKey));
+        if (accepted.contains(candidateKey) || pending.contains(candidateKey))
+            return List.of();
+
+        return List.of(hit); // exact only, after exclusions
     }
+
+    private UUID resolveKeyFromLogin(String login) {
+        UserDto u = userClient.exact(login);
+        if (u == null || u.getUserKey() == null) {
+            throw new IllegalArgumentException("Unknown user: " + login);
+        }
+        return UUID.fromString(u.getUserKey());
+    }
+
+    private UUID resolveKeyFlexible(String q) {
+        if (q == null || q.isBlank()) throw new IllegalArgumentException("Empty id");
+        try { return UUID.fromString(q); } catch (IllegalArgumentException ignore) {}
+        return resolveKeyFromLogin(q);
+    }
+
+    private UUID currentUserKey(String currentLogin) {
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.getDetails() instanceof Map<?,?> m) {
+            Object uk = m.get("user_key");
+            if (uk instanceof String s && !s.isBlank()) {
+                try { return UUID.fromString(s); } catch (IllegalArgumentException ignored) {}
+            }
+        }
+        // fallback: resolve from current principal login (username/email)
+        return resolveKeyFromLogin(currentLogin);
+    }
+
 }

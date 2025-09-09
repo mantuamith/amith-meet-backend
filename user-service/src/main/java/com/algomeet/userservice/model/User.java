@@ -7,6 +7,7 @@ import lombok.*;
 import java.math.BigDecimal;
 
 import java.util.Locale;
+import java.util.UUID;
 
 
 @Getter
@@ -19,6 +20,9 @@ public class User {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Column(name = "user_key", nullable = false, columnDefinition = "uuid")
+    private UUID userKey;
 
     @Column(unique = true, nullable = false)
     private String username;
@@ -74,8 +78,14 @@ public class User {
 
     @PrePersist @PreUpdate
     void normalize() {
-        if (username != null) username = username.trim().toLowerCase(Locale.ROOT);
-        if (email != null)    email    = email.trim().toLowerCase(Locale.ROOT);
+        if (username != null)
+            username = username.trim().toLowerCase(Locale.ROOT);
+        if (email != null)
+            email    = email.trim().toLowerCase(Locale.ROOT);
+        if (userKey == null) {
+            userKey = java.util.UUID.randomUUID();
+        }
+
     }
 
 }

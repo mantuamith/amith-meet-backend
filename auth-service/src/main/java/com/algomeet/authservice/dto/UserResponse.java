@@ -5,6 +5,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.util.Map;
+import java.util.UUID;
 
 @Data
 @AllArgsConstructor
@@ -19,6 +20,7 @@ public class UserResponse {
     private boolean enabled;
     private Short loginTypePolicy;
     private String activeDeviceId;
+    private UUID userKey;
 
     @SuppressWarnings("unchecked")
     public UserResponse(Map<String, Object> map) {

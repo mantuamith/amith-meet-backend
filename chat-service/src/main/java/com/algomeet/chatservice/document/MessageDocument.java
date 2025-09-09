@@ -48,7 +48,11 @@ public class MessageDocument {
     @Field("deletedForUsers")
     private Set<String> deletedForUsers = new HashSet<>(); // usernames who shouldn't see this
 
+    @Field("senderKey")
+    private String senderKey;     // UUID string of sender (nullable during transition)
 
+    @Field("receiverKey")
+    private String receiverKey;   // UUID string of receiver (nullable during transition)
 
     private String sender;   // sender user ID (from)
 
@@ -88,6 +92,10 @@ public class MessageDocument {
         }
         return true;
     }
+
+    // TODO(migration): when you move “delete for me” to UUIDs, add:
+    // @Field("deletedForUserKeys")
+    // private Set<String> deletedForUserKeys;
 
 
 
