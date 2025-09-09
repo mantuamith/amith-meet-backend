@@ -2,12 +2,14 @@ package com.algomeet.authservice.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.util.Map;
 import java.util.UUID;
 
 @Data
 @AllArgsConstructor
+@NoArgsConstructor
 public class UserResponse {
     private Long id;
     private String username;
