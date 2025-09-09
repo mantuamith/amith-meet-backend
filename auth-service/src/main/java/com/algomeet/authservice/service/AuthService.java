@@ -8,6 +8,10 @@ import com.algomeet.authservice.exception.UserAlreadyExistsException;
 import com.algomeet.authservice.session.SidCache;
 import com.algomeet.authservice.token.RefreshTokenStore;
 import com.algomeet.authservice.util.JwtUtil;
+import com.algomeet.notificationservice.dto.Notification;
+import com.algomeet.notificationservice.enums.NotificationType;
+import com.algomeet.notificationservice.enums.ReceiverGroup;
+import com.algomeet.notificationservice.service.NotificationService;
 import com.algomeet.authservice.enums.ResponseCode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import feign.FeignException;
@@ -35,6 +39,7 @@ public class AuthService {
     private final RefreshTokenStore refreshTokenStore;
     private final ObjectMapper objectMapper; // for mapping user object
     private final SidCache sidCache;
+    private final NotificationService notificationService;
 
     public AuthResponse issueTokensFor(UserResponse user) {
         String accessToken  = jwtUtil.generateToken(user);
@@ -75,7 +80,7 @@ public class AuthService {
         try {
             Map<String,Object> responseMap = userClient.createUser(request);
             // Extract and map "user" object to UserResponse
-            return objectMapper.convertValue(responseMap, UserResponse.class);
+            return objectMapper.convertValue(responseMap.get("user"), UserResponse.class);
         } catch (FeignException.Conflict e) {
             Set<String> fields = extractDuplicateFields(e);
             String upstreamCode = extractCode(e);
@@ -126,7 +131,7 @@ public class AuthService {
             }
 
             // 2) Verify password
-            if (!passwordEncoder.matches(rawPassword, user.getPassword())) {
+            if (!passwordEncoder.matches(rawPassword, passwordEncoder.encode(user.getPassword()))) {
                 log.warn("LOGIN: bad credentials email={}", maskEmail(email));
                 return AuthResponse.from(ResponseCode.AUTH_INVALID_CREDENTIALS, null, null, null);
             }
@@ -140,6 +145,22 @@ public class AuthService {
 
 
             log.info("LOGIN: success email={}", maskEmail(email));
+            
+            //After successful registration send "user is online" notification
+            Notification notif = new Notification();
+            
+            // Notify user friends that he/she is online
+            notif.setReceiverGroup(ReceiverGroup.USER_FRIENDS);
+            // Find user friends list user username
+            notif.setReceiverGroupRefId(user.getUsername());
+                
+            notif.setType(NotificationType.USER_ONLINE);
+            notif.setTitle("Send user status");
+            notif.setBody("User is online");
+            
+            // Send the push notification
+            notificationService.sendPush(notif);
+            
             return AuthResponse.from(ResponseCode.AUTH_LOGIN_SUCCESS, user, accessToken, refreshToken);
 
 

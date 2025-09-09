@@ -1,11 +1,11 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
   <groupId>com.algomeet</groupId>
-  <artifactId>notification-service</artifactId>
+  <artifactId>multi-tenancy-core</artifactId>
   <version>0.0.1-SNAPSHOT</version>
-  <name>notification-service</name>
-  <description>notification-service</description>
-  <parent>
+  <name>multi-tenancy-core</name>
+  <description>multi-tenancy-core</description>
+ <parent>
     <groupId>org.springframework.boot</groupId>
     <artifactId>spring-boot-starter-parent</artifactId>
     <version>3.2.5</version>
@@ -27,15 +27,28 @@
       </dependency>
     </dependencies>
   </dependencyManagement>
+  
   <dependencies>  
+    <!-- Spring Boot Starters -->
     <dependency>
       <groupId>org.springframework.boot</groupId>
-      <artifactId>spring-boot-starter-security</artifactId>
+      <artifactId>spring-boot-starter-web</artifactId>
     </dependency>
     <dependency>
       <groupId>org.springframework.boot</groupId>
-      <artifactId>spring-boot-starter-validation</artifactId>
-    </dependency>
+    <artifactId>spring-boot-starter-data-jpa</artifactId>
+	</dependency>
+
+	<dependency>
+	  <groupId>org.postgresql</groupId>
+	  <artifactId>postgresql</artifactId>
+    </dependency>  
+    
+    <dependency>
+	  <groupId>org.springframework.cloud</groupId>
+	  <artifactId>spring-cloud-starter-openfeign</artifactId>
+	</dependency>
+    
     <!-- JWT support -->
     <dependency>
       <groupId>io.jsonwebtoken</groupId>
@@ -54,54 +67,13 @@
       <version>0.11.5</version>
       <scope>runtime</scope>
     </dependency>
-    <dependency>
-      <groupId>org.springframework.boot</groupId>
-      <artifactId>spring-boot-starter-data-redis</artifactId>
-	</dependency>
-    <dependency>
-      <groupId>org.springframework.boot</groupId>
-      <artifactId>spring-boot-starter-data-jpa</artifactId>
-    </dependency>
-    <!-- PostgreSQL -->
-    <dependency>
-      <groupId>org.postgresql</groupId>
-      <artifactId>postgresql</artifactId>
-    </dependency>
-  	<dependency>
-      <groupId>org.springframework.cloud</groupId>
-      <artifactId>spring-cloud-starter-openfeign</artifactId>
-    </dependency> 
-    <dependency>
-      <groupId>org.springframework.security</groupId>
-      <artifactId>spring-security-crypto</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>org.springframework.boot</groupId>
-      <artifactId>spring-boot-starter-validation</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>org.springframework.boot</groupId>
-      <artifactId>spring-boot-starter-websocket</artifactId>
-	</dependency>
-	<dependency>
-      <groupId>com.fasterxml.jackson.datatype</groupId>
-      <artifactId>jackson-datatype-jsr310</artifactId>
-	</dependency>
-	<dependency>
-	  <groupId>com.eatthepath</groupId>
-	  <artifactId>pushy</artifactId>
-	  <version>0.15.2</version>
-	</dependency>
+    
     <!-- Lombok -->
     <dependency>
       <groupId>org.projectlombok</groupId>
       <artifactId>lombok</artifactId>
        <scope>provided</scope>
     </dependency>
-    <dependency>
-      <groupId>com.algomeet</groupId>
-      <artifactId>multi-tenancy-core</artifactId>
-      <version>0.0.1-SNAPSHOT</version>
-    </dependency>
+
   </dependencies>
 </project>
