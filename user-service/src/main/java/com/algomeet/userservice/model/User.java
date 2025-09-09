@@ -47,16 +47,6 @@ public class User {
     private String activeSessionId;
 
 
-    private String country;
-    private String region;
-    private String city;
-
-    @Column(precision = 9, scale = 6)       // numeric(9,6)
-    private BigDecimal latitude;
-
-    @Column(precision = 9, scale = 6)
-    private BigDecimal longitude;
-
     @Column(name = "is_email_verified", nullable = false)
     private boolean isEmailVerified = false;
 
@@ -65,12 +55,6 @@ public class User {
 
     @Column(name = "registration_ip")       // inet
     private String registrationIp;
-
-    @Column(name = "registration_device_id", length = 128)
-    private String registrationDeviceId;
-    @Column(name = "registration_device_type", length = 32)
-    private String registrationDeviceType;
-
 
     @PrePersist @PreUpdate
     void normalize() {

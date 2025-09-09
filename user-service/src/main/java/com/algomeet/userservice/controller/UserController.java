@@ -5,6 +5,8 @@ import com.algomeet.userservice.enums.ResponseCode;
 import com.algomeet.userservice.dto.UserRequest;
 import com.algomeet.userservice.dto.UserResponse;
 import com.algomeet.userservice.model.User;
+import com.algomeet.userservice.model.UserProfile;
+import com.algomeet.userservice.repository.UserProfileRepository;
 import com.algomeet.userservice.repository.UserRepository;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
@@ -27,6 +29,8 @@ public class UserController {
     private final UserRepository userRepository;
 
     private final PasswordEncoder passwordEncoder;
+    
+    private final UserProfileRepository userProfileRepository;
 
     // Feign client will call this from auth-service to register user
     @PostMapping
@@ -63,26 +67,27 @@ public class UserController {
 
         user.setPassword(request.getPassword()); // already BCrypted by auth-service
 
-          user.setPhone(request.getPhone());
-          user.setCountry(request.getCountry());
-          user.setRegion(request.getRegion());
-          user.setCity(request.getCity());
-           if (request.getLatitude()!=null)
-               user.setLatitude(request.getLatitude());
-           if (request.getLongitude()!=null)
-               user.setLongitude(request.getLongitude());
-           user.setEmailVerified(Boolean.TRUE.equals(request.getIsEmailVerified()));
-           user.setPhoneVerified(Boolean.TRUE.equals(request.getIsPhoneVerified()));
-           user.setRegistrationIp(request.getRegistrationIp());
-           user.setRegistrationDeviceId(request.getRegistrationDeviceId());
-           user.setRegistrationDeviceType(request.getRegistrationDeviceType());
-           if (request.getLoginTypePolicy()!=null)
-                 user.setLoginTypePolicy(request.getLoginTypePolicy().shortValue());
+        user.setPhone(request.getPhone());
+
+        user.setEmailVerified(Boolean.TRUE.equals(request.getIsEmailVerified()));
+        user.setPhoneVerified(Boolean.TRUE.equals(request.getIsPhoneVerified()));
+        user.setRegistrationIp(request.getRegistrationIp());
+
+        if (request.getLoginTypePolicy()!=null)
+        	user.setLoginTypePolicy(request.getLoginTypePolicy().shortValue());
 
         // TODO: user.setRole(...); user.setEnabled(...);
-
+        UUID userKey = UUID.randomUUID();        
+        // TODO: user.setUserKey(...); 
+        
         try {
             userRepository.save(user);
+            
+            // Add user profile
+            UserProfile userProfile = new UserProfile();
+            userProfile.setId(userKey);
+            userProfileRepository.save(userProfile);
+            
             return ResponseEntity.ok(Map.of(
                     "code", ResponseCode.AUTH_REGISTER_SUCCESS.getCode(),
                     "message", ResponseCode.AUTH_REGISTER_SUCCESS.getDefaultMessage(),
