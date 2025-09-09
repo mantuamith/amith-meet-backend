@@ -48,7 +48,7 @@ public class NotificationStreamConsumer implements StreamListener<String, MapRec
 					);
 			log.info("Consumer group created: {} ", GROUP_NAME);
 		} catch (Exception ex) {
-			log.info("Error creating consumer group: {}, error {}", GROUP_NAME, 
+			log.error("Error creating consumer group: {}, error {}", GROUP_NAME, 
 					ex.getMessage(), ex);
 		}
 

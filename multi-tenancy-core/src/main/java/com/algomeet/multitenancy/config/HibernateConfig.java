@@ -62,7 +62,7 @@ public class HibernateConfig {
 						new HibernateSettings()
 						)
 				);
-		log.info("-------> {}", properties);
+		log.info("hibernate properties {}", properties);
 		//properties.put(AvailableSettings.MULTI_TENANT, MultiTenancyStrategy.SCHEMA.name());
 		properties.put("hibernate.multiTenancy", "SCHEMA");
 		properties.put(AvailableSettings.MULTI_TENANT_CONNECTION_PROVIDER, connectionProvider);
