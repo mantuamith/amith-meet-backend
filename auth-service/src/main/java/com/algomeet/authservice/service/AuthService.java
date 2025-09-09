@@ -5,6 +5,7 @@ import com.algomeet.authservice.dto.AuthResponse;
 import com.algomeet.authservice.dto.UserRequest;
 import com.algomeet.authservice.dto.UserResponse;
 import com.algomeet.authservice.exception.UserAlreadyExistsException;
+import com.algomeet.authservice.session.SidCache;
 import com.algomeet.authservice.token.RefreshTokenStore;
 import com.algomeet.authservice.util.JwtUtil;
 import com.algomeet.authservice.enums.ResponseCode;
@@ -33,6 +34,7 @@ public class AuthService {
     private final JwtUtil jwtUtil;
     private final RefreshTokenStore refreshTokenStore;
     private final ObjectMapper objectMapper; // for mapping user object
+    private final SidCache sidCache;
 
     public AuthResponse issueTokensFor(UserResponse user) {
         String accessToken  = jwtUtil.generateToken(user);
@@ -46,6 +48,9 @@ public class AuthService {
         //    (POST /internal/users/{id}/session?deviceId=...)
         Map<String, String> session = userClient.startSession(user.getId(), deviceId, null);
         String sid = session.get("sid");
+
+        // kill cache so next request re-checks immediately
+        sidCache.invalidate(user.getEmail());
 
         // 2) Optionally revoke all existing refresh tokens for this user (single-device override)
         if (overrideExisting) {
