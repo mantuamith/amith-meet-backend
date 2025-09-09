@@ -127,11 +127,11 @@
       <groupId>org.springframework</groupId>
       <artifactId>spring-context-support</artifactId>
     </dependency>
+    <!-- Add notification service library -->
     <dependency>
       <groupId>com.algomeet</groupId>
-      <artifactId>notification-service</artifactId>
+      <artifactId>notification-service-publish-starter</artifactId>
       <version>0.0.1-SNAPSHOT</version>
-      <scope>compile</scope>
     </dependency>
 
   </dependencies>
