@@ -8,14 +8,16 @@ import com.algomeet.userservice.model.User;
 import com.algomeet.userservice.repository.UserRepository;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
-import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -128,7 +130,7 @@ public class UserController {
                 .map(user -> ResponseEntity.ok(new UserDto(
                         String.valueOf(user.getId()),
                         user.getUsername(),
-                        user.getEmail(),null
+                        user.getEmail(),user.getUserKey()
                 )))
                 .orElse(ResponseEntity.notFound().build());
     }
@@ -142,7 +144,7 @@ public class UserController {
                 .map(user -> new UserDto(
                         String.valueOf(user.getId()),
                         user.getUsername(),
-                        user.getEmail()
+                        user.getEmail(),user.getUserKey()
                 ))
                 .collect(Collectors.toList());
 
@@ -249,107 +251,6 @@ public class UserController {
                 "usernameTaken", usernameTaken,
                 "phoneTaken", phoneTaken
         );
-    }
-
-    @GetMapping("/lookup/exact")
-    public ResponseEntity<UserDto> exact(@RequestParam("q") @NotBlank String qRaw) {
-        final String q = qRaw.trim();
-        if (q.isEmpty()) return ResponseEntity.badRequest().build();
-
-        Optional<User> hit;
-
-        // 1) email first if it looks like an email
-        if (q.indexOf('@') > 0) {
-            hit = userRepository.findByEmailIgnoreCase(q);
-            if (hit.isPresent()) return ResponseEntity.ok(toDto(hit.get()));
-            // fall through to username if email miss
-        }
-
-        // 2) username (case-insensitive)
-        hit = userRepository.findByUsernameIgnoreCase(q);
-        if (hit.isPresent()) return ResponseEntity.ok(toDto(hit.get()));
-
-        // 3) UUID (user_key) if parsable
-        try {
-            hit = userRepository.findByUserKey(UUID.fromString(q));
-            if (hit.isPresent()) return ResponseEntity.ok(toDto(hit.get()));
-        } catch (IllegalArgumentException ignore) {
-            // not a UUID, ignore
-        }
-
-        // 4) nothing matched
-        return ResponseEntity.notFound().build();
-    }
-
-    // Optional: batch exact lookups (useful for client-side validations)
-    @PostMapping("/lookup/exact-batch")
-    public ResponseEntity<java.util.Map<String, UserDto>> exactBatch(@RequestBody java.util.List<String> queries) {
-        java.util.Map<String, UserDto> out = new java.util.LinkedHashMap<>();
-        if (queries == null) return ResponseEntity.ok(out);
-
-        for (String qRaw : queries) {
-            if (qRaw == null) continue;
-            String q = qRaw.trim();
-            if (q.isEmpty()) continue;
-
-            var dto = exactInternal(q).orElse(null);
-            if (dto != null) out.put(qRaw, dto);  // only include hits
-        }
-        return ResponseEntity.ok(out);
-    }
-
-    @PostMapping("/batch/keys")
-    public List<UserDto> getByUserKeys(@RequestBody List<String> keys) {
-        if (keys == null || keys.isEmpty()) return List.of();
-
-        // parse UUIDs; ignore invalids or throw 400 (pick one)
-        List<UUID> uuids = keys.stream()
-                .map(k -> {
-                    try { return UUID.fromString(k); } catch (IllegalArgumentException e) { return null; }
-                })
-                .filter(Objects::nonNull)
-                .toList();
-
-        var users = userRepository.findAllByUserKeyIn(uuids);
-
-        // Preserve input order; skip missing keys
-        Map<UUID, UserDto> byKey = users.stream()
-                .collect(Collectors.toMap(User::getUserKey, mapper::toDto));
-        List<UserDto> ordered = new ArrayList<>(uuids.size());
-        for (UUID k : uuids) {
-            UserDto dto = byKey.get(k);
-            if (dto != null) ordered.add(dto);
-        }
-        return ordered;
-    }
-
-    // ---- helpers ----
-
-    private Optional<UserDto> exactInternal(String q) {
-        Optional<User> hit;
-
-        if (q.indexOf('@') > 0) {
-            hit = userRepository.findByEmailIgnoreCase(q);
-            if (hit.isPresent()) return hit.map(this::toDto);
-        }
-        hit = userRepository.findByUsernameIgnoreCase(q);
-        if (hit.isPresent()) return hit.map(this::toDto);
-
-        try {
-            hit = userRepository.findByUserKey(UUID.fromString(q));
-            if (hit.isPresent()) return hit.map(this::toDto);
-        } catch (IllegalArgumentException ignore) { }
-
-        return Optional.empty();
-    }
-
-    private UserDto toDto(User u) {
-        // Keep ID = UUID (user_key) to be stable across renames
-        return UserDto.builder()
-                .id(u.getUserKey().toString())
-                .username(u.getUsername())
-                .email(u.getEmail())
-                .build();
     }
 
 }

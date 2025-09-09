@@ -127,6 +127,12 @@
       <groupId>org.springframework</groupId>
       <artifactId>spring-context-support</artifactId>
     </dependency>
+    <dependency>
+      <groupId>com.algomeet</groupId>
+      <artifactId>notification-service</artifactId>
+      <version>0.0.1-SNAPSHOT</version>
+      <scope>compile</scope>
+    </dependency>
 
   </dependencies>
 

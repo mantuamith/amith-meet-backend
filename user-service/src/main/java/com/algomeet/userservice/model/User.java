@@ -78,8 +78,14 @@ public class User {
 
     @PrePersist @PreUpdate
     void normalize() {
-        if (username != null) username = username.trim().toLowerCase(Locale.ROOT);
-        if (email != null)    email    = email.trim().toLowerCase(Locale.ROOT);
+        if (username != null)
+            username = username.trim().toLowerCase(Locale.ROOT);
+        if (email != null)
+            email    = email.trim().toLowerCase(Locale.ROOT);
+        if (userKey == null) {
+            userKey = java.util.UUID.randomUUID();
+        }
+
     }
 
 }
