@@ -30,10 +30,17 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-          server-id: github               # This is the Maven <server><id>
+          settings-path: ${{ github.workspace }}/.m2
+
+          # First repo: multi-tenancy-core
+          server-id: github-mtc
           server-username: algoframe25
           server-password: ${{ secrets.ALGOFRAME_PACKAGE_REGISTRTY_TOKEN }}
-          settings-path: ${{ github.workspace }}/.m2
+
+          # Second repo: notification-service-publish-starter
+          server-id2: github-notify
+          server-username2: algoframe25
+          server-password2: ${{ secrets.ALGOFRAME_PACKAGE_REGISTRTY_TOKEN }}
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
