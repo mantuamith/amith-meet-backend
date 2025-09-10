@@ -11,12 +11,15 @@ import com.algomeet.userservice.repository.UserRepository;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -132,7 +135,7 @@ public class UserController {
                 .map(user -> ResponseEntity.ok(new UserDto(
                         String.valueOf(user.getId()),
                         user.getUsername(),
-                        user.getEmail()
+                        user.getEmail(),user.getUserKey()
                 )))
                 .orElse(ResponseEntity.notFound().build());
     }
@@ -146,7 +149,7 @@ public class UserController {
                 .map(user -> new UserDto(
                         String.valueOf(user.getId()),
                         user.getUsername(),
-                        user.getEmail()
+                        user.getEmail(),user.getUserKey()
                 ))
                 .collect(Collectors.toList());
 

@@ -1,6 +1,7 @@
 package com.algomeet.chatservice.controller;
 
 import com.algomeet.chatservice.client.GroupClient;
+import com.algomeet.chatservice.config.StompUserPrincipal;
 import com.algomeet.chatservice.document.GroupDto;
 import com.algomeet.chatservice.document.MessageDocument;
 import com.algomeet.chatservice.document.MessageResponse;
@@ -42,7 +43,10 @@ public class ChatWebSocketController {
     @MessageMapping("/chat")
     public void handleChatMessage(MessageDocument message, Principal principal) {
         log.info("[STOMP /chat] From: {}, To: {}, Content: {}", principal.getName(), message.getReceiver(), message.getContent());
-        message.setSender(principal.getName());
+        StompUserPrincipal up = (StompUserPrincipal) principal;
+        String userKey = up.userKey();   // <-- UUID string (may be null on old tokens)
+        String username = up.username();
+        message.setSender(username);
         message.setTimestamp(Instant.now());
         if (message.getStatus() == null)
         {

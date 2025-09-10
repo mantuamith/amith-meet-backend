@@ -31,6 +31,7 @@ public class JwtUtil {
                 .setSubject(user.getEmail())
                 .claim("username", user.getUsername())
                 .claim("role", user.getRole())
+                .claim("user_key", safeUserKey(user))
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(System.currentTimeMillis() + EXPIRATION_TIME))
                 .signWith(secretKey, SignatureAlgorithm.HS256)
@@ -41,15 +42,14 @@ public class JwtUtil {
         return Jwts.builder()
                 .setSubject(user.getEmail())
                 .claim("username", user.getUsername())
-                .claim("sid", sid)  // NEW
+                .claim("role",    user.getRole())
+                .claim("sid", sid)
+                .claim("user_key", safeUserKey(user))
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(System.currentTimeMillis() + EXPIRATION_TIME))
                 .signWith(secretKey, SignatureAlgorithm.HS256)
                 .compact();
     }
-
-
-
 
     public String extractSid(String token) {
         return extractClaim(token, claims -> claims.get("sid", String.class));
@@ -61,6 +61,7 @@ public class JwtUtil {
                 .claim("username", user.getUsername())
                 .claim("id", user.getId())  // Useful for lookup if needed
                 .claim("type", "refresh")
+                .claim("user_key", safeUserKey(user))
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(System.currentTimeMillis() + REFRESH_EXPIRATION_TIME))
                 .signWith(secretKey, SignatureAlgorithm.HS256)
@@ -74,6 +75,7 @@ public class JwtUtil {
                 .claim("id", user.getId())
                 .claim("type", "refresh")
                 .claim("sid", sessionId)
+                .claim("user_key", safeUserKey(user))
                 .setIssuedAt(new Date())
                 .setExpiration(Date.from(Instant.now().plusSeconds(REFRESH_EXPIRATION_TIME)))
                 .signWith(secretKey, SignatureAlgorithm.HS256)
@@ -118,5 +120,19 @@ public class JwtUtil {
             System.out.println("Invalid token: " + e.getMessage());
         }
         return false;
+    }
+
+    private String safeUserKey(UserResponse user) {
+        // Avoid NPE if your UserResponse doesn't yet have userKey
+        try {
+            String uk = user.getUserKey().toString();
+            return (uk == null || uk.isBlank()) ? null : uk;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public String extractUserKey(String token) {
+        return extractClaim(token, claims -> claims.get("user_key", String.class));
     }
 }

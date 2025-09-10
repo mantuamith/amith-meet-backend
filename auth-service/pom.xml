@@ -20,6 +20,16 @@
   <properties>
     <java.version>17</java.version>
   </properties>
+  <repositories>
+      <repository>
+          <id>github-mtc</id>
+          <url>https://maven.pkg.github.com/Algoframe-Private-Limited/multi-tenancy-core</url>
+      </repository>
+      <repository>
+          <id>github-notify</id>
+          <url>https://maven.pkg.github.com/Algoframe-Private-Limited/notification-service-publish-starter</url>
+      </repository>
+  </repositories>
 
   <dependencyManagement>
     <dependencies>
@@ -127,14 +137,43 @@
       <groupId>org.springframework</groupId>
       <artifactId>spring-context-support</artifactId>
     </dependency>
+    <!-- Add notification service library -->
+    <dependency>
+      <groupId>com.algomeet</groupId>
+      <artifactId>notification-service-publish-starter</artifactId>
+      <version>0.1.0</version>
+    </dependency>
 
   </dependencies>
 
   <build>
     <plugins>
       <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.11.0</version>
+        <configuration>
+          <source>17</source>
+          <target>17</target>
+          <annotationProcessorPaths>
+            <path>
+              <groupId>org.projectlombok</groupId>
+              <artifactId>lombok</artifactId>
+              <version>1.18.32</version>
+            </path>
+          </annotationProcessorPaths>
+        </configuration>
+      </plugin>
+      <plugin>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-maven-plugin</artifactId>
+        <executions>
+          <execution>
+            <goals>
+              <goal>repackage</goal>
+            </goals>
+          </execution>
+        </executions>
       </plugin>
     </plugins>
   </build>

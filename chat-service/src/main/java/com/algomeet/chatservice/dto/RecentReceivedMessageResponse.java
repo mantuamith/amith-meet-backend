@@ -11,3 +11,7 @@ public class RecentReceivedMessageResponse {
     private Long timestamp;
     private Integer nMessages; // Nullable count of unread messages
 }
+
+//TODO(migration):
+// later, add contactKey or senderKey/receiverKey in addition to existing fields,
+// and make the server accept either.

@@ -1,0 +1,46 @@
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+  datasource:
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  redis:
+    host: localhost
+    port: 6379
+    password: ${REDIS_PASSWORD}
+
+  jackson:
+    serialization:
+      INDENT_OUTPUT: true
+
+server:
+  port: 8089
+
+ws:
+  unauthenticated:
+    client:
+      max-time-limit-in-seconds: 1
+
+jwt:
+  secret: ${SPRING_JWT_SECRET}
+
+apple-apns:
+  env: ${SPRING_APPLE_ENV_TYPE}
+  bundle-id: in.algoframe.algomeet
+  team-id: ${SPRING_APPLE_TEAM_ID}
+  p8-auth-key-file-path: ${SPRING_P8_AUTH_KEY_FILE_PATH}
+  p8-auth-key-file-key-id: ${SPRING_P8_AUTH_KEY_ID}

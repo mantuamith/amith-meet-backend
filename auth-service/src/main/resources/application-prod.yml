@@ -63,7 +63,7 @@ app:
     from: ${SPRING_SMTP_FROM_MAIL}
     fromName: "${SPRING_SMTP_FROM_NAME}"
 
-# === Auth/OTP/2FA/JWT settings ===
+# === Auth/OTP/2FA/JWT settings ====
 auth:
   requireVerifiedEmail: false
   requireVerifiedPhone: false

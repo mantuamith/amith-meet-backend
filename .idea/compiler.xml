@@ -44,6 +44,9 @@
         <module name="group-service" />
       </profile>
     </annotationProcessing>
+    <bytecodeTargetLevel>
+      <module name="multi-tenancy-core" target="17" />
+    </bytecodeTargetLevel>
   </component>
   <component name="JavacSettings">
     <option name="ADDITIONAL_OPTIONS_OVERRIDE">
@@ -55,6 +58,7 @@
       <module name="group-service" options="-parameters" />
       <module name="media-service" options="-parameters" />
       <module name="meeting-service" options="-parameters" />
+      <module name="multi-tenancy-core" options="-parameters" />
       <module name="notification-service" options="-parameters" />
       <module name="signaling-service" options="-parameters" />
       <module name="user-service" options="-parameters" />

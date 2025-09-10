@@ -14,7 +14,7 @@ jobs:
 
     strategy:
       matrix:
-        service: ["auth-service", "chat-service", "contact-service", "meeting-service", "user-service"]
+        service: ["auth-service", "chat-service", "contact-service", "meeting-service", "user-service", "notification-service"]
 
     steps:
       - name: Checkout repository
@@ -30,6 +30,10 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+          server-id: github               # This is the Maven <server><id>
+          server-username: ${{ github.actor }}
+          server-password: ${{ secrets.SONAI_PACKAGE_REGISTRTY_TOKEN }}
+          settings-path: ${{ github.workspace }}/.m2
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
