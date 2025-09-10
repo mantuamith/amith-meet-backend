@@ -12,6 +12,7 @@ public class UserResponse {
     private String role;
     private boolean enabled;
     private String activeDeviceId;
+    private String userKey;
 
     // NEW: expose loginTypePolicy so auth-service can enforce device policy
     private Short loginTypePolicy;
@@ -23,5 +24,9 @@ public class UserResponse {
         this.password = user.getPassword();
         this.loginTypePolicy = user.getLoginTypePolicy(); // <-- added
         this.activeDeviceId = user.getActiveDeviceId();
+        
+        if(user.getUserKey() != null) {
+        	this.userKey = user.getUserKey().toString();
+        }
     }
 }

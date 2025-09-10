@@ -8,5 +8,6 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class SecurityQuestionRequest {
+	private String id;
     private String question;
 }

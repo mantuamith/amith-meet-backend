@@ -80,16 +80,21 @@ public class UserController {
         	user.setLoginTypePolicy(request.getLoginTypePolicy().shortValue());
 
         // TODO: user.setRole(...); user.setEnabled(...);
+        // Generate usr key key to link users and user_profile table
         UUID userKey = UUID.randomUUID();        
-        // TODO: user.setUserKey(...); 
+        user.setUserKey(userKey); 
         
         try {
             userRepository.save(user);
             
-            // Add user profile
-            UserProfile userProfile = new UserProfile();
-            userProfile.setId(userKey);
-            userProfileRepository.save(userProfile);
+            try {
+            	// Add user profile
+            	UserProfile userProfile = new UserProfile();
+            	userProfile.setId(userKey);
+            	userProfileRepository.save(userProfile);
+            } finally {
+            	// Add clean-up
+            }
             
             return ResponseEntity.ok(Map.of(
                     "code", ResponseCode.AUTH_REGISTER_SUCCESS.getCode(),

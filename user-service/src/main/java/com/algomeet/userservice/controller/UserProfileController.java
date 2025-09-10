@@ -1,5 +1,6 @@
 package com.algomeet.userservice.controller;
 
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.http.ResponseEntity;
@@ -7,8 +8,10 @@ import org.springframework.web.bind.annotation.*;
 
 import com.algomeet.userservice.dto.UserProfileResponse;
 import com.algomeet.userservice.dto.UserProfileUpdateRequest;
+import com.algomeet.userservice.model.User;
 import com.algomeet.userservice.model.UserProfile;
 import com.algomeet.userservice.repository.UserProfileRepository;
+import com.algomeet.userservice.repository.UserRepository;
 
 import lombok.RequiredArgsConstructor;
 
@@ -18,13 +21,26 @@ import lombok.RequiredArgsConstructor;
 public class UserProfileController {
 
     private final UserProfileRepository repository;
+    private final UserRepository userRepository;
 
     // GET user profile
     @GetMapping("/{id}")
     public ResponseEntity<UserProfileResponse> getProfile(@PathVariable UUID id) {
-        return repository.findById(id)
-                .map(this::toResponse)
-                .map(ResponseEntity::ok)
+    	Optional<User> userOpt = userRepository.findByUserKey(id); 
+    	if (userOpt.isEmpty()) {
+    		return ResponseEntity.notFound().build();
+    	}
+    	    	
+    	Optional<UserProfileResponse> userProfileResponseOpt = repository.findById(id)
+                .map(this::toResponse); 
+    	
+    	UserProfileResponse userProfileResp = userProfileResponseOpt.get();
+    	userProfileResp.setEmail(userOpt.get().getEmail());
+    	userProfileResp.setPhone(userOpt.get().getPhone());
+    	userProfileResp.setUsername(userOpt.get().getUsername());  	
+    	System.out.println("----------------->" + userProfileResp.getUsername());
+    	
+    	return userProfileResponseOpt.map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
@@ -53,9 +69,10 @@ public class UserProfileController {
         if (request.getRegistrationDeviceId() != null) entity.setRegistrationDeviceId(request.getRegistrationDeviceId());
         if (request.getRegistrationDeviceType() != null) entity.setRegistrationDeviceType(request.getRegistrationDeviceType());
         if (request.getPasscode() != null) entity.setPasscode(request.getPasscode());
+        if (request.getSecurityQuestionsEnabled() != null) entity.setSecurityQuestionsEnabled(request.getSecurityQuestionsEnabled());
     }
 
-    private UserProfileResponse toResponse(UserProfile entity) {
+    private UserProfileResponse toResponse(UserProfile entity) {    	
         return UserProfileResponse.builder()
                 .id(entity.getId())
                 .loginTypePolicy(entity.getLoginTypePolicy())
@@ -68,6 +85,7 @@ public class UserProfileController {
                 .registrationDeviceType(entity.getRegistrationDeviceType())
                 .registrationDate(entity.getRegistrationDate())
                 .passcode(entity.getPasscode())
+                .securityQuestionsEnabled(entity.getSecurityQuestionsEnabled())
                 .build();
     }
 }

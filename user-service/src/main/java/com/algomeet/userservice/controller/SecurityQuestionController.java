@@ -1,19 +1,26 @@
 package com.algomeet.userservice.controller;
 
+import java.util.List;
+
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
 import com.algomeet.userservice.dto.SecurityQuestionRequest;
 import com.algomeet.userservice.dto.SecurityQuestionResponse;
 import com.algomeet.userservice.model.SecurityQuestions;
 import com.algomeet.userservice.repository.SecurityQuestionRepository;
 
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-
-import java.net.URI;
-import java.util.List;
-import java.util.UUID;
+import jakarta.transaction.Transactional;
 
 @RestController
-@RequestMapping("/api/security-questions")
+@RequestMapping("/internal/security-questions")
 public class SecurityQuestionController {
 
     private final SecurityQuestionRepository repository;
@@ -26,14 +33,13 @@ public class SecurityQuestionController {
     @PostMapping
     public ResponseEntity<SecurityQuestionResponse> create(@RequestBody SecurityQuestionRequest request) {
         SecurityQuestions entity = new SecurityQuestions(
-                UUID.randomUUID().toString(),
+        		request.getId(),
                 request.getQuestion()
         );
         SecurityQuestions saved = repository.save(entity);
         SecurityQuestionResponse response = new SecurityQuestionResponse(saved.getId(), saved.getQuestion());
         return ResponseEntity
-                .created(URI.create("/api/security-questions/" + saved.getId()))
-                .body(response);
+                .ok(response);
     }
 
     // Get by ID
@@ -69,6 +75,7 @@ public class SecurityQuestionController {
 
     // Delete
     @DeleteMapping("/{id}")
+    @Transactional
     public ResponseEntity<Void> delete(@PathVariable String id) {
         if (!repository.existsById(id)) {
             return ResponseEntity.notFound().build();

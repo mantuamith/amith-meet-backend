@@ -7,7 +7,9 @@ import java.util.UUID;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
+import lombok.Setter;
 
+@Setter
 @Getter
 @Builder
 @AllArgsConstructor
@@ -23,4 +25,9 @@ public class UserProfileResponse {
     private String registrationDeviceType;
     private Instant registrationDate;
     private String passcode;
+    private Boolean securityQuestionsEnabled;
+    private String username;
+    private String email;
+    private String phone;
+    
 }

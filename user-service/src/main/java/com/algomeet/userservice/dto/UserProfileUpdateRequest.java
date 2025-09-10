@@ -17,4 +17,5 @@ public class UserProfileUpdateRequest {
     private String registrationDeviceId;
     private String registrationDeviceType;
     private String passcode;
+    private Boolean securityQuestionsEnabled;
 }

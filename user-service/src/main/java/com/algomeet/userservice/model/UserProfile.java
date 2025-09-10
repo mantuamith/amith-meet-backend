@@ -55,6 +55,8 @@ public class UserProfile {
     
     private String passcode;
     
+    private Boolean securityQuestionsEnabled;
+    
     @PrePersist
     protected void onCreate() {
         this.registrationDate = Instant.now();
