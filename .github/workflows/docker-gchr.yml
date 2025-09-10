@@ -14,7 +14,7 @@ jobs:
 
     strategy:
       matrix:
-        service: ["auth-service", "chat-service", "contact-service", "meeting-service", "user-service"]
+        service: ["auth-service", "chat-service", "contact-service", "meeting-service", "user-service", "notification-service"]
 
     steps:
       - name: Checkout repository
@@ -30,12 +30,16 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+          server-id: github
+          server-username: sonaialgoframe
+          server-password: ${{ secrets.SONAI_PACKAGE_REGISTRTY_TOKEN }}
+
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
-          username: ${{ github.actor }}
+          username: sonaialgoframe
           password: ${{ secrets.SONAI_PACKAGE_REGISTRTY_TOKEN }}
 
       - name: Check if ${{ matrix.service }} has changes
@@ -48,13 +52,35 @@ jobs:
             echo "changed=false" >> $GITHUB_OUTPUT
           fi
 
+      - name: Create settings.xml
+        if: steps.check_changes.outputs.changed == 'true'
+        run: |
+          cat > ${{ github.workspace }}/settings.xml <<EOF
+          <settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
+                    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                    xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0 https://maven.apache.org/xsd/settings-1.0.0.xsd">
+            <servers>
+              <server>
+                <id>github-mtc</id>
+                <username>sonaialgoframe</username>
+                <password>${{ secrets.SONAI_PACKAGE_REGISTRY_TOKEN }}</password>
+              </server>
+              <server>
+                <id>github-notify</id>
+                <username>sonaialgoframe</username>
+                <password>${{ secrets.SONAI_PACKAGE_REGISTRY_TOKEN }}</password>
+              </server>
+            </servers>
+          </settings>
+          EOF
+
       - name: Build ${{ matrix.service }} with Maven
         if: steps.check_changes.outputs.changed == 'true'
         env:
           SPRING_PROFILES_ACTIVE: prod
         run: |
           cd ${{ matrix.service }}
-          mvn clean package -DskipTests
+          mvn clean package -DskipTests -s ${{ github.workspace }}/settings.xml
 
       - name: Build and push Docker image
         if: steps.check_changes.outputs.changed == 'true'

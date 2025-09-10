@@ -57,13 +57,13 @@ feign:
     user-service:
       url: http://user-service:8082
 
-# === App mail defaults for From header ===
+# === App mail defaults for From header ====
 app:
   mail:
     from: ${SPRING_SMTP_FROM_MAIL}
     fromName: "${SPRING_SMTP_FROM_NAME}"
 
-# === Auth/OTP/2FA/JWT settings ===
+# === Auth/OTP/2FA/JWT settings ====
 auth:
   requireVerifiedEmail: false
   requireVerifiedPhone: false
