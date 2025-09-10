@@ -30,20 +30,17 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-          settings-path: ${{ github.workspace }}/.m2
-
-          # First repo: multi-tenancy-core
           server-id: github
-          server-username: algoframe25
-          server-password: ${{ secrets.ALGOFRAME_PACKAGE_REGISTRTY_TOKEN }}
+          server-username: sonaialgoframe
+          server-password: ${{ secrets.SONAI_PACKAGE_REGISTRTY_TOKEN }}
 
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
-          username: algoframe25
-          password: ${{ secrets.ALGOFRAME_PACKAGE_REGISTRTY_TOKEN }}
+          username: sonaialgoframe
+          password: ${{ secrets.SONAI_PACKAGE_REGISTRTY_TOKEN }}
 
       - name: Check if ${{ matrix.service }} has changes
         id: check_changes
@@ -55,13 +52,30 @@ jobs:
             echo "changed=false" >> $GITHUB_OUTPUT
           fi
 
+      - name: Create settings.xml
+        if: steps.check_changes.outputs.changed == 'true'
+        run: |
+          cat > ${{ github.workspace }}/settings.xml <<EOF
+          <settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
+                    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                    xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0 https://maven.apache.org/xsd/settings-1.0.0.xsd">
+            <servers>
+              <server>
+                <id>github</id>
+                <username>sonaialgoframe</username>
+                <password>${{ secrets.SONAI_PACKAGE_REGISTRY_TOKEN }}</password>
+              </server>
+            </servers>
+          </settings>
+          EOF
+
       - name: Build ${{ matrix.service }} with Maven
         if: steps.check_changes.outputs.changed == 'true'
         env:
           SPRING_PROFILES_ACTIVE: prod
         run: |
           cd ${{ matrix.service }}
-          mvn clean package -DskipTests
+          mvn clean package -DskipTests -s ${{ github.workspace }}/settings.xml
 
       - name: Build and push Docker image
         if: steps.check_changes.outputs.changed == 'true'
@@ -102,6 +116,6 @@ jobs:
         if: steps.detect.outputs.changed_services != ''
         uses: peter-evans/repository-dispatch@v2
         with:
-          token: ${{ secrets.ALGOFRAME_PACKAGE_REGISTRTY_TOKEN }}
+          token: ${{ secrets.SONAI_PACKAGE_REGISTRTY_TOKEN }}
           repository: Algoframe-Private-Limited/k8-deployment-config
           event-type: deploy-latest-image
