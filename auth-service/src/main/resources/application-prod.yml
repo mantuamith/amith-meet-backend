@@ -57,7 +57,7 @@ feign:
     user-service:
       url: http://user-service:8082
 
-# === App mail defaults for From header ===
+# === App mail defaults for From header ====
 app:
   mail:
     from: ${SPRING_SMTP_FROM_MAIL}
