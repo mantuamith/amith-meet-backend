@@ -11,7 +11,6 @@
         <module name="auth-service" />
         <module name="gateway-service" />
         <module name="media-service" />
-        <module name="multi-tenancy-core" />
         <module name="signaling-service" />
         <module name="meeting-service" />
         <module name="common-lib" />
@@ -45,6 +44,9 @@
         <module name="group-service" />
       </profile>
     </annotationProcessing>
+    <bytecodeTargetLevel>
+      <module name="multi-tenancy-core" target="17" />
+    </bytecodeTargetLevel>
   </component>
   <component name="JavacSettings">
     <option name="ADDITIONAL_OPTIONS_OVERRIDE">
