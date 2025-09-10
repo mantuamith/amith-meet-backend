@@ -14,7 +14,7 @@ jobs:
 
     strategy:
       matrix:
-        service: ["auth-service", "chat-service", "contact-service", "meeting-service", "user-service"]
+        service: ["auth-service", "chat-service", "contact-service", "meeting-service", "user-service", "notification-service"]
 
     steps:
       - name: Checkout repository
