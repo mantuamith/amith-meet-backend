@@ -2,14 +2,11 @@
 
     import com.algomeet.chatservice.document.MessageDocument;
     import com.algomeet.chatservice.document.MessageResponse;
-    import com.algomeet.chatservice.dto.MessageDeleteRequest;
-    import com.algomeet.chatservice.dto.MessageDeleteResult;
-    import com.algomeet.chatservice.dto.RecentReceivedMessageResponse;
+    import com.algomeet.chatservice.dto.*;
     import com.algomeet.chatservice.mapper.MessageMapper;
     import com.algomeet.chatservice.repository.MessageRepository;
     import com.algomeet.chatservice.service.MessageDeleteService;
     import com.algomeet.chatservice.service.MessageService;
-    import com.algomeet.chatservice.dto.ResetUnreadRequest;
     import jakarta.validation.Valid;
     import lombok.AllArgsConstructor;
     import org.springframework.beans.factory.annotation.Autowired;
@@ -177,6 +174,17 @@
         private String getCurrentUserName() {
             var auth = SecurityContextHolder.getContext().getAuthentication();
             return auth.getName(); // now returns username instead of email
+        }
+
+        @PostMapping("/clear")
+        public ResponseEntity<ClearChatResult> clearChat(@RequestBody @Valid ClearChatRequest req) {
+            final String me = getCurrentUserName();
+            long affected = messageService.clearChatForUser(me, req.getContactId());
+
+            // push real-time UI updates
+            messageService.pushAfterClear(me, req.getContactId(), affected);
+
+            return ResponseEntity.ok(new ClearChatResult(affected, req.getContactId()));
         }
 
     }

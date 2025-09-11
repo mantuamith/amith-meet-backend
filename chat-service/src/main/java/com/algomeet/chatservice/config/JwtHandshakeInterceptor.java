@@ -2,6 +2,7 @@ package com.algomeet.chatservice.config;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import jakarta.annotation.PostConstruct;
 import lombok.AllArgsConstructor;
@@ -25,19 +26,16 @@ import java.util.Map;
 import java.util.Optional;
 
 @Component
-@AllArgsConstructor
+
 public class JwtHandshakeInterceptor implements HandshakeInterceptor {
 
     private static final Logger log = LoggerFactory.getLogger(JwtHandshakeInterceptor.class);
 
-    @Value("${jwt.secret}")
-    private String jwtSecret;
+    private final Key secretKey;
 
-    private Key secretKey;
-
-    @PostConstruct
-    public void init() {
-        this.secretKey = Keys.hmacShaKeyFor(Base64.getDecoder().decode(jwtSecret));
+    public JwtHandshakeInterceptor(@Value("${jwt.secret}") String jwtSecret) {
+        // jwt.secret must be Base64-encoded and at least 256 bits for HS256
+        this.secretKey = Keys.hmacShaKeyFor(Decoders.BASE64.decode(jwtSecret));
     }
 
     @Override
