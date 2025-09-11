@@ -9,6 +9,7 @@ import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.util.CollectionUtils;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -79,9 +80,11 @@ public class UserSecurityQuestionController {
     public ResponseEntity<CommonResponse<List<UserSecurityQuestionResponse>>> getByUserProfileId(@PathVariable UUID userProfileId) {
        	List<UserSecurityQuestionResponse> respList = userSecurityQuestionService.getByUserProfileId(userProfileId);
     	// Mask answer before returning to client
-    	for (UserSecurityQuestionResponse resp: respList) {
-    		resp.setAnswer("***");
-    	}
+       	if (!CollectionUtils.isEmpty(respList)) {
+       		for (UserSecurityQuestionResponse resp: respList) {
+       			resp.setAnswer("***");
+       		}
+       	}
 
     	return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, 
     			respList));
@@ -104,7 +107,7 @@ public class UserSecurityQuestionController {
         return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, resp));
     }  
     
-    @PostMapping("/{userProfileId}/{securityQuestionId}/verify")
+    @PostMapping("/{userProfileId}/{securityQuestionId}/verify-answer")
     public ResponseEntity<?> verifyAnswer(
     		@PathVariable UUID userProfileId,
             @PathVariable String securityQuestionId,
