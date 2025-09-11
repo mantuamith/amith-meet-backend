@@ -31,4 +31,13 @@ public class UserRequest {
     private String registrationDeviceType;
 
     private Integer loginTypePolicy;
+    
+    /**
+     * Coming from Apple APN, or Google Firebase
+     */
+    private String deviceToken;
+    /**
+     * Value can be (ANDROID, IOS, WEB. HARMONYOS)
+     */
+    private String clientPlatform;
 }

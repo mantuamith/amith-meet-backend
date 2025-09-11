@@ -12,6 +12,14 @@ public class UserResponse {
     private String role;
     private boolean enabled;
     private String activeDeviceId;
+    /**
+     * Coming from Apple APN, or Google Firebase
+     */
+    private String deviceToken;
+    /**
+     * Value can be (ANDROID, IOS, WEB. HARMONYOS)
+     */
+    private String clientPlatform;
 
     // NEW: expose loginTypePolicy so auth-service can enforce device policy
     private Short loginTypePolicy;

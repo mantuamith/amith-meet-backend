@@ -20,7 +20,15 @@ public class UserResponse {
     private boolean enabled;
     private Short loginTypePolicy;
     private String activeDeviceId;
-    private UUID userKey;
+    private UUID userKey;    
+    /**
+     * Coming from Apple APN, or Google Firebase
+     */
+    private String deviceToken;
+    /**
+     * Value can be (ANDROID, IOS, WEB. HARMONYOS)
+     */
+    private String clientPlatform;
 
     @SuppressWarnings("unchecked")
     public UserResponse(Map<String, Object> map) {

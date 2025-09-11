@@ -98,8 +98,8 @@ public class AuthController {
         }
     }
     @PostMapping("/login")
-    public AuthResponse login(@RequestBody LoginRequest req) {
-        return authService.login(req.getEffectiveLogin(), req.getPassword());
+    public AuthResponse login(@Valid @RequestBody LoginRequest req) {
+        return authService.login(req.getEffectiveLogin(), req.getPassword(), req.getClientPlatform(), req.getDeviceToken());
 
     }
 
