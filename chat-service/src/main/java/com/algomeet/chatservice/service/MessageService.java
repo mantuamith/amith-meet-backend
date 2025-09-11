@@ -1,11 +1,9 @@
 package com.algomeet.chatservice.service;
 
+import com.algomeet.chatservice.document.CallMetaData;
 import com.algomeet.chatservice.document.MessageDocument;
 import com.algomeet.chatservice.document.MessageResponse;
-import com.algomeet.chatservice.dto.DeliveryReceipt;
-import com.algomeet.chatservice.dto.ReadReceipt;
-import com.algomeet.chatservice.dto.RecentReceivedMessageResponse;
-import com.algomeet.chatservice.dto.UnreadCountResponse;
+import com.algomeet.chatservice.dto.*;
 import com.algomeet.chatservice.mapper.MessageMapper;
 import com.algomeet.chatservice.model.MessageStatus;
 import com.algomeet.chatservice.repository.MessageRepository;
@@ -204,5 +202,50 @@ public class MessageService {
 
         // keep the reader's unread badges current
         sendUnreadCountUpdate(readerId);
+    }
+
+    public void updateMessageCallMeta(CallMessageMetaUpdate payload, String updaterUsername) {
+        if (payload == null || payload.getMessageId() == null) {
+            log.warn("[CALL META] Missing payload or messageId");
+            return;
+        }
+
+        Optional<MessageDocument> opt = messageRepository.findById(payload.getMessageId());
+        if (opt.isEmpty()) {
+            log.debug("[CALL META] No Message found for {}", payload.getMessageId());
+            return;
+        }
+
+        MessageDocument msg = opt.get();
+
+        // authorization: only sender or receiver may update this message’s call meta
+        boolean isParticipant = updaterUsername.equals(msg.getSender()) || updaterUsername.equals(msg.getReceiver());
+        if (!isParticipant) {
+            log.warn("[CALL META] User {} is not a participant of message {}", updaterUsername, msg.getId());
+            return;
+        }
+
+        // persist metadata
+        CallMetaData newMeta = payload.getCallMetaData();
+        msg.setCallMetaData(newMeta);
+        messageRepository.save(msg);
+
+        // figure out counterparty
+        String other = updaterUsername.equals(msg.getSender()) ? msg.getReceiver() : msg.getSender();
+
+        // push a compact event to the other user
+        long now = java.time.Instant.now().getEpochSecond();
+        CallMetaUpdatedEvent evt = new CallMetaUpdatedEvent(
+                msg.getId(),
+                updaterUsername,
+                other,
+                newMeta,
+                now
+        );
+
+        // STOMP destination for call meta updates
+        messagingTemplate.convertAndSendToUser(other, "/queue/call-meta", evt);
+
+        log.info("[CALL META] Updated for message {} by {} -> notified {}", msg.getId(), updaterUsername, other);
     }
 }

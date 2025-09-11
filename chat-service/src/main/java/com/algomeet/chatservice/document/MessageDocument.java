@@ -42,7 +42,9 @@ public class MessageDocument {
     private Boolean deletedForAll = false;                 // sender deleted for everyone?
     @Indexed
     @Field("deletedAt")
-    private Long deletedAt;                        // epoch seconds when deleted for all
+    private Long deletedAt;
+
+    // epoch seconds when deleted for all
 
     // Per-user "delete for me"
     @Field("deletedForUsers")
@@ -73,6 +75,8 @@ public class MessageDocument {
     private List<MediaItem> mediaGroup;    // optional media items
     private MessageMetaData metaData;      // reply, reactions, etc.
     private ForwardInfo forwarded;         // forward tracking
+
+    private CallMetaData callMetaData;
 
     @Field("failedRecipients")
     private List<String> failedRecipients;
