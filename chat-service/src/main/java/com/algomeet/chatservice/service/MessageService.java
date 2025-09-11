@@ -7,15 +7,25 @@ import com.algomeet.chatservice.dto.*;
 import com.algomeet.chatservice.mapper.MessageMapper;
 import com.algomeet.chatservice.model.MessageStatus;
 import com.algomeet.chatservice.repository.MessageRepository;
+import com.mongodb.client.result.UpdateResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.mongodb.core.MongoTemplate;
+
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
+
 
 import java.security.Principal;
 import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
+
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;     // <— THIS ONE
+import org.springframework.data.mongodb.core.query.Update;
+import static org.springframework.data.mongodb.core.query.Criteria.where;
+
 
 @Slf4j
 @Service
@@ -25,6 +35,7 @@ public class MessageService {
     private final MessageRepository messageRepository;
     private final SimpMessagingTemplate messagingTemplate;
     private final MessageMapper messageMapper;
+    private final MongoTemplate mongoTemplate;
 
     // -------- RECENT / UNREAD --------
     public List<MessageResponse> getRecentUnreadMessages(String userId) {
@@ -247,5 +258,51 @@ public class MessageService {
         messagingTemplate.convertAndSendToUser(other, "/queue/call-meta", evt);
 
         log.info("[CALL META] Updated for message {} by {} -> notified {}", msg.getId(), updaterUsername, other);
+    }
+
+    /**
+     * Mark the entire 1:1 conversation as "deleted for me" for `me`.
+     * This uses updateMany so it's fast even for big threads.
+     */
+    public long clearChatForUser(String me, String contact) {
+        Criteria participants = new Criteria().orOperator(
+                new Criteria().andOperator(where("sender").is(me),     where("receiver").is(contact)),
+                new Criteria().andOperator(where("sender").is(contact), where("receiver").is(me))
+        );
+
+        Criteria notDeletedForAll = where("deletedForAll").ne(true);
+
+        Criteria notAlreadyHiddenForMe = new Criteria().orOperator(
+                where("deletedForUsers").exists(false),
+                where("deletedForUsers").ne(me)
+        );
+
+
+        Query q = new Query(new Criteria().andOperator(
+                participants, notDeletedForAll, notAlreadyHiddenForMe
+        ));
+
+        Update u = new Update().addToSet("deletedForUsers", me);
+
+        UpdateResult res = mongoTemplate.updateMulti(q, u, MessageDocument.class);
+        return res.getModifiedCount();
+    }
+
+    /** After clear: notify FE + refresh counters and recent summary */
+    public void pushAfterClear(String me, String contact, long affected) {
+        long now = java.time.Instant.now().getEpochSecond();
+
+        // 1) tell the client to clear the thread view (if open)
+        messagingTemplate.convertAndSendToUser(
+                me, "/queue/chat/cleared",
+                new com.algomeet.chatservice.dto.ChatClearedEvent(contact, affected, now)
+        );
+
+        // 2) refresh unread counters for the left pane
+        sendUnreadCountUpdate(me);
+
+        // 3) refresh "recent messages" list for the left pane
+        List<com.algomeet.chatservice.dto.RecentReceivedMessageResponse> recent = getRecentMessages(me);
+        messagingTemplate.convertAndSendToUser(me, "/queue/recent/summary", recent);
     }
 }
