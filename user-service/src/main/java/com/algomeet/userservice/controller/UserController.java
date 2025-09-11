@@ -17,6 +17,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
@@ -261,6 +262,29 @@ public class UserController {
                 "usernameTaken", usernameTaken,
                 "phoneTaken", phoneTaken
         );
+    }
+    
+    @PostMapping("/{id}/client-platform-device-token")
+    public ResponseEntity<Void> updateClientPlatformDeviceToken(
+            @PathVariable Long id, @RequestParam("platform") String platform, 
+            @RequestParam("deviceToken") Optional<String> deviceTokenOpt) {
+        
+    	User user = userRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("User not found"));
+    	
+    	if (StringUtils.hasLength(platform)) {
+    		user.setClientPlatform(platform.trim().toUpperCase());
+    	}
+    	
+    	if (deviceTokenOpt.isPresent()) {
+    		user.setDeviceToken(deviceTokenOpt.get()); 
+    	} else {
+    		user.setDeviceToken(null);
+    	}
+    	   	
+        userRepository.save(user);
+        return ResponseEntity.ok().build();
+
     }
 
 }

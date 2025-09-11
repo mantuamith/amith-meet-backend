@@ -5,6 +5,7 @@ import java.util.Set;
 
 import org.springframework.stereotype.Repository;
 
+import com.algomeet.multitenancy.annotations.UsePublicSchema;
 import com.algomeet.notificationservice.dto.UserDto;
 
 import jakarta.persistence.EntityManager;
@@ -18,9 +19,10 @@ public class UserNativeRepository {
     private EntityManager entityManager;
    
     @SuppressWarnings("unchecked")
+    @UsePublicSchema
     public List<UserDto> getUsersByUsernameList(List<String> usernames) {
         String placeholders = String.join(",", java.util.Collections.nCopies(usernames.size(), "?"));
-        String sql = String.format("SELECT id, username, email, active_device_id FROM users WHERE username IN (%s)", placeholders);
+        String sql = String.format("SELECT id, username, email, client_platform, device_token FROM users WHERE username IN (%s)", placeholders);
 
         Query query = entityManager.createNativeQuery(sql);
 
@@ -35,7 +37,8 @@ public class UserNativeRepository {
                         Long.parseLong(row[0] + ""),
                         (String) row[1],
                         (String) row[2],
-                        (String) row[3]
+                        (String) row[3],
+                        (String) row[4]
                 ))
                 .toList();
     }

@@ -20,6 +20,7 @@ import com.algomeet.notificationservice.consumer.receiver.processor.ReceiverGrou
 import com.algomeet.notificationservice.dto.NotificationDto;
 import com.algomeet.notificationservice.dto.NotificationMessage;
 import com.algomeet.notificationservice.dto.UserDto;
+import com.algomeet.notificationservice.enums.ClientPlatform;
 import com.algomeet.notificationservice.model.Notification;
 import com.algomeet.notificationservice.model.UserNotification;
 import com.algomeet.notificationservice.repository.UserNativeRepository;
@@ -94,7 +95,8 @@ public class PushNotification implements NotificationProcessor{
 				addNotificationCustomData(notification, userNotification);
 
 				// Push notification
-				if (StringUtils.hasLength(userDto.getDeviceToken())) {
+				if (ClientPlatform.IOS.name().equals(userDto.getClientPlatform())
+						&& StringUtils.hasLength(userDto.getDeviceToken())) {
 					// Apple device client
 					try {
 						boolean deliveryStatus = apnsSenderService.sendPush(userDto.getDeviceToken(), notification);

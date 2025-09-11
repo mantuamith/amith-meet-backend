@@ -58,6 +58,11 @@ public interface UserClient {
         Map<String, String> res = getActiveSid(email);
         return res == null ? null : res.get("sid");
     }
+    
+    @PostMapping("/internal/users/{id}/client-platform-device-token")
+    void updateClientPlatformDeviceToken(@PathVariable("id") Long id,
+                            @RequestParam("platform") String platform, 
+                            @RequestParam("deviceToken") String deviceToken);
 
 
 }

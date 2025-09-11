@@ -75,6 +75,15 @@ public class User {
     @Column(name = "registration_device_type", length = 32)
     private String registrationDeviceType;
 
+    /**
+     * Value can be (ANDROID, IOS, WEB. HARMONYOS)
+     */
+    private String clientPlatform;
+    
+    /**
+     * Coming from Apple APN, or Google Firebase
+     */
+    private String deviceToken;
 
     @PrePersist @PreUpdate
     void normalize() {
