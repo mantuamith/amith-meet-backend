@@ -65,6 +65,7 @@ public class MeetingService {
         meeting.setReminderMinutes(request.getReminderMinutes());
         meeting.setLobbyEnabled(request.isLobbyEnabled());
         meeting.setPendingParticipants(new HashSet<>());
+        meeting.setMeetingType(request.getMeetingType());
 
         if(!request.isLobbyEnabled()){
             meeting.setAttendees(new HashSet<>(request.getAttendees()));
