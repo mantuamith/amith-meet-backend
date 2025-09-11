@@ -53,7 +53,7 @@ public class UserSecurityQuestionController {
     	return ResponseEntity.ok(CommonResponse.from(ResponseCode.ADD_USER_SECURITY_QUESTION_SUCCESS, resp));
     }
     
-    @PostMapping("/multiple")
+    @PostMapping("/batch")
     public ResponseEntity<CommonResponse<List<UserSecurityQuestionResponse>>> create(@RequestBody List<UserSecurityQuestionRequest> requests) {
     	List<UserSecurityQuestionResponse> respList = new ArrayList<>();
     	
