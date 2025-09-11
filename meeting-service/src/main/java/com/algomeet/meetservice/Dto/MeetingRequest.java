@@ -1,6 +1,9 @@
 package com.algomeet.meetservice.Dto;
 
+import com.algomeet.meetservice.enums.MeetingType;
 import com.algomeet.meetservice.model.RecurrenceType;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import lombok.Data;
 
 import java.time.Instant;
@@ -30,4 +33,7 @@ public class MeetingRequest {
     private boolean lobbyEnabled = false;   // Default: disabled
 
     private  boolean passwordEnabled = false;
+
+    @Enumerated(EnumType.STRING)
+    private MeetingType meetingType = MeetingType.MEETING;
 }

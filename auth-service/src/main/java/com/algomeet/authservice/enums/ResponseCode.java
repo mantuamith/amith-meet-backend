@@ -31,8 +31,19 @@ public enum ResponseCode {
     AUTH_FORGOT_EXPIRED_TICKET("AUTH_FORGOT_EXPIRED_TICKET", "Password reset ticket expired"),
     AUTH_SESSION_REVOKED("AUTH_SESSION_REVOKED", "Your session was revoked (signed-in on another device)."),
     AUTH_DEVICE_LOCKED("AUTH_DEVICE_LOCKED", "This account is active on another device."),
-    AUTH_DUPLICATE_PHONE("AUTH_DUPLICATE_PHONE", "Phone Already exists");
-
+    AUTH_DUPLICATE_PHONE("AUTH_DUPLICATE_PHONE", "Phone Already exists"),
+    
+    // Profile / security questions / user security questions
+    SUCCESS("SUCCESS", "Success"),
+	UPDATE_USER_PROFILE_SUCCESS("UPDATE_USER_PROFILE_SUCCESS", "User profile has been updated successfully"),
+	ADD_SECURITY_QUESTION_SUCCESS("ADD_SECURITY_QUESTION_SUCCESS", "Security question has been added successfully"),
+	UPDATE_SECURITY_QUESTION_SUCCESS("UPDATE_SECURITY_QUESTION_SUCCESS", "Security question has been updated successfully"),
+	DELETE_SECURITY_QUESTION_SUCCESS("DELETE_SECURITY_QUESTION_SUCCESS", "Security question has been deleted successfully"),
+	SECURITY_QUESTION_ID_EXISTS("SECURITY_QUESTION_ID_EXISTS", "Security question ID already exists"),
+	
+	ADD_USER_SECURITY_QUESTION_SUCCESS("ADD_USER_SECURITY_QUESTION_SUCCESS", "User security question(s) have been added successfully"),
+	USER_SECURITY_QUESTION_ID_EXISTS("USER_SECURITY_QUESTION_ID_EXISTS", "User security question Id already exists"),
+	USER_SECURITY_QUESTION_VERIFY_FAILED("USER_SECURITY_QUESTION_VERIFY_FAILED", "User security question Id doesn't exists");
 
     private final String code;
     private final String defaultMessage;

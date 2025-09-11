@@ -12,6 +12,7 @@ public class UserResponse {
     private String role;
     private boolean enabled;
     private String activeDeviceId;
+
     /**
      * Coming from Apple APN, or Google Firebase
      */
@@ -20,6 +21,9 @@ public class UserResponse {
      * Value can be (ANDROID, IOS, WEB. HARMONYOS)
      */
     private String clientPlatform;
+
+    private String userKey;
+
 
     // NEW: expose loginTypePolicy so auth-service can enforce device policy
     private Short loginTypePolicy;
@@ -31,5 +35,9 @@ public class UserResponse {
         this.password = user.getPassword();
         this.loginTypePolicy = user.getLoginTypePolicy(); // <-- added
         this.activeDeviceId = user.getActiveDeviceId();
+        
+        if(user.getUserKey() != null) {
+        	this.userKey = user.getUserKey().toString();
+        }
     }
 }
