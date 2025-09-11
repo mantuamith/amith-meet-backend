@@ -16,6 +16,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.util.Locale;
 import java.util.Map;
@@ -101,8 +102,11 @@ public class AuthService {
 
 
 
-
     public AuthResponse login(String email, String rawPassword) {
+    	return login(email, rawPassword, null, null);
+    }
+    
+    public AuthResponse login(String email, String rawPassword, String clientPlatform, String deviceToken) {
         // 0) Basic sanity
         if (email == null || rawPassword == null || email.isBlank() || rawPassword.isBlank()) {
             log.warn("LOGIN: invalid request (blank email/password)");
@@ -138,7 +142,12 @@ public class AuthService {
             // 4) Persist refresh token binding
             refreshTokenStore.save(refreshToken, user.getEmail());
 
-
+            // Update user login platform and device token
+            if (StringUtils.hasLength(clientPlatform) || StringUtils.hasLength(deviceToken) ) {
+            	userClient.updateClientPlatformDeviceToken(user.getId(), clientPlatform, deviceToken);
+            	user.setClientPlatform(clientPlatform);
+            }
+            
             log.info("LOGIN: success email={}", maskEmail(email));
             return AuthResponse.from(ResponseCode.AUTH_LOGIN_SUCCESS, user, accessToken, refreshToken);
 
