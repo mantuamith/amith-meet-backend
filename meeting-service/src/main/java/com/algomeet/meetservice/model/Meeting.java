@@ -15,7 +15,8 @@ public class Meeting {
     @Id
     private String id;
 
-    @Column(name = "meeting_type", nullable = false)
+    @Column(name="meeting_type", nullable=true, length=20)
+    @Enumerated(EnumType.STRING)
     private MeetingType meetingType = MeetingType.MEETING;
 
     private String token;
