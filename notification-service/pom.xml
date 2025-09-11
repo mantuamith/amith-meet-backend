@@ -17,11 +17,11 @@
   </properties>
   <repositories>
       <repository>
-          <id>github</id>
+          <id>github-mtc</id>
           <url>https://maven.pkg.github.com/Algoframe-Private-Limited/multi-tenancy-core</url>
       </repository>
       <repository>
-          <id>github</id>
+          <id>github-notify</id>
           <url>https://maven.pkg.github.com/Algoframe-Private-Limited/notification-service-publish-starter</url>
       </repository>
   </repositories>
