@@ -2,6 +2,7 @@ package com.algomeet.meetservice.service;
 
 import com.algomeet.meetservice.Dto.EditMeetingRequest;
 import com.algomeet.meetservice.Dto.MeetingRequest;
+import com.algomeet.meetservice.enums.MeetingType;
 import com.algomeet.meetservice.model.Meeting;
 import com.algomeet.meetservice.model.MeetingStatus;
 import com.algomeet.meetservice.repository.MeetingRepository;
@@ -155,12 +156,13 @@ public class MeetingService {
 
     // Get all meetings where user is host or attendee
     public List<Meeting> getMeetingsForUser(String email) {
-        //List<Meeting> hostedMeetings = meetingRepository.findAllByHostEmail(email);
-        //List<Meeting> attendeeMeetings = meetingRepository.findAllByAttendeeEmail(email);
 
+        List<Meeting> allMeeting =
+                meetingRepository.findDistinctByHostEmailOrAttendeesContainingOrderByMeetingStartTimeAsc(email, email);
 
-        return meetingRepository
-                .findDistinctByHostEmailOrAttendeesContainingOrderByMeetingStartTimeAsc(email,email);
+        return allMeeting.stream()
+                .filter(m -> m.getMeetingType() == MeetingType.MEETING) // adjust enum name if yours differs
+                .toList();
     }
 
 

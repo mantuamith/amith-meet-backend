@@ -5,11 +5,7 @@ import com.algomeet.chatservice.config.StompUserPrincipal;
 import com.algomeet.chatservice.document.GroupDto;
 import com.algomeet.chatservice.document.MessageDocument;
 import com.algomeet.chatservice.document.MessageResponse;
-import com.algomeet.chatservice.dto.MessageDeleteCommand;
-import com.algomeet.chatservice.dto.MessageStatusUpdate;
-import com.algomeet.chatservice.dto.SignalMessage;
-import com.algomeet.chatservice.dto.SignalResponse;
-import com.algomeet.chatservice.dto.UnreadCountResponse;
+import com.algomeet.chatservice.dto.*;
 import com.algomeet.chatservice.mapper.MessageMapper;
 import com.algomeet.chatservice.model.MessageStatus;
 import com.algomeet.chatservice.repository.MessageRepository;
@@ -144,6 +140,12 @@ public class ChatWebSocketController {
     public void markAsRead(@Payload MessageStatusUpdate payload, Principal principal) {
         System.out.println("[STOMP /read] User: " + principal.getName() + ", Message IDs: " + payload.getMessageIds());
         messageService.markMessagesAsRead(payload.getMessageIds(), principal.getName());
+    }
+
+    @MessageMapping("/update-call-meta")
+    public void updateCallMetadata(@Payload CallMessageMetaUpdate payload, Principal principal) {
+        System.out.println("[STOMP /read] User: " + principal.getName() + ", Message IDs: " + payload.getMessageId());
+        messageService.updateMessageCallMeta(payload, principal.getName());
     }
 
     @MessageMapping("/message-delete")
