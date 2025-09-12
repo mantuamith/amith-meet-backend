@@ -16,8 +16,24 @@ import java.security.Principal;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
+
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
+import org.springframework.stereotype.Service;
+
+import com.algomeet.contactservice.client.UserClient;
+import com.algomeet.contactservice.dto.UserDto;
+import com.algomeet.contactservice.entity.Contact;
+import com.algomeet.contactservice.entity.ContactStatus;
+import com.algomeet.contactservice.repository.ContactRepository;
+import com.algomeet.notificationservice.dto.Notification;
+import com.algomeet.notificationservice.enums.NotificationType;
+import com.algomeet.notificationservice.service.NotificationService;
+
+import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
@@ -25,6 +41,7 @@ public class ContactService {
 
     private final ContactRepository contactRepository;
     private final UserClient userClient;
+    private final NotificationService notificationService;
 
     public void addContact(String userId, String contactUserId) {
         if (userId.equals(contactUserId)) {
@@ -75,6 +92,20 @@ public class ContactService {
                 .build();
 
         contactRepository.save(c);
+
+        // Send friend reuquest notification
+        UserDto user = userClient.byKey(me);
+        Notification notif = new Notification();
+        // Set receiver
+        notif.setReceiverIds(Set.of(other.toString()));
+
+        notif.setType(NotificationType.FRIEND_REQUEST_RECEIVED);
+
+        notif.setTitle(user.getUsername() + " sent you a friend request");
+        notif.setBody(user.getUsername() + " sent you a friend request");
+    	notif.setDeliveryAckRequired(true);
+        // Publish
+        notificationService.sendPush(notif);
     }
 
     // 2. Accept a contact request
@@ -84,15 +115,6 @@ public class ContactService {
 
         Contact req = contactRepository.findByUserKeyAndContactUserKey(other, me)
                 .orElseThrow(() -> new RuntimeException("No contact request found"));
-        if (req.getStatus() == ContactStatus.ACCEPTED) {
-            // already accepted — no-op
-            return;
-        }
-
-        if (req.getStatus() != ContactStatus.PENDING) {
-            // block accepting a non-pending request
-            throw new IllegalStateException("Contact request is not pending (current status: " + req.getStatus() + ")");
-        }
         req.setStatus(ContactStatus.ACCEPTED);
         contactRepository.save(req);
 
@@ -102,7 +124,6 @@ public class ContactService {
             Contact rev = Contact.builder()
                     .userKey(me)
                     .contactUserKey(other)
-                    // keep legacy columns for FE until migration finishes
                     .userId(receiverLogin == null ? null : receiverLogin.trim().toLowerCase())
                     .contactUserId(senderLoginOrId == null ? null : senderLoginOrId.trim().toLowerCase())
                     .status(ContactStatus.ACCEPTED)
@@ -110,38 +131,32 @@ public class ContactService {
                     .build();
             contactRepository.save(rev);
         }
+
+        // Send friend request accepted notification
+        UserDto user = userClient.byKey(me);
+        Notification notif = new Notification();
+        // Set receiver
+        notif.setReceiverIds(Set.of(other.toString()));
+
+        notif.setType(NotificationType.FRIEND_REQUEST_ACCEPTED);
+
+        notif.setTitle(user.getUsername() + " accepted your friend request");
+        notif.setBody(user.getUsername() + " accepted your friend request");
+    	notif.setDeliveryAckRequired(true);
+        // Publish
+        notificationService.sendPush(notif);
     }
 
     // 3. Get accepted contacts
-    public List<UserDto> getContactList(String userIdFromPrincipal) {
-        var auth = SecurityContextHolder.getContext().getAuthentication();
-        UUID meKey = null;
-        if (auth != null && auth.getDetails() instanceof java.util.Map<?,?> m) {
-            Object v = m.get("user_key");
-            if (v instanceof String s && !s.isBlank()) {
-                try { meKey = UUID.fromString(s); } catch (IllegalArgumentException ignored) {}
-            }
-        }
-
-        if (meKey != null) {
-            //use canonical UUIDs
-            var keys = contactRepository.findAccepted(meKey); // List<UUID>
-            if (keys.isEmpty()) return java.util.List.of();
-            var uniqKeys = keys.stream().distinct().map(UUID::toString).toList();
-            return userClient.getUsersByKeys(uniqKeys);
-        }
-
-        // fallback: use old string IDs (username/email) so FE keeps working
-        var accepted = contactRepository.findByUserIdAndStatus(
-                userIdFromPrincipal, ContactStatus.ACCEPTED);
-        var contactUserIds = accepted.stream()
+    public List<UserDto> getContactList(String userId) {
+        List<Contact> accepted = contactRepository.findByUserIdAndStatus(userId, ContactStatus.ACCEPTED);
+        List<String> contactUserIds = accepted.stream()
                 .map(Contact::getContactUserId)
                 .filter(java.util.Objects::nonNull)
                 .map(String::trim)
                 .map(String::toLowerCase)
                 .distinct()
                 .collect(Collectors.toList());
-        if (contactUserIds.isEmpty()) return java.util.List.of();
         return userClient.getUsersByIds(contactUserIds);
     }
 

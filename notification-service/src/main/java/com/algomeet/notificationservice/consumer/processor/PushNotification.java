@@ -20,7 +20,7 @@ import com.algomeet.notificationservice.consumer.receiver.processor.ReceiverGrou
 import com.algomeet.notificationservice.dto.NotificationDto;
 import com.algomeet.notificationservice.dto.NotificationMessage;
 import com.algomeet.notificationservice.dto.UserDto;
-import com.algomeet.notificationservice.enums.ClientPlatform;
+import com.algomeet.notificationservice.enums.DeviceType;
 import com.algomeet.notificationservice.model.Notification;
 import com.algomeet.notificationservice.model.UserNotification;
 import com.algomeet.notificationservice.repository.UserNativeRepository;
@@ -84,18 +84,18 @@ public class PushNotification implements NotificationProcessor{
 		for (UserDto userDto : receiverList) {	
 			try {				
 				// Check if user has the notification already
-				if (isUserNotificationExists(userDto.getId(),  notification.getId())) { 
+				if (isUserNotificationExists(UUID.fromString(userDto.getUserKey()),  notification.getId())) { 
 					continue;
 				}
 				
 				// Save user notification
-				UserNotification userNotification = saveUserNotification(userDto.getId(), notification);
+				UserNotification userNotification = saveUserNotification(userDto.getUserKey(), notification);
 
 				// Add metadata such as user notification id, and notification type
 				addNotificationCustomData(notification, userNotification);
 
 				// Push notification
-				if (ClientPlatform.IOS.name().equals(userDto.getClientPlatform())
+				if (DeviceType.IOS.name().equals(userDto.getDeviceType())
 						&& StringUtils.hasLength(userDto.getDeviceToken())) {
 					// Apple device client
 					try {
@@ -109,7 +109,7 @@ public class PushNotification implements NotificationProcessor{
 					// Android device or web client
 
 					Set<WebSocketSession> userSessions = NotificationWebSocketHandler.getAuthenticatedUserSessions()
-							.get(userDto.getUsername());
+							.get(userDto.getUserKey());
 
 					if(!(CollectionUtils.isEmpty(userSessions))) {
 						for (WebSocketSession session : userSessions) {
@@ -148,13 +148,13 @@ public class PushNotification implements NotificationProcessor{
 		}
 	}
 
-	private UserNotification saveUserNotification(Long userId, NotificationDto notificationDto) {
+	private UserNotification saveUserNotification(String userKey, NotificationDto notificationDto) {
 		if (Objects.isNull(notificationDto) || !(notificationDto.isDeliveryAckRequired())) {
 			return null;
 		}
 
 		UserNotification userNotification = new UserNotification();
-		userNotification.setUserId(userId);
+		userNotification.setUserKey(UUID.fromString(userKey));
 
 		Notification notification = new Notification();
 		notification.setId(notificationDto.getId());
@@ -165,9 +165,9 @@ public class PushNotification implements NotificationProcessor{
 		return saved;
 	}
 	
-	private boolean isUserNotificationExists(long userId, UUID notificationId) {
+	private boolean isUserNotificationExists(UUID userKey, UUID notificationId) {
 		return !(CollectionUtils.isEmpty(userNotificationRepository
-				.findByUserIdAndNotification_Id(userId, notificationId)));
+				.findByUserKeyAndNotification_Id(userKey, notificationId)));
 	}
 
 	private List<UserDto> getUserReceiverList(Set<String> usernameList) {
@@ -175,7 +175,7 @@ public class PushNotification implements NotificationProcessor{
 			return List.of();
 		}
 
-		return userNativeRepository.getUsersByUsernameList(usernameList.stream().toList());
+		return userNativeRepository.getUsersByUserKeyList(usernameList.stream().toList());
 
 	}
 

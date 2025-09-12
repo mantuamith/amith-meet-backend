@@ -1,6 +1,8 @@
 package com.algomeet.notificationservice.model;
 
 import java.time.Instant;
+import java.util.UUID;
+
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -21,8 +23,8 @@ public class UserNotification {
     @JoinColumn(name = "notification_id", nullable = false)
     private Notification notification;
 
-    @Column(name = "user_id", nullable = false)
-    private Long userId;
+    @Column(name = "user_key", nullable = false)
+    private UUID userKey;
 
     private boolean read;
     private boolean delivered;

@@ -59,9 +59,9 @@ public interface UserClient {
         return res == null ? null : res.get("sid");
     }
     
-    @PostMapping("/internal/users/{id}/client-platform-device-token")
-    void updateClientPlatformDeviceToken(@PathVariable("id") Long id,
-                            @RequestParam("platform") String platform, 
+    @PostMapping("/internal/users/{id}/update-log-in-device")
+    void updateDeviceTypeAndToken(@PathVariable("id") Long id, 
+                            @RequestParam("deviceType") String deviceType,
                             @RequestParam("deviceToken") String deviceToken);
 
 
