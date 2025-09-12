@@ -20,7 +20,7 @@ public class UserResponse {
     /**
      * Value can be (ANDROID, IOS, WEB. HARMONYOS)
      */
-    private String clientPlatform;
+    private String deviceType;
 
     private String userKey;
 
