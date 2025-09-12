@@ -3,7 +3,7 @@ package com.algomeet.notificationservice.constant;
 public class Constants {
 	
 	public final static String SESSION_ATTR_TIME_CONNECTED = "time-connected";
-	public final static String SESSION_ATTR_USERNAME = "username";
+	public final static String SESSION_ATTR_USER_KEY = "user-key";
 	public final static String SESSION_ATTR_TENANT_ID = "tenant-id";
 	public final static String SESSION_ATTR_DEVICE_TOKEN = "device-token";
 	

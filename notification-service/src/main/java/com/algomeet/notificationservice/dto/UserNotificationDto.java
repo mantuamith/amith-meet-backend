@@ -11,7 +11,7 @@ import java.time.Instant;
 @Builder
 public class UserNotificationDto {
     private NotificationDto notification;
-    private Long userId;
+    private String userKey;
     private boolean read;
     private boolean delivered;
     private Instant updatedAt;

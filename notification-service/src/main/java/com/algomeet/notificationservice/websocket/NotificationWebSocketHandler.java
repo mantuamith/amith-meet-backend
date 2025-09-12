@@ -70,15 +70,16 @@ public class NotificationWebSocketHandler extends TextWebSocketHandler {
 					log.info("Auth payload: {}", authRequest);
 
 					UserAuthInfo userAuthInfo = authService.getAuthInfo(authRequest.getAuthorization());
-					if (userAuthInfo != null && StringUtils.hasText(userAuthInfo.getUsername())) {						
+					if (userAuthInfo != null && StringUtils.hasText(userAuthInfo.getUserKey())) {						
 
 						Set<WebSocketSession> userSessions = authenticatedUserSessions.getOrDefault(
-								userAuthInfo.getUsername(), new CopyOnWriteArraySet<>());
+								userAuthInfo.getUserKey(), new CopyOnWriteArraySet<>());
 						userSessions.add(session);	
-						authenticatedUserSessions.put(userAuthInfo.getUsername(), userSessions);
+						authenticatedUserSessions.put(userAuthInfo.getUserKey(), userSessions);
 
-						session.getAttributes().put(Constants.SESSION_ATTR_USERNAME, userAuthInfo.getUsername().trim());	
+						session.getAttributes().put(Constants.SESSION_ATTR_USER_KEY, userAuthInfo.getUserKey().trim());	
 						session.getAttributes().put(Constants.SESSION_ATTR_TENANT_ID, userAuthInfo.getTenantId());
+						log.info("User Key: {}", userAuthInfo.getUserKey().trim());
 						
 						if (StringUtils.hasText(authRequest.getDeviceToken())){
 							session.getAttributes().put(Constants.SESSION_ATTR_DEVICE_TOKEN, authRequest.getDeviceToken().trim());
@@ -142,7 +143,7 @@ public class NotificationWebSocketHandler extends TextWebSocketHandler {
 	}
 	
 	public static void removeFromAuthenticatedSessions(WebSocketSession session) {
-		String username = (String) session.getAttributes().get(Constants.SESSION_ATTR_USERNAME);
+		String username = (String) session.getAttributes().get(Constants.SESSION_ATTR_USER_KEY);
 		
 		if (Objects.nonNull(username)) {
 			authenticatedUserSessions.get(username).remove(session);
