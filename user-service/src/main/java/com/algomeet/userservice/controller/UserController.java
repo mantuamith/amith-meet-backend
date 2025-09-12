@@ -264,16 +264,18 @@ public class UserController {
         );
     }
     
-    @PostMapping("/{id}/client-platform-device-token")
+    @PostMapping("/{id}/update-log-in-device")
     public ResponseEntity<Void> updateClientPlatformDeviceToken(
-            @PathVariable Long id, @RequestParam("platform") String platform, 
+            @PathVariable Long id, @RequestParam("deviceType") Optional<String> deviceTypeOpt, 
             @RequestParam("deviceToken") Optional<String> deviceTokenOpt) {
         
     	User user = userRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("User not found"));
     	
-    	if (StringUtils.hasLength(platform)) {
-    		user.setClientPlatform(platform.trim().toUpperCase());
+    	if (deviceTypeOpt.isPresent()) {
+    		user.setDeviceType(deviceTypeOpt.get()); 
+    	} else {
+    		user.setDeviceType(null);
     	}
     	
     	if (deviceTokenOpt.isPresent()) {
