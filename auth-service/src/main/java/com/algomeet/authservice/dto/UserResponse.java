@@ -28,7 +28,7 @@ public class UserResponse {
     /**
      * Value can be (ANDROID, IOS, WEB. HARMONYOS)
      */
-    private String clientPlatform;
+    private String deviceType;
 
     @SuppressWarnings("unchecked")
     public UserResponse(Map<String, Object> map) {

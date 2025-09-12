@@ -33,6 +33,8 @@ public class LoginVerifyRequest {
     private String ipAddress; // optional
 
     private Boolean overrideExisting;
+    
+    private String deviceToken;
 
     // --- Conditional validation ---
     @AssertTrue(message = "Code is required for EMAIL/PHONE/TOTP verification")
