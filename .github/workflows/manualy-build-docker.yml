@@ -1,5 +1,4 @@
-# .github/workflows/build-and-push-backend-manual.yaml
-name: Build and Push Backend Services(Manual)
+name: Build and Push Backend Services (Manual)
 
 on:
   workflow_dispatch:
@@ -42,10 +41,12 @@ jobs:
         id: targets
         run: |
           if [ "${{ github.event.inputs.services }}" = "all" ]; then
-            echo "target_services=auth-service chat-service contact-service meeting-service user-service notification-service" >> $GITHUB_OUTPUT
+            TARGETS="auth-service chat-service contact-service meeting-service user-service notification-service"
           else
-            echo "target_services=${{ github.event.inputs.services }}" >> $GITHUB_OUTPUT
+            TARGETS="${{ github.event.inputs.services }}"
           fi
+          echo "TARGET_SERVICES=$TARGETS" >> $GITHUB_ENV
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -60,19 +61,19 @@ jobs:
 
       - name: Create settings.xml
         run: |
-          cat > ${{ github.workspace }}/settings.xml <<EOF
-          <settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
-                    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-                    xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0 https://maven.apache.org/xsd/settings-1.0.0.xsd">
-            <servers>
-              <server>
-                <id>github</id>
-                <username>sonaialgoframe</username>
-                <password>${{ secrets.SONAI_PACKAGE_REGISTRY_TOKEN }}</password>
-              </server>
-            </servers>
-          </settings>
-          EOF
+          cat > $GITHUB_WORKSPACE/settings.xml <<EOF
+            <settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
+                      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                      xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0 https://maven.apache.org/xsd/settings-1.0.0.xsd">
+              <servers>
+                <server>
+                  <id>github</id>
+                  <username>sonaialgoframe</username>
+                  <password>${{ secrets.SONAI_PACKAGE_REGISTRTY_TOKEN }}</password>
+                </server>
+              </servers>
+            </settings>
+            EOF
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
@@ -84,12 +85,12 @@ jobs:
       - name: Build and Push Services
         run: |
           TAG="${{ steps.tag.outputs.tag }}"
-          for svc in ${{ steps.targets.outputs.target_services }}; do
+          for svc in $TARGET_SERVICES; do
             echo "▶ Building and pushing $svc with tag $TAG"
 
             # Maven build
             cd $svc
-            mvn -B package --file pom.xml -DskipTests -s ${{ github.workspace }}/settings.xml
+            mvn -B package --file pom.xml -DskipTests -s $GITHUB_WORKSPACE/settings.xml
             cd ..
 
             # Docker build & push
@@ -98,6 +99,7 @@ jobs:
               -t $IMAGE \
               -t ghcr.io/algoframe-private-limited/$svc:latest \
               ./$svc --push
+
 #
 #  trigger-deploy:
 #    runs-on: ubuntu-latest
