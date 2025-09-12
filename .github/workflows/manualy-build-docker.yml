@@ -96,9 +96,11 @@ jobs:
             # Docker build & push
             IMAGE="ghcr.io/algoframe-private-limited/$svc:$TAG"
             docker buildx build --platform linux/amd64,linux/arm64 \
-              -t $IMAGE \
-              -t ghcr.io/algoframe-private-limited/$svc:latest \
+              -t "$IMAGE" \
+              -t "ghcr.io/algoframe-private-limited/$svc:latest" \
               ./$svc --push
+          done
+        shell: bash
 
 #
 #  trigger-deploy:
