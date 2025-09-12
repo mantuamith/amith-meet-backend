@@ -48,14 +48,17 @@ jobs:
         id: set-matrix
         run: |
           SERVICES=()
-          if [ "${{ github.event.inputs.auth-service }}" == "true" ]; then SERVICES+=('"auth-service"'); fi
-          if [ "${{ github.event.inputs.chat-service }}" == "true" ]; then SERVICES+=('"chat-service"'); fi
-          if [ "${{ github.event.inputs.contact-service }}" == "true" ]; then SERVICES+=('"contact-service"'); fi
-          if [ "${{ github.event.inputs.meeting-service }}" == "true" ]; then SERVICES+=('"meeting-service"'); fi
-          if [ "${{ github.event.inputs.user-service }}" == "true" ]; then SERVICES+=('"user-service"'); fi
-          if [ "${{ github.event.inputs.notification-service }}" == "true" ]; then SERVICES+=('"notification-service"'); fi
+          if [ "${{ github.event.inputs.auth-service }}" == "true" ]; then SERVICES+=("\"auth-service\""); fi
+          if [ "${{ github.event.inputs.chat-service }}" == "true" ]; then SERVICES+=("\"chat-service\""); fi
+          if [ "${{ github.event.inputs.contact-service }}" == "true" ]; then SERVICES+=("\"contact-service\""); fi
+          if [ "${{ github.event.inputs.meeting-service }}" == "true" ]; then SERVICES+=("\"meeting-service\""); fi
+          if [ "${{ github.event.inputs.user-service }}" == "true" ]; then SERVICES+=("\"user-service\""); fi
+          if [ "${{ github.event.inputs.notification-service }}" == "true" ]; then SERVICES+=("\"notification-service\""); fi
           
-          MATRIX_JSON="{\"service\":[${SERVICES[*]}]}"
+          # join with commas, not spaces
+          SERVICES_JOINED=$(IFS=, ; echo "${SERVICES[*]}")
+          MATRIX_JSON="{\"service\":[${SERVICES_JOINED}]}"
+          
           echo "MATRIX_JSON=$MATRIX_JSON"
           echo "services=$MATRIX_JSON" >> $GITHUB_OUTPUT
 
