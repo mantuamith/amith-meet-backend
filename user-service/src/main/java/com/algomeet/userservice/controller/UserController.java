@@ -287,6 +287,39 @@ public class UserController {
 
     }
 
+    @GetMapping("/lookup/exact")
+    public Optional<User> exact(@RequestParam("q") String qRaw) {
+        final String q = qRaw == null ? "" : qRaw.trim();
+        if (q.isEmpty()) return Optional.empty();
+
+        // Try most likely first, then fall through
+        // 1) email?
+        if (q.indexOf('@') > 0) {
+            var byEmail = userRepository.findByEmailIgnoreCase(q);
+            if (byEmail.isPresent()) return byEmail;
+        }
+
+        // 2) username (your “userId” string)
+        var byUsername = userRepository.findByUsernameIgnoreCase(q);
+        if (byUsername.isPresent()) return byUsername;
+
+        // 3) numeric primary key id?
+        if (q.chars().allMatch(Character::isDigit)) {
+            try {
+                long id = Long.parseLong(q);
+                var byId = userRepository.findById(id);
+                if (byId.isPresent()) return byId;
+            } catch (NumberFormatException ignore) {}
+        }
+
+        // 4) last chance: if not email but they typed an email-looking value missing case
+        if (q.indexOf('@') > 0) {
+            return userRepository.findByEmailIgnoreCase(q);
+        }
+        return Optional.empty();
+    }
 }
+
+
 
 //TODO: Add Service layer
