@@ -71,6 +71,11 @@ jobs:
                 <username>sonaialgoframe</username>
                 <password>${{ secrets.SONAI_PACKAGE_REGISTRY_TOKEN }}</password>
               </server>
+               <server>
+                <id>github-mtc</id>
+                <username>sonaialgoframe</username>
+                <password>${{ secrets.SONAI_PACKAGE_REGISTRY_TOKEN }}</password>
+              </server>
             </servers>
           </settings>
           EOF
