@@ -51,7 +51,7 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
@@ -68,6 +68,11 @@ jobs:
             <servers>
               <server>
                 <id>github</id>
+                <username>sonaialgoframe</username>
+                <password>${{ secrets.SONAI_PACKAGE_REGISTRY_TOKEN }}</password>
+              </server>
+               <server>
+                <id>github-mtc</id>
                 <username>sonaialgoframe</username>
                 <password>${{ secrets.SONAI_PACKAGE_REGISTRY_TOKEN }}</password>
               </server>
@@ -90,7 +95,8 @@ jobs:
 
             # Maven build
             cd $svc
-            mvn -B package --file pom.xml -DskipTests -s $GITHUB_WORKSPACE/settings.xml
+            echo "${{ github.workspace }}/settings.xml"
+            mvn -B package --file pom.xml -DskipTests -s ${{ github.workspace }}/settings.xml
             cd ..
 
             # Docker build & push
