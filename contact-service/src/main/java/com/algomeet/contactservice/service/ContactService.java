@@ -225,7 +225,7 @@ public class ContactService {
         UserDto u = userClient.exact(q);
         if (u == null || u.getId() == null)
             throw new IllegalArgumentException("User not found: " + q);
-        return java.util.UUID.fromString(u.getId());
+        return java.util.UUID.fromString(String.valueOf(u.getId()));
     }
 
     private UUID currentUserKey(String currentLogin) {
