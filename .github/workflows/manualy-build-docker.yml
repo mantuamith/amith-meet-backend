@@ -45,7 +45,7 @@ jobs:
             echo "target_services=auth-service chat-service contact-service meeting-service user-service notification-service" >> $GITHUB_OUTPUT
           else
             echo "target_services=${{ github.event.inputs.services }}" >> $GITHUB_OUTPUT
-
+          fi
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
