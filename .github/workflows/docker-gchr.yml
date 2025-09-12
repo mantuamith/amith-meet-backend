@@ -30,7 +30,8 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-          server-id: github
+          cache: maven
+          server-id: github-notify
           server-username: sonaialgoframe
           server-password: ${{ secrets.SONAI_PACKAGE_REGISTRTY_TOKEN }}
 

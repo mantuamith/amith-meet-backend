@@ -55,6 +55,7 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+          cache: maven
           server-id: github-mtc
           server-username: sonaialgoframe
           server-password: ${{ secrets.SONAI_PACKAGE_REGISTRY_TOKEN }}
