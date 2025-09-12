@@ -8,18 +8,21 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Repository
 public interface UserNotificationRepository extends JpaRepository<UserNotification, Long> {
 
-	Page<UserNotification> findByUserId(Long userId, Pageable pageable);
+	Optional<UserNotification> findByUserKey(UUID userKey);
 	
-	Page<UserNotification> findByUserIdAndReadFalse(Long userId, Pageable pageable);
+	Page<UserNotification> findByUserKey(UUID userKey, Pageable pageable);
+	
+	Page<UserNotification> findByUserKeyAndReadFalse(UUID userKey, Pageable pageable);
 
-    List<UserNotification> findByUserIdAndReadFalse(Long userId);
+    List<UserNotification> findByUserIdAndReadFalse(UUID userKey);
 
     List<UserNotification> findByNotification_Id(UUID notificationId);
     
-    List<UserNotification> findByUserIdAndNotification_Id(Long userId, UUID notificationId);
+    List<UserNotification> findByUserKeyAndNotification_Id(UUID userKey, UUID notificationId);
 }

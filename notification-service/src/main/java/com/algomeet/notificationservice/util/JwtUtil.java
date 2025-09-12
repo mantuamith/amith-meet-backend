@@ -38,6 +38,17 @@ public class JwtUtil {
         return claims.get("username", String.class); // extract claim
     }
     
+    public String getUserKey(String token) {        	
+        Claims claims = Jwts.parserBuilder()
+                .setSigningKey(secretKey) // same key used for signing
+                .build()
+                .parseClaimsJws(token)
+                .getBody();
+
+        return claims.get("user_key", String.class); // extract claim
+    }
+    
+    
     public String getTenantId(String token) {     
 		if (StringUtils.hasLength(token)) {
 			try {

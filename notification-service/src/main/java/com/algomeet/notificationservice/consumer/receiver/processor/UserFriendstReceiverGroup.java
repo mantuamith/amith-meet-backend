@@ -13,6 +13,7 @@ import com.algomeet.notificationservice.dto.UserContactDto;
 import com.algomeet.notificationservice.dto.UserDto;
 import com.algomeet.notificationservice.enums.ReceiverGroup;
 import com.algomeet.notificationservice.repository.UserContactNativeRepository;
+import com.algomeet.notificationservice.repository.UserNativeRepository;
 
 import jakarta.validation.ValidationException;
 
@@ -20,6 +21,8 @@ import jakarta.validation.ValidationException;
 public class UserFriendstReceiverGroup implements ReceiverGroupProcessor{
 	@Autowired
 	private UserContactNativeRepository userContactNativeRepository;
+	@Autowired
+	private UserNativeRepository userNativeRepository;
 
 	@Override
 	public List<UserDto> getUserList(NotificationDto notificationDto) {
@@ -32,16 +35,13 @@ public class UserFriendstReceiverGroup implements ReceiverGroupProcessor{
 			throw new ValidationException("Receiver group referrence id fiels is empty");
 		}
 
-		List<UserContactDto> userContactList = userContactNativeRepository.getUserFriendList(notificationDto.getReceiverGroupRefId());
-
+		List<String> userContactList = userContactNativeRepository.getUserFriendList(notificationDto.getReceiverGroupRefId());
+		List<UserDto> userList = null;
+		
 		if (!CollectionUtils.isEmpty(userContactList)) {
-			return userContactList.stream().map(c -> {
-				UserDto user = new UserDto();
-				BeanUtils.copyProperties(c, user);
-				return user;
-			}).toList();
+			userList = userNativeRepository.getUsersByUserKeyList(userContactList);
 		}
-
-		return null;
+		
+		return userList;
 	}
 }

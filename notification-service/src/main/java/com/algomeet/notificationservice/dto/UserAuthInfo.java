@@ -6,6 +6,6 @@ import lombok.Data;
 @Data
 @AllArgsConstructor
 public class UserAuthInfo {
-	private String username;
+	private String userKey;
 	private String tenantId;
 }

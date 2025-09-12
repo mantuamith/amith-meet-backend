@@ -23,23 +23,23 @@ public class UserNotificationController {
     private final UserNotificationService userNotificationService;
 
     // Get all notifications for a user
-    @GetMapping("/user/{userId}")
+    @GetMapping("/user/{userKey}")
     public ResponseEntity<? extends CommonResponse<?>> getUserNotifications(
-            @PathVariable Long userId,
+            @PathVariable String userKey,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "500") int size,
             @RequestParam(defaultValue = "createdAt") String sortBy,
             @RequestParam(defaultValue = "desc") String direction
     ) {
         return ResponseEntity.ok(
-        		CommonResponse.from(ResponseCode.SUCCESS, userNotificationService.getUserNotifications(userId, page, size, sortBy, direction))
+        		CommonResponse.from(ResponseCode.SUCCESS, userNotificationService.getUserNotifications(userKey, page, size, sortBy, direction))
         );
     }
     
     // Get all notifications for a user
-    @GetMapping("/user/{userId}/unread")
+    @GetMapping("/user/{userKey}/unread")
     public ResponseEntity<? extends CommonResponse<?>> getUnreadNotifications(
-            @PathVariable Long userId,
+            @PathVariable String userKey,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "500") int size,
             @RequestParam(defaultValue = "updatedAt") String sortBy,
@@ -47,7 +47,7 @@ public class UserNotificationController {
     ) {
     	
         return ResponseEntity.ok(
-        		CommonResponse.from(ResponseCode.SUCCESS, userNotificationService.getUnreadNotifications(userId, page, size, sortBy, direction))
+        		CommonResponse.from(ResponseCode.SUCCESS, userNotificationService.getUnreadNotifications(userKey, page, size, sortBy, direction))
         );
     }
 

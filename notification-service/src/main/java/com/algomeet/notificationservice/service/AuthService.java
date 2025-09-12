@@ -23,7 +23,7 @@ public class AuthService {
 			
 			String tenantId = jwtUtil.getTenantId(token) != null ? jwtUtil.getTenantId(token) : "";
 			
-			return new UserAuthInfo(jwtUtil.getUsername(token), tenantId);			 
+			return new UserAuthInfo(jwtUtil.getUserKey(token), tenantId);			 
 		} catch(Exception ex) {
 			log.error("Error authenticating user token {} ", ex.getMessage(), ex);
 			return null;
