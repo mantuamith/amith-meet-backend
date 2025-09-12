@@ -171,7 +171,7 @@ public class ContactService {
         var meKey = UUID.fromString(token.getToken().getClaimAsString("user_key"));
 
         // Exact candidate by username/email/UUID
-        UserDto hit = userClient.exact(query).getBody();
+        UserDto hit = userClient.exact(query);
         if (hit == null || hit.getId() == null) return List.of();
 
         var candidateKey = UUID.fromString(hit.getId().toString());
@@ -186,7 +186,7 @@ public class ContactService {
     }
 
     private UUID resolveKeyFromLogin(String login) {
-        UserDto u = userClient.exact(login).getBody();
+        UserDto u = userClient.exact(login);
         if (u == null || u.getUserKey() == null) {
             throw new IllegalArgumentException("Unknown user: " + login);
         }
@@ -209,10 +209,6 @@ public class ContactService {
         }
         // fallback: resolve from current principal login (username/email)
         return resolveKeyFromLogin(currentLogin);
-    }
-    
-    private void sendNotification() {
-    	
     }
 
 }
