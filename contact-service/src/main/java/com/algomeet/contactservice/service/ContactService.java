@@ -1,22 +1,27 @@
 package com.algomeet.contactservice.service;
 
+import java.security.Principal;
+import java.time.Instant;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
+import org.springframework.stereotype.Service;
+
 import com.algomeet.contactservice.client.UserClient;
 import com.algomeet.contactservice.dto.UserDto;
 import com.algomeet.contactservice.entity.Contact;
 import com.algomeet.contactservice.entity.ContactStatus;
 import com.algomeet.contactservice.repository.ContactRepository;
-import lombok.RequiredArgsConstructor;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.stereotype.Service;
-import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
+import com.algomeet.notificationservice.dto.Notification;
+import com.algomeet.notificationservice.enums.NotificationType;
+import com.algomeet.notificationservice.service.NotificationService;
 
-import java.security.Principal;
-import java.time.Instant;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
-import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
@@ -24,7 +29,8 @@ public class ContactService {
 
     private final ContactRepository contactRepository;
     private final UserClient userClient;
-
+    private final NotificationService notificationService;
+    
     public void addContact(String userId, String contactUserId) {
         if (userId.equals(contactUserId)) {
             throw new IllegalArgumentException("Cannot add yourself as a contact.");
@@ -67,6 +73,20 @@ public class ContactService {
                 .createdAt(Instant.now())
                 .build();
         contactRepository.save(c);
+        
+        // Send friend reuquest notification
+        UserDto user = userClient.byKey(me);
+        Notification notif = new Notification();        
+        // Set receiver
+        notif.setReceiverIds(Set.of(other.toString()));
+                 
+        notif.setType(NotificationType.FRIEND_REQUEST_RECEIVED);
+        
+        notif.setTitle(user.getUsername() + " sent you a friend request");
+        notif.setBody(user.getUsername() + " sent you a friend request");
+    	notif.setDeliveryAckRequired(true);
+        // Publish
+        notificationService.sendPush(notif);  
     }
 
     // 2. Accept a contact request
@@ -91,6 +111,20 @@ public class ContactService {
                     .build();
             contactRepository.save(rev);
         }
+        
+        // Send friend request accepted notification
+        UserDto user = userClient.byKey(me);
+        Notification notif = new Notification();        
+        // Set receiver
+        notif.setReceiverIds(Set.of(other.toString()));
+                 
+        notif.setType(NotificationType.FRIEND_REQUEST_ACCEPTED);
+        
+        notif.setTitle(user.getUsername() + " accepted your friend request");
+        notif.setBody(user.getUsername() + " accepted your friend request");
+    	notif.setDeliveryAckRequired(true);
+        // Publish
+        notificationService.sendPush(notif);  
     }
 
     // 3. Get accepted contacts
@@ -137,7 +171,7 @@ public class ContactService {
         var meKey = UUID.fromString(token.getToken().getClaimAsString("user_key"));
 
         // Exact candidate by username/email/UUID
-        UserDto hit = userClient.exact(query);
+        UserDto hit = userClient.exact(query).getBody();
         if (hit == null || hit.getId() == null) return List.of();
 
         var candidateKey = UUID.fromString(hit.getId().toString());
@@ -152,7 +186,7 @@ public class ContactService {
     }
 
     private UUID resolveKeyFromLogin(String login) {
-        UserDto u = userClient.exact(login);
+        UserDto u = userClient.exact(login).getBody();
         if (u == null || u.getUserKey() == null) {
             throw new IllegalArgumentException("Unknown user: " + login);
         }
@@ -175,6 +209,10 @@ public class ContactService {
         }
         // fallback: resolve from current principal login (username/email)
         return resolveKeyFromLogin(currentLogin);
+    }
+    
+    private void sendNotification() {
+    	
     }
 
 }
