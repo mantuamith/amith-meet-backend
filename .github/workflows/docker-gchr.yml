@@ -37,7 +37,7 @@ jobs:
         with:
           registry: ghcr.io
           username: sonaialgoframe
-          password: ${{ secrets.SONAI_PACKAGE_REGISTRTY_TOKEN }}
+          password: ${{ secrets.SONAI_PACKAGE_REGISTRY_TOKEN }}
 
       - name: Check if ${{ matrix.service }} has changes
         id: check_changes
@@ -123,6 +123,6 @@ jobs:
         if: steps.detect.outputs.changed_services != ''
         uses: peter-evans/repository-dispatch@v2
         with:
-          token: ${{ secrets.SONAI_PACKAGE_REGISTRTY_TOKEN }}
+          token: ${{ secrets.SONAI_PACKAGE_REGISTRY_TOKEN }}
           repository: Algoframe-Private-Limited/k8-deployment-config
           event-type: deploy-latest-image
