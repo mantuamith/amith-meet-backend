@@ -1,14 +1,13 @@
 package com.algomeet.notificationservice.enums;
-public enum ClientPlatform {
+public enum DeviceType {
     ANDROID,
     IOS,
-    WEB,
-    HARMONYOS;
+    WEB;
 
-    public static ClientPlatform fromString(String value) {
+    public static DeviceType fromString(String value) {
         if (value == null) {
-            throw new IllegalArgumentException("Platform cannot be null");
+            throw new IllegalArgumentException("Device type cannot be null");
         }
-        return ClientPlatform.valueOf(value.toUpperCase());
+        return DeviceType.valueOf(value.toUpperCase());
     }
 }
