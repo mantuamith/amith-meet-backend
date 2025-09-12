@@ -55,7 +55,8 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-          server-id: github-mtc
+          cache: maven
+          server-id: github
           server-username: sonaialgoframe
           server-password: ${{ secrets.SONAI_PACKAGE_REGISTRY_TOKEN }}
 
@@ -71,7 +72,7 @@ jobs:
                 <username>sonaialgoframe</username>
                 <password>${{ secrets.SONAI_PACKAGE_REGISTRY_TOKEN }}</password>
               </server>
-               <server>
+              <server>
                 <id>github-mtc</id>
                 <username>sonaialgoframe</username>
                 <password>${{ secrets.SONAI_PACKAGE_REGISTRY_TOKEN }}</password>
@@ -85,7 +86,7 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.SONAI_PACKAGE_REGISTRTY_TOKEN }}
+          password: ${{ secrets.SONAI_PACKAGE_REGISTRY_TOKEN }}
 
       - name: Build and Push Services
         run: |
