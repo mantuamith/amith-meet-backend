@@ -55,7 +55,7 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-          server-id: github
+          server-id: github-mtc
           server-username: sonaialgoframe
           server-password: ${{ secrets.SONAI_PACKAGE_REGISTRY_TOKEN }}
 
@@ -67,7 +67,7 @@ jobs:
                     xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0 https://maven.apache.org/xsd/settings-1.0.0.xsd">
             <servers>
               <server>
-                <id>github</id>
+                <id>github-notify</id>
                 <username>sonaialgoframe</username>
                 <password>${{ secrets.SONAI_PACKAGE_REGISTRY_TOKEN }}</password>
               </server>
