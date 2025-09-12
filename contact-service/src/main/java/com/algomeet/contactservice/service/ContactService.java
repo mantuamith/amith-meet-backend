@@ -10,6 +10,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
+import com.algomeet.contactservice.config.AuthCtx;
 
 import java.security.Principal;
 import java.time.Instant;
@@ -48,24 +49,31 @@ public class ContactService {
     }
 
     // 1. Send a contact request
-    public void sendContactRequest(String senderLogin, String receiverLoginOrId) {
-        UUID me = currentUserKey(senderLogin);
-        UUID other = resolveKeyFlexible(receiverLoginOrId);
-        if (me.equals(other)) throw new IllegalArgumentException("Cannot add yourself.");
+    public void sendContactRequest(Authentication auth, String receiverLoginOrId) {
+        java.util.UUID me = AuthCtx.userKeyFrom(auth);
+        String senderLogin = auth.getName();
+        if (me == null) {
+            me = resolveKeyFlexible(senderLogin); // fallback for old tokens
+        }
+
+        java.util.UUID other = resolveKeyFlexible(receiverLoginOrId);
+        if (me.equals(other))
+            throw new IllegalArgumentException("Cannot add yourself.");
 
         if (contactRepository.existsUuidPair(me, other)) {
             throw new RuntimeException("Contact or request already exists.");
         }
 
-        // Keep legacy ids for FE
         Contact c = Contact.builder()
                 .userKey(me)
                 .contactUserKey(other)
+                // keep legacy ids to avoid FE changes
                 .userId(senderLogin == null ? null : senderLogin.trim().toLowerCase())
                 .contactUserId(receiverLoginOrId.trim().toLowerCase())
                 .status(ContactStatus.PENDING)
                 .createdAt(Instant.now())
                 .build();
+
         contactRepository.save(c);
     }
 
@@ -76,14 +84,25 @@ public class ContactService {
 
         Contact req = contactRepository.findByUserKeyAndContactUserKey(other, me)
                 .orElseThrow(() -> new RuntimeException("No contact request found"));
+        if (req.getStatus() == ContactStatus.ACCEPTED) {
+            // already accepted — no-op
+            return;
+        }
+
+        if (req.getStatus() != ContactStatus.PENDING) {
+            // block accepting a non-pending request
+            throw new IllegalStateException("Contact request is not pending (current status: " + req.getStatus() + ")");
+        }
         req.setStatus(ContactStatus.ACCEPTED);
         contactRepository.save(req);
 
         // Ensure reverse row exists as ACCEPTED
-        if (!contactRepository.existsUuidPair(me, other)) {
+        boolean reverseExists = contactRepository.existsByUserKeyAndContactUserKey(me, other);
+        if (!reverseExists) {
             Contact rev = Contact.builder()
                     .userKey(me)
                     .contactUserKey(other)
+                    // keep legacy columns for FE until migration finishes
                     .userId(receiverLogin == null ? null : receiverLogin.trim().toLowerCase())
                     .contactUserId(senderLoginOrId == null ? null : senderLoginOrId.trim().toLowerCase())
                     .status(ContactStatus.ACCEPTED)
@@ -94,11 +113,35 @@ public class ContactService {
     }
 
     // 3. Get accepted contacts
-    public List<UserDto> getContactList(String userId) {
-        List<Contact> accepted = contactRepository.findByUserIdAndStatus(userId, ContactStatus.ACCEPTED);
-        List<String> contactUserIds = accepted.stream()
+    public List<UserDto> getContactList(String userIdFromPrincipal) {
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        UUID meKey = null;
+        if (auth != null && auth.getDetails() instanceof java.util.Map<?,?> m) {
+            Object v = m.get("user_key");
+            if (v instanceof String s && !s.isBlank()) {
+                try { meKey = UUID.fromString(s); } catch (IllegalArgumentException ignored) {}
+            }
+        }
+
+        if (meKey != null) {
+            //use canonical UUIDs
+            var keys = contactRepository.findAccepted(meKey); // List<UUID>
+            if (keys.isEmpty()) return java.util.List.of();
+            var uniqKeys = keys.stream().distinct().map(UUID::toString).toList();
+            return userClient.getUsersByKeys(uniqKeys);
+        }
+
+        // fallback: use old string IDs (username/email) so FE keeps working
+        var accepted = contactRepository.findByUserIdAndStatus(
+                userIdFromPrincipal, ContactStatus.ACCEPTED);
+        var contactUserIds = accepted.stream()
                 .map(Contact::getContactUserId)
+                .filter(java.util.Objects::nonNull)
+                .map(String::trim)
+                .map(String::toLowerCase)
+                .distinct()
                 .collect(Collectors.toList());
+        if (contactUserIds.isEmpty()) return java.util.List.of();
         return userClient.getUsersByIds(contactUserIds);
     }
 
@@ -160,9 +203,14 @@ public class ContactService {
     }
 
     private UUID resolveKeyFlexible(String q) {
-        if (q == null || q.isBlank()) throw new IllegalArgumentException("Empty id");
-        try { return UUID.fromString(q); } catch (IllegalArgumentException ignore) {}
-        return resolveKeyFromLogin(q);
+        if (q == null || q.isBlank()) throw new IllegalArgumentException("Empty identifier");
+        // allow UUID directly
+        try { return java.util.UUID.fromString(q); } catch (IllegalArgumentException ignore) {}
+        // else via user-service exact (username/email)
+        UserDto u = userClient.exact(q);
+        if (u == null || u.getId() == null)
+            throw new IllegalArgumentException("User not found: " + q);
+        return java.util.UUID.fromString(u.getId());
     }
 
     private UUID currentUserKey(String currentLogin) {

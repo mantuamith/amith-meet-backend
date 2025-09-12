@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.security.Key;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 
 @Component
@@ -48,13 +49,27 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         .parseClaimsJws(token)
                         .getBody();
 
-                String subject = claims.getSubject();
-                String userKey = claims.get("user_key", String.class);
+                String principalName = claims.get("username", String.class);
+                if (principalName == null || principalName.isBlank()) {
+                    principalName = claims.getSubject();
+                }
 
-                UsernamePasswordAuthenticationToken authentication =
-                        new UsernamePasswordAuthenticationToken(subject, null, Collections.emptyList());
-                authentication.setDetails(Map.of("user_key", userKey));
-                SecurityContextHolder.getContext().setAuthentication(authentication);
+                if (principalName != null && !principalName.isBlank()) {
+                    var auth = new UsernamePasswordAuthenticationToken(
+                            principalName, null, Collections.emptyList());
+
+                    // Build details safely (no Map.of with nulls)
+                    Map<String, Object> details = new HashMap<>(4);
+                    String userKey = claims.get("user_key", String.class);
+                    if (userKey != null && !userKey.isBlank()) details.put("user_key", userKey);
+                    String sid = claims.get("sid", String.class);
+                    if (sid != null && !sid.isBlank()) details.put("sid", sid);
+                    // always useful:
+                    details.put("email", claims.getSubject());
+
+                    auth.setDetails(details);
+                    SecurityContextHolder.getContext().setAuthentication(auth);
+                }
 
             } catch (Exception e) {
                 response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Invalid or expired token");

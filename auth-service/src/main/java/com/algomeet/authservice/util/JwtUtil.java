@@ -125,8 +125,8 @@ public class JwtUtil {
     private String safeUserKey(UserResponse user) {
         // Avoid NPE if your UserResponse doesn't yet have userKey
         try {
-            String uk = user.getUserKey().toString();
-            return (uk == null || uk.isBlank()) ? null : uk;
+            var uk = user.getUserKey();
+            return uk == null ? null : uk.toString();
         } catch (Throwable t) {
             return null;
         }
