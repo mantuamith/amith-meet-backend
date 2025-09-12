@@ -12,6 +12,6 @@ public class UserDto {
 	private String userKey;
 	private String username;
 	private String email;
-	private String clientPlatform;
+	private String deviceType;
 	private String deviceToken;
 }

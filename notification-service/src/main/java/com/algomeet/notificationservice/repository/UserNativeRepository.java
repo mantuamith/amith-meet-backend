@@ -21,7 +21,7 @@ public class UserNativeRepository {
     @UsePublicSchema
     public List<UserDto> getUsersByUserKeyList(List<String> userKeys) {
         String placeholders = String.join(",", java.util.Collections.nCopies(userKeys.size(), "CAST(? AS uuid)"));
-        String sql = String.format("SELECT id, CAST(user_key AS TEXT), username, email, client_platform, device_token FROM users WHERE user_key IN (%s)", placeholders);
+        String sql = String.format("SELECT id, CAST(user_key AS TEXT), username, email, device_type, device_token FROM users WHERE user_key IN (%s)", placeholders);
 
         Query query = entityManager.createNativeQuery(sql);
 
