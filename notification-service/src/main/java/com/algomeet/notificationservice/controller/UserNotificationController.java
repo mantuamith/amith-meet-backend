@@ -16,7 +16,7 @@ import com.algomeet.notificationservice.service.UserNotificationService;
 import lombok.RequiredArgsConstructor;
 
 @RestController
-@RequestMapping("/user-notifications")
+@RequestMapping("/notifications/user-notifications")
 @RequiredArgsConstructor
 public class UserNotificationController {
 
