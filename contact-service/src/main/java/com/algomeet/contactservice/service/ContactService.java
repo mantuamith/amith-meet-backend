@@ -214,14 +214,16 @@ public class ContactService {
             throw new IllegalArgumentException("Empty identifier");
         // allow UUID directly
         try {
-            return java.util.UUID.fromString(q);
-        } catch (IllegalArgumentException ignore) {}
+            return UUID.fromString(q);
+        } catch (IllegalArgumentException ignore) {
+
+        }
         // else via user-service exact (username/email)
         UserDto u = userClient.exact(q);
         if (u == null || u.getId() == null)
             throw new IllegalArgumentException("User not found: " + q);
 
-        return java.util.UUID.fromString(String.valueOf(u.getId()));
+        return java.util.UUID.fromString(String.valueOf(u.getUserKey()));
     }
 
     private UUID currentUserKey(String currentLogin) {

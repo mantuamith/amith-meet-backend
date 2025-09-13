@@ -1,5 +1,6 @@
 package com.algomeet.authservice.dto;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -10,6 +11,7 @@ import java.util.UUID;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class UserResponse {
     private Long id;
     private String username;
@@ -37,7 +39,7 @@ public class UserResponse {
         this.id = map.get("id") != null ? ((Number) map.get("id")).longValue() : null;
         this.username = (String) map.get("username");
         this.email = (String) map.get("email");
-        this.password = (String) map.get("password");
+        //this.password = (String) map.get("password");
         this.activeDeviceId = (String) map.get("activeDeviceId");
 
         Object ltp = map.get("loginTypePolicy");

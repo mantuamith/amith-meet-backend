@@ -346,16 +346,7 @@ public class UserController {
         var byUsername = userRepository.findByUsernameIgnoreCase(q);
         if (byUsername.isPresent()) return byUsername;
 
-        // 3) numeric primary key id?
-        if (q.chars().allMatch(Character::isDigit)) {
-            try {
-                long id = Long.parseLong(q);
-                var byId = userRepository.findById(id);
-                if (byId.isPresent()) return byId;
-            } catch (NumberFormatException ignore) {}
-        }
-
-        // 4) last chance: if not email but they typed an email-looking value missing case
+        // 3) last chance: if not email but they typed an email-looking value missing case
         if (q.indexOf('@') > 0) {
             return userRepository.findByEmailIgnoreCase(q);
         }

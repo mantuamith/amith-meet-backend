@@ -1,8 +1,10 @@
 package com.algomeet.contactservice.dto;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Data;
 
 @Data
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class UserDto {
     private Long id;
     private String username;
@@ -16,7 +18,4 @@ public class UserDto {
     private String clientPlatform;
 
     private String userKey;
-    
-    // NEW: expose loginTypePolicy so auth-service can enforce device policy
-    private Short loginTypePolicy;
 }
