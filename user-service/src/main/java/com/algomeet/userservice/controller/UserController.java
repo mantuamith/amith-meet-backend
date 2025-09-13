@@ -162,6 +162,46 @@ public class UserController {
         return ResponseEntity.ok(users);
     }
 
+    @PostMapping({"/batch/getUsersByKeys"})
+    public ResponseEntity<List<UserDto>> getUsersByKeys(@RequestBody List<String> userKeys) {
+        if (userKeys == null || userKeys.isEmpty()) {
+            return ResponseEntity.ok(List.of());
+        }
+
+        // Parse UUIDs (lenient: skip invalid entries; flip to strict by collecting bads and returning 400)
+        List<UUID> uuids = new ArrayList<>(userKeys.size());
+        for (String s : userKeys) {
+            if (s == null || s.isBlank()) continue;
+            try { uuids.add(UUID.fromString(s.trim())); } catch (IllegalArgumentException ignored) {}
+        }
+        if (uuids.isEmpty()) return ResponseEntity.ok(List.of());
+
+        // Cap batch size (protect DB)
+        final int MAX = 500;
+        if (uuids.size() > MAX) {
+            return ResponseEntity.status(413).build(); // Payload Too Large
+        }
+
+        // De-dup for query, but keep original order for output
+        List<UUID> distinct = uuids.stream().distinct().toList();
+
+        // Query DB
+        List<User> users = userRepository.findByUserKeyIn(distinct);
+
+        // Index by user_key for O(1) re-order
+        Map<UUID, User> byKey = users.stream()
+                .collect(java.util.stream.Collectors.toMap(User::getUserKey, u -> u));
+
+        // Rebuild in caller's order, skipping missing users
+        List<UserDto> out = new ArrayList<>(uuids.size());
+        for (UUID k : uuids) {
+            User u = byKey.get(k);
+            if (u != null) out.add(toDto(u));
+        }
+
+        return ResponseEntity.ok(out);
+    }
+
     @GetMapping("/search")
     public ResponseEntity<List<UserDto>> searchUsers(@RequestParam String query) {
         List<User> users = userRepository.searchUsers(query);
@@ -298,7 +338,8 @@ public class UserController {
         // 1) email?
         if (q.indexOf('@') > 0) {
             var byEmail = userRepository.findByEmailIgnoreCase(q);
-            if (byEmail.isPresent()) return byEmail;
+            if (byEmail.isPresent())
+                return byEmail;
         }
 
         // 2) username (your “userId” string)
@@ -319,6 +360,14 @@ public class UserController {
             return userRepository.findByEmailIgnoreCase(q);
         }
         return Optional.empty();
+    }
+
+    private static UserDto toDto(User u) {
+        UserDto dto = new UserDto();
+        dto.setId(u.getUserKey().toString());   // expose UUID as id
+        dto.setUsername(u.getUsername());
+        dto.setEmail(u.getEmail());
+        return dto;
     }
 }
 

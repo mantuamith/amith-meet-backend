@@ -4,6 +4,7 @@ import com.algomeet.contactservice.dto.UserDto;
 import com.algomeet.contactservice.service.ContactService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
@@ -18,9 +19,9 @@ public class ContactController {
 
     //1. Send a contact request
     @PostMapping("/request")
-    public ResponseEntity<String> sendContactRequest(@RequestParam String receiverId, Principal principal) {
-        String senderId = principal.getName(); // authenticated user
-        contactService.sendContactRequest(senderId, receiverId);
+    public ResponseEntity<String> sendContactRequest(@RequestParam String receiverId, Authentication auth) {
+
+        contactService.sendContactRequest(auth, receiverId);
         return ResponseEntity.ok("Contact request sent.");
     }
 

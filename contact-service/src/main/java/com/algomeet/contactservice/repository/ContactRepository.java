@@ -23,12 +23,14 @@ public interface ContactRepository extends JpaRepository<Contact, Long> {
     Optional<Contact> findByUserIdAndContactUserId(String userId, String contactUserId);
 
     @Query("""
-      select (count(c) > 0)
-      from Contact c
-      where (c.userKey = :a and c.contactUserKey = :b)
-         or (c.userKey = :b and c.contactUserKey = :a)
-    """)
+SELECT CASE WHEN COUNT(c) > 0 THEN TRUE ELSE FALSE END
+FROM Contact c
+WHERE (c.userKey = :a AND c.contactUserKey = :b)
+   OR (c.userKey = :b AND c.contactUserKey = :a)
+""")
     boolean existsUuidPair(@Param("a") UUID a, @Param("b") UUID b);
+
+    boolean existsByUserKeyAndContactUserKey(UUID userKey, UUID contactUserKey);
 
     Optional<Contact> findByUserKeyAndContactUserKey(UUID userKey, UUID contactUserKey);
 

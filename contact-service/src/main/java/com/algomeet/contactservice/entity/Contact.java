@@ -52,9 +52,12 @@ public class Contact {
 
     @PrePersist
     void prePersist() {
-        if (createdAt == null) createdAt = Instant.now();
-        if (userId != null) userId = userId.trim().toLowerCase();
-        if (contactUserId != null) contactUserId = contactUserId.trim().toLowerCase();
+        if (createdAt == null)
+            createdAt = Instant.now();
+        if (userId != null)
+            userId = userId.trim().toLowerCase();
+        if (contactUserId != null)
+            contactUserId = contactUserId.trim().toLowerCase();
         // ensure UUIDs present
         requireNonNull(userKey, "userKey is required");
         requireNonNull(contactUserKey, "contactUserKey is required");
@@ -62,7 +65,9 @@ public class Contact {
 
     @PreUpdate
     void preUpdate() {
-        if (userId != null) userId = userId.trim().toLowerCase();
-        if (contactUserId != null) contactUserId = contactUserId.trim().toLowerCase();
+        if (userId != null)
+            userId = userId.trim().toLowerCase();
+        if (contactUserId != null)
+            contactUserId = contactUserId.trim().toLowerCase();
     }
 }
