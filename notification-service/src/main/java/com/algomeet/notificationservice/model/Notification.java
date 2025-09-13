@@ -38,8 +38,6 @@ public class Notification {
     private String body;
 
     private String senderId;
-    
-    @Column(columnDefinition = "TINYTEXT")
     private String receiverId;
     private String receiverGroup;
     private String receiverGroupRefId;
