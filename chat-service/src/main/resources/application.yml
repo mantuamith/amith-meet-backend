@@ -29,9 +29,9 @@ spring:
   # ================================
   # Redis Configuration
   # ================================
-  redis:
-    host: ${REDIS_HOST:localhost}
-    port: ${REDIS_PORT:6379}
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
     # TODO: Ensure Redis in production is:
     # - Password protected via requirepass
     # - Bound to internal IPs only (127.0.0.1 or private VPC)
