@@ -124,7 +124,7 @@ public class AuthService {
             }
 
             // 2) Verify password
-            if (!passwordEncoder.matches(rawPassword, passwordEncoder.encode(user.getPassword()))) {
+            if (!passwordEncoder.matches(rawPassword, user.getPassword())) {
                 log.warn("LOGIN: bad credentials email={}", maskEmail(email));
                 return AuthResponse.from(ResponseCode.AUTH_INVALID_CREDENTIALS, null, null, null);
             }
