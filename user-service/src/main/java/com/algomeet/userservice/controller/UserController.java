@@ -338,7 +338,8 @@ public class UserController {
         // 1) email?
         if (q.indexOf('@') > 0) {
             var byEmail = userRepository.findByEmailIgnoreCase(q);
-            if (byEmail.isPresent()) return byEmail;
+            if (byEmail.isPresent())
+                return byEmail;
         }
 
         // 2) username (your “userId” string)

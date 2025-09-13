@@ -14,10 +14,7 @@ import com.algomeet.contactservice.config.AuthCtx;
 
 import java.security.Principal;
 import java.time.Instant;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -188,23 +185,18 @@ public class ContactService {
     }
 
     public List<UserDto> searchUsers(String query, Principal auth) {
-        if (query == null || query.isBlank())
-            return List.of();
+        if (query == null || query.isBlank()) return List.of();
 
-        var token = (JwtAuthenticationToken) auth;
-        var meKey = UUID.fromString(token.getToken().getClaimAsString("user_key"));
-
-        // Exact candidate by username/email/UUID
+        UUID me = currentUserKey(auth.getName());
         UserDto hit = userClient.exact(query);
-        if (hit == null || hit.getId() == null) return List.of();
+        if (hit == null || hit.getUserKey() == null) return List.of();
 
-        var candidateKey = UUID.fromString(hit.getId().toString());
-        if (candidateKey.equals(meKey)) return List.of();
+        UUID cand = UUID.fromString(hit.getUserKey());
+        if (cand.equals(me)) return List.of();
 
-        var accepted = new java.util.HashSet<>(contactRepository.findAccepted(meKey));
-        var pending  = new java.util.HashSet<>(contactRepository.findPending(meKey));
-        if (accepted.contains(candidateKey) || pending.contains(candidateKey))
-            return List.of();
+        var accepted = new HashSet<>(contactRepository.findAccepted(me));
+        var pending  = new HashSet<>(contactRepository.findPending(me));
+        if (accepted.contains(cand) || pending.contains(cand)) return List.of();
 
         return List.of(hit); // exact only, after exclusions
     }
@@ -218,13 +210,17 @@ public class ContactService {
     }
 
     private UUID resolveKeyFlexible(String q) {
-        if (q == null || q.isBlank()) throw new IllegalArgumentException("Empty identifier");
+        if (q == null || q.isBlank())
+            throw new IllegalArgumentException("Empty identifier");
         // allow UUID directly
-        try { return java.util.UUID.fromString(q); } catch (IllegalArgumentException ignore) {}
+        try {
+            return java.util.UUID.fromString(q);
+        } catch (IllegalArgumentException ignore) {}
         // else via user-service exact (username/email)
         UserDto u = userClient.exact(q);
         if (u == null || u.getId() == null)
             throw new IllegalArgumentException("User not found: " + q);
+
         return java.util.UUID.fromString(String.valueOf(u.getId()));
     }
 

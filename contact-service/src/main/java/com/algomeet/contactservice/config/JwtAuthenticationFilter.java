@@ -1,12 +1,15 @@
 package com.algomeet.contactservice.config;
 
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.MalformedJwtException;
 import io.jsonwebtoken.security.Keys;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -16,12 +19,14 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import javax.crypto.SecretKey;
 import java.io.IOException;
 import java.security.Key;
+import java.security.SignatureException;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
 @Component
+@Slf4j
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final SecretKey key;
@@ -36,7 +41,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                     FilterChain filterChain)
             throws ServletException, IOException {
 
-        String authHeader = request.getHeader("Authorization");
+        final String method = request.getMethod();
+        final String path = request.getRequestURI();
+        final String authHeader = request.getHeader("Authorization");
 
         if (authHeader != null && authHeader.startsWith("Bearer ") &&
                 SecurityContextHolder.getContext().getAuthentication() == null) {
@@ -69,14 +76,30 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
                     auth.setDetails(details);
                     SecurityContextHolder.getContext().setAuthentication(auth);
+                    log.info("JWT auth OK: user={} user_key={} sid={} {} {}",
+                            safe(claims.getSubject()), safe(userKey), safe(sid), method, path);
                 }
 
-            } catch (Exception e) {
+            } catch (ExpiredJwtException ex) {
+                log.info("JWT expired: {} {}: {}", method, path, ex.getMessage());
+                response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Token expired");
+            } catch (MalformedJwtException ex) {
+                log.warn("JWT malformed: {} {}: {}", method, path, ex.getMessage());
+                response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Malformed token");
+            } catch (Exception ex) {
+                log.warn("JWT parsing failed: {} {}: {}", method, path, ex.getMessage());
                 response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Invalid or expired token");
-                return;
             }
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    private static boolean isBlank(String s) {
+        return s == null || s.isBlank();
+    }
+
+    private static String safe(String v) {
+        return isBlank(v) ? "-" : v;
     }
 }
