@@ -16,11 +16,7 @@ import com.algomeet.contactservice.config.AuthCtx;
 
 import java.security.Principal;
 import java.time.Instant;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.Collectors;
 
 
@@ -165,26 +161,21 @@ public class ContactService {
 
     public List<UserDto> getContactList(UUID userKey) {
         log.debug("Fetching accepted contacts for userId={}", userKey);
-        List<Contact> accepted = contactRepository.findByContactUserKeyAndStatus(userKey, ContactStatus.ACCEPTED);
-        List<String> contactUserIds = accepted.stream()
-                .map(Contact::getContactUserId)
-                .filter(Objects::nonNull)
-                .map(String::trim)
-                .map(String::toLowerCase)
-                .distinct()
-                .collect(Collectors.toList());
-        log.info("Accepted contact list size for {}: {}", userKey, contactUserIds.size());
-        return userClient.getUsersByIds(contactUserIds);
+        List<UUID> accepted = contactRepository.findAccepted(userKey);
+
+        log.info("Accepted contact list size for {}: {}", userKey, accepted.size());
+        return userClient.getUsersByKeys(accepted);
     }
 
     public List<UserDto> getPendingRequests(UUID userKey) {
         log.debug("Fetching pending requests for userId={}", userKey);
-        List<Contact> pending = contactRepository.findByContactUserKeyAndStatus(userKey, ContactStatus.PENDING);
-        List<UUID> senderUserkeys = pending.stream()
+        List<Contact> pending = contactRepository.findPending(userKey);
+        List<UUID> uuids = pending.stream()
                 .map(Contact::getUserKey)
                 .collect(Collectors.toList());
-        log.info("Pending requests count for {}: {}", userKey, senderUserkeys.size());
-        return userClient.getUsersByKeys(senderUserkeys);
+        log.info("Pending requests count for {}: {}", userKey, uuids.size());
+        return userClient.getUsersByKeys(uuids);
+
     }
 
     public void rejectContactRequest(String userLogin, String contactLoginOrId) {
