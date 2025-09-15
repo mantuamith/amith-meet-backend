@@ -15,7 +15,7 @@ spring:
       auto-index-creation: true
 
     redis:
-      host: redis
+      host: redis-svc
       port: 6379
       password: ${REDIS_PASSWORD}
 
