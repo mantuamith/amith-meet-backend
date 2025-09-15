@@ -7,5 +7,5 @@ import lombok.Data;
 @AllArgsConstructor
 public class UserAuthInfo {
 	private String userKey;
-	private Integer tenantId;
+	private String tenantId;
 }

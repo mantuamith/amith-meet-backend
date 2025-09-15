@@ -1,4 +1,3 @@
-
 package com.algomeet.notificationservice.controller;
 
 import lombok.RequiredArgsConstructor;
@@ -41,7 +40,7 @@ public class NotificationController {
     		notificationRequest.setSenderId(LoggedInUserUtil.getUsername());
     	}
     	
-    	if (notificationRequest.getTenantId() == null) {
+    	if (!(StringUtils.hasLength(notificationRequest.getTenantId()))) {
     		notificationRequest.setTenantId(TenantContext.getCurrentTenant());
     	}
     	

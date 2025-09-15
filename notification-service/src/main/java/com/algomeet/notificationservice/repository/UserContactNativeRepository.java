@@ -20,7 +20,7 @@ public class UserContactNativeRepository {
      * @return
      */
     @SuppressWarnings("unchecked")
-    public List<String> getUserFriendListByUserKey(String userKey) {
+    public List<String> getUserFriendList(String userKey) {
         String sql = """
             SELECT CAST(contact_user_key AS TEXT)
             FROM contacts 
@@ -30,30 +30,6 @@ public class UserContactNativeRepository {
 
         Query query = entityManager.createNativeQuery(sql);
         query.setParameter("userKey", userKey);
-
-        List<Object> results = query.getResultList();
-
-        return results.stream()
-                .map(row -> ((String) row))
-                .toList();
-    }
-    
-    /**
-     * 
-     * @param username
-     * @return
-     */
-    @SuppressWarnings("unchecked")
-    public List<String> getUserFriendListByUsername(String username) {
-        String sql = """
-            SELECT CAST(contact_user_key AS TEXT)
-            FROM contacts 
-            WHERE status = 'ACCEPTED' 
-              AND user_id = :username
-            """;
-
-        Query query = entityManager.createNativeQuery(sql);
-        query.setParameter("username", username);
 
         List<Object> results = query.getResultList();
 

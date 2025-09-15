@@ -113,10 +113,10 @@ public class NotificationWebSocketHandler extends TextWebSocketHandler {
 			return;
 		}
 		
-		Integer tenantId = (Integer) session.getAttributes().get(Constants.SESSION_ATTR_TENANT_ID);
+		String tenantId = (String) session.getAttributes().get(Constants.SESSION_ATTR_TENANT_ID);
 		
 		// Switch db schema
-		TenantContext.switchTenantExplicitly(tenantId);
+		TenantContext.switchTenantExplicitly(StringUtils.hasLength(tenantId) ? tenantId : null);
     	// Retrieve websocket message processors
     	List<WebSocketMessageProcessor> processors = messageProcessorProvider.getProcessors();
     	for (WebSocketMessageProcessor processor : processors) {

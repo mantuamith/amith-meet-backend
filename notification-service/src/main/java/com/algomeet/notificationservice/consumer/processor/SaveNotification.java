@@ -47,7 +47,7 @@ public class SaveNotification implements NotificationProcessor{
 				notification.setExpiredAt(expiration);
 			}
 			
-			if (notificationDto.getTenantId() == null) {
+			if (!StringUtils.hasLength(notificationDto.getTenantId())) {
 				log.info("Notification Tenant Id has null value");
 			}
 			

@@ -1,6 +1,5 @@
 package com.algomeet.notificationservice.consumer.processor;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -171,34 +170,13 @@ public class PushNotification implements NotificationProcessor{
 				.findByUserKeyAndNotification_Id(userKey, notificationId)));
 	}
 
-	private List<UserDto> getUserReceiverList(Set<String> rawReceiverList) {
-		if (CollectionUtils.isEmpty(rawReceiverList)) {
+	private List<UserDto> getUserReceiverList(Set<String> usernameList) {
+		if (CollectionUtils.isEmpty(usernameList)) {
 			return List.of();
 		}
-        
-		// Compatible for user name
-		List<String> usernames = new ArrayList<String>();
-		List<String> userKeys = new ArrayList<String>();
-		
-		for (String receiver : rawReceiverList) {
-			try {
-				UUID.fromString(receiver);
-				userKeys.add(receiver);
-			} catch(Exception ex) {
-				usernames.add(receiver);
-			}
-		}
-		
-		List<UserDto> receiverList = new ArrayList<UserDto>();
-		if (!CollectionUtils.isEmpty(userKeys)) {
-			receiverList.addAll(userNativeRepository.getUsersByUserKeyList(rawReceiverList.stream().toList()));
-		} 
-		
-		if (!CollectionUtils.isEmpty(usernames)) {
-			receiverList.addAll(userNativeRepository.getUsersByUserNameList(rawReceiverList.stream().toList()));
-		} 
-		
-		return receiverList;
+
+		return userNativeRepository.getUsersByUserKeyList(usernameList.stream().toList());
+
 	}
 
 	private void send(WebSocketSession session, NotificationDto notification) {

@@ -21,7 +21,7 @@ public class AuthService {
 				token = token.substring(Constants.TOKEN_PREFIX.length() + 1).trim();
 			}
 			
-			Integer tenantId = jwtUtil.getTenantId(token) != null ? jwtUtil.getTenantId(token) : -1;
+			String tenantId = jwtUtil.getTenantId(token) != null ? jwtUtil.getTenantId(token) : "";
 			
 			return new UserAuthInfo(jwtUtil.getUserKey(token), tenantId);			 
 		} catch(Exception ex) {
