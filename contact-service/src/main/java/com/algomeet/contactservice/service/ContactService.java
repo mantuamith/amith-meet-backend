@@ -1,5 +1,6 @@
 package com.algomeet.contactservice.service;
 
+
 import com.algomeet.contactservice.client.UserClient;
 import com.algomeet.contactservice.dto.UserDto;
 import com.algomeet.contactservice.entity.Contact;
@@ -12,10 +13,16 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import com.algomeet.contactservice.config.AuthCtx;
 
+
 import java.security.Principal;
 import java.time.Instant;
-import java.util.*;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
+
 
 import com.algomeet.notificationservice.dto.Notification;
 import com.algomeet.notificationservice.enums.NotificationType;
@@ -95,15 +102,18 @@ public class ContactService {
         log.info("Contact request saved: {} -> {}", me, other);
 
         UserDto user = userClient.byKey(me);
-        Notification notif = new Notification();
-        notif.setReceiverIds(Set.of(other.toString()));
-        notif.setType(NotificationType.FRIEND_REQUEST_RECEIVED);
-        notif.setTitle(user.getUsername() + " sent you a friend request");
-        notif.setBody(user.getUsername() + " sent you a friend request");
-        notif.setDeliveryAckRequired(true);
 
-        notificationService.sendPush(notif);
-        log.info("Friend request notification sent from {} to {}", me, other);
+        Notification notif = Notification.builder()  
+        		.receiverIds(Set.of(other.toString()))
+        		.type(NotificationType.FRIEND_REQUEST)
+        		.title(user.getUsername() + " sent you a friend request")
+        		.body(user.getUsername() + " sent you a friend request")
+        		.deliveryAckRequired(true)
+        		.build();
+        // Publish
+        notificationService.sendPush(notif); 
+      log.info("Friend request notification sent from {} to {}", me, other);
+
     }
 
     public void acceptContactRequest(String receiverLogin, String senderLoginOrId) {
@@ -137,15 +147,20 @@ public class ContactService {
         }
 
         UserDto user = userClient.byKey(me);
-        Notification notif = new Notification();
-        notif.setReceiverIds(Set.of(other.toString()));
-        notif.setType(NotificationType.FRIEND_REQUEST_ACCEPTED);
-        notif.setTitle(user.getUsername() + " accepted your friend request");
-        notif.setBody(user.getUsername() + " accepted your friend request");
-        notif.setDeliveryAckRequired(true);
 
-        notificationService.sendPush(notif);
+        Notification notif = Notification.builder()       
+        		// Set receiver
+        		.receiverIds(Set.of(other.toString()))                 
+        		.type(NotificationType.FRIEND_REQUEST_ACCEPTED)        
+        		.title(user.getUsername() + " accepted your friend request")
+        		.body(user.getUsername() + " accepted your friend request")
+        		.deliveryAckRequired(true)
+        		.build();
+        // Publish
+        notificationService.sendPush(notif); 
+
         log.info("Friend request acceptance notification sent from {} to {}", me, other);
+
     }
 
     public List<UserDto> getContactList(UUID userKey) {
