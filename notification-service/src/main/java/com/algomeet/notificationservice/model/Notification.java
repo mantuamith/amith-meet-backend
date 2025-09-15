@@ -1,6 +1,8 @@
 package com.algomeet.notificationservice.model;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -52,7 +54,7 @@ public class Notification {
     private Map<String, Object> data;
 
     @OneToMany(mappedBy = "notification", cascade = CascadeType.ALL, orphanRemoval = true)
-    private java.util.List<UserNotification> userNotifications = new java.util.ArrayList<>();
+    private List<UserNotification> userNotifications = new ArrayList<>();
 
     @PreUpdate
     protected void onUpdate() {
