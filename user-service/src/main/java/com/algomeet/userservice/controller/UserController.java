@@ -162,7 +162,7 @@ public class UserController {
         return ResponseEntity.ok(users);
     }
 
-    @PostMapping({"/batch/getUsersByKeys"})
+    @PostMapping({"/batch/keys"})
     public ResponseEntity<List<UserDto>> getUsersByKeys(@RequestBody List<String> userKeys) {
         if (userKeys == null || userKeys.isEmpty()) {
             return ResponseEntity.ok(List.of());
