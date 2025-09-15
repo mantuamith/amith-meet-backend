@@ -24,15 +24,15 @@ public class ApnsSenderService {
 		String env = apnsProperties.getEnv();
 		ApnsSenderUtil sender = null;	
 
-        log.debug("p8FilePath ={}", p8FilePath);
-        log.debug("teamId ={}", teamId);
-        log.debug("keyId ={}", keyId);
-        log.debug("bundleId ={}", bundleId);
+        log.info("p8FilePath ={}", p8FilePath);
+        log.info("teamId ={}", teamId);
+        log.info("keyId ={}", keyId);
+        log.info("bundleId ={}", bundleId);
 
 		try {
 			// Initialize sender
 			sender = new ApnsSenderUtil(p8FilePath, teamId, keyId, bundleId, env);
-            log.debug("Notification: {}", notification);
+            log.info("Notification for IOS: {}", notification);
 			// Send notification
 			return sender.sendPush(receiverDeviceToken, notification);
 		} catch (Exception ex) {
