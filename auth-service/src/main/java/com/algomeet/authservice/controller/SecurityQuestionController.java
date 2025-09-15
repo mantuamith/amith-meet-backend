@@ -27,7 +27,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 @Data
 @RestController
-@RequestMapping("/security-questions")
+@RequestMapping("/auth/security-questions")
 public class SecurityQuestionController {
 
 	private final SecurityQuestionService securityQuestionService;

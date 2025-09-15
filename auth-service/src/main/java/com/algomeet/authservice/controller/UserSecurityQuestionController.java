@@ -30,7 +30,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 @RestController
-@RequestMapping("/user-security-questions")
+@RequestMapping("/auth/user-security-questions")
 @RequiredArgsConstructor
 public class UserSecurityQuestionController {
 	
