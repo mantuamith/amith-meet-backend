@@ -27,6 +27,7 @@ import com.algomeet.contactservice.entity.Contact;
 import com.algomeet.contactservice.entity.ContactStatus;
 import com.algomeet.contactservice.repository.ContactRepository;
 import com.algomeet.notificationservice.dto.Notification;
+import com.algomeet.notificationservice.dto.Notification.NotificationBuilder;
 import com.algomeet.notificationservice.enums.NotificationType;
 import com.algomeet.notificationservice.service.NotificationService;
 
@@ -92,17 +93,15 @@ public class ContactService {
 
         // Send friend reuquest notification
         UserDto user = userClient.byKey(me);
-        Notification notif = new Notification();
-        // Set receiver
-        notif.setReceiverIds(Set.of(other.toString()));
-
-        notif.setType(NotificationType.FRIEND_REQUEST_RECEIVED);
-
-        notif.setTitle(user.getUsername() + " sent you a friend request");
-        notif.setBody(user.getUsername() + " sent you a friend request");
-    	notif.setDeliveryAckRequired(true);
+        Notification notif = Notification.builder()  
+        		.receiverIds(Set.of(other.toString()))
+        		.type(NotificationType.FRIEND_REQUEST)
+        		.title(user.getUsername() + " sent you a friend request")
+        		.body(user.getUsername() + " sent you a friend request")
+        		.deliveryAckRequired(true)
+        		.build();
         // Publish
-        notificationService.sendPush(notif);
+        notificationService.sendPush(notif);  
     }
 
     // 2. Accept a contact request
@@ -131,17 +130,16 @@ public class ContactService {
 
         // Send friend request accepted notification
         UserDto user = userClient.byKey(me);
-        Notification notif = new Notification();
-        // Set receiver
-        notif.setReceiverIds(Set.of(other.toString()));
-
-        notif.setType(NotificationType.FRIEND_REQUEST_ACCEPTED);
-
-        notif.setTitle(user.getUsername() + " accepted your friend request");
-        notif.setBody(user.getUsername() + " accepted your friend request");
-    	notif.setDeliveryAckRequired(true);
+        Notification notif = Notification.builder()       
+        		// Set receiver
+        		.receiverIds(Set.of(other.toString()))                 
+        		.type(NotificationType.FRIEND_REQUEST_ACCEPTED)        
+        		.title(user.getUsername() + " accepted your friend request")
+        		.body(user.getUsername() + " accepted your friend request")
+        		.deliveryAckRequired(true)
+        		.build();
         // Publish
-        notificationService.sendPush(notif);
+        notificationService.sendPush(notif); 
     }
 
     // 3. Get accepted contacts
