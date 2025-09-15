@@ -7,6 +7,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * TODO: Change it to support multiple service instances
+ */
 @Component
 public class WebSocketSessionRegistry {
 
@@ -28,7 +31,7 @@ public class WebSocketSessionRegistry {
         	Iterator<SessionMetadata> it = sessions.iterator();
         	while (it.hasNext()) {
         		if (sessionId.equals(it.next().getSessionId())) {
-        			sessions.remove(sessionId);
+        			it.remove();
         		}
         	}
         			

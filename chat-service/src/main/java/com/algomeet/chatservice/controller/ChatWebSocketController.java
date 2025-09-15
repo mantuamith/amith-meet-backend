@@ -8,7 +8,7 @@ import com.algomeet.chatservice.document.MessageResponse;
 import com.algomeet.chatservice.dto.*;
 import com.algomeet.chatservice.mapper.MessageMapper;
 import com.algomeet.chatservice.model.MessageStatus;
-import com.algomeet.chatservice.model.UserStatus;
+import com.algomeet.chatservice.model.AppStatus;
 import com.algomeet.chatservice.registry.SessionMetadata;
 import com.algomeet.chatservice.registry.WebSocketSessionRegistry;
 import com.algomeet.chatservice.repository.MessageRepository;
@@ -216,12 +216,12 @@ public class ChatWebSocketController {
      * @param message
      * @param principal
      */
-    @MessageMapping("/status")
-    public void handleInActive(UserStatusMessage message, Principal principal) {
+    @MessageMapping("/app-status")
+    public void handleInActive(AppStatusMessage message, Principal principal) {
     	Set<SessionMetadata> sessions = sessionRegistry.getSessions(principal.getName());
     	if (sessions != null) {
     		sessions.forEach(s -> {
-    			s.setActive(UserStatus.ACTIVE == message.getStatus() ? true : false);
+    			s.setActive(AppStatus.ACTIVE == message.getStatus() ? true : false);
     		});
     	}
     }

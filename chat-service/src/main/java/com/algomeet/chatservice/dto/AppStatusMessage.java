@@ -9,6 +9,6 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class UserStatusMessage {
+public class AppStatusMessage {
     private AppStatus status;
 }

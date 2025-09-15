@@ -1,6 +1,6 @@
 package com.algomeet.chatservice.model;
 
-public enum UserStatus {
+public enum AppStatus {
 
     ACTIVE,
     INACTIVE
