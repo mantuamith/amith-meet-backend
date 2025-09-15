@@ -19,6 +19,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
+import java.util.Map;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -89,7 +90,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
                 // 2d) All good → set Authentication (principal=email)
                 var auth = new UsernamePasswordAuthenticationToken(email, null, Collections.emptyList());
-                auth.setDetails(java.util.Map.of(
+                auth.setDetails(Map.of(
                         "user_key", userKey,
                         "sid", tokenSid));
                 SecurityContextHolder.getContext().setAuthentication(auth);

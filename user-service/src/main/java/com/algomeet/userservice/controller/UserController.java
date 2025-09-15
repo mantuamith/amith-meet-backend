@@ -158,7 +158,7 @@ public class UserController {
                         user.getEmail(),user.getUserKey()
                 ))
                 .collect(Collectors.toList());
-
+       
         return ResponseEntity.ok(users);
     }
 
@@ -350,6 +350,17 @@ public class UserController {
         if (q.indexOf('@') > 0) {
             return userRepository.findByEmailIgnoreCase(q);
         }
+
+        // 4) UUID (user_key column)?
+        try {
+            UUID key = UUID.fromString(q);
+            var byKey = userRepository.findByUserKey(key);
+            if (byKey.isPresent())
+                return byKey;
+        } catch (IllegalArgumentException ignore) {
+            // not a valid UUID
+        }
+
         return Optional.empty();
     }
 

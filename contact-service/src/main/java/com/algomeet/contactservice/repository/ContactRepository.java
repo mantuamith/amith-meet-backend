@@ -68,5 +68,5 @@ WHERE (c.userKey = :a AND c.contactUserKey = :b)
     }
 
 
-
+    List<Contact> findByContactUserKeyAndStatus(UUID userId, ContactStatus contactStatus);
 }

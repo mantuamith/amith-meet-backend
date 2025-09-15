@@ -1,6 +1,7 @@
 package com.algomeet.notificationservice.consumer.receiver.processor;
 
 import java.util.List;
+import java.util.UUID;
 
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,7 +36,15 @@ public class UserFriendstReceiverGroup implements ReceiverGroupProcessor{
 			throw new ValidationException("Receiver group referrence id fiels is empty");
 		}
 
-		List<String> userContactList = userContactNativeRepository.getUserFriendList(notificationDto.getReceiverGroupRefId());
+		List<String> userContactList = null;
+		try {
+			UUID.fromString(notificationDto.getReceiverGroupRefId());
+			userContactList = userContactNativeRepository.getUserFriendListByUserKey(notificationDto.getReceiverGroupRefId());
+		} catch(Exception ex) {
+			// Support username
+			userContactList = userContactNativeRepository.getUserFriendListByUsername(notificationDto.getReceiverGroupRefId());
+		}
+
 		List<UserDto> userList = null;
 		
 		if (!CollectionUtils.isEmpty(userContactList)) {

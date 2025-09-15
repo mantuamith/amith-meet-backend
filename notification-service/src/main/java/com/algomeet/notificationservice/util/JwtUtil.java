@@ -49,7 +49,7 @@ public class JwtUtil {
     }
     
     
-    public String getTenantId(String token) {     
+    public Integer getTenantId(String token) {     
 		if (StringUtils.hasLength(token)) {
 			try {
 
@@ -59,8 +59,8 @@ public class JwtUtil {
 						.parseClaimsJws(token)
 						.getBody();
 
-				Object tenantId =  claims.get(JwtConstants.CLAIM_TENANT_ID, Object.class); // extract tenant Id
-				return (tenantId != null ? String.valueOf(tenantId) : null);
+				return claims.get(JwtConstants.CLAIM_TENANT_ID, Integer.class); // extract tenant Id
+
 			} catch (Exception ex) {
 				log.error("Error reading token {}" , ex.getMessage(), ex);
 			}
