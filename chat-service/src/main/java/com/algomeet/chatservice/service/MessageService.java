@@ -5,8 +5,13 @@ import com.algomeet.chatservice.document.MessageDocument;
 import com.algomeet.chatservice.document.MessageResponse;
 import com.algomeet.chatservice.dto.*;
 import com.algomeet.chatservice.mapper.MessageMapper;
+import com.algomeet.chatservice.model.CallType;
 import com.algomeet.chatservice.model.MessageStatus;
 import com.algomeet.chatservice.repository.MessageRepository;
+import com.algomeet.notificationservice.dto.Notification;
+import com.algomeet.notificationservice.dto.Notification.NotificationBuilder;
+import com.algomeet.notificationservice.enums.NotificationType;
+import com.algomeet.notificationservice.service.NotificationService;
 import com.mongodb.client.result.UpdateResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -36,6 +41,7 @@ public class MessageService {
     private final SimpMessagingTemplate messagingTemplate;
     private final MessageMapper messageMapper;
     private final MongoTemplate mongoTemplate;
+    private final NotificationService notificationService;
 
     // -------- RECENT / UNREAD --------
     public List<MessageResponse> getRecentUnreadMessages(String userId) {
@@ -256,6 +262,21 @@ public class MessageService {
 
         // STOMP destination for call meta updates
         messagingTemplate.convertAndSendToUser(other, "/queue/call-meta", evt);
+        
+        // Send missed call notification
+        if (payload.getCallMetaData() != null 
+        		&& payload.getCallMetaData() != null
+        		&& Boolean.valueOf(payload.getCallMetaData().getIsMissedCall())) {
+
+        	NotificationBuilder notifBuilder = Notification.builder()
+        			.receiverIds(Set.of(msg.getReceiverKey())) // To must be using user_key UUID
+        			.title(msg.getSender() + " missed call")
+        			.body(msg.getSender() + " missed call")
+        			.type(CallType.AUDIO_VIDEO_TYPE == payload.getCallMetaData().getCallType()
+        			? NotificationType.VIDEO_MISSED_CALL : NotificationType.AUDIO_MISSED_CALL);   
+
+        	notificationService.sendPush(notifBuilder.build());
+        }
 
         log.info("[CALL META] Updated for message {} by {} -> notified {}", msg.getId(), updaterUsername, other);
     }
