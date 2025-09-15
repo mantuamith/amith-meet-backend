@@ -64,8 +64,8 @@ WHERE (c.userKey = :a AND c.contactUserKey = :b)
         return findCounterpartyKeysByStatus(key, ContactStatus.ACCEPTED);
     }
 
-    default List<UUID> findPending(UUID key)  {
-        return findCounterpartyKeysByStatus(key, ContactStatus.PENDING);
+    default List<Contact> findPending(UUID key)  {
+        return findIncomingByStatus(key, ContactStatus.PENDING);
     }
 
 

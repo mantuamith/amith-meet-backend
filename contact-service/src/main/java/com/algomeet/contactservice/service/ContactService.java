@@ -169,9 +169,13 @@ public class ContactService {
 
     public List<UserDto> getPendingRequests(UUID userKey) {
         log.debug("Fetching pending requests for userId={}", userKey);
-        List<UUID> pending = contactRepository.findPending(userKey);
-        log.info("Pending requests count for {}: {}", userKey, pending.size());
-        return userClient.getUsersByKeys(pending);
+        List<Contact> pending = contactRepository.findPending(userKey);
+        List<UUID> uuids = pending.stream()
+                .map(Contact::getUserKey)
+                .collect(Collectors.toList());
+        log.info("Pending requests count for {}: {}", userKey, uuids.size());
+        return userClient.getUsersByKeys(uuids);
+
     }
 
     public void rejectContactRequest(String userLogin, String contactLoginOrId) {
