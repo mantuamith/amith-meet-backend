@@ -14,9 +14,10 @@ spring:
       uri: ${SPRING_MONGODB_URI_AUTHDB}  # used for logs, OTPs, etc.
       auto-index-creation: true
 
-  redis:
-    host: localhost
-    port: 6379
+    redis:
+      host: redis
+      port: 6379
+      password: ${REDIS_PASSWORD}
 
   jpa:
     hibernate:

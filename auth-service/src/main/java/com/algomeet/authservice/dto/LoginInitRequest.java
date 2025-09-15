@@ -24,4 +24,6 @@ public class LoginInitRequest {
     private String ipAddress;    // optional (server will still detect)
 
     private Boolean overrideExisting;
+    
+    private String deviceToken;
 }

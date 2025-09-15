@@ -97,9 +97,11 @@ public class AuthController {
             ));
         }
     }
+    
+    @Deprecated
     @PostMapping("/login")
     public AuthResponse login(@Valid @RequestBody LoginRequest req) {
-        return authService.login(req.getEffectiveLogin(), req.getPassword(), req.getClientPlatform(), req.getDeviceToken());
+        return authService.login(req.getEffectiveLogin(), req.getPassword());
 
     }
 
@@ -262,6 +264,10 @@ public class AuthController {
 
                 // Centralized: start/rotate session in user-service, revoke (if override), mint JWTs with sid
                 AuthResponse finalTokens = authService.issueTokensFor(user, request.getDeviceId(), override);
+                
+                // Update user used to login device token
+               	userClient.updateDeviceTypeAndToken(user.getId(), request.getDeviceType().name(), request.getDeviceToken());
+               	
                 return ResponseEntity.ok(finalTokens);
             }
             case EMAIL: {
@@ -371,7 +377,8 @@ public class AuthController {
             default -> throw new IllegalArgumentException("Unsupported login policy: " + policy);
         }
 
-
+        // Update user used to login device token
+        userClient.updateDeviceTypeAndToken(user.getId(), request.getDeviceType().name(), request.getDeviceToken());
 
         return ResponseEntity.ok(result);
     }

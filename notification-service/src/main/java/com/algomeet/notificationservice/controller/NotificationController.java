@@ -53,9 +53,4 @@ public class NotificationController {
     public ResponseEntity<? extends CommonResponse<?>> internalCreate(@RequestBody @Valid PushNotificationRequest notificationRequest) throws JsonProcessingException { 
     	return create(notificationRequest);
     }
-    
-    @PostMapping("notifications/user/{userId}")
-    public ResponseEntity<? extends CommonResponse<?>> getNotfications(@RequestBody @Valid PushNotificationRequest notificationRequest) throws JsonProcessingException { 
-    	return null;
-    }
 }

@@ -78,7 +78,7 @@ public class User {
     /**
      * Value can be (ANDROID, IOS, WEB. HARMONYOS)
      */
-    private String clientPlatform;
+    private String deviceType;
     
     /**
      * Coming from Apple APN, or Google Firebase

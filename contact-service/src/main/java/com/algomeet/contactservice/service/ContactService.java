@@ -10,13 +10,27 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
+import com.algomeet.contactservice.config.AuthCtx;
 
 import java.security.Principal;
 import java.time.Instant;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.Collectors;
+
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
+import org.springframework.stereotype.Service;
+
+import com.algomeet.contactservice.client.UserClient;
+import com.algomeet.contactservice.dto.UserDto;
+import com.algomeet.contactservice.entity.Contact;
+import com.algomeet.contactservice.entity.ContactStatus;
+import com.algomeet.contactservice.repository.ContactRepository;
+import com.algomeet.notificationservice.dto.Notification;
+import com.algomeet.notificationservice.enums.NotificationType;
+import com.algomeet.notificationservice.service.NotificationService;
+
+import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
@@ -24,6 +38,7 @@ public class ContactService {
 
     private final ContactRepository contactRepository;
     private final UserClient userClient;
+    private final NotificationService notificationService;
 
     public void addContact(String userId, String contactUserId) {
         if (userId.equals(contactUserId)) {
@@ -48,25 +63,46 @@ public class ContactService {
     }
 
     // 1. Send a contact request
-    public void sendContactRequest(String senderLogin, String receiverLoginOrId) {
-        UUID me = currentUserKey(senderLogin);
-        UUID other = resolveKeyFlexible(receiverLoginOrId);
-        if (me.equals(other)) throw new IllegalArgumentException("Cannot add yourself.");
+    public void sendContactRequest(Authentication auth, String receiverLoginOrId) {
+        java.util.UUID me = AuthCtx.userKeyFrom(auth);
+        String senderLogin = auth.getName();
+        if (me == null) {
+            me = resolveKeyFlexible(senderLogin); // fallback for old tokens
+        }
+
+        java.util.UUID other = resolveKeyFlexible(receiverLoginOrId);
+        if (me.equals(other))
+            throw new IllegalArgumentException("Cannot add yourself.");
 
         if (contactRepository.existsUuidPair(me, other)) {
             throw new RuntimeException("Contact or request already exists.");
         }
 
-        // Keep legacy ids for FE
         Contact c = Contact.builder()
                 .userKey(me)
                 .contactUserKey(other)
+                // keep legacy ids to avoid FE changes
                 .userId(senderLogin == null ? null : senderLogin.trim().toLowerCase())
                 .contactUserId(receiverLoginOrId.trim().toLowerCase())
                 .status(ContactStatus.PENDING)
                 .createdAt(Instant.now())
                 .build();
+
         contactRepository.save(c);
+
+        // Send friend reuquest notification
+        UserDto user = userClient.byKey(me);
+        Notification notif = new Notification();
+        // Set receiver
+        notif.setReceiverIds(Set.of(other.toString()));
+
+        notif.setType(NotificationType.FRIEND_REQUEST_RECEIVED);
+
+        notif.setTitle(user.getUsername() + " sent you a friend request");
+        notif.setBody(user.getUsername() + " sent you a friend request");
+    	notif.setDeliveryAckRequired(true);
+        // Publish
+        notificationService.sendPush(notif);
     }
 
     // 2. Accept a contact request
@@ -80,7 +116,8 @@ public class ContactService {
         contactRepository.save(req);
 
         // Ensure reverse row exists as ACCEPTED
-        if (!contactRepository.existsUuidPair(me, other)) {
+        boolean reverseExists = contactRepository.existsByUserKeyAndContactUserKey(me, other);
+        if (!reverseExists) {
             Contact rev = Contact.builder()
                     .userKey(me)
                     .contactUserKey(other)
@@ -91,6 +128,20 @@ public class ContactService {
                     .build();
             contactRepository.save(rev);
         }
+
+        // Send friend request accepted notification
+        UserDto user = userClient.byKey(me);
+        Notification notif = new Notification();
+        // Set receiver
+        notif.setReceiverIds(Set.of(other.toString()));
+
+        notif.setType(NotificationType.FRIEND_REQUEST_ACCEPTED);
+
+        notif.setTitle(user.getUsername() + " accepted your friend request");
+        notif.setBody(user.getUsername() + " accepted your friend request");
+    	notif.setDeliveryAckRequired(true);
+        // Publish
+        notificationService.sendPush(notif);
     }
 
     // 3. Get accepted contacts
@@ -98,6 +149,10 @@ public class ContactService {
         List<Contact> accepted = contactRepository.findByUserIdAndStatus(userId, ContactStatus.ACCEPTED);
         List<String> contactUserIds = accepted.stream()
                 .map(Contact::getContactUserId)
+                .filter(java.util.Objects::nonNull)
+                .map(String::trim)
+                .map(String::toLowerCase)
+                .distinct()
                 .collect(Collectors.toList());
         return userClient.getUsersByIds(contactUserIds);
     }
@@ -130,23 +185,18 @@ public class ContactService {
     }
 
     public List<UserDto> searchUsers(String query, Principal auth) {
-        if (query == null || query.isBlank())
-            return List.of();
+        if (query == null || query.isBlank()) return List.of();
 
-        var token = (JwtAuthenticationToken) auth;
-        var meKey = UUID.fromString(token.getToken().getClaimAsString("user_key"));
-
-        // Exact candidate by username/email/UUID
+        UUID me = currentUserKey(auth.getName());
         UserDto hit = userClient.exact(query);
-        if (hit == null || hit.getId() == null) return List.of();
+        if (hit == null || hit.getUserKey() == null) return List.of();
 
-        var candidateKey = UUID.fromString(hit.getId().toString());
-        if (candidateKey.equals(meKey)) return List.of();
+        UUID cand = UUID.fromString(hit.getUserKey());
+        if (cand.equals(me)) return List.of();
 
-        var accepted = new java.util.HashSet<>(contactRepository.findAccepted(meKey));
-        var pending  = new java.util.HashSet<>(contactRepository.findPending(meKey));
-        if (accepted.contains(candidateKey) || pending.contains(candidateKey))
-            return List.of();
+        var accepted = new HashSet<>(contactRepository.findAccepted(me));
+        var pending  = new HashSet<>(contactRepository.findPending(me));
+        if (accepted.contains(cand) || pending.contains(cand)) return List.of();
 
         return List.of(hit); // exact only, after exclusions
     }
@@ -160,9 +210,20 @@ public class ContactService {
     }
 
     private UUID resolveKeyFlexible(String q) {
-        if (q == null || q.isBlank()) throw new IllegalArgumentException("Empty id");
-        try { return UUID.fromString(q); } catch (IllegalArgumentException ignore) {}
-        return resolveKeyFromLogin(q);
+        if (q == null || q.isBlank())
+            throw new IllegalArgumentException("Empty identifier");
+        // allow UUID directly
+        try {
+            return UUID.fromString(q);
+        } catch (IllegalArgumentException ignore) {
+
+        }
+        // else via user-service exact (username/email)
+        UserDto u = userClient.exact(q);
+        if (u == null || u.getId() == null)
+            throw new IllegalArgumentException("User not found: " + q);
+
+        return java.util.UUID.fromString(String.valueOf(u.getUserKey()));
     }
 
     private UUID currentUserKey(String currentLogin) {
