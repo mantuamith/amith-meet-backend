@@ -1,11 +1,11 @@
 package com.algomeet.contactservice.client;
 
 import com.algomeet.contactservice.dto.UserDto;
-import com.algomeet.contactservice.dto.UserResponse;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.UUID;
 
 @FeignClient(name = "user-service", url = "${feign.client.user-service.url}")
 public interface UserClient {
@@ -25,7 +25,7 @@ public interface UserClient {
     List<UserDto> getUsersByKeys(@RequestBody List<String> userKeys);
 
     // Convenience: resolve by UUID too (user-service exact accepts UUID)
-    default UserDto byKey(java.util.UUID key) {
+    default UserDto byKey(UUID key) {
         return exact(key.toString());
     }
 }
