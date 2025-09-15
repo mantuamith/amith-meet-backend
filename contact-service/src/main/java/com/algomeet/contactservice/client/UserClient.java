@@ -22,7 +22,7 @@ public interface UserClient {
     UserDto exact(@RequestParam("q") String q);
 
     @PostMapping("/internal/users/batch/keys")
-    List<UserDto> getUsersByKeys(@RequestBody List<String> userKeys);
+    List<UserDto> getUsersByKeys(@RequestBody List<UUID> userKeys);
 
     // Convenience: resolve by UUID too (user-service exact accepts UUID)
     default UserDto byKey(UUID key) {

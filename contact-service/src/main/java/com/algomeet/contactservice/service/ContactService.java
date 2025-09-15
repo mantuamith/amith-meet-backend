@@ -64,14 +64,14 @@ public class ContactService {
     public void sendContactRequest(Authentication auth, String receiverLoginOrId) {
         log.debug("Sending contact request: sender={}, receiver={}", auth.getName(), receiverLoginOrId);
 
-        java.util.UUID me = AuthCtx.userKeyFrom(auth);
+        UUID me = AuthCtx.userKeyFrom(auth);
         String senderLogin = auth.getName();
         if (me == null) {
             log.warn("AuthCtx returned null, resolving sender key from login: {}", senderLogin);
             me = resolveKeyFlexible(senderLogin);
         }
 
-        java.util.UUID other = resolveKeyFlexible(receiverLoginOrId);
+        UUID other = resolveKeyFlexible(receiverLoginOrId);
         if (me.equals(other)) {
             log.error("User {} attempted to send a contact request to themselves.", senderLogin);
             throw new IllegalArgumentException("Cannot add yourself.");
@@ -148,9 +148,9 @@ public class ContactService {
         log.info("Friend request acceptance notification sent from {} to {}", me, other);
     }
 
-    public List<UserDto> getContactList(String userId) {
-        log.debug("Fetching accepted contacts for userId={}", userId);
-        List<Contact> accepted = contactRepository.findByUserIdAndStatus(userId, ContactStatus.ACCEPTED);
+    public List<UserDto> getContactList(UUID userKey) {
+        log.debug("Fetching accepted contacts for userId={}", userKey);
+        List<Contact> accepted = contactRepository.findByContactUserKeyAndStatus(userKey, ContactStatus.ACCEPTED);
         List<String> contactUserIds = accepted.stream()
                 .map(Contact::getContactUserId)
                 .filter(Objects::nonNull)
@@ -158,18 +158,18 @@ public class ContactService {
                 .map(String::toLowerCase)
                 .distinct()
                 .collect(Collectors.toList());
-        log.info("Accepted contact list size for {}: {}", userId, contactUserIds.size());
+        log.info("Accepted contact list size for {}: {}", userKey, contactUserIds.size());
         return userClient.getUsersByIds(contactUserIds);
     }
 
-    public List<UserDto> getPendingRequests(String userId) {
-        log.debug("Fetching pending requests for userId={}", userId);
-        List<Contact> pending = contactRepository.findByContactUserIdAndStatus(userId, ContactStatus.PENDING);
-        List<String> senderIds = pending.stream()
-                .map(Contact::getUserId)
+    public List<UserDto> getPendingRequests(UUID userKey) {
+        log.debug("Fetching pending requests for userId={}", userKey);
+        List<Contact> pending = contactRepository.findByContactUserKeyAndStatus(userKey, ContactStatus.PENDING);
+        List<UUID> senderUserkeys = pending.stream()
+                .map(Contact::getUserKey)
                 .collect(Collectors.toList());
-        log.info("Pending requests count for {}: {}", userId, senderIds.size());
-        return userClient.getUsersByIds(senderIds);
+        log.info("Pending requests count for {}: {}", userKey, senderUserkeys.size());
+        return userClient.getUsersByKeys(senderUserkeys);
     }
 
     public void rejectContactRequest(String userLogin, String contactLoginOrId) {

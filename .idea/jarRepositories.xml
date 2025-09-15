@@ -26,5 +26,10 @@
       <option name="name" value="github-mtc" />
       <option name="url" value="https://maven.pkg.github.com/Algoframe-Private-Limited/multi-tenancy-core" />
     </remote-repository>
+    <remote-repository>
+      <option name="id" value="github" />
+      <option name="name" value="github" />
+      <option name="url" value="https://maven.pkg.github.com/Algoframe-Private-Limited/multi-tenancy-core" />
+    </remote-repository>
   </component>
 </project>
