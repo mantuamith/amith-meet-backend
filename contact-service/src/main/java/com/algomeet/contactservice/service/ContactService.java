@@ -1,33 +1,25 @@
 package com.algomeet.contactservice.service;
 
-import com.algomeet.contactservice.client.UserClient;
-import com.algomeet.contactservice.dto.UserDto;
-import com.algomeet.contactservice.entity.Contact;
-import com.algomeet.contactservice.entity.ContactStatus;
-import com.algomeet.contactservice.repository.ContactRepository;
-import lombok.RequiredArgsConstructor;
+import java.security.Principal;
+import java.time.Instant;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
-import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
-import com.algomeet.contactservice.config.AuthCtx;
-
-import java.security.Principal;
-import java.time.Instant;
-import java.util.*;
-import java.util.stream.Collectors;
-
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
-import org.springframework.stereotype.Service;
 
 import com.algomeet.contactservice.client.UserClient;
+import com.algomeet.contactservice.config.AuthCtx;
 import com.algomeet.contactservice.dto.UserDto;
 import com.algomeet.contactservice.entity.Contact;
 import com.algomeet.contactservice.entity.ContactStatus;
 import com.algomeet.contactservice.repository.ContactRepository;
 import com.algomeet.notificationservice.dto.Notification;
-import com.algomeet.notificationservice.dto.Notification.NotificationBuilder;
 import com.algomeet.notificationservice.enums.NotificationType;
 import com.algomeet.notificationservice.service.NotificationService;
 
