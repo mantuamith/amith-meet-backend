@@ -23,18 +23,18 @@ spring:
       auto-index-creation: true
 
 
-  # ================================
-  # Redis Configuration
-  # ================================
-  redis:
-    host: ${REDIS_HOST:localhost}
-    port: ${REDIS_PORT:6379}
-    # TODO: Ensure Redis in production is:
-    # - Password protected via requirepass
-    # - Bound to internal IPs only (127.0.0.1 or private VPC)
-    # - Configured with TLS if exposed
-    # - Proper eviction policy and maxmemory set
-    # - Persistence configured (AOF/RDB) as needed
+    # ================================
+    # Redis Configuration
+    # ================================
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      # TODO: Ensure Redis in production is:
+      # - Password protected via requirepass
+      # - Bound to internal IPs only (127.0.0.1 or private VPC)
+      # - Configured with TLS if exposed
+      # - Proper eviction policy and maxmemory set
+      # - Persistence configured (AOF/RDB) as needed
 
   # ================================
   # JSON Formatting (Optional)
