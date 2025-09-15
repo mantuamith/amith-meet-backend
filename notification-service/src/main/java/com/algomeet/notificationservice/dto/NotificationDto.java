@@ -33,5 +33,5 @@ public class NotificationDto {
 	 * Used for tenant schema identifier.Notification processing used redis stream queue which 
 	 * consumed by workers that running different threads.
 	 */
-	private String tenantId;
+	private Integer tenantId;
 }

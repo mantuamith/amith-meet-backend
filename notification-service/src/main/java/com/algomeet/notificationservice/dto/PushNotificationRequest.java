@@ -8,10 +8,15 @@ import com.algomeet.notificationservice.enums.NotificationType;
 import com.algomeet.notificationservice.enums.ReceiverGroup;
 
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import lombok.Data;
 
 @Data
 public class PushNotificationRequest {
+	@Pattern(
+		    regexp = "|^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+		    message = "{push-notification.id.invalid}"
+		)
     private String id;
 	
 	@NotNull(message = "{push-notification.type.isBlank}")
@@ -47,5 +52,5 @@ public class PushNotificationRequest {
 	 * Used for tenant schema identifier.Notification processing used redis stream queue which 
 	 * consumed by workers that running different threads.
 	 */
-	private String tenantId;
+	private Integer tenantId;
 }
