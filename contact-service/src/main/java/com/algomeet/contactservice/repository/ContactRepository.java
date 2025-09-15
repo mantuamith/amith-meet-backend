@@ -56,7 +56,7 @@ WHERE (c.userKey = :a AND c.contactUserKey = :b)
         AND c.status = :status
     """)
     List<java.util.UUID> findCounterpartyKeysByStatus(
-            @Param("userKey") java.util.UUID userKey,
+            @Param("userKey") UUID userKey,
             @Param("status") ContactStatus status
     );
 
