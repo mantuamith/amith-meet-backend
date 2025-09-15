@@ -63,10 +63,13 @@ WHERE (c.userKey = :a AND c.contactUserKey = :b)
     default List<UUID> findAccepted(UUID key) {
         return findCounterpartyKeysByStatus(key, ContactStatus.ACCEPTED);
     }
+
     default List<UUID> findPending(UUID key)  {
         return findCounterpartyKeysByStatus(key, ContactStatus.PENDING);
     }
 
 
     List<Contact> findByContactUserKeyAndStatus(UUID userId, ContactStatus contactStatus);
+
+
 }

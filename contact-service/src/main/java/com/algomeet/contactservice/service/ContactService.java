@@ -161,26 +161,17 @@ public class ContactService {
 
     public List<UserDto> getContactList(UUID userKey) {
         log.debug("Fetching accepted contacts for userId={}", userKey);
-        List<Contact> accepted = contactRepository.findByContactUserKeyAndStatus(userKey, ContactStatus.ACCEPTED);
-        List<String> contactUserIds = accepted.stream()
-                .map(Contact::getContactUserId)
-                .filter(Objects::nonNull)
-                .map(String::trim)
-                .map(String::toLowerCase)
-                .distinct()
-                .collect(Collectors.toList());
-        log.info("Accepted contact list size for {}: {}", userKey, contactUserIds.size());
-        return userClient.getUsersByIds(contactUserIds);
+        List<UUID> accepted = contactRepository.findAccepted(userKey);
+
+        log.info("Accepted contact list size for {}: {}", userKey, accepted.size());
+        return userClient.getUsersByKeys(accepted);
     }
 
     public List<UserDto> getPendingRequests(UUID userKey) {
         log.debug("Fetching pending requests for userId={}", userKey);
-        List<Contact> pending = contactRepository.findByContactUserKeyAndStatus(userKey, ContactStatus.PENDING);
-        List<UUID> senderUserkeys = pending.stream()
-                .map(Contact::getUserKey)
-                .collect(Collectors.toList());
-        log.info("Pending requests count for {}: {}", userKey, senderUserkeys.size());
-        return userClient.getUsersByKeys(senderUserkeys);
+        List<UUID> pending = contactRepository.findPending(userKey);
+        log.info("Pending requests count for {}: {}", userKey, pending.size());
+        return userClient.getUsersByKeys(pending);
     }
 
     public void rejectContactRequest(String userLogin, String contactLoginOrId) {
