@@ -7,6 +7,11 @@ import com.algomeet.meetservice.model.Meeting;
 import com.algomeet.meetservice.model.MeetingStatus;
 import com.algomeet.meetservice.repository.MeetingRepository;
 import com.algomeet.meetservice.util.RandomIdGenerator;
+import com.algomeet.notificationservice.dto.Notification;
+import com.algomeet.notificationservice.enums.NotificationType;
+import com.algomeet.notificationservice.enums.ReceiverGroup;
+import com.algomeet.notificationservice.service.NotificationService;
+
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,6 +35,9 @@ public class MeetingService {
 
     @Autowired
     private JavaMailSender mailSender;
+    
+    @Autowired
+    private NotificationService notificationService;
 
     @Value("${meeting.expiration.minutes:60}")
     private int expirationMinutes;
@@ -77,7 +85,24 @@ public class MeetingService {
         //TODO: Send Notification all users in Attendees that meeting is created
 
         //sendEmailInvite(email, id, token);
-        return meetingRepository.save(meeting);
+        
+        Meeting savedMeeting = meetingRepository.save(meeting);
+        
+        // Send meeting invite notification to attendees 
+        Notification notif = Notification.builder()
+        		.receiverGroup(ReceiverGroup.MEETING_ATTENDEES)
+        		.receiverGroupRefId(savedMeeting.getId())
+        		.type(NotificationType.MEETING_INVITE)
+        		.title("You have received a meeting invite")
+        		.body(savedMeeting.getMeetingName())
+        		.data(Map.of(
+        			    "meetingId", savedMeeting.getId()
+        			))
+        		.deliveryAckRequired(true)
+        		.build();
+        notificationService.sendPush(notif);
+        
+        return savedMeeting;
     }
 
     //Mark a meeting as COMPLETED
