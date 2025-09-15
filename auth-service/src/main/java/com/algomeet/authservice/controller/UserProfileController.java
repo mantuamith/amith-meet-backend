@@ -19,7 +19,7 @@ import com.algomeet.authservice.service.UserProfileService;
 import lombok.RequiredArgsConstructor;
 
 @RestController
-@RequestMapping("/user-profiles")
+@RequestMapping("/auth/user-profiles")
 @RequiredArgsConstructor
 public class UserProfileController {	
 	private final UserProfileService userProfileService;

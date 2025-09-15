@@ -323,7 +323,7 @@ public class MessageService {
         sendUnreadCountUpdate(me);
 
         // 3) refresh "recent messages" list for the left pane
-        List<com.algomeet.chatservice.dto.RecentReceivedMessageResponse> recent = getRecentMessages(me);
+        List<RecentReceivedMessageResponse> recent = getRecentMessages(me);
         messagingTemplate.convertAndSendToUser(me, "/queue/recent/summary", recent);
     }
 }
