@@ -139,7 +139,7 @@ public class UserController {
     public ResponseEntity<UserDto> getUserById(@PathVariable Long id) {
         return userRepository.findById(id)
                 .map(user -> ResponseEntity.ok(new UserDto(
-                        String.valueOf(user.getId()),
+                        user.getId(),
                         user.getUsername(),
                         user.getEmail(),user.getUserKey()
                 )))
@@ -153,7 +153,7 @@ public class UserController {
         List<UserDto> users = userRepository.findAllByEmailIn(userIds)
                 .stream()
                 .map(user -> new UserDto(
-                        String.valueOf(user.getId()),
+                        user.getId(),
                         user.getUsername(),
                         user.getEmail(),user.getUserKey()
                 ))
@@ -190,7 +190,7 @@ public class UserController {
 
         // Index by user_key for O(1) re-order
         Map<UUID, User> byKey = users.stream()
-                .collect(java.util.stream.Collectors.toMap(User::getUserKey, u -> u));
+                .collect(Collectors.toMap(User::getUserKey, u -> u));
 
         // Rebuild in caller's order, skipping missing users
         List<UserDto> out = new ArrayList<>(uuids.size());
@@ -207,7 +207,7 @@ public class UserController {
         List<User> users = userRepository.searchUsers(query);
         List<UserDto> result = users.stream().map(user -> {
             UserDto dto = new UserDto();
-            dto.setId(String.valueOf(user.getId()));
+            dto.setId(user.getId());
             dto.setUsername(user.getUsername());
             dto.setEmail(user.getEmail());
             return dto;
@@ -366,7 +366,8 @@ public class UserController {
 
     private static UserDto toDto(User u) {
         UserDto dto = new UserDto();
-        dto.setId(u.getUserKey().toString());   // expose UUID as id
+        dto.setUserKey(u.getUserKey());
+        dto.setId(u.getId());
         dto.setUsername(u.getUsername());
         dto.setEmail(u.getEmail());
         return dto;
