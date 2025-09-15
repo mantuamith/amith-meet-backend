@@ -2,6 +2,9 @@ package com.algomeet.chatservice.document;
 
 import com.algomeet.chatservice.model.CallType;
 
+import lombok.Data;
+
+@Data
 public class CallMetaData {
 
     private String roomId;

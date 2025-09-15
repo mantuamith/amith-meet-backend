@@ -8,20 +8,33 @@ import com.algomeet.chatservice.document.MessageResponse;
 import com.algomeet.chatservice.dto.*;
 import com.algomeet.chatservice.mapper.MessageMapper;
 import com.algomeet.chatservice.model.MessageStatus;
+import com.algomeet.chatservice.model.AppStatus;
+import com.algomeet.chatservice.registry.SessionMetadata;
+import com.algomeet.chatservice.registry.WebSocketSessionRegistry;
 import com.algomeet.chatservice.repository.MessageRepository;
 import com.algomeet.chatservice.service.MessageDeleteService;
 import com.algomeet.chatservice.service.MessageService;
+import com.algomeet.notificationservice.dto.Notification;
+import com.algomeet.notificationservice.dto.Notification.NotificationBuilder;
+import com.algomeet.notificationservice.enums.NotificationType;
+import com.algomeet.notificationservice.service.NotificationService;
+
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
+import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.messaging.simp.user.SimpUserRegistry;
+import org.springframework.util.CollectionUtils;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @RestController
@@ -35,6 +48,8 @@ public class ChatWebSocketController {
     private final MessageMapper messageMapper;
     private final MessageService messageService;
     private final MessageDeleteService deleteService;
+    private final NotificationService notificationService;
+    private final WebSocketSessionRegistry sessionRegistry;
 
     @MessageMapping("/chat")
     public void handleChatMessage(MessageDocument message, Principal principal) {
@@ -60,6 +75,10 @@ public class ChatWebSocketController {
                         if (!member.equals(message.getSender())) {
                             messagingTemplate.convertAndSendToUser(member, "/queue/messages", response);
                             messageService.sendUnreadCountUpdate(member); // real-time update
+                            
+                            // Send push notification
+                            // Todo: get the member user key
+                            sendPushNotification (member, message.getContent(), NotificationType.GROUP_MESSAGE, member);
                         }
                     }catch (Exception e) {
                         // Fallback if one group member fails
@@ -101,7 +120,9 @@ public class ChatWebSocketController {
                         "/queue/unread/contact",
                         new UnreadCountResponse(message.getReceiver(), unreadForSender)
                 );
-
+                
+                // Send push notifation
+                sendPushNotification (message.getReceiverKey(), message.getContent(), NotificationType.DIRECT_MESSAGE, message.getReceiver());
             }
         }catch (Exception ex) {
             // Mark as FAILED and log
@@ -160,6 +181,16 @@ public class ChatWebSocketController {
     public void handleWebRTCSignal(SignalMessage message, Principal principal) {
         log.info("[STOMP /call] {} -> {} | Type: {}", principal.getName(), message.getTo(), message.getType());
         try {
+        	
+        	// Send calling event notification
+        	NotificationBuilder notifBuilder = Notification.builder()
+        			.receiverIds(Set.of(message.getToKey())) // To must be using user_key UUID
+        	.title(principal.getName() + " is calling")
+        	.body(principal.getName() + " is calling")
+        	.type(NotificationType.VIDEO_CALL.name().equalsIgnoreCase(message.getType()) 
+        			? NotificationType.VIDEO_CALL : NotificationType.AUDIO_CALL);        	
+        	notificationService.sendPush(notifBuilder.build());
+        	
             messagingTemplate.convertAndSendToUser(
                     message.getTo(),
                     "/queue/call",
@@ -178,5 +209,44 @@ public class ChatWebSocketController {
                     "WebRTC signaling failed to deliver to: " + message.getTo()
             );
         }
+    }
+    
+    /**
+     * Used to set the user/client status
+     * @param message
+     * @param principal
+     */
+    @MessageMapping("/app-status")
+    public void handleInActive(AppStatusMessage message, Principal principal) {
+    	Set<SessionMetadata> sessions = sessionRegistry.getSessions(principal.getName());
+    	if (sessions != null) {
+    		sessions.forEach(s -> {
+    			s.setActive(AppStatus.ACTIVE == message.getStatus() ? true : false);
+    		});
+    	}
+    }
+    
+    /**
+     * Used to send push notification for new message
+     * @param toKey
+     * @param message
+     * @param notifcationType
+     * @param receiverUser
+     */
+    private void sendPushNotification (String toKey, String message, NotificationType notifcationType, String receiverUser) {
+    	// TODO: Need to finalize if we have to use username
+    	Set<SessionMetadata> sessions = sessionRegistry.getSessions(receiverUser);
+    	if (CollectionUtils.isEmpty(sessions)
+    			|| sessions.iterator().next().isActive() == false) {
+    	    	
+    		Notification notif = Notification.builder()
+    				.receiverIds(Set.of(toKey))
+    				.type(notifcationType)
+    				.title("You have new message")
+    				.body(message)
+    				.build();
+
+    		notificationService.sendPush(notif);    	
+    	}
     }
 }
