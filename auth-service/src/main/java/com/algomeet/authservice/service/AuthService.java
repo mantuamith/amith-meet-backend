@@ -8,6 +8,10 @@ import com.algomeet.authservice.exception.UserAlreadyExistsException;
 import com.algomeet.authservice.session.SidCache;
 import com.algomeet.authservice.token.RefreshTokenStore;
 import com.algomeet.authservice.util.JwtUtil;
+import com.algomeet.notificationservice.dto.Notification;
+import com.algomeet.notificationservice.enums.NotificationType;
+import com.algomeet.notificationservice.enums.ReceiverGroup;
+import com.algomeet.notificationservice.service.NotificationService;
 import com.algomeet.authservice.enums.ResponseCode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import feign.FeignException;
@@ -36,6 +40,7 @@ public class AuthService {
     private final RefreshTokenStore refreshTokenStore;
     private final ObjectMapper objectMapper; // for mapping user object
     private final SidCache sidCache;
+    private final NotificationService notificationService;
 
     public AuthResponse issueTokensFor(UserResponse user) {
         String accessToken  = jwtUtil.generateToken(user);
@@ -137,6 +142,17 @@ public class AuthService {
             refreshTokenStore.save(refreshToken, user.getEmail());
                     
             log.info("LOGIN: success email={}", maskEmail(email));
+            
+            // Add push notification
+            Notification notif = Notification.builder()
+            		.type(NotificationType.USER_ONLINE)
+            		.receiverGroup(ReceiverGroup.USER_FRIENDS)
+            		.receiverGroupRefId(user.getUserKey().toString())
+            		.title(user.getUsername() + " is online")
+            		.body(user.getUsername() + " is online")
+            		.build();
+            notificationService.sendPush(notif);
+            
             return AuthResponse.from(ResponseCode.AUTH_LOGIN_SUCCESS, user, accessToken, refreshToken);
 
 
