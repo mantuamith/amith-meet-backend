@@ -29,6 +29,8 @@ public class UserProfileResponse {
     private String username;
     private String email;
     private String phone;
+    private String role;
+    private Integer tenantId;
     
     public Boolean getSecurityQuestionsEnabled() {
     	if(securityQuestionsEnabled == null) {

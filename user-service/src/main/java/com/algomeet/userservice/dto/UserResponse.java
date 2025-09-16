@@ -28,6 +28,8 @@ public class UserResponse {
     // NEW: expose loginTypePolicy so auth-service can enforce device policy
     private Short loginTypePolicy;
 
+    private Integer tenantId;
+
     public UserResponse(User user) {
         this.id = user.getId();
         this.username = user.getUsername();
@@ -39,5 +41,8 @@ public class UserResponse {
         if(user.getUserKey() != null) {
         	this.userKey = user.getUserKey().toString();
         }
+        
+        user.setTenantId(user.getTenantId());
+        user.setRole(user.getRole());
     }
 }

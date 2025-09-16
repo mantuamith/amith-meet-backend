@@ -76,6 +76,9 @@ public class UserController {
         user.setEmailVerified(Boolean.TRUE.equals(request.getIsEmailVerified()));
         user.setPhoneVerified(Boolean.TRUE.equals(request.getIsPhoneVerified()));
         user.setRegistrationIp(request.getRegistrationIp());
+        
+        user.setTenantId(request.getTenantId());
+        user.setRole(request.getRole());
 
         if (request.getLoginTypePolicy()!=null)
         	user.setLoginTypePolicy(request.getLoginTypePolicy().shortValue());
@@ -148,7 +151,10 @@ public class UserController {
                 .map(user -> ResponseEntity.ok(new UserDto(
                         user.getId(),
                         user.getUsername(),
-                        user.getEmail(),user.getUserKey()
+                        user.getEmail(),
+                        user.getUserKey(),
+                        user.getRole(),
+                        user.getTenantId()
                 )))
                 .orElse(ResponseEntity.notFound().build());
     }
@@ -162,7 +168,10 @@ public class UserController {
                 .map(user -> new UserDto(
                         user.getId(),
                         user.getUsername(),
-                        user.getEmail(),user.getUserKey()
+                        user.getEmail(),
+                        user.getUserKey(),
+                        user.getRole(),
+                        user.getTenantId()
                 ))
                 .collect(Collectors.toList());
        
@@ -377,6 +386,9 @@ public class UserController {
         dto.setId(u.getId());
         dto.setUsername(u.getUsername());
         dto.setEmail(u.getEmail());
+        dto.setTenantId(u.getTenantId());
+        dto.setRole(u.getRole());
+        
         return dto;
     }
 }

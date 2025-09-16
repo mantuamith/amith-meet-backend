@@ -62,6 +62,7 @@ public class AuthController {
     private String mDev(String v){ return v == null ? "null" : (v.length()<=6? "***" : v.substring(0,3)+"***"+v.substring(v.length()-3)); }
 
     // ----------------- Registration -------------------
+    @Deprecated
     @PostMapping("/register")
     public ResponseEntity<?> register(@RequestBody Map<String, String> payload) {
         final String username = payload.get("username");

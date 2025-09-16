@@ -29,4 +29,7 @@ public class UserRequest {
     private String registrationDeviceType;
 
     private Integer loginTypePolicy;  // from config if you enforce one
+    
+    private String role;
+    private Integer tenantId;
 }
