@@ -142,17 +142,7 @@ public class AuthService {
             refreshTokenStore.save(refreshToken, user.getEmail());
                     
             log.info("LOGIN: success email={}", maskEmail(email));
-            
-            // Add push notification
-            Notification notif = Notification.builder()
-            		.type(NotificationType.USER_ONLINE)
-            		.receiverGroup(ReceiverGroup.USER_FRIENDS)
-            		.receiverGroupRefId(user.getUserKey().toString())
-            		.title(user.getUsername() + " is online")
-            		.body(user.getUsername() + " is online")
-            		.build();
-            notificationService.sendPush(notif);
-            
+                        
             return AuthResponse.from(ResponseCode.AUTH_LOGIN_SUCCESS, user, accessToken, refreshToken);
 
 

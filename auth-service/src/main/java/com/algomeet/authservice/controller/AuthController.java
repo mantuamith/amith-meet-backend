@@ -285,6 +285,16 @@ public class AuthController {
                 // Update user used to login device token
                	userClient.updateDeviceTypeAndToken(user.getId(), request.getDeviceType().name(), request.getDeviceToken());
                	
+                // Add push notification
+                Notification notif = Notification.builder()
+                		.type(NotificationType.USER_ONLINE)
+                		.receiverGroup(ReceiverGroup.USER_FRIENDS)
+                		.receiverGroupRefId(user.getUserKey().toString())
+                		.title(user.getUsername() + " is online")
+                		.body(user.getUsername() + " is online")
+                		.build();
+                notificationService.sendPush(notif);
+                
                 return ResponseEntity.ok(finalTokens);
             }
             case EMAIL: {
@@ -397,6 +407,16 @@ public class AuthController {
         // Update user used to login device token
         userClient.updateDeviceTypeAndToken(user.getId(), request.getDeviceType().name(), request.getDeviceToken());
 
+        // Add push notification
+        Notification notif = Notification.builder()
+        		.type(NotificationType.USER_ONLINE)
+        		.receiverGroup(ReceiverGroup.USER_FRIENDS)
+        		.receiverGroupRefId(user.getUserKey().toString())
+        		.title(user.getUsername() + " is online")
+        		.body(user.getUsername() + " is online")
+        		.build();
+        notificationService.sendPush(notif);    
+        
         return ResponseEntity.ok(result);
     }
 
