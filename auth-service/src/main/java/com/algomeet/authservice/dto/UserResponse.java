@@ -1,6 +1,10 @@
 package com.algomeet.authservice.dto;
 
+import java.util.Map;
+import java.util.UUID;
+
 import com.fasterxml.jackson.annotation.JsonInclude;
+
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -31,6 +35,7 @@ public class UserResponse {
      * Value can be (ANDROID, IOS, WEB. HARMONYOS)
      */
     private String deviceType;
+    private Integer tenantId;
 
     @SuppressWarnings("unchecked")
     public UserResponse(Map<String, Object> map) {
@@ -54,5 +59,6 @@ public class UserResponse {
         // role & enabled are optional in response
         this.role = (String) map.get("role");
         this.enabled = map.get("enabled") != null && Boolean.TRUE.equals(map.get("enabled"));
+        this.tenantId = (Integer) map.get("tenantId");
     }
 }

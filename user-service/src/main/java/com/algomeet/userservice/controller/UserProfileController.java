@@ -37,9 +37,10 @@ public class UserProfileController {
     	UserProfileResponse userProfileResp = userProfileResponseOpt.get();
     	userProfileResp.setEmail(userOpt.get().getEmail());
     	userProfileResp.setPhone(userOpt.get().getPhone());
-    	userProfileResp.setUsername(userOpt.get().getUsername());  	
-    	System.out.println("----------------->" + userProfileResp.getUsername());
-    	
+    	userProfileResp.setUsername(userOpt.get().getUsername());  
+    	userProfileResp.setRole(userOpt.get().getRole());
+    	userProfileResp.setTenantId(userOpt.get().getTenantId());
+      	
     	return userProfileResponseOpt.map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }

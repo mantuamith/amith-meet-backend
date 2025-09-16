@@ -84,6 +84,12 @@ public class User {
      * Coming from Apple APN, or Google Firebase
      */
     private String deviceToken;
+    
+    @Column(name = "role", length = 50)
+    private String role;
+    
+    @Column(name = "tenant_id", nullable = false, columnDefinition = "int default 0")
+    private Integer tenantId = 0;
 
     @PrePersist @PreUpdate
     void normalize() {
@@ -93,6 +99,10 @@ public class User {
             email    = email.trim().toLowerCase(Locale.ROOT);
         if (userKey == null) {
             userKey = java.util.UUID.randomUUID();
+        }
+        
+        if (tenantId == null) {
+            tenantId = 0;
         }
 
     }

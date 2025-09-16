@@ -17,4 +17,7 @@ public class UserDto {
     private String email;
 
     private UUID userKey;
+    
+    private String role;
+    private Integer tenantId;
 }

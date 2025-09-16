@@ -32,6 +32,9 @@ public class RegisterInitRequest {
     private String city;
     private Double latitude;
     private Double longitude;
+    
+    private String role;
+    private Integer tenantId;
 
     @AssertTrue(message = "Either email or phone must be provided")
     public boolean isContactProvided() {

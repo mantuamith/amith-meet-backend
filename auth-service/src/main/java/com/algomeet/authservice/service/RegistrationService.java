@@ -63,6 +63,8 @@ public class RegistrationService {
             .longitude(req.getLongitude())
             .createdAt(now)
             .expireAt(expireAt)
+            .role(req.getRole())
+            .tenantId(req.getTenantId())
             .build();
 
     pendingRepo.save(doc);
@@ -150,6 +152,8 @@ public class RegistrationService {
             .registrationDeviceId(doc.getDeviceId())
             .registrationDeviceType(doc.getDeviceType() != null ? doc.getDeviceType().toString() : null)
             .loginTypePolicy(props.getAuth().getLoginTypePolicyDefault())
+            .role(doc.getRole())
+            .tenantId(doc.getTenantId())
             .build();
 
     // 4) Call user-service and unwrap its Map response safely

@@ -18,4 +18,6 @@ public class UserProfileUpdateRequest {
     private String registrationDeviceType;
     private String passcode;
     private Boolean securityQuestionsEnabled;
+    private String role;
+    private Integer tenantId;
 }

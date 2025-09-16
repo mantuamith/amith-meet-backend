@@ -1,5 +1,6 @@
 package com.algomeet.userservice.repository;
 
+import com.algomeet.multitenancy.annotations.UsePublicSchema;
 import com.algomeet.userservice.model.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -32,6 +33,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     Optional<User> findByUsernameIgnoreCase(String username);
     Optional<User> findByEmailIgnoreCase(String email);
+    
+    @UsePublicSchema
     Optional<User> findByUserKey(UUID key);
 
     List<User> findAllByUserKeyIn(List<UUID> keys);

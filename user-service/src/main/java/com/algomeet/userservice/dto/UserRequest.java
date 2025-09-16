@@ -36,8 +36,7 @@ public class UserRequest {
      * Coming from Apple APN, or Google Firebase
      */
     private String deviceToken;
-    /**
-     * Value can be (ANDROID, IOS, WEB. HARMONYOS)
-     */
-    private String clientPlatform;
+
+    private String role;
+    private Integer tenantId;
 }
