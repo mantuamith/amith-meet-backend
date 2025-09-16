@@ -21,6 +21,8 @@ public interface UserNotificationRepository extends JpaRepository<UserNotificati
 	Page<UserNotification> findByUserKeyAndReadFalse(UUID userKey, Pageable pageable);
 
     List<UserNotification> findByUserKeyAndReadFalse(UUID userKey);
+    
+    List<UserNotification> findByUserKeyAndDeliveredFalse(UUID userKey);
 
     List<UserNotification> findByNotification_Id(UUID notificationId);
     
