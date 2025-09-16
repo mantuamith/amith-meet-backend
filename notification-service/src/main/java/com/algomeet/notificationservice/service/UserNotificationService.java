@@ -1,5 +1,6 @@
 package com.algomeet.notificationservice.service;
 
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.data.domain.Page;
@@ -12,6 +13,7 @@ import com.algomeet.notificationservice.dto.UserNotificationDto;
 import com.algomeet.notificationservice.repository.UserNotificationRepository;
 import com.algomeet.notificationservice.util.UserNotificationMapper;
 
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -40,6 +42,14 @@ public class UserNotificationService {
 
         return userNotificationRepository.findByUserKeyAndReadFalse(UUID.fromString(userKey), pageable)
                 .map(UserNotificationMapper::toUserNotificationDto);
+    }
+    
+    @Transactional
+    public List<UserNotificationDto> getUndeliveredNotifications(String userKey) {
+        return userNotificationRepository.findByUserKeyAndDeliveredFalse(UUID.fromString(userKey))
+        		.stream()
+                .map(UserNotificationMapper::toUserNotificationDto)
+                .toList();
     }
          
     public void markAsRead(Long id) {

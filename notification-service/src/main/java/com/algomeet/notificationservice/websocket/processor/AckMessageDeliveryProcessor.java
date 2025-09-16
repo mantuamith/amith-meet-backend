@@ -16,7 +16,7 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Component
-public class AckMessage implements WebSocketMessageProcessor{
+public class AckMessageDeliveryProcessor implements WebSocketMessageProcessor{
 	@Autowired
 	private ObjectMapper mapper;
 	
