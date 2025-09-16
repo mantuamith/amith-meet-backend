@@ -1,4 +1,4 @@
-package com.algomeet.notificationservice.websocket.job;
+package com.algomeet.notificationservice.websocket.scheduler;
 
 import java.util.Iterator;
 
