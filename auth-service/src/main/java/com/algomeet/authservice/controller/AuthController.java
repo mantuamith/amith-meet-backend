@@ -36,6 +36,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Map;
+import java.util.Set;
 
 @Slf4j
 @RestController
@@ -202,7 +203,7 @@ public class AuthController {
             }
 
             
-         // Add push notification
+            // Add push notification
             Notification notif = Notification.builder()
             		.type(NotificationType.USER_OFFLINE)
             		.receiverGroup(ReceiverGroup.USER_FRIENDS)
@@ -258,6 +259,16 @@ public class AuthController {
                     && user.getActiveDeviceId() != null
                     && !user.getActiveDeviceId().equals(request.getDeviceId())
                     && !override) {
+            	
+            	// Send push notification
+                Notification notif = Notification.builder()
+                		.type(NotificationType.LOCKED_SINGLE_DEVICE)
+                		.receiverIds(Set.of(user.getUserKey() != null ? user.getUserKey().toString() : user.getUsername()))
+                        .title("Account locked " + user.getActiveDeviceId() + " device")
+                		.body("Account locked " + user.getActiveDeviceId() + " device")
+                		.build();
+                notificationService.sendPush(notif);
+                
                 return ResponseEntity.status(423).body(Map.of(
                         "code", "AUTH_DEVICE_LOCKED",
                         "message", "This account is active on another device.",
@@ -285,6 +296,16 @@ public class AuthController {
                 // Update user used to login device token
                	userClient.updateDeviceTypeAndToken(user.getId(), request.getDeviceType().name(), request.getDeviceToken());
                	
+                // Add push notification
+                Notification notif = Notification.builder()
+                		.type(NotificationType.USER_ONLINE)
+                		.receiverGroup(ReceiverGroup.USER_FRIENDS)
+                		.receiverGroupRefId(user.getUserKey().toString())
+                		.title(user.getUsername() + " is online")
+                		.body(user.getUsername() + " is online")
+                		.build();
+                notificationService.sendPush(notif);
+                
                 return ResponseEntity.ok(finalTokens);
             }
             case EMAIL: {
@@ -397,6 +418,16 @@ public class AuthController {
         // Update user used to login device token
         userClient.updateDeviceTypeAndToken(user.getId(), request.getDeviceType().name(), request.getDeviceToken());
 
+        // Add push notification
+        Notification notif = Notification.builder()
+        		.type(NotificationType.USER_ONLINE)
+        		.receiverGroup(ReceiverGroup.USER_FRIENDS)
+        		.receiverGroupRefId(user.getUserKey().toString())
+        		.title(user.getUsername() + " is online")
+        		.body(user.getUsername() + " is online")
+        		.build();
+        notificationService.sendPush(notif);    
+        
         return ResponseEntity.ok(result);
     }
 
