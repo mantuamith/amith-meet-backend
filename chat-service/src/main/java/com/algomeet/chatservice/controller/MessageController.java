@@ -171,6 +171,12 @@
         }
 
 
+        @PostMapping("/mark-as-read")
+        public ResponseEntity<Void> markAsRead(@Valid @RequestBody String senderId, @Valid @RequestBody String receiverId) {
+            messageService.markMessagesAsRead(senderId, receiverId);
+            return ResponseEntity.noContent().build();
+        }
+
         private String getCurrentUserName() {
             var auth = SecurityContextHolder.getContext().getAuthentication();
             return auth.getName(); // now returns username instead of email

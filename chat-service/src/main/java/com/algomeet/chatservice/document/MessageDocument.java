@@ -18,6 +18,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import static java.lang.Boolean.TRUE;
+
 @Data
 @NoArgsConstructor
 @Document(collection = "messages")
@@ -87,11 +89,12 @@ public class MessageDocument {
 
     public boolean isVisibleTo(String userId) {
         // 1) hard delete for all
-        if (deletedForAll) {
+        if (TRUE.equals(deletedForAll)) {
             return false;
         }
         // 2) soft delete only for this user
-        if (deletedForUsers != null && deletedForUsers.contains(userId)) {
+        final Set<String> hiddenFor = this.deletedForUsers;
+        if (hiddenFor != null && hiddenFor.contains(userId)) {
             return false;
         }
         return true;

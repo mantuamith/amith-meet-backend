@@ -75,12 +75,12 @@ public class MeetingService {
         meeting.setPendingParticipants(new HashSet<>());
         meeting.setMeetingType(request.getMeetingType());
 
-        if(!request.isLobbyEnabled()){
+        //if(!request.isLobbyEnabled()){
             meeting.setAttendees(new HashSet<>(request.getAttendees()));
-        }else {
+        /*}else {
             System.out.println("Lobby is Enabled");
             meeting.setAttendees(new HashSet<>());
-        }
+        }*/
 
         //TODO: Send Notification all users in Attendees that meeting is created
 
@@ -121,7 +121,7 @@ public class MeetingService {
         //TODO: Meeting End Complete Notification
         return false;
     }
-
+    //TODO: JWT Meeting token claims: room , Moderrator
     public Optional<Meeting> getMeetingById(String id, String email, String token) {
         Optional<Meeting> meetingOpt = meetingRepository.findById(id);
         if (meetingOpt.isEmpty())
@@ -129,20 +129,25 @@ public class MeetingService {
 
         Meeting meeting = meetingOpt.get();
 
+        //Check if Status is Already Started and if user is Host
+        //if host and Meeting is not started Mark the Meeting as MeetingType = STARTED.
+        //if Attendee Allow only when meeting is started and Not Completed / or Expired ...
+        // Else Return the Meeting with the Status As NOT Started
+
         boolean isHost = meeting.getHostEmail().equals(email);
-        boolean isInvited = meeting.getInvitedParticipants().contains(email);
-        boolean isApprovedAttendee = meeting.getAttendees().contains(email);
+
+
         boolean isValidToken = token != null && token.equals(meeting.getToken());
 
-        if (!isHost && !isApprovedAttendee && !isValidToken) {
+        if (!isHost && !isValidToken) {
             return Optional.empty();
         }
 
-// If lobby is enabled and user is invited but not approved yet
-        if (meeting.isLobbyEnabled() && !isHost && isInvited && !isApprovedAttendee) {
-            meeting.getPendingParticipants().add(email);
+       // If lobby is enabled and user
+        if (meeting.isLobbyEnabled() && !isHost) {
+            meeting.setStatus(MeetingStatus.STARTED);
             meetingRepository.save(meeting);
-            throw new AccessDeniedException("Awaiting host approval");
+
         }
 
         //TODO: USER JOined Notification
@@ -150,6 +155,7 @@ public class MeetingService {
         return Optional.of(meeting);
     }
 
+    //TODO: JWT Meeting token claims: room , Moderrator
     public Optional<Meeting> getOpenMeetingById(String id, String token) {
         Optional<Meeting> meetingOpt = meetingRepository.findById(id);
         if (meetingOpt.isEmpty())
@@ -162,6 +168,9 @@ public class MeetingService {
 
         if ( !isValidToken) {
             return Optional.empty();
+        }
+        if(isMeetingNotStarted){
+            //send Meeting status
         }
 
 
