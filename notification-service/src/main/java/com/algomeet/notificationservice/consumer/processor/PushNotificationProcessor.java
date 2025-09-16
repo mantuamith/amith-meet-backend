@@ -1,7 +1,6 @@
 package com.algomeet.notificationservice.consumer.processor;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -15,18 +14,20 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 
-import com.algomeet.notificationservice.constant.Constants;
 import com.algomeet.notificationservice.consumer.receiver.processor.ReceiverGroupProcessor;
 import com.algomeet.notificationservice.consumer.receiver.processor.ReceiverGroupProcessorProvider;
 import com.algomeet.notificationservice.dto.NotificationDto;
 import com.algomeet.notificationservice.dto.NotificationMessage;
+import com.algomeet.notificationservice.dto.PublishPushMessage;
 import com.algomeet.notificationservice.dto.UserDto;
 import com.algomeet.notificationservice.enums.DeviceType;
 import com.algomeet.notificationservice.model.Notification;
 import com.algomeet.notificationservice.model.UserNotification;
+import com.algomeet.notificationservice.publisher.PushMessagePublisher;
 import com.algomeet.notificationservice.repository.UserNativeRepository;
 import com.algomeet.notificationservice.repository.UserNotificationRepository;
 import com.algomeet.notificationservice.service.ApnsSenderService;
+import com.algomeet.notificationservice.util.UserNotificationUtil;
 import com.algomeet.notificationservice.websocket.NotificationWebSocketHandler;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
@@ -35,7 +36,7 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Component
-public class PushNotification implements NotificationProcessor{
+public class PushNotificationProcessor implements NotificationProcessor{
 	@Autowired
 	private UserNotificationRepository userNotificationRepository;
 
@@ -50,6 +51,9 @@ public class PushNotification implements NotificationProcessor{
 
 	@Autowired
 	private ApnsSenderService apnsSenderService;
+	
+	@Autowired
+	private PushMessagePublisher pushMessagePublisher;
 
 	@Override
 	public int getOrder() {		
@@ -93,7 +97,7 @@ public class PushNotification implements NotificationProcessor{
 				UserNotification userNotification = saveUserNotification(userDto.getUserKey(), notification);
 
 				// Add metadata such as user notification id, and notification type
-				addNotificationCustomData(notification, userNotification);
+				UserNotificationUtil.addNotificationCustomData(notification, userNotification);
 
 				// Push notification
 				if (DeviceType.IOS.name().equals(userDto.getDeviceType())
@@ -105,37 +109,31 @@ public class PushNotification implements NotificationProcessor{
 						updateDeliveryStataus(deliveryStatus, userNotification);
 
 					} catch (Exception e) {}
-
 				} else {
-					// Android device or web client
-
-					Set<WebSocketSession> userSessions = NotificationWebSocketHandler.getAuthenticatedUserSessions()
-							.get(userDto.getUserKey());
-
-					if(!(CollectionUtils.isEmpty(userSessions))) {
-						for (WebSocketSession session : userSessions) {
-							send(session, notification);
-						}
-					}	
+					// Android and web clients
+					NotificationMessage notifMessage = NotificationMessage.getNotificationMessage(notification);
+					ObjectWriter ow = objectMapper.writer().withDefaultPrettyPrinter();
+					String jsonMessage = ow.writeValueAsString(new PublishPushMessage(userDto.getUserKey(), notifMessage));
+					
+					// Publish push message to all subscribers to support multiple running instances of notification-service
+					pushMessagePublisher.publish(jsonMessage);
 				}
 			} catch(Exception ex) {
 				log.error("Error sending notification {}", ex.getMessage(), ex);
 			}
 		}
 	}
+	
+	public void pushMessage(String userKey, NotificationMessage notifMessage) {
+		// Android devices or web clients
+		Set<WebSocketSession> userSessions = NotificationWebSocketHandler.getAuthenticatedUserSessions()
+				.get(userKey);
 
-	private void addNotificationCustomData(NotificationDto dto, UserNotification userNotification) {	
-		if (Objects.isNull(dto.getData())) {
-			dto.setData(new HashMap<>());
-		}
-
-		if (Objects.nonNull(userNotification)) {
-			dto.getData().put(Constants.NOTIFICATION_CUSTOM_DATA_NOTIFICATION_ID, userNotification.getId());
-		}
-
-		dto.getData().put(Constants.NOTIFICATION_CUSTOM_DATA_NOTIFICATION_TYPE, dto.getType());
-		dto.getData().put(Constants.NOTIFICATION_CUSTOM_DATA_DELIVERY_ACK_REQUIRED, dto.isDeliveryAckRequired());
-
+		if(!(CollectionUtils.isEmpty(userSessions))) {
+			for (WebSocketSession session : userSessions) {
+				send(session, notifMessage);
+			}
+		}	
 	}
 
 	private void updateDeliveryStataus(boolean isDelivered, UserNotification userNotification) {
@@ -201,10 +199,10 @@ public class PushNotification implements NotificationProcessor{
 		return receiverList;
 	}
 
-	private void send(WebSocketSession session, NotificationDto notification) {
-		try {
+	private void send(WebSocketSession session, NotificationMessage notificationMessage) {
+		try {			
 			ObjectWriter ow = objectMapper.writer().withDefaultPrettyPrinter();
-			String jsonMessage = ow.writeValueAsString(NotificationMessage.getNotificationMessage(notification));
+			String jsonMessage = ow.writeValueAsString(notificationMessage);
 
 			session.sendMessage(new TextMessage(jsonMessage));			
 		} catch (Exception ex) {
