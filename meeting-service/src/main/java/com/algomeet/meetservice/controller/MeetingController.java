@@ -68,7 +68,7 @@ public class MeetingController {
         try {
             Optional<Meeting> meeting = meetingService.getMeetingById(id, email, token);
             if (meeting.isPresent()) {
-                return ResponseEntity.ok(MeetingResponse.success("SUCCESS","Meeting fetch Successful",meeting.get()));
+                return ResponseEntity.ok(MeetingResponse.success("MEETING_JOINED_SUCCESS","Meeting fetch Successful",meeting.get()));
             } else {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
                         .body(MeetingResponse.error("MEETING_ACCESS_DENIED", "Unauthorized or invalid token"));

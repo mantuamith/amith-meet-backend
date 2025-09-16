@@ -12,6 +12,8 @@ import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import static java.lang.Boolean.TRUE;
+
 @Service
 @RequiredArgsConstructor
 public class MessageDeleteService {
@@ -55,7 +57,7 @@ public class MessageDeleteService {
                 continue;
             }
 
-            if (Boolean.TRUE.equals(msg.getDeletedForAll())) {
+            if (TRUE.equals(msg.getDeletedForAll())) {
                 // already deleted for all → nothing to do
                 failed.put(id, "ALREADY_DELETED_FOR_ALL");
                 continue;

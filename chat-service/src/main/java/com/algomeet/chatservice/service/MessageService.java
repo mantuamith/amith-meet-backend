@@ -127,7 +127,13 @@ public class MessageService {
             return List.of();
         }
 
-        Map<String, List<MessageDocument>> byContact = all.stream()
+        List<MessageDocument> visible = all.stream()
+                .filter(m -> m.isVisibleTo(userId))
+                .toList();
+
+        if (visible.isEmpty()) return List.of();
+
+        Map<String, List<MessageDocument>> byContact = visible.stream()
                 .collect(Collectors.groupingBy(m -> userId.equals(m.getSender()) ? m.getReceiver() : m.getSender()));
 
         List<RecentReceivedMessageResponse> result = new ArrayList<>();
@@ -138,9 +144,13 @@ public class MessageService {
             MessageDocument latest = thread.stream()
                     .max(Comparator.comparing(MessageDocument::getTimestamp))
                     .orElse(null);
+            if (latest == null) {
+                // entire thread is invisible → drop from recent
+                continue;
+            }
 
-            long ts = latest != null ? latest.getTimestamp().toEpochMilli() : 0L;
-            String lastText = latest != null ? latest.getContent() : null;
+            long ts = latest.getTimestamp().toEpochMilli();
+            String lastText = latest.getContent();
 
             int unread = (int) thread.stream()
                     .filter(m -> contactId.equals(m.getSender()))
@@ -150,7 +160,7 @@ public class MessageService {
 
             result.add(new RecentReceivedMessageResponse(contactId, lastText, ts, unread));
             log.trace("[Recent] user={} contact={} latestId={} unread={}",
-                    userId, contactId, latest != null ? latest.getId() : null, unread);
+                    userId, contactId, latest.getId(), unread);
         }
 
         List<RecentReceivedMessageResponse> out = result.stream()
