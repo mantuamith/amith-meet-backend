@@ -16,6 +16,16 @@ public interface MeetingRepository extends JpaRepository<Meeting, String> {
     List<Meeting> findAllByAttendeeEmail(@Param("email") String email);
 
     List<Meeting> findByMeetingStartTimeBetween(Instant start, Instant end);
+        
+    @Query(value = """
+    	    SELECT *
+    	    FROM meeting m
+    	    WHERE (m.meeting_start_time - (m.reminder_minutes * INTERVAL '1 minute'))
+    	          BETWEEN :start AND :end    
+    	""", nativeQuery = true)
+    List<Meeting> findMeetingsByReminderTimeBetween(
+    	        @Param("start") Instant start,
+    	        @Param("end") Instant end);
 
     List<Meeting> findDistinctByHostEmailOrAttendeesContainingOrderByMeetingStartTimeAsc(String email, String email1);
 }

@@ -68,4 +68,31 @@ public class UserNativeRepository {
                 ))
                 .toList();
     }
+    
+    @SuppressWarnings("unchecked")
+    @UsePublicSchema
+    public List<UserDto> getUsersByEmailList(List<String> emails) {
+        String placeholders = String.join(",", java.util.Collections.nCopies(emails.size(), "?"));
+        String sql = String.format("SELECT id, CAST(user_key AS TEXT), username, email, device_type, " + 
+        		                   "device_token FROM users WHERE email IN (%s)", placeholders);
+
+        Query query = entityManager.createNativeQuery(sql);
+
+        for (int i = 0; i < emails.size(); i++) {
+            query.setParameter(i + 1, emails.get(i));
+        }
+
+        List<Object[]> results = query.getResultList();
+
+        return results.stream()
+                .map(row -> new UserDto(
+                        Long.parseLong(row[0] + ""),
+                        (String) row[1],
+                        (String) row[2],
+                        (String) row[3],
+                        (String) row[4],
+                        (String) row[5]
+                ))
+                .toList();
+    }
 }

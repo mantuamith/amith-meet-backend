@@ -2,6 +2,7 @@ package com.algomeet.notificationservice.service;
 
 import java.util.Objects;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -10,6 +11,7 @@ import com.algomeet.notificationservice.properties.ApnsProperties;
 import com.algomeet.notificationservice.util.ApnsSenderUtil;
 
 @Service
+@Slf4j
 public class ApnsSenderService {
 	@Autowired
 	private ApnsProperties apnsProperties;
@@ -21,10 +23,16 @@ public class ApnsSenderService {
 		String bundleId = apnsProperties.getBundleId(); // your iOS app’s bundle ID
 		String env = apnsProperties.getEnv();
 		ApnsSenderUtil sender = null;	
-		
+
+        log.info("p8FilePath ={}", p8FilePath);
+        log.info("teamId ={}", teamId);
+        log.info("keyId ={}", keyId);
+        log.info("bundleId ={}", bundleId);
+
 		try {
 			// Initialize sender
 			sender = new ApnsSenderUtil(p8FilePath, teamId, keyId, bundleId, env);
+            log.info("Notification for IOS: {}", notification);
 			// Send notification
 			return sender.sendPush(receiverDeviceToken, notification);
 		} catch (Exception ex) {

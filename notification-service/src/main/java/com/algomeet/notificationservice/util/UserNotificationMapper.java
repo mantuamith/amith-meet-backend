@@ -26,6 +26,7 @@ public class UserNotificationMapper {
     public static UserNotificationDto toUserNotificationDto(UserNotification entity) {
         if (entity == null) return null;
         return UserNotificationDto.builder()
+        		.id(entity.getId())
                 .notification(toNotificationDto(entity.getNotification()))
                 .userKey(entity.getUserKey().toString())
                 .read(entity.isRead())

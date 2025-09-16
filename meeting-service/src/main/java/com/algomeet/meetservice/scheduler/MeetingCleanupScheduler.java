@@ -1,16 +1,22 @@
 package com.algomeet.meetservice.scheduler;
 
 import com.algomeet.meetservice.model.Meeting;
-import com.algomeet.meetservice.model.MeetingStatus;
 import com.algomeet.meetservice.repository.MeetingRepository;
+import com.algomeet.notificationservice.dto.Notification;
+import com.algomeet.notificationservice.enums.NotificationType;
+import com.algomeet.notificationservice.enums.ReceiverGroup;
+import com.algomeet.notificationservice.service.NotificationService;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Component
 public class MeetingCleanupScheduler {
@@ -19,12 +25,14 @@ public class MeetingCleanupScheduler {
 
     @Autowired
     private MeetingRepository meetingRepository;
+    @Autowired
+    private NotificationService notificationService;
 
     /**
      * Marks expired meetings as EXPIRED instead of deleting them.
      * Runs every 60 seconds.
      */
-    @Scheduled(fixedRate = 60000)
+    /*@Scheduled(fixedRate = 60000)
     public void markExpiredMeetings() {
         Instant now = Instant.now();
         List<Meeting> expiredMeetings = meetingRepository.findByExpiresAtBefore(now);
@@ -44,7 +52,7 @@ public class MeetingCleanupScheduler {
         });
 
         log.info("[MEETING CLEANUP] Updated {} meeting(s) to EXPIRED", expiredMeetings.size());
-    }
+    }*/
 
 
 
@@ -55,7 +63,7 @@ public class MeetingCleanupScheduler {
      *
      * TODO: In future, also notify participants before deletion if required.
      */
-    @Scheduled(fixedRate = 60000)
+   /* @Scheduled(fixedRate = 60000)
     public void cleanupExpiredMeetings() {
         Instant now = Instant.now();
         List<Meeting> expiredMeetings = meetingRepository.findByExpiresAtBefore(now);
@@ -72,7 +80,7 @@ public class MeetingCleanupScheduler {
         });
 
         log.info("[MEETING CLEANUP] Removed {} expired meeting(s)", expiredMeetings.size());
-    }
+    }*/
 
     /**
      * Scheduled task that runs every minute to check for upcoming meetings
@@ -80,26 +88,26 @@ public class MeetingCleanupScheduler {
      *
      * TODO: Integrate with notification-service to send device push/email.
      */
-    /*@Scheduled(fixedRate = 60000) // Every minute
+    @Scheduled(fixedRate = 60000) // Every minute
     public void processMeetingReminders() {
         Instant now = Instant.now();
         Instant inOneMinute = now.plusSeconds(60);
-
-        List<Meeting> meetings = meetingRepository.findByMeetingStartTimeBetween(now, inOneMinute);
-
+        
+        List<Meeting> meetings = meetingRepository.findMeetingsByReminderTimeBetween(now, inOneMinute);
         for (Meeting meeting : meetings) {
-            // Calculate actual reminder trigger time
-            Instant reminderTrigger = meeting.getExpiresAt()
-                    .minusSeconds(meeting.getReminderMinutes() * 60L);
+        	log.info("Meeting starts: {} , Meeting ends: {}", meetings.get(0).getMeetingStartTime(), meetings.get(0).getMeetingEndTime());       	
 
-            // If current time is at/after trigger, send reminder
-            if (!now.isBefore(reminderTrigger)) {
-                // TODO: Call notification-service API here
-                System.out.println("[REMINDER PLACEHOLDER] Would send reminder for meeting: "
-                        + meeting.getMeetingName() + " to attendees: " + meeting.getAttendees());
-                // TODO: Call notification-service to send push notifications
-                // notificationService.sendMeetingReminder(meeting.getId(), meeting.getAttendees());
-            }
+        	Notification notif = Notification.builder()
+        			.type(NotificationType.MEETING_REMINDER)
+        			.receiverGroup(ReceiverGroup.MEETING_PARTICIPANTS)
+        			.receiverGroupRefId(meeting.getId())
+        			.title("Meeting reminder")
+        			.body("Your meeting starts in " + meeting.getReminderMinutes() + " minutes")
+        			.data(Map.of(
+        					"meetingId", meeting.getId()
+        					))
+        			.build();
+        	notificationService.sendPush(notif);            
         }
-    }*/
+    }
 }
