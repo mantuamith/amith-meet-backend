@@ -10,6 +10,7 @@ import java.time.Instant;
 @AllArgsConstructor
 @Builder
 public class UserNotificationDto {
+	private Long id;
     private NotificationDto notification;
     private String userKey;
     private boolean read;

@@ -92,6 +92,13 @@ public class UserController {
             	// Add user profile
             	UserProfile userProfile = new UserProfile();
             	userProfile.setId(userKey);
+            	
+            	userProfile.setCountry(request.getCountry());
+            	userProfile.setCity(request.getCity());
+            	userProfile.setRegion(request.getRegion());
+            	userProfile.setLatitude(request.getLatitude());
+            	userProfile.setLongitude(request.getLongitude());
+                
             	userProfileRepository.save(userProfile);
             } finally {
             	// Add clean-up

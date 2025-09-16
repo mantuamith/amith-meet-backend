@@ -17,10 +17,15 @@ import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 import com.algomeet.multitenancy.context.TenantContext;
 import com.algomeet.notificationservice.constant.Constants;
+import com.algomeet.notificationservice.consumer.processor.PushNotificationProcessor;
+import com.algomeet.notificationservice.dto.NotificationMessage;
 import com.algomeet.notificationservice.dto.UserAuthInfo;
 import com.algomeet.notificationservice.dto.UserAuthenticationRequest;
+import com.algomeet.notificationservice.dto.UserNotificationDto;
 import com.algomeet.notificationservice.service.AuthService;
+import com.algomeet.notificationservice.service.UserNotificationService;
 import com.algomeet.notificationservice.util.MessageUtil;
+import com.algomeet.notificationservice.util.UserNotificationUtil;
 import com.algomeet.notificationservice.util.WebSocketMessageUtil;
 import com.algomeet.notificationservice.websocket.processor.WebSocketMessageProcessor;
 import com.algomeet.notificationservice.websocket.processor.WebSocketMessageProcessorProvider;
@@ -42,6 +47,12 @@ public class NotificationWebSocketHandler extends TextWebSocketHandler {
 	
 	@Autowired
 	private WebSocketMessageProcessorProvider messageProcessorProvider;
+	
+	@Autowired
+	private UserNotificationService userNotificationService;
+	
+	@Autowired
+	private PushNotificationProcessor pushNotificationProcessor;
 
 	@Override
 	public void afterConnectionEstablished(WebSocketSession session) throws Exception {  
@@ -85,6 +96,9 @@ public class NotificationWebSocketHandler extends TextWebSocketHandler {
 							session.getAttributes().put(Constants.SESSION_ATTR_DEVICE_TOKEN, authRequest.getDeviceToken().trim());
 						}
 						isAuthenticated = true;
+						
+						// Push un-delivered notifications
+						pushUndeliveredNotifications(userAuthInfo.getUserKey().trim());
 					} 
 				}
 			} catch(Exception ex) {
@@ -97,6 +111,7 @@ public class NotificationWebSocketHandler extends TextWebSocketHandler {
 				// Terminate user session
 				session.close();
 			}
+			
 			removeFromUnauthenticatedSessions(session);
 			
 			return;
@@ -128,6 +143,19 @@ public class NotificationWebSocketHandler extends TextWebSocketHandler {
     	
     	// Cleanup
     	TenantContext.clear();
+	}
+	
+	private void pushUndeliveredNotifications(String userKey) {
+		List<UserNotificationDto> list = userNotificationService.getUndeliveredNotifications(userKey);
+		
+		for (UserNotificationDto userNotifDto : list) {
+			// Set delivery acknowledge to required
+			userNotifDto.getNotification().setDeliveryAckRequired(true);
+			UserNotificationUtil.addNotificationCustomData(userNotifDto.getNotification(), userNotifDto);
+			//Push notification message
+			pushNotificationProcessor.pushMessage(userKey, 
+					NotificationMessage.getNotificationMessage(userNotifDto.getNotification()));
+		}		
 	}
 	
 	public static Set<WebSocketSession> getUnauthenticatedsessions() {
