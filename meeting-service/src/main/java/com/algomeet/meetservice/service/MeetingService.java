@@ -124,57 +124,90 @@ public class MeetingService {
     //TODO: JWT Meeting token claims: room , Moderrator
     public Optional<Meeting> getMeetingById(String id, String email, String token) {
         Optional<Meeting> meetingOpt = meetingRepository.findById(id);
-        if (meetingOpt.isEmpty())
-            return Optional.empty();
+        if (meetingOpt.isEmpty()) return Optional.empty();
 
-        Meeting meeting = meetingOpt.get();
+        Meeting m = meetingOpt.get();
 
-        //Check if Status is Already Started and if user is Host
-        //if host and Meeting is not started Mark the Meeting as MeetingType = STARTED.
-        //if Attendee Allow only when meeting is started and Not Completed / or Expired ...
-        // Else Return the Meeting with the Status As NOT Started
+        boolean isHost = safeEqIgnoreCase(m.getHostEmail(), email);
+        boolean hasValidToken = token != null && token.equals(m.getToken());
 
-        boolean isHost = meeting.getHostEmail().equals(email);
-
-
-        boolean isValidToken = token != null && token.equals(meeting.getToken());
-
-        if (!isHost && !isValidToken) {
-            return Optional.empty();
+        // Access gate: host OR (valid token for attendee)
+        if (!isHost && !hasValidToken) {
+            return Optional.empty(); // 403 in controller
         }
 
-       // If lobby is enabled and user
-        if (meeting.isLobbyEnabled() && !isHost) {
-            meeting.setStatus(MeetingStatus.STARTED);
-            meetingRepository.save(meeting);
-
+        // Hard-block attendees for completed/expired meetings
+        if (!isHost && (m.getStatus() == MeetingStatus.COMPLETED || m.getStatus() == MeetingStatus.EXPIRED)) {
+            return Optional.empty(); // 403
         }
 
-        //TODO: USER JOined Notification
+        // Host auto-starts the meeting if not already started & not completed/expired
+        if (isHost) {
+            if (m.getStatus() == MeetingStatus.SCHEDULED) {
+                m.setStatus(MeetingStatus.STARTED);
+                // (Optional) set timestamps if you track them:
+                // m.setStartedAt(Instant.now());
+                meetingRepository.save(m);
+            }
+            return Optional.of(m);
+        }
 
-        return Optional.of(meeting);
+        // --- Attendee path below ---
+
+        // If lobby is enabled, do NOT change status here; host controls admits.
+        // We simply return the meeting as-is and let the FE show the lobby/waiting screen.
+
+        // If meeting is started, attendee can proceed
+        if (m.getStatus() == MeetingStatus.STARTED) {
+            return Optional.of(m);
+        }
+
+        // If not started yet (SCHEDULED), attendee can see that it's not started
+        if (m.getStatus() == MeetingStatus.SCHEDULED) {
+            return Optional.of(m);
+        }
+
+        // For any other unexpected status, be conservative
+        return Optional.empty();
+    }
+
+    private static boolean safeEqIgnoreCase(String a, String b) {
+        return a != null && b != null && a.equalsIgnoreCase(b);
     }
 
     //TODO: JWT Meeting token claims: room , Moderrator
     public Optional<Meeting> getOpenMeetingById(String id, String token) {
         Optional<Meeting> meetingOpt = meetingRepository.findById(id);
-        if (meetingOpt.isEmpty())
-            return Optional.empty();
+        if (meetingOpt.isEmpty()) return Optional.empty();
 
-        Meeting meeting = meetingOpt.get();
+        Meeting m = meetingOpt.get();
 
-
-        boolean isValidToken = token != null && token.equals(meeting.getToken());
-
-        if ( !isValidToken) {
-            return Optional.empty();
-        }
-        if(isMeetingNotStarted){
-            //send Meeting status
+        // Constant-time token check to avoid timing attacks
+        if (!hasValidToken(token, m.getToken())) {
+            return Optional.empty(); // 403 upstream
         }
 
+        // Hard-block if completed/expired
+        if (m.getStatus() == MeetingStatus.COMPLETED || m.getStatus() == MeetingStatus.EXPIRED) {
+            return Optional.empty(); // 403 upstream
+        }
 
-        return Optional.of(meeting);
+        // Don’t mutate status here (anonymous path). Host is authoritative for starting/ending.
+        // - If SCHEDULED => FE shows "not started yet".
+        // - If STARTED   => FE shows join screen.
+        // - If lobbyEnabled => FE shows lobby wait (host admits).
+        return Optional.of(m);
+    }
+
+    private boolean hasValidToken(String provided, String actual) {
+        if (provided == null || actual == null) return false;
+        // constant-time compare
+        byte[] a = provided.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        byte[] b = actual.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        if (a.length != b.length) return false;
+        int result = 0;
+        for (int i = 0; i < a.length; i++) result |= a[i] ^ b[i];
+        return result == 0;
     }
 
 

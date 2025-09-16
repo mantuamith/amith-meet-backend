@@ -66,13 +66,41 @@ public class MeetingController {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
         try {
-            Optional<Meeting> meeting = meetingService.getMeetingById(id, email, token);
-            if (meeting.isPresent()) {
-                return ResponseEntity.ok(MeetingResponse.success("MEETING_JOINED_SUCCESS","Meeting fetch Successful",meeting.get()));
-            } else {
+            Optional<Meeting> meetingOpt = meetingService.getMeetingById(id, email, token);
+            if (meetingOpt.isEmpty()) {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body(MeetingResponse.error("MEETING_ACCESS_DENIED", "Unauthorized or invalid token"));
+                        .body(MeetingResponse.error("MEETING_ACCESS_DENIED", "Unauthorized, invalid token, or meeting unavailable"));
             }
+
+            Meeting meeting = meetingOpt.get();
+
+            String code;
+            String msg;
+            switch (meeting.getStatus()) {
+                case STARTED -> {
+                    code = "MEETING_JOINED_SUCCESS";
+                    msg  = "You can join now.";
+                }
+                case SCHEDULED -> {
+                    code = "MEETING_NOT_STARTED";
+                    msg  = "Host hasn’t started the meeting yet.";
+                }
+                case COMPLETED -> {
+                    code = "MEETING_COMPLETED";
+                    msg  = "This meeting is over.";
+                }
+                case EXPIRED -> {
+                    code = "MEETING_EXPIRED";
+                    msg  = "This meeting link has expired.";
+                }
+                default -> {
+                    code = "MEETING_FETCH_SUCCESS";
+                    msg  = "Meeting fetched.";
+                }
+            }
+
+            return ResponseEntity.ok(MeetingResponse.success(code, msg, meeting));
+
         } catch (AccessDeniedException e) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(MeetingResponse.error("MEETING_ACCESS_DENIED", e.getMessage()));
@@ -80,22 +108,37 @@ public class MeetingController {
     }
 
 
+
     //For open meetings Eg: Users invited may not be logged and would not use our applicatio
     //But ensures that valid meeting hosted are exposed to join.
 
     @GetMapping("/open/{id}")
-    public ResponseEntity<MeetingResponse> getOpenMeeting(
+    public ResponseEntity<?> getOpenMeeting(
             @PathVariable String id,
             @RequestParam(required = false) String token) {
 
+        if (token == null || token.isBlank()) {
+            return ResponseEntity.badRequest()
+                    .body(MeetingResponse.error("TOKEN_REQUIRED", "Join token is required."));
+        }
+
         try {
-            Optional<Meeting> meeting = meetingService.getOpenMeetingById(id, token);
-            if (meeting.isPresent()) {
-                return ResponseEntity.ok(MeetingResponse.success("MEETING_JOINED_SUCCESS","Meeting fetch Successful",meeting.get()));
-            } else {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body(MeetingResponse.error("MEETING_ACCESS_DENIED", "Unauthorized or invalid token"));
-            }
+            return meetingService.getOpenMeetingById(id, token.trim())
+                    .map(m -> switch (m.getStatus()) {
+                        case STARTED -> ResponseEntity.ok(
+                                MeetingResponse.<Meeting>success("MEETING_JOINED_SUCCESS", "You can join now.", m));
+                        case SCHEDULED -> ResponseEntity.ok(
+                                MeetingResponse.<Meeting>success("MEETING_NOT_STARTED", "Host hasn’t started the meeting yet.", m));
+                        case COMPLETED -> ResponseEntity.status(HttpStatus.GONE)
+                                .body(MeetingResponse.error("MEETING_COMPLETED", "This meeting is over."));
+                        case EXPIRED -> ResponseEntity.status(HttpStatus.GONE)
+                                .body(MeetingResponse.error("MEETING_EXPIRED", "This meeting link has expired."));
+                        default -> ResponseEntity.ok(
+                                MeetingResponse.<Meeting>success("MEETING_FETCH_SUCCESS", "Meeting fetched.", m));
+                    })
+                    .orElseGet(() -> ResponseEntity.status(HttpStatus.FORBIDDEN)
+                            .body(MeetingResponse.error("MEETING_ACCESS_DENIED",
+                                    "Unauthorized, invalid token, or meeting unavailable")));
         } catch (AccessDeniedException e) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(MeetingResponse.error("MEETING_ACCESS_DENIED", e.getMessage()));
