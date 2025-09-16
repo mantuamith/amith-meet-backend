@@ -41,7 +41,7 @@ public class UserSecurityQuestionController {
     	if (Objects.nonNull(userSecurityQuestionService.getByUserProfileIdAndQuestionId(
     			UUID.fromString(request.getUserProfileId()), 
     			request.getSecurityQuestionId()))) {
-    		// Question answer for question id exists
+    		// User security question id exists for the user profile id
     		return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
     				CommonResponse.from(ResponseCode.USER_SECURITY_QUESTION_ID_EXISTS, 
     						null));
@@ -61,7 +61,7 @@ public class UserSecurityQuestionController {
     	for (UserSecurityQuestionRequest request : requests) {    		
     		if (Objects.nonNull(userSecurityQuestionService.getByUserProfileIdAndQuestionId(
     				UUID.fromString(request.getUserProfileId()), request.getSecurityQuestionId()))) {
-    			// Question answer for question id exists
+    			// User security question id exists for the user profile id
         		return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
         				CommonResponse.from(ResponseCode.USER_SECURITY_QUESTION_ID_EXISTS, 
         				null));
@@ -93,7 +93,7 @@ public class UserSecurityQuestionController {
     @DeleteMapping("/{userProfileId}")
     public ResponseEntity<CommonResponse<UserSecurityQuestionResponse>> deleteByUserProfileId(@PathVariable UUID userProfileId) {
     	userSecurityQuestionService.deleteByUserProfileId(userProfileId);    	
-        return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, null));
+        return ResponseEntity.ok(CommonResponse.from(ResponseCode.DELETE_USER_SECURITY_QUESTION_SUCCESS, null));
     }
     
     @GetMapping("/{userProfileId}/{securityQuestionId}")
