@@ -49,3 +49,10 @@ jwt:
 meeting:
   expiration:
     minutes: 1440
+
+logging:
+    level:
+      root: INFO
+      com.algomeet.meetservice.controller: DEBUG
+      com.algomeet.meetservice.service: DEBUG
+
