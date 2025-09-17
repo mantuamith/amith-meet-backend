@@ -13,6 +13,7 @@ import com.algomeet.notificationservice.dto.Notification.NotificationBuilder;
 import com.algomeet.notificationservice.enums.NotificationType;
 import com.algomeet.notificationservice.service.NotificationService;
 import com.mongodb.client.result.UpdateResult;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.mongodb.core.MongoTemplate;
@@ -29,6 +30,8 @@ import java.util.stream.Collectors;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;     // <— THIS ONE
 import org.springframework.data.mongodb.core.query.Update;
+import org.springframework.web.bind.annotation.RequestBody;
+
 import static org.springframework.data.mongodb.core.query.Criteria.where;
 
 
@@ -127,7 +130,13 @@ public class MessageService {
             return List.of();
         }
 
-        Map<String, List<MessageDocument>> byContact = all.stream()
+        List<MessageDocument> visible = all.stream()
+                .filter(m -> m.isVisibleTo(userId))
+                .toList();
+
+        if (visible.isEmpty()) return List.of();
+
+        Map<String, List<MessageDocument>> byContact = visible.stream()
                 .collect(Collectors.groupingBy(m -> userId.equals(m.getSender()) ? m.getReceiver() : m.getSender()));
 
         List<RecentReceivedMessageResponse> result = new ArrayList<>();
@@ -138,9 +147,13 @@ public class MessageService {
             MessageDocument latest = thread.stream()
                     .max(Comparator.comparing(MessageDocument::getTimestamp))
                     .orElse(null);
+            if (latest == null) {
+                // entire thread is invisible → drop from recent
+                continue;
+            }
 
-            long ts = latest != null ? latest.getTimestamp().toEpochMilli() : 0L;
-            String lastText = latest != null ? latest.getContent() : null;
+            long ts = latest.getTimestamp().toEpochMilli();
+            String lastText = latest.getContent();
 
             int unread = (int) thread.stream()
                     .filter(m -> contactId.equals(m.getSender()))
@@ -150,7 +163,7 @@ public class MessageService {
 
             result.add(new RecentReceivedMessageResponse(contactId, lastText, ts, unread));
             log.trace("[Recent] user={} contact={} latestId={} unread={}",
-                    userId, contactId, latest != null ? latest.getId() : null, unread);
+                    userId, contactId, latest.getId(), unread);
         }
 
         List<RecentReceivedMessageResponse> out = result.stream()
@@ -219,6 +232,35 @@ public class MessageService {
 
         // keep the reader's unread badges current
         sendUnreadCountUpdate(readerId);
+    }
+
+    public void markMessagesAsRead(String reqSenderId, String contactId) {
+        log.info("[Read] reader={} ", contactId);
+        List<MessageDocument> messages = messageRepository.findByReceiver(contactId).stream()
+                .filter(m -> contactId.equals(m.getReceiver()) && m.getStatus() != MessageStatus.READ)
+                .toList();
+
+        if (messages.isEmpty()) {
+            log.debug("[Read] No eligible messages to mark. reader={}", contactId);
+            return;
+        }
+
+        messages.forEach(m -> m.setStatus(MessageStatus.READ));
+        messageRepository.saveAll(messages);
+        long nowSec = Instant.now().getEpochSecond();
+        log.info("[Read] Updated count={}", messages.size());
+
+        Map<String, List<MessageDocument>> bySender =
+                messages.stream().collect(Collectors.groupingBy(MessageDocument::getReceiver));
+
+        bySender.forEach((senderId, msgs) -> {
+            List<String> ids = msgs.stream().map(MessageDocument::getId).toList();
+            ReadReceipt receipt = new ReadReceipt(contactId, ids, nowSec);
+            log.debug("[Read->Notify] toSender={} ids={} at={}", senderId, ids.size(), nowSec);
+            messagingTemplate.convertAndSendToUser(senderId, "/queue/read-receipts", receipt);
+        });
+        // keep the reader's unread badges current
+        sendUnreadCountUpdate(reqSenderId);
     }
 
     public void updateMessageCallMeta(CallMessageMetaUpdate payload, String updaterUsername) {

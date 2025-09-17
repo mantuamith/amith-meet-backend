@@ -3,6 +3,12 @@ spring:
     activate:
       on-profile: prod
 
+  data:
+    redis:
+      host: redis-svc
+      port: 6379
+      password: ${REDIS_PASSWORD}
+
   datasource:
     url: ${SPRING_DATASOURCE_URL}
     username: ${SPRING_DATASOURCE_USERNAME}
@@ -39,3 +45,9 @@ jwt:
 meeting:
   expiration:
     minutes: 1440
+
+logging:
+  level:
+    root: INFO
+    com.algomeet.meetservice.controller: $(MEETING_LOG_LEVEL)
+    com.algomeet.meetservice.service: $(MEETING_LOG_LEVEL)

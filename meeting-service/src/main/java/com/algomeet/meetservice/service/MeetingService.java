@@ -14,6 +14,8 @@ import com.algomeet.notificationservice.service.NotificationService;
 
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.javamail.JavaMailSender;
@@ -30,12 +32,14 @@ import java.util.*;
 @Service
 public class MeetingService {
 
+    private static final Logger log = LoggerFactory.getLogger(MeetingService.class);
+
     @Autowired
     private MeetingRepository meetingRepository;
 
     @Autowired
     private JavaMailSender mailSender;
-    
+
     @Autowired
     private NotificationService notificationService;
 
@@ -45,11 +49,15 @@ public class MeetingService {
     private static final SecureRandom RANDOM = new SecureRandom();
 
     public Meeting createMeeting(String email, MeetingRequest request) {
-        //String id = generateReadableId();
         String id = RandomIdGenerator.generateId();
         String token = UUID.randomUUID().toString();
         Instant expiry = Instant.now().plus(expirationMinutes, ChronoUnit.MINUTES);
 
+        log.info("CreateMeeting: host={}, expiresInMin={}, attendeesCount={}",
+                maskEmail(email), expirationMinutes,
+                request.getAttendees() == null ? 0 : request.getAttendees().size());
+        log.debug("CreateMeeting: id={}, tokenLen={}, type={}, lobbyEnabled={}, reminderEnabled={}",
+                id, token.length(), request.getMeetingType(), request.isLobbyEnabled(), request.isReminderEnabled());
 
         Meeting meeting = new Meeting();
         meeting.setId(id);
@@ -66,7 +74,9 @@ public class MeetingService {
         meeting.setMeetingStartTime(request.getMeetingStartTime());
         meeting.setMeetingEndTime(request.getMeetingEndTime());
         meeting.setMeetingDescription(request.getMeetDescription());
-        meeting.setInvitedParticipants(request.getAttendees() != null ? new HashSet<>(request.getAttendees()) : new HashSet<>());
+        meeting.setInvitedParticipants(request.getAttendees() != null
+                ? new HashSet<>(request.getAttendees())
+                : new HashSet<>());
 
         meeting.setRecurrence(request.getRecurrence());
         meeting.setReminderEnabled(request.isReminderEnabled());
@@ -75,122 +85,169 @@ public class MeetingService {
         meeting.setPendingParticipants(new HashSet<>());
         meeting.setMeetingType(request.getMeetingType());
 
-        if(!request.isLobbyEnabled()){
-            meeting.setAttendees(new HashSet<>(request.getAttendees()));
-        }else {
-            System.out.println("Lobby is Enabled");
-            meeting.setAttendees(new HashSet<>());
+        // Attendees list (safe default to empty)
+        meeting.setAttendees(request.getAttendees() != null
+                ? new HashSet<>(request.getAttendees())
+                : new HashSet<>());
+
+        Meeting savedMeeting = meetingRepository.save(meeting);
+        log.info("CreateMeeting success: id={}, host={}, status={}, startTime={}, endTime={}",
+                savedMeeting.getId(), maskEmail(savedMeeting.getHostEmail()),
+                savedMeeting.getStatus(), savedMeeting.getMeetingStartTime(), savedMeeting.getMeetingEndTime());
+
+        // Send meeting invite notification to attendees (best-effort)
+        try {
+            Notification notif = Notification.builder()
+                    .receiverGroup(ReceiverGroup.MEETING_ATTENDEES)
+                    .receiverGroupRefId(savedMeeting.getId())
+                    .type(NotificationType.MEETING_INVITE)
+                    .title("You have received a meeting invite")
+                    .body(savedMeeting.getMeetingName())
+                    .data(Map.of("meetingId", savedMeeting.getId()))
+                    .deliveryAckRequired(true)
+                    .build();
+            notificationService.sendPush(notif);
+            log.info("Meeting invite notification queued: meetingId={}, attendeesCount={}",
+                    savedMeeting.getId(), savedMeeting.getAttendees() == null ? 0 : savedMeeting.getAttendees().size());
+        } catch (Exception ex) {
+            log.warn("Meeting invite notification failed: meetingId={}, reason={}",
+                    savedMeeting.getId(), ex.toString());
         }
 
-        //TODO: Send Notification all users in Attendees that meeting is created
-
-        //sendEmailInvite(email, id, token);
-        
-        Meeting savedMeeting = meetingRepository.save(meeting);
-        
-        // Send meeting invite notification to attendees 
-        Notification notif = Notification.builder()
-        		.receiverGroup(ReceiverGroup.MEETING_ATTENDEES)
-        		.receiverGroupRefId(savedMeeting.getId())
-        		.type(NotificationType.MEETING_INVITE)
-        		.title("You have received a meeting invite")
-        		.body(savedMeeting.getMeetingName())
-        		.data(Map.of(
-        			    "meetingId", savedMeeting.getId()
-        			))
-        		.deliveryAckRequired(true)
-        		.build();
-        notificationService.sendPush(notif);
-        
         return savedMeeting;
     }
 
-    //Mark a meeting as COMPLETED
+    // Mark a meeting as COMPLETED
     public boolean markMeetingAsCompleted(String meetingId, String email) {
+        log.info("MarkCompleted request: id={}, byHost={}", meetingId, maskEmail(email));
         Optional<Meeting> meetingOpt = meetingRepository.findById(meetingId);
         if (meetingOpt.isPresent()) {
             Meeting meeting = meetingOpt.get();
 
-            // Only host can mark as completed
-            if (meeting.getHostEmail().equals(email)) {
+            if (safeEqIgnoreCase(meeting.getHostEmail(), email)) {
                 meeting.setStatus(MeetingStatus.COMPLETED);
                 meetingRepository.save(meeting);
+                log.info("MarkCompleted success: id={}", meetingId);
+                // TODO: notify attendees of meeting end (push/email)
                 return true;
+            } else {
+                log.warn("MarkCompleted denied (not host): id={}, by={}", meetingId, maskEmail(email));
             }
+        } else {
+            log.warn("MarkCompleted not found: id={}", meetingId);
         }
-        //TODO: Meeting End Complete Notification
         return false;
     }
 
+    // Host or attendee (with valid token) access
     public Optional<Meeting> getMeetingById(String id, String email, String token) {
+        log.info("GetMeetingById: id={}, by={}", id, maskEmail(email));
+        if (token != null) log.debug("GetMeetingById: tokenLen={}", token.length());
+
         Optional<Meeting> meetingOpt = meetingRepository.findById(id);
-        if (meetingOpt.isEmpty())
-            return Optional.empty();
-
-        Meeting meeting = meetingOpt.get();
-
-        boolean isHost = meeting.getHostEmail().equals(email);
-        boolean isInvited = meeting.getInvitedParticipants().contains(email);
-        boolean isApprovedAttendee = meeting.getAttendees().contains(email);
-        boolean isValidToken = token != null && token.equals(meeting.getToken());
-
-        if (!isHost && !isApprovedAttendee && !isValidToken) {
+        if (meetingOpt.isEmpty()) {
+            log.warn("GetMeetingById not found: id={}", id);
             return Optional.empty();
         }
 
-// If lobby is enabled and user is invited but not approved yet
-        if (meeting.isLobbyEnabled() && !isHost && isInvited && !isApprovedAttendee) {
-            meeting.getPendingParticipants().add(email);
-            meetingRepository.save(meeting);
-            throw new AccessDeniedException("Awaiting host approval");
+        Meeting m = meetingOpt.get();
+
+        boolean isHost = safeEqIgnoreCase(m.getHostEmail(), email);
+        boolean hasValidToken = token != null && hasValidToken(token, m.getToken());
+        log.debug("GetMeetingById accessCheck: isHost={}, hasValidToken={}, status={}", isHost, hasValidToken, m.getStatus());
+
+        // Access gate: host OR (valid token for attendee)
+        if (!isHost && !hasValidToken) {
+            log.warn("GetMeetingById denied: id={}, by={}", id, maskEmail(email));
+            return Optional.empty(); // 403 in controller
         }
 
-        //TODO: USER JOined Notification
+        // Hard-block attendees for completed/expired meetings
+        if (!isHost && (m.getStatus() == MeetingStatus.COMPLETED || m.getStatus() == MeetingStatus.EXPIRED)) {
+            log.info("GetMeetingById blocked (completed/expired) for attendee: id={}, status={}", id, m.getStatus());
+            return Optional.empty();
+        }
 
-        return Optional.of(meeting);
+        // Host auto-starts the meeting if not already started & not completed/expired
+        if (isHost) {
+            if (m.getStatus() == MeetingStatus.SCHEDULED) {
+                m.setStatus(MeetingStatus.STARTED);
+                meetingRepository.save(m);
+                log.info("Host auto-started meeting: id={}, newStatus={}", id, m.getStatus());
+            }
+            return Optional.of(m);
+        }
+
+        // Attendee path: return meeting as-is (FE handles lobby/wait room)
+        log.debug("GetMeetingById attendee allowed: id={}, status={}", id, m.getStatus());
+        return Optional.of(m);
     }
 
+    // Open (guest) access with token only
     public Optional<Meeting> getOpenMeetingById(String id, String token) {
+        log.info("GetOpenMeetingById: id={}", id);
+        if (token != null) log.debug("GetOpenMeetingById: tokenLen={}", token.length());
+
         Optional<Meeting> meetingOpt = meetingRepository.findById(id);
-        if (meetingOpt.isEmpty())
-            return Optional.empty();
-
-        Meeting meeting = meetingOpt.get();
-
-
-        boolean isValidToken = token != null && token.equals(meeting.getToken());
-
-        if ( !isValidToken) {
+        if (meetingOpt.isEmpty()) {
+            log.warn("GetOpenMeetingById not found: id={}", id);
             return Optional.empty();
         }
 
+        Meeting m = meetingOpt.get();
 
-        return Optional.of(meeting);
+        if (!hasValidToken(token, m.getToken())) {
+            log.warn("GetOpenMeetingById invalid token: id={}", id);
+            return Optional.empty();
+        }
+
+        if (m.getStatus() == MeetingStatus.COMPLETED || m.getStatus() == MeetingStatus.EXPIRED) {
+            log.info("GetOpenMeetingById blocked (completed/expired): id={}, status={}", id, m.getStatus());
+            return Optional.empty();
+        }
+
+        log.debug("GetOpenMeetingById success: id={}, status={}", id, m.getStatus());
+        return Optional.of(m);
     }
 
+    private boolean hasValidToken(String provided, String actual) {
+        if (provided == null || actual == null) return false;
+        // constant-time compare
+        byte[] a = provided.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        byte[] b = actual.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        if (a.length != b.length) return false;
+        int result = 0;
+        for (int i = 0; i < a.length; i++) result |= a[i] ^ b[i];
+        return result == 0;
+    }
 
-    //Get meetings hosted by user
+    // Get meetings hosted by user
     public List<Meeting> getMeetingsByHostEmail(String hostEmail) {
-        return meetingRepository.findAllByHostEmail(hostEmail);
+        log.debug("GetMeetingsByHostEmail: host={}", maskEmail(hostEmail));
+        List<Meeting> list = meetingRepository.findAllByHostEmail(hostEmail);
+        log.info("GetMeetingsByHostEmail: host={}, count={}", maskEmail(hostEmail), list.size());
+        return list;
     }
 
     public void deleteExpiredMeetings() {
         Instant now = Instant.now();
         List<Meeting> expiredMeetings = meetingRepository.findByExpiresAtBefore(now);
+        log.info("DeleteExpiredMeetings: now={}, expiredCount={}", now, expiredMeetings.size());
         meetingRepository.deleteAll(expiredMeetings);
     }
 
     // Get all meetings where user is host or attendee
     public List<Meeting> getMeetingsForUser(String email) {
-
-        List<Meeting> allMeeting =
-                meetingRepository.findDistinctByHostEmailOrAttendeesContainingOrderByMeetingStartTimeAsc(email, email);
-
-        return allMeeting.stream()
-                .filter(m -> m.getMeetingType() == MeetingType.MEETING) // adjust enum name if yours differs
+        log.info("GetMeetingsForUser: user={}", maskEmail(email));
+        List<Meeting> allMeeting = meetingRepository
+                .findDistinctByHostEmailOrAttendeesContainingOrderByMeetingStartTimeAsc(email, email);
+        List<Meeting> filtered = allMeeting.stream()
+                .filter(m -> m.getMeetingType() == MeetingType.MEETING)
                 .toList();
+        log.info("GetMeetingsForUser: user={}, total={}, filtered={}",
+                maskEmail(email), allMeeting.size(), filtered.size());
+        return filtered;
     }
-
 
     private String randomFrom(List<String> words) {
         return words.get(RANDOM.nextInt(words.size()));
@@ -198,105 +255,146 @@ public class MeetingService {
 
     private void sendEmailInvite(String to, String meetingId, String token) {
         try {
+            log.info("EmailInvite queued: to={}, meetingId={}, tokenLen={}", maskEmail(to), meetingId, token == null ? 0 : token.length());
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true);
             helper.setTo(to);
             helper.setSubject("Meeting Invitation");
+            // Do NOT log token or URL; send only via email body.
             helper.setText("Join meeting: https://meet.algoframe.in/" + meetingId + "?token=" + token);
             mailSender.send(message);
+            log.info("EmailInvite sent: meetingId={}, to={}", meetingId, maskEmail(to));
         } catch (MessagingException e) {
-            e.printStackTrace();
+            log.error("EmailInvite failed: meetingId={}, to={}, ex={}", meetingId, maskEmail(to), e.toString(), e);
         }
     }
 
     public boolean approveParticipant(String meetingId, String hostEmail, String attendeeEmail) {
+        log.info("ApproveParticipant: meetingId={}, host={}, attendee={}",
+                meetingId, maskEmail(hostEmail), maskEmail(attendeeEmail));
+
         Optional<Meeting> optional = meetingRepository.findById(meetingId);
-        if (optional.isEmpty()) return false;
+        if (optional.isEmpty()) {
+            log.warn("ApproveParticipant not found: meetingId={}", meetingId);
+            return false;
+        }
 
         Meeting meeting = optional.get();
 
-        // Ensure only host can approve
-        if (!meeting.getHostEmail().equals(hostEmail)) return false;
+        if (!safeEqIgnoreCase(meeting.getHostEmail(), hostEmail)) {
+            log.warn("ApproveParticipant denied (not host): meetingId={}, by={}", meetingId, maskEmail(hostEmail));
+            return false;
+        }
 
         if (meeting.getPendingParticipants().remove(attendeeEmail)) {
             meeting.getAttendees().add(attendeeEmail);
             meetingRepository.save(meeting);
+            log.info("ApproveParticipant success: meetingId={}, attendee={}", meetingId, maskEmail(attendeeEmail));
             return true;
         }
+
+        log.warn("ApproveParticipant not pending: meetingId={}, attendee={}", meetingId, maskEmail(attendeeEmail));
         return false;
     }
 
     public boolean rejectParticipant(String meetingId, String hostEmail, String attendeeEmail) {
+        log.info("RejectParticipant: meetingId={}, host={}, attendee={}",
+                meetingId, maskEmail(hostEmail), maskEmail(attendeeEmail));
+
         Optional<Meeting> optional = meetingRepository.findById(meetingId);
-        if (optional.isEmpty()) return false;
+        if (optional.isEmpty()) {
+            log.warn("RejectParticipant not found: meetingId={}", meetingId);
+            return false;
+        }
 
         Meeting meeting = optional.get();
 
-        // Ensure only host can reject
-        if (!meeting.getHostEmail().equalsIgnoreCase(hostEmail)) return false;
+        if (!safeEqIgnoreCase(meeting.getHostEmail(), hostEmail)) {
+            log.warn("RejectParticipant denied (not host): meetingId={}, by={}", meetingId, maskEmail(hostEmail));
+            return false;
+        }
 
         if (meeting.getPendingParticipants() != null && meeting.getPendingParticipants().remove(attendeeEmail)) {
-            // TODO: optionally track rejection or notify user
+            // optionally track rejection or notify user
             meetingRepository.save(meeting);
+            log.info("RejectParticipant success: meetingId={}, attendee={}", meetingId, maskEmail(attendeeEmail));
             return true;
         }
 
+        log.warn("RejectParticipant not pending: meetingId={}, attendee={}", meetingId, maskEmail(attendeeEmail));
         return false;
     }
 
     @Transactional
     public Meeting updateMeeting(String email, String id, EditMeetingRequest req) {
+        log.info("UpdateMeeting: id={}, by={}", id, maskEmail(email));
+
         Meeting m = meetingRepository.findById(id)
                 .orElseThrow(() -> new AccessDeniedException("Meeting not found"));
 
-        // host-only
-        if (!m.getHostEmail().equals(email)) {
+        if (!safeEqIgnoreCase(m.getHostEmail(), email)) {
+            log.warn("UpdateMeeting denied (not host): id={}, by={}", id, maskEmail(email));
             throw new AccessDeniedException("Only host can edit");
         }
-        // optional: disallow editing expired/completed
         if (m.getExpiresAt() != null && m.getExpiresAt().isBefore(Instant.now())) {
+            log.warn("UpdateMeeting denied (expired): id={}", id);
             throw new AccessDeniedException("Meeting already expired");
         }
         if (m.getStatus() != null && m.getStatus() != MeetingStatus.SCHEDULED) {
+            log.warn("UpdateMeeting denied (not scheduled): id={}, status={}", id, m.getStatus());
             throw new AccessDeniedException("Only scheduled meetings can be edited");
         }
 
-        // apply partial updates
-        if (req.getMeetingName() != null)
-            m.setMeetingName(req.getMeetingName());
-        if (req.getMeetDescription() != null)
-            m.setMeetingDescription(req.getMeetDescription());
-        if (req.getMeetingStartTime() != null)
-            m.setMeetingStartTime(req.getMeetingStartTime());
-        if (req.getMeetingEndTime() != null)
-            m.setMeetingEndTime(req.getMeetingEndTime());
-        if (req.getRecurrence() != null)
-            m.setRecurrence(req.getRecurrence());
-        if (req.getReminderEnabled() != null)
-            m.setReminderEnabled(req.getReminderEnabled());
-        if (req.getReminderMinutes() != null)
-            m.setReminderMinutes(req.getReminderMinutes());
-        if (req.getLobbyEnabled() != null)
-            m.setLobbyEnabled(req.getLobbyEnabled());
-        if (req.getAttendees() != null)
+        // Track which fields changed (no sensitive contents logged)
+        boolean changed = false;
+
+        if (req.getMeetingName() != null) { m.setMeetingName(req.getMeetingName()); changed = true; }
+        if (req.getMeetDescription() != null) { m.setMeetingDescription(req.getMeetDescription()); changed = true; }
+        if (req.getMeetingStartTime() != null) { m.setMeetingStartTime(req.getMeetingStartTime()); changed = true; }
+        if (req.getMeetingEndTime() != null) { m.setMeetingEndTime(req.getMeetingEndTime()); changed = true; }
+        if (req.getRecurrence() != null) { m.setRecurrence(req.getRecurrence()); changed = true; }
+        if (req.getReminderEnabled() != null) { m.setReminderEnabled(req.getReminderEnabled()); changed = true; }
+        if (req.getReminderMinutes() != null) { m.setReminderMinutes(req.getReminderMinutes()); changed = true; }
+        if (req.getLobbyEnabled() != null) { m.setLobbyEnabled(req.getLobbyEnabled()); changed = true; }
+        if (req.getAttendees() != null) {
             m.setInvitedParticipants(new HashSet<>(req.getAttendees()));
+            changed = true;
+        }
 
-        //Send Notification to update the participents.
-
-        return meetingRepository.save(m);
+        Meeting saved = meetingRepository.save(m);
+        log.info("UpdateMeeting success: id={}, changed={}", id, changed);
+        // TODO: send update notifications to participants if needed
+        return saved;
     }
 
     @Transactional
     public void deleteMeeting(String email, String id) {
+        log.info("DeleteMeeting: id={}, by={}", id, maskEmail(email));
         Meeting m = meetingRepository.findById(id)
                 .orElseThrow(() -> new AccessDeniedException("Meeting not found"));
 
-        if (!m.getHostEmail().equals(email)) {
+        if (!safeEqIgnoreCase(m.getHostEmail(), email)) {
+            log.warn("DeleteMeeting denied (not host): id={}, by={}", id, maskEmail(email));
             throw new AccessDeniedException("Only host can delete");
         }
 
         meetingRepository.delete(m);
+        log.info("DeleteMeeting success: id={}", id);
     }
 
+    /* ----------------- helpers ----------------- */
 
+    private static boolean safeEqIgnoreCase(String a, String b) {
+        return a != null && b != null && a.equalsIgnoreCase(b);
+    }
+
+    // Avoid logging full PII or secrets
+    private String maskEmail(String email) {
+        if (email == null || !email.contains("@")) return "unknown";
+        String[] parts = email.split("@", 2);
+        String local = parts[0];
+        String domain = parts[1];
+        String maskedLocal = local.length() <= 2 ? local.charAt(0) + "*" : local.substring(0, 2) + "***";
+        return maskedLocal + "@" + domain;
+    }
 }

@@ -73,6 +73,6 @@ public class SecurityQuestionController {
     @DeleteMapping("/{id}")
     public ResponseEntity<CommonResponse<?>> delete(@PathVariable String id) {  
     	securityQuestionService.delete(id);
-    	return ResponseEntity.ok(CommonResponse.from(ResponseCode.UPDATE_SECURITY_QUESTION_SUCCESS, null));
+    	return ResponseEntity.ok(CommonResponse.from(ResponseCode.DELETE_SECURITY_QUESTION_SUCCESS, null));
     }
 }

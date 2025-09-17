@@ -43,7 +43,8 @@ public enum ResponseCode {
 	
 	ADD_USER_SECURITY_QUESTION_SUCCESS("ADD_USER_SECURITY_QUESTION_SUCCESS", "User security question(s) have been added successfully"),
 	USER_SECURITY_QUESTION_ID_EXISTS("USER_SECURITY_QUESTION_ID_EXISTS", "User security question Id already exists"),
-	USER_SECURITY_QUESTION_VERIFY_FAILED("USER_SECURITY_QUESTION_VERIFY_FAILED", "User security question Id doesn't exists");
+	USER_SECURITY_QUESTION_VERIFY_FAILED("USER_SECURITY_QUESTION_VERIFY_FAILED", "User security question Id doesn't exists"),
+	DELETE_USER_SECURITY_QUESTION_SUCCESS("DELETE_USER_SECURITY_QUESTION_SUCCESS", "User security question has been deleted successfully");
 
     private final String code;
     private final String defaultMessage;
