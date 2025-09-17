@@ -49,5 +49,5 @@ meeting:
 logging:
   level:
     root: INFO
-    com.algomeet.meetservice.controller: $(MEETING_LOG_LEVEL)
-    com.algomeet.meetservice.service: $(MEETING_LOG_LEVEL)
+    com.algomeet.meetservice.controller: ${MEETING_LOG_LEVEL}
+    com.algomeet.meetservice.service: ${MEETING_LOG_LEVEL}
