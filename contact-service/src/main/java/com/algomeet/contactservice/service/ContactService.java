@@ -197,16 +197,17 @@ public class ContactService {
 
     public void deleteContact(String userId, String contactUserId) {
         log.debug("Deleting contact between {} and {}", userId, contactUserId);
-        contactRepository.findByUserIdAndContactUserId(userId, contactUserId)
+        UUID me = currentUserKey(userId);
+        UUID other = resolveKeyFlexible(contactUserId);
+        contactRepository.findByUserKeyAndContactUserKey(me, other)
                 .ifPresent(contact -> {
                     contactRepository.delete(contact);
-                    log.info("Deleted contact {} -> {}", userId, contactUserId);
+                    log.info("Deleted contact request {} -> {}", me, other);
                 });
-
-        contactRepository.findByUserIdAndContactUserId(contactUserId, userId)
+        contactRepository.findByUserKeyAndContactUserKey(other, me)
                 .ifPresent(contact -> {
                     contactRepository.delete(contact);
-                    log.info("Deleted contact {} -> {}", contactUserId, userId);
+                    log.info("Deleted contact request {} -> {}", other, me);
                 });
     }
 
