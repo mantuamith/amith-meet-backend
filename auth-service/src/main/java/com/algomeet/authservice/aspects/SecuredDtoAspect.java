@@ -13,7 +13,9 @@ import com.algomeet.authservice.dto.SecuredDto;
 import com.algomeet.authservice.dto.UserResponse;
 
 import lombok.extern.slf4j.Slf4j;
-
+/**
+ * Used to secure DTO fields from unauthorized access.
+ */
 @Slf4j
 @Aspect
 @Component
