@@ -41,6 +41,7 @@ public class OtpService {
         return String.valueOf(n);
     }
 
+    //TODO : Add in Async task
     public String initEmailLoginOtp(String email) {
         int ttlSecs = props.getOtp().getTtlSeconds();
         String code = generateNumericCode(6);
