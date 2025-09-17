@@ -36,6 +36,7 @@ public class UserResponse {
         this.email = user.getEmail();
         this.password = user.getPassword();
         this.loginTypePolicy = user.getLoginTypePolicy(); // <-- added
+        this.role = user.getRole();
         this.activeDeviceId = user.getActiveDeviceId();
         
         if(user.getUserKey() != null) {
