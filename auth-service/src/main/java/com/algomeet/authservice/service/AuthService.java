@@ -105,7 +105,7 @@ public class AuthService {
         }
     }
     
-    public AuthResponse login(String email, String rawPassword) {
+    public AuthResponse validatePassword(String email, String rawPassword) {
         // 0) Basic sanity
         if (email == null || rawPassword == null || email.isBlank() || rawPassword.isBlank()) {
             log.warn("LOGIN: invalid request (blank email/password)");
@@ -134,16 +134,7 @@ public class AuthService {
                 return AuthResponse.from(ResponseCode.AUTH_INVALID_CREDENTIALS, null, null, null);
             }
 
-            // 3) Mint tokens
-            String accessToken  = jwtUtil.generateToken(user);
-            String refreshToken = jwtUtil.generateRefreshToken(user);
-
-            // 4) Persist refresh token binding
-            refreshTokenStore.save(refreshToken, user.getEmail());
-                    
-            log.info("LOGIN: success email={}", maskEmail(email));
-                        
-            return AuthResponse.from(ResponseCode.AUTH_LOGIN_SUCCESS, user, accessToken, refreshToken);
+            return AuthResponse.from(ResponseCode.AUTH_LOGIN_SUCCESS, user, null, null);
 
 
         } catch (feign.FeignException fe) {

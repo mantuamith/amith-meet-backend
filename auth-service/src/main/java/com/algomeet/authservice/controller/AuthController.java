@@ -105,13 +105,6 @@ public class AuthController {
             ));
         }
     }
-    
-    @Deprecated
-    @PostMapping("/login")
-    public AuthResponse login(@Valid @RequestBody LoginRequest req) {
-        return authService.login(req.getEffectiveLogin(), req.getPassword());
-
-    }
 
     // ----------------- Delete Account -----------------
     @DeleteMapping("/delete")
@@ -254,6 +247,11 @@ public class AuthController {
             throw ex;
         }
 
+        AuthResponse auth = authService.validatePassword(request.getLogin(), request.getPassword());
+        if (!ResponseCode.AUTH_LOGIN_SUCCESS.getCode().equals(auth.getCode())) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials");
+        }
+
         // 4) Single-device lock (if enabled)
         try {
             if (props.getAuth().isSingleActiveDevice()
@@ -285,12 +283,6 @@ public class AuthController {
         // 5) Branch by policy (direct vs OTP channel)
         switch (policy) {
             case DIRECT: {
-                // Password check — we only need to validate; we will mint fresh tokens with sid.
-                AuthResponse auth = authService.login(request.getLogin(), request.getPassword());
-                if (!ResponseCode.AUTH_LOGIN_SUCCESS.getCode().equals(auth.getCode())) {
-                    throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials");
-                }
-
                 // Centralized: start/rotate session in user-service, revoke (if override), mint JWTs with sid
                 AuthResponse finalTokens = authService.issueTokensFor(user, request.getDeviceId(), override);
                 
@@ -378,18 +370,6 @@ public class AuthController {
         // 6) Verify by policy and mint tokens
         AuthResponse result = null;
         switch (policy) {
-
-            case DIRECT -> {
-                if (request.getPassword() == null || request.getPassword().isBlank()) {
-                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Password is required for DIRECT login");
-                }
-                AuthResponse auth = authService.login(user.getEmail(), request.getPassword());
-                if (!ResponseCode.AUTH_LOGIN_SUCCESS.getCode().equals(auth.getCode())) {
-                    throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials");
-                }
-                // re-mint via centralized path to add sid + (optional) revocation
-                result = authService.issueTokensFor(user, request.getDeviceId(), override);
-            }
             case EMAIL -> {
                 if (request.getCode() == null || request.getCode().isBlank()) {
                     throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "OTP is required for EMAIL verification");
