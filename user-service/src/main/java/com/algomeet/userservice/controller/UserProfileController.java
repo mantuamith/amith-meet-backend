@@ -12,7 +12,6 @@ import com.algomeet.userservice.model.User;
 import com.algomeet.userservice.model.UserProfile;
 import com.algomeet.userservice.repository.UserProfileRepository;
 import com.algomeet.userservice.repository.UserRepository;
-import com.algomeet.userservice.service.UserService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -22,7 +21,6 @@ import lombok.RequiredArgsConstructor;
 public class UserProfileController {
 
     private final UserProfileRepository repository;
-    private final UserService userService;
     private final UserRepository userRepository;
 
     // GET user profile
@@ -59,7 +57,7 @@ public class UserProfileController {
     			user.setRole(request.getRole());
     		}
     		
-    		savedUser = userService.save(user);
+    		savedUser = userRepository.save(user);
     	} else {
     		return ResponseEntity.notFound().build();
     	}
