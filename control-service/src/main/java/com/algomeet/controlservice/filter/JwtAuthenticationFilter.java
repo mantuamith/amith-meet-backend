@@ -83,7 +83,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             		});
                 }
 
-                log.error("{} {}", userKey, tenantId);
                 @SuppressWarnings("serial")
 				var auth = new UsernamePasswordAuthenticationToken(username, null, authorities);
                 auth.setDetails(Map.of(
