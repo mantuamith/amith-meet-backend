@@ -2,7 +2,7 @@ package com.algomeet.authservice.dto;
 /**
  * Used to secure the DTO object for any unauthorized access of its fields.
  * Developer should implement the security measures inside secured() method,
- * this method automatically invoke using AOP class com.algomeet.authservice.aspects.SecuredDtoAspect.java
+ * the method is automatically invoke from AOP class com.algomeet.authservice.aspects.SecuredDtoAspect.java
  */
 public interface SecuredDto {
 	/**
