@@ -43,7 +43,6 @@ public class UserResponse {
         	this.userKey = user.getUserKey().toString();
         }
         
-        user.setTenantId(user.getTenantId());
-        user.setRole(user.getRole());
+        this.tenantId = user.getTenantId();
     }
 }
