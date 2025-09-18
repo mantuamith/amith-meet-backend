@@ -17,6 +17,9 @@ public interface UserRepository extends JpaRepository<User, Long> {
 	<S extends User> S save(S entity);
 	
 	@UsePublicSchema
+	Optional<User> findById(Long id);
+	
+	@UsePublicSchema
     Optional<User> findByUsername(String username);
 
 	@UsePublicSchema
