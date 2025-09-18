@@ -4,5 +4,8 @@ package com.algomeet.authservice.dto;
  * Security is implemented using AOP class com.algomeet.authservice.aspects.SecuredDtoAspect.java
  */
 public interface SecuredDto {
+	/**
+	 * Implement inside this method the logic on securing the DTO.
+	 */
 	void secured();
 }
