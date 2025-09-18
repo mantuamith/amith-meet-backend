@@ -1,5 +1,7 @@
 package com.algomeet.authservice.dto;
 
+import com.algomeet.authservice.util.SecurityUtil;
+
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -9,7 +11,7 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class UserRequest {
+public class UserRequest implements SecuredDto{
     private String email;
     private String phone;
     private String username;
@@ -32,4 +34,13 @@ public class UserRequest {
     
     private String role;
     private Integer tenantId;
+    
+	@Override
+	public void secured() {		
+		// If user not admin
+		if (!SecurityUtil.isAdminUser()) {
+			setRole(null);
+			setTenantId(null);	
+		}	
+	}
 }
