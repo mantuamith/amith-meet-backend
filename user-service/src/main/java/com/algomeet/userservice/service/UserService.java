@@ -1,8 +1,5 @@
 package com.algomeet.userservice.service;
 
-import java.util.Optional;
-import java.util.UUID;
-
 import org.springframework.stereotype.Service;
 
 import com.algomeet.multitenancy.annotations.UsePublicSchema;
@@ -23,10 +20,5 @@ public class UserService {
 	@UsePublicSchema
 	public User save(User user) {
 		return userRepository.save(user);
-	}
-	
-	@UsePublicSchema
-	public Optional<User> findByUserKey(UUID userKey) {
-		return userRepository.findByUserKey(userKey);
 	}
 }

@@ -23,11 +23,12 @@ public class UserProfileController {
 
     private final UserProfileRepository repository;
     private final UserService userService;
+    private final UserRepository userRepository;
 
     // GET user profile
     @GetMapping("/{id}")
     public ResponseEntity<UserProfileResponse> getProfile(@PathVariable UUID id) {
-    	Optional<User> userOpt = userService.findByUserKey(id); 
+    	Optional<User> userOpt = userRepository.findByUserKey(id); 
     	if (userOpt.isEmpty()) {
     		return ResponseEntity.notFound().build();
     	}
@@ -45,7 +46,7 @@ public class UserProfileController {
             @PathVariable UUID id,
             @RequestBody UserProfileUpdateRequest request) {
     	
-    	final Optional<User> userOpt = userService.findByUserKey(id);
+    	final Optional<User> userOpt = userRepository.findByUserKey(id);
     	final User savedUser;
     	
     	if(userOpt.isPresent()) {
