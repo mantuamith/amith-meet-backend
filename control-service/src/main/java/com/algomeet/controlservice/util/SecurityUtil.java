@@ -5,6 +5,7 @@ import java.util.Map;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.util.CollectionUtils;
+import org.springframework.util.StringUtils;
 
 import lombok.extern.slf4j.Slf4j;
 import com.algomeet.controlservice.enums.UserRole;
@@ -35,7 +36,7 @@ public class SecurityUtil {
 					&& auth.getDetails() != null) {
 				if(auth.getDetails() instanceof Map) {
 					String tenantIdStr = (String) ((Map) auth.getDetails()).get("tenantId");
-					if(tenantIdStr!= null) {
+					if(StringUtils.hasLength(tenantIdStr)) {
 						return Integer.valueOf(tenantIdStr);
 					}
 				}

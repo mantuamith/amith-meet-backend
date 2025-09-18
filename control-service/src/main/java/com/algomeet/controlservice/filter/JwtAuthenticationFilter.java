@@ -83,15 +83,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             		});
                 }
 
+                log.error("{} {}", userKey, tenantId);
                 @SuppressWarnings("serial")
 				var auth = new UsernamePasswordAuthenticationToken(username, null, authorities);
                 auth.setDetails(Map.of(
                         "user_key", userKey,
-                        "tenantId", tenantId != null ? String.valueOf(tenantId) : null));
+                        "tenantId", tenantId != null ? String.valueOf(tenantId) : ""));
                 SecurityContextHolder.getContext().setAuthentication(auth);
 
             } catch (Exception ex) {
-                log.error("JWT filter error: {}", ex.toString());
+                log.error("JWT filter error: {}", ex.toString(), ex);
                 unauthorized(response, ResponseCode.AUTH_SESSION_REVOKED);
                 return;
             }
