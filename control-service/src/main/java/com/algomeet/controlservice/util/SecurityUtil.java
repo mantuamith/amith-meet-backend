@@ -44,8 +44,8 @@ public class SecurityUtil {
 		} catch(Exception ex) {
 			log.error("Error retriving user role {}", ex.getMessage(), ex);
 		}
-
-		return null;
+		// Use public schema id
+		return 0;
 	}
 
 	public static boolean isAdminUser() {
