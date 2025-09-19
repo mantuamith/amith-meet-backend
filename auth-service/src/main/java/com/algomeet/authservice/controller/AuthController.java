@@ -302,18 +302,18 @@ public class AuthController {
                 return ResponseEntity.ok(finalTokens);
             }
             case EMAIL: {
-                String msg = otpService.initEmailLoginOtp(request.getLogin());
+                String msg = otpService.initEmailLoginOtp(user.getEmail());
                 log.info("LOGIN:init OTP dispatched login={} type=email", mLogin(user.getEmail()));
                 return ResponseEntity.ok(LoginResponse.emailOtp(msg));
             }
             case PHONE: {
                 String msg = otpService.initSmsLoginOtp(request.getLogin());
-                log.info("LOGIN:init OTP dispatched login={} type=phone", mLogin(user.getEmail()));
+                log.info("LOGIN:init OTP dispatched login={} type=phone", mLogin(request.getLogin()));
                 return ResponseEntity.ok(LoginResponse.phoneOtp(msg));
             }
             case TOTP: {
                 // No dispatch; client should prompt for app code
-                log.info("LOGIN:init requires TOTP login={}", mLogin(user.getEmail()));
+                log.info("LOGIN:init requires TOTP login={}", mLogin(request.getLogin()));
                 return ResponseEntity.ok(LoginResponse.totp("Enter your authenticator code"));
             }
             default:
