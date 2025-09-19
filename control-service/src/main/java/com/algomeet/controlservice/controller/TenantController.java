@@ -88,7 +88,7 @@ public class TenantController {
 	}
 
 	@DeleteMapping("/{id}")
-	@PreAuthorize("hasAnyRole('SA','ADMIN') and @securityService.isTenantOwner(#id)")
+	@PreAuthorize("hasAnyRole('SA')")
 	public ResponseEntity<CommonResponse<TenantResponse>> deleteTenant(@PathVariable Integer id) {
 		try {
 			tenantService.deleteTenant(id);
