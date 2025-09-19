@@ -97,6 +97,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 	authorities = List.of(new GrantedAuthority () {
             			@Override
             			public String getAuthority() {
+            				if (!role.toUpperCase().startsWith("ROLE_")) {
+            					return "ROLE_" + role;
+            				}
+            				
             				return role;
             			}
             		});

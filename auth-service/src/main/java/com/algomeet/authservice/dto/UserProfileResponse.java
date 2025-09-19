@@ -45,7 +45,7 @@ public class UserProfileResponse implements SecuredDto{
     @Override
 	public void secured() {
 		// If user not admin
-		if (!SecurityUtil.isAdminUser()) {
+		if (!SecurityUtil.isUserHasAdminRole()) {
 			setTenantId(null);
 		}		
 	}
