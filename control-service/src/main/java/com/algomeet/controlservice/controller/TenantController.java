@@ -1,7 +1,6 @@
 package com.algomeet.controlservice.controller;
 
 import java.util.List;
-import java.util.Optional;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -15,8 +14,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import lombok.RequiredArgsConstructor;
 import com.algomeet.controlservice.dto.CommonResponse;
+import com.algomeet.controlservice.dto.RegisterTenantRequest;
 import com.algomeet.controlservice.dto.TenantRequest;
 import com.algomeet.controlservice.dto.TenantResponse;
 import com.algomeet.controlservice.enums.ResponseCode;
@@ -24,6 +23,9 @@ import com.algomeet.controlservice.exception.RecordNotFoundException;
 import com.algomeet.controlservice.exception.TenantIdAlreadyExistsException;
 import com.algomeet.controlservice.service.TenantService;
 import com.algomeet.controlservice.util.SecurityUtil;
+
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/control/tenants")
@@ -56,7 +58,7 @@ public class TenantController {
 
 	@PostMapping
 	@PreAuthorize("hasAnyRole('SA')")
-	public ResponseEntity<CommonResponse<TenantResponse>> createTenant(@RequestBody TenantRequest request) {
+	public ResponseEntity<CommonResponse<TenantResponse>> createTenant(@Valid @RequestBody RegisterTenantRequest request) {
 		TenantResponse saved = null;
 		try {
 			saved = tenantService.createTenant(request);
