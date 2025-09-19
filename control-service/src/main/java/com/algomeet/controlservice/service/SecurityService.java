@@ -8,7 +8,7 @@ import com.algomeet.controlservice.util.SecurityUtil;
 public class SecurityService {
 	public boolean isTenantOwner(Integer tenantId) {
         // Check tenant Id
-        return ((SecurityUtil.isSAUser() || SecurityUtil.isSAUser())
+        return (SecurityUtil.isSAUser()
         		|| tenantId == 0
         		|| SecurityUtil.getTenantId() == tenantId);
     }
