@@ -55,7 +55,8 @@ public class RegisterInitRequest implements SecuredDto{
 		}
 		
 		if (role != null 
-				&& UserRole.ROLE_SA.name().equals(role.trim().toUpperCase())){
+				&& (UserRole.ROLE_SA.name().equals(role.trim().toUpperCase())
+						|| "SA".equals(role.trim().toUpperCase()))){
 			throw new AccessDeniedException("Not allowed to create user with SA role");
 		}
 	}

@@ -35,8 +35,9 @@ public class UserProfileUpdateRequest implements SecuredDto{
 		}
 		
 		if (role != null 
-				&& UserRole.ROLE_SA.name().equals(role.trim().toUpperCase())) {
-			throw new AccessDeniedException("Not allowed to update user role to SA");
+				&& (UserRole.ROLE_SA.name().equals(role.trim().toUpperCase())
+						|| "SA".equals(role.trim().toUpperCase()))){
+			throw new AccessDeniedException("Not allowed to update user role to SA role");
 		}
 	}
 }
