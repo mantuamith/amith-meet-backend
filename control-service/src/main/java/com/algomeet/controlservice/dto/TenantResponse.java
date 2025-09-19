@@ -2,6 +2,8 @@ package com.algomeet.controlservice.dto;
 
 import java.time.Instant;
 
+import com.algomeet.controlservice.util.SecurityUtil;
+
 import lombok.Builder;
 import lombok.Data;
 
@@ -35,6 +37,8 @@ public class TenantResponse implements SecuredDto{
 
 	@Override
 	public void secured() {
-
+		if (!SecurityUtil.isUserHasAdminRole()) {
+			id = null;
+		}
 	}
 }

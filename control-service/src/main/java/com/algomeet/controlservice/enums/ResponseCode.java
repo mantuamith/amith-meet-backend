@@ -6,7 +6,8 @@ public enum ResponseCode {
     ADD_TENANT_SUCCESS("ADD_TENANT_SUCCESS", "Tenant added successfully"),
     TENANT_ID_ALREADY_EXISTS("TENANT_ID_ALREADY_EXISTS", "Tenant Id already exists"),
     UPDATE_TENANT_SUCCESS("UPDATE_TENANT_SUCCESS", "Tenant updated successfully"),
-    DELETE_TENANT_SUCCESS("DELETE_TENANT_SUCCESS", "Tenant deleted successfully");
+    DELETE_TENANT_SUCCESS("DELETE_TENANT_SUCCESS", "Tenant deleted successfully"),
+	TENANT_ID_NOT_FOUND("TENANT_ID_NOT_FOUND", "Tenant Id not found");
 
     private final String code;
     private final String defaultMessage;

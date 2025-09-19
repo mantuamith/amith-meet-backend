@@ -55,4 +55,9 @@ public class SecurityUtil {
 	public static boolean isSAUser() {
 		return UserRole.ROLE_SA.equals(getUserRole());
 	}
+	
+	public static boolean isUserHasAdminRole() {
+		return ((SecurityUtil.isAdminUser() 
+				|| SecurityUtil.isSAUser()));
+	}
 }

@@ -3,7 +3,7 @@ package com.algomeet.controlservice.dto;
 import lombok.Data;
 
 @Data
-public class TenantRequest implements SecuredDto{
+public class TenantRequest {
 	private Integer id;
     private String companyName;
     private String brandName;
@@ -26,8 +26,4 @@ public class TenantRequest implements SecuredDto{
     private String timeZone;
 
     private boolean active = true;
-
-	@Override
-	public void secured() {
-	}
 }

@@ -9,7 +9,8 @@ import lombok.RequiredArgsConstructor;
 import com.algomeet.controlservice.dto.TenantRequest;
 import com.algomeet.controlservice.dto.TenantResponse;
 import com.algomeet.controlservice.entity.Tenant;
-import com.algomeet.controlservice.exception.TenantIdAlreadyExists;
+import com.algomeet.controlservice.exception.RecordNotFoundException;
+import com.algomeet.controlservice.exception.TenantIdAlreadyExistsException;
 import com.algomeet.controlservice.repository.TenantRepository;
 
 @Service
@@ -25,13 +26,14 @@ public class TenantService {
                 .toList();
     }
 
-    public Optional<TenantResponse> getTenantById(Integer id) {
-        return tenantRepository.findById(id).map(this::mapToResponse);
+    public TenantResponse getTenantById(Integer id) {
+        return tenantRepository.findById(id).map(this::mapToResponse)
+        		.orElseThrow(() -> new RecordNotFoundException("Tenant not found with id " + id));
     }
 
     public TenantResponse createTenant(TenantRequest request) {    	
     	if (tenantRepository.findById(request.getId()).isPresent()) {
-    		throw new TenantIdAlreadyExists("Tenant Id already exisit " + request.getId());
+    		throw new TenantIdAlreadyExistsException("Tenant Id already exisit " + request.getId());
     	}
     	
         Tenant tenant = mapToEntity(request);
@@ -47,10 +49,14 @@ public class TenantService {
                     updated.setCreatedAt(existing.getCreatedAt());
                     return mapToResponse(tenantRepository.save(updated));
                 })
-                .orElseThrow(() -> new RuntimeException("Tenant not found with id " + id));
+                .orElseThrow(() -> new RecordNotFoundException("Tenant not found with id " + id));
     }
 
     public void deleteTenant(Integer id) {
+    	if (!tenantRepository.findById(id).isPresent()) {
+    		throw new RecordNotFoundException("Tenant not found with id " + id);
+    	}
+    	
         tenantRepository.deleteById(id);
     }
 
