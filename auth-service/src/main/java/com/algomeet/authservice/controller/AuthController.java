@@ -302,8 +302,8 @@ public class AuthController {
                 return ResponseEntity.ok(finalTokens);
             }
             case EMAIL: {
-                String msg = otpService.initEmailLoginOtp(request.getLogin());
-                log.info("LOGIN:init OTP dispatched login={} type=email", mLogin(request.getLogin()));
+                String msg = otpService.initEmailLoginOtp(user.getEmail());
+                log.info("LOGIN:init OTP dispatched login={} type=email", mLogin(user.getEmail()));
                 return ResponseEntity.ok(LoginResponse.emailOtp(msg));
             }
             case PHONE: {
