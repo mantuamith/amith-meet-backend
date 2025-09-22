@@ -23,6 +23,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static com.algomeet.authservice.enums.ResponseCode.AUTH_SESSION_REVOKED;
+
 @Slf4j
 @RequiredArgsConstructor
 @Component
@@ -67,7 +69,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             try {
                 // 2a) Validate JWT
                 if (!jwtUtil.isTokenValid(token)) {
-                    unauthorized(response, ResponseCode.AUTH_SESSION_REVOKED); // or AUTH_LOGIN_FAILED if you prefer
+                    unauthorized(response, AUTH_SESSION_REVOKED); // or AUTH_LOGIN_FAILED if you prefer
                     return;
                 }
 
@@ -78,7 +80,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 String role = jwtUtil.extractRole(token);
 
                 if (email == null || tokenSid == null) {
-                    unauthorized(response, ResponseCode.AUTH_SESSION_REVOKED);
+                    unauthorized(response, AUTH_SESSION_REVOKED);
                     return;
                 }
 
@@ -87,7 +89,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 if (currentSid == null || !tokenSid.equals(currentSid)) {
                     log.warn("JWT SID mismatch: email={} tokenSid={} currentSid={}",
                             mask(email), tokenSid, currentSid);
-                    unauthorized(response, ResponseCode.AUTH_SESSION_REVOKED);
+                    unauthorized(response, AUTH_SESSION_REVOKED);
                     return;
                 }
 
@@ -111,7 +113,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
             } catch (Exception ex) {
                 log.error("JWT filter error: {}", ex.toString());
-                unauthorized(response, ResponseCode.AUTH_SESSION_REVOKED);
+                unauthorized(response, AUTH_SESSION_REVOKED);
                 return;
             }
         }

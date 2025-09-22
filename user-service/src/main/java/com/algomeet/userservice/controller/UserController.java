@@ -39,8 +39,8 @@ public class UserController {
     // Feign client will call this from auth-service to register user
     @PostMapping
     public ResponseEntity<?> createUser(@RequestBody UserRequest request) {
-        boolean emailTaken    = userRepository.existsByEmail(request.getEmail());
-        boolean usernameTaken = userRepository.existsByUsername(request.getUsername());
+        boolean emailTaken    = userRepository.existsByEmailIgnoreCase(request.getEmail());
+        boolean usernameTaken = userRepository.existsByUsernameIgnoreCase(request.getUsername());
 
         if (emailTaken && usernameTaken) {
             return ResponseEntity.status(HttpStatus.CONFLICT).body(
@@ -235,11 +235,11 @@ public class UserController {
     @DeleteMapping("/email/{email}")
     @Transactional  //  Works as a quick fix
     public ResponseEntity<?> deleteUserByEmail(@PathVariable String email) {
-        if (!userRepository.existsByEmail(email)) {
+        if (!userRepository.existsByEmailIgnoreCase(email)) {
             return ResponseEntity.status(404).body(Map.of("error", "User not found"));
         }
 
-        userRepository.deleteByEmail(email);
+        userRepository.deleteByEmailIgnoreCase(email);
         return ResponseEntity.ok(Map.of("message", "User deleted successfully"));
     }
 

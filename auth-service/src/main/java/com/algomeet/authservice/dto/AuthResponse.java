@@ -22,6 +22,10 @@ public class AuthResponse {
         this.refreshToken = null;
     }
 
+    public AuthResponse() {
+
+    }
+
 
     public static AuthResponse from(ResponseCode responseCode, UserResponse user) {
         return new AuthResponse(responseCode.getCode(), responseCode.getDefaultMessage(), user);

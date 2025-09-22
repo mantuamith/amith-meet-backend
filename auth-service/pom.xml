@@ -19,6 +19,8 @@
 
     <properties>
         <java.version>17</java.version>
+        <jacoco.version>0.8.12</jacoco.version> <!-- or newer if available -->
+        <maven.surefire.plugin.version>3.2.5</maven.surefire.plugin.version>
     </properties>
     <repositories>
         <repository>
@@ -123,6 +125,17 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.junit.vintage</groupId>
+                    <artifactId>junit-vintage-engine</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-junit-jupiter</artifactId>
+            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -137,10 +150,7 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-mail</artifactId>
         </dependency>
-        <dependency>
-            <groupId>org.springframework</groupId>
-            <artifactId>spring-context-support</artifactId>
-        </dependency>
+
         <!-- Add notification service library -->
         <dependency>
             <groupId>com.algomeet</groupId>
@@ -185,6 +195,123 @@
                         </goals>
                     </execution>
                 </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>${jacoco.version}</version>
+
+                <!-- Global defaults used by executions unless overridden -->
+                <configuration>
+                    <!-- Filter low-ROI stuff out of instrumentation/reporting -->
+                    <excludes>
+                        **/dto/**
+                        **/enums/**
+                        **/exception/**
+                        **/client/**                 <!-- Feign stubs -->
+                        **/config/**                 <!-- Spring config/autoconfig -->
+                        **/*Repository*.class        <!-- Spring Data interfaces -->
+                        **/*$*.class                 <!-- anonymous/inner synthetic -->
+                        **/*$$SpringCGLIB*.class
+                        **/token/**
+                    </excludes>
+                </configuration>
+
+                <executions>
+                    <!-- Attach agent to surefire -->
+                    <execution>
+                        <id>prepare-agent</id>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                        <!-- (Optional) narrow to your codebase -->
+                        <configuration>
+                            <includes>
+                                <include>com/algomeet/**</include>
+                            </includes>
+                        </configuration>
+                    </execution>
+
+                    <!-- Generate report on verify -->
+                    <execution>
+                        <id>report</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                        <!-- mirror excludes to be explicit -->
+                        <configuration>
+                            <excludes>
+                                **/dto/**
+                                **/enums/**
+                                **/exception/**
+                                **/client/**
+                                **/config/**
+                                **/*Repository*.class
+                                **/*$*.class
+                                **/*$$SpringCGLIB*.class
+                                **/token/**
+                            </excludes>
+                        </configuration>
+                    </execution>
+
+                    <!-- Enforce thresholds only on services & controllers -->
+                    <execution>
+                        <id>jacoco-check</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+
+                                <!-- CLASS-level checks: use slash notation and include only target packages -->
+                                <rule>
+                                    <element>CLASS</element>
+                                    <includes>
+                                        <include>com/algomeet/authservice/service/*</include>
+                                        <include>com/algomeet/authservice/controller/*</include>
+                                    </includes>
+                                    <limits>
+                                        <limit>
+                                            <counter>LINE</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <minimum>0.65</minimum>
+                                        </limit>
+                                        <limit>
+                                            <counter>BRANCH</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <minimum>0.50</minimum>
+                                        </limit>
+                                    </limits>
+                                </rule>
+
+                                <!-- PACKAGE-level aggregate check: dot notation -->
+                                <rule>
+                                    <element>PACKAGE</element>
+                                    <includes>
+                                        <include>com.algomeet.authservice.service</include>
+                                        <include>com.algomeet.authservice.controller</include>
+                                    </includes>
+                                    <limits>
+                                        <limit>
+                                            <counter>LINE</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <minimum>0.65</minimum>
+                                        </limit>
+                                    </limits>
+                                </rule>
+
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>${maven.surefire.plugin.version}</version>
             </plugin>
         </plugins>
     </build>

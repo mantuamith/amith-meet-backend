@@ -97,7 +97,7 @@ public class RegistrationService {
 
       if (emailTaken && userTaken && phoneTaken) {
         message = "Email, username and phone already exist";
-        code = ResponseCode.AUTH_DUPLICATE_BOTH; // 🔄 maybe create AUTH_DUPLICATE_ALL?
+        code = ResponseCode.AUTH_DUPLICATE_BOTH; //
       } else if (emailTaken && userTaken) {
         message = "Email and username already exist";
         code = ResponseCode.AUTH_DUPLICATE_BOTH;
