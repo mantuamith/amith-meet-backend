@@ -5,9 +5,14 @@ import com.algomeet.authservice.config.AuthProperties;
 import com.algomeet.authservice.dto.RegisterInitRequest;
 import com.algomeet.authservice.dto.RegisterInitResponse;
 import com.algomeet.authservice.enums.DeviceType;
+import com.algomeet.authservice.enums.LoginPolicy;
 import com.algomeet.authservice.otp.PendingRegistrationRepository;
+import com.algomeet.authservice.policy.LoginPolicyEnforcer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import static com.algomeet.authservice.policy.LoginPolicyEnforcer.enforce; // optional static import
+
+import com.algomeet.authservice.enums.DeviceType;     // <- and this one
 
 import java.util.Map;
 
@@ -18,6 +23,7 @@ import static org.mockito.Mockito.*;
 import com.algomeet.authservice.dto.*;
 import com.algomeet.authservice.exception.UserAlreadyExistsException;
 import feign.FeignException;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Optional;
@@ -288,4 +294,173 @@ class RegistrationServiceTest {
                 .hasMessageContaining("User-service create failed")
                 .hasMessageContaining("Email exists");
     }
+
+    @Test
+    void enforce_allows_matching_deviceTypes() {
+        // allowed
+        assertThatCode(() -> LoginPolicyEnforcer.enforce(LoginPolicy.DIRECT, DeviceType.WEB))
+                .doesNotThrowAnyException();
+        // if you have ANDROID/IOS in your enum, also allow them for TOTP:
+        // assertThatCode(() -> LoginPolicyEnforcer.enforce(LoginPolicy.TOTP, DeviceType.ANDROID)).doesNotThrowAnyException();
+    }
+
+    @Test
+    void enforce_blocks_invalid_combo_with_message() {
+        assertThatThrownBy(() -> LoginPolicyEnforcer.enforce(LoginPolicy.TOTP, DeviceType.WEB))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("TOTP")
+                .hasMessageContaining("WEB");
+    }
+
+    @Test
+    void enforce_rejects_nulls() {
+        assertThatThrownBy(() -> LoginPolicyEnforcer.enforce(null, DeviceType.WEB))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("Missing policy");
+        assertThatThrownBy(() -> LoginPolicyEnforcer.enforce(LoginPolicy.fromCode(0), (DeviceType) null))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("Missing policy");
+    }
+
+    @Test
+    void enforce_allows_totp_on_mobile() {
+        assertThatCode(() -> LoginPolicyEnforcer.enforce(LoginPolicy.TOTP, DeviceType.ANDROID))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void enforce_allows_email_phone_on_web() {
+        assertThatCode(() -> LoginPolicyEnforcer.enforce(LoginPolicy.EMAIL, DeviceType.WEB)).doesNotThrowAnyException();
+        assertThatCode(() -> LoginPolicyEnforcer.enforce(LoginPolicy.PHONE, DeviceType.WEB)).doesNotThrowAnyException();
+    }
+
+    @Test
+    void init_with_phone_sends_sms_and_saves() {
+        var pendingRepo = mock(PendingRegistrationRepository.class);
+        var enc = new org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder();
+        var otp = mock(OtpService.class);
+        var mapper = new ObjectMapper();
+        var userClient = mock(UserClient.class);
+        var props = propsWithOtpTtl(300);
+
+        when(userClient.checkExists(null, "alice", "15551234"))
+                .thenReturn(Map.of("emailTaken", false, "usernameTaken", false, "phoneTaken", false));
+
+        var svc = svcWith(pendingRepo, enc, otp, mapper, userClient, props);
+
+        var req = new RegisterInitRequest();
+        req.setUsername("alice");
+        req.setPhone("15551234");
+        req.setPassword("pw");
+        req.setDeviceId("d1");
+        req.setDeviceType(DeviceType.ANDROID);
+
+        var res = svc.init(req, "127.0.0.1");
+
+
+        assertThat(res.getType()).isEqualTo("PHONE");
+        verify(otp).initSmsRegistrationOtp("15551234");
+        verify(pendingRepo).save(any());
+    }
+
+
+
+    @Test
+    void init_blocks_username_caseInsensitive() {
+        var pendingRepo = mock(PendingRegistrationRepository.class);
+        var enc = new org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder();
+        var otp = mock(OtpService.class);
+        var mapper = new ObjectMapper();
+        var userClient = mock(UserClient.class);
+        var props = propsWithOtpTtl(300);
+
+        when(userClient.checkExists(any(), eq("alice"), any()))
+                .thenReturn(Map.of("emailTaken", false, "usernameTaken", true, "phoneTaken", false));
+
+        var svc = svcWith(pendingRepo, enc, otp, mapper, userClient, props);
+
+        var req = new RegisterInitRequest();
+        req.setUsername("ALICE"); // will be compared case-insensitively by user service
+        req.setEmail("a@x.com");
+        req.setPassword("pw");
+        req.setDeviceId("d1");
+        req.setDeviceType(DeviceType.WEB);
+
+        assertThatThrownBy(() -> svc.init(req, "127.0.0.1"))
+                .isInstanceOf(UserAlreadyExistsException.class)
+                .hasMessageContaining("Username");
+    }
+
+    @Test
+    void verify_happy_path_email_creates_user_and_clears_pending() {
+        var pendingRepo = mock(PendingRegistrationRepository.class);
+        var enc = new org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder();
+        var otp = mock(OtpService.class);
+        var mapper = new ObjectMapper();
+        var userClient = mock(UserClient.class);
+        var props = propsWithOtpTtl(300);
+
+        var doc = PendingRegistrationDoc.builder()
+                .txn("t-1").username("alice").email("alice@example.com")
+                .passwordHash("$2a$10$hash").deviceId("d1").deviceType(DeviceType.WEB)
+                .build();
+
+        when(pendingRepo.findById("t-1")).thenReturn(Optional.of(doc));
+        when(otp.verifyEmailRegistrationOtp("alice@example.com","123456")).thenReturn(true);
+
+        var createdUser = new UserResponse(); createdUser.setId(999L); createdUser.setEmail("alice@example.com");
+        when(userClient.createUser(any(UserRequest.class)))
+                .thenReturn(Map.of("user", createdUser));
+
+        var svc = svcWith(pendingRepo, enc, otp, mapper, userClient, props);
+
+        var req = new RegisterVerifyRequest();
+        req.setTransactionId("t-1"); req.setType("EMAIL"); req.setCode("123456");
+        req.setDeviceId("d1"); req.setDeviceType(DeviceType.WEB);
+
+        var out = svc.verify(req, "127.0.0.1");
+
+        assertThat(out.getUser().getId()).isEqualTo(999L);
+        verify(pendingRepo).deleteById("t-1");
+    }
+
+    @Test
+    void init_blocks_when_username_taken() {
+        var pendingRepo = mock(PendingRegistrationRepository.class);
+        var enc = new org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder();
+        var otp = mock(OtpService.class);
+        var mapper = new ObjectMapper();
+        var userClient = mock(UserClient.class);
+        var props = propsWithOtpTtl(300); // your helper that stubs props.getOtp().getTtlSeconds()
+
+        // exact args the service will call: ("a@x.com","alice", null)
+        when(userClient.checkExists(eq("a@x.com"), eq("alice"), isNull()))
+                .thenReturn(Map.of(
+                        "emailTaken", false,
+                        "usernameTaken", true,
+                        "phoneTaken", false
+                ));
+
+        var svc = svcWith(pendingRepo, enc, otp, mapper, userClient, props);
+
+        var req = new RegisterInitRequest();
+        req.setUsername("ALICE");           // will be normalized to "alice"
+        req.setEmail("a@x.com");            // already lower case
+        req.setPassword("pw");
+        req.setDeviceId("d1");
+        req.setDeviceType(DeviceType.WEB);
+
+        assertThatThrownBy(() -> svc.init(req, "127.0.0.1"))
+                .isInstanceOf(UserAlreadyExistsException.class)
+                .hasMessageContaining("Username");
+
+        verify(userClient).checkExists(eq("a@x.com"), eq("alice"), isNull());
+        verifyNoInteractions(otp, pendingRepo); // nothing saved/dispatched on duplicate
+    }
+
+
+
+
+
+
 }

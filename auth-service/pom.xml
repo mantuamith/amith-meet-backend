@@ -199,63 +199,71 @@
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
-                <version>${jacoco.version}</version>
+                <version>0.8.12</version>
 
-                <!-- Global defaults used by executions unless overridden -->
+                <!-- (Optional) default config -->
                 <configuration>
-                    <!-- Filter low-ROI stuff out of instrumentation/reporting -->
                     <excludes>
-                        **/dto/**
-                        **/enums/**
-                        **/exception/**
-                        **/client/**                 <!-- Feign stubs -->
-                        **/config/**                 <!-- Spring config/autoconfig -->
-                        **/*Repository*.class        <!-- Spring Data interfaces -->
-                        **/*$*.class                 <!-- anonymous/inner synthetic -->
-                        **/*$$SpringCGLIB*.class
-                        **/token/**
+                        <exclude>com/algomeet/authservice/dto/**</exclude>
+                        <exclude>com/algomeet/authservice/enums/**</exclude>
+                        <exclude>com/algomeet/authservice/exception/**</exclude>
+                        <exclude>com/algomeet/authservice/client/**</exclude>
+                        <exclude>com/algomeet/authservice/config/**</exclude>
+                        <exclude>**/*Repository*.class</exclude>
+                        <exclude>**/*$*.class</exclude>
+                        <exclude>**/*$$SpringCGLIB*.class</exclude>
+                        <exclude>com/algomeet/authservice/token/**</exclude>
                     </excludes>
                 </configuration>
 
                 <executions>
-                    <!-- Attach agent to surefire -->
+                    <!-- Attach agent -->
                     <execution>
                         <id>prepare-agent</id>
                         <goals>
                             <goal>prepare-agent</goal>
                         </goals>
-                        <!-- (Optional) narrow to your codebase -->
                         <configuration>
                             <includes>
                                 <include>com/algomeet/**</include>
                             </includes>
+                            <excludes>
+                                <exclude>com/algomeet/authservice/dto/**</exclude>
+                                <exclude>com/algomeet/authservice/enums/**</exclude>
+                                <exclude>com/algomeet/authservice/exception/**</exclude>
+                                <exclude>com/algomeet/authservice/client/**</exclude>
+                                <exclude>com/algomeet/authservice/config/**</exclude>
+                                <exclude>**/*Repository*.class</exclude>
+                                <exclude>**/*$*.class</exclude>
+                                <exclude>**/*$$SpringCGLIB*.class</exclude>
+                                <exclude>com/algomeet/authservice/token/**</exclude>
+                            </excludes>
                         </configuration>
                     </execution>
 
-                    <!-- Generate report on verify -->
+                    <!-- Generate report -->
                     <execution>
                         <id>report</id>
                         <phase>verify</phase>
                         <goals>
                             <goal>report</goal>
                         </goals>
-                        <!-- mirror excludes to be explicit -->
                         <configuration>
                             <excludes>
-                                **/dto/**
-                                **/enums/**
-                                **/exception/**
-                                **/client/**
-                                **/config/**
-                                **/*Repository*.class
-                                **/*$*.class
-                                **/*$$SpringCGLIB*.class
-                                **/token/**
+                                <exclude>com/algomeet/authservice/dto/**</exclude>
+                                <exclude>com/algomeet/authservice/enums/**</exclude>
+                                <exclude>com/algomeet/authservice/exception/**</exclude>
+                                <exclude>com/algomeet/authservice/client/**</exclude>
+                                <exclude>com/algomeet/authservice/config/**</exclude>
+                                <exclude>**/*Repository*.class</exclude>
+                                <exclude>**/*$*.class</exclude>
+                                <exclude>**/*$$SpringCGLIB*.class</exclude>
+                                <exclude>com/algomeet/authservice/token/**</exclude>
                             </excludes>
                         </configuration>
                     </execution>
 
-                    <!-- Enforce thresholds only on services & controllers -->
+                    <!-- Enforce thresholds on services & controllers only -->
                     <execution>
                         <id>jacoco-check</id>
                         <phase>verify</phase>
@@ -264,13 +272,11 @@
                         </goals>
                         <configuration>
                             <rules>
-
-                                <!-- CLASS-level checks: use slash notation and include only target packages -->
                                 <rule>
                                     <element>CLASS</element>
                                     <includes>
-                                        <include>com/algomeet/authservice/service/*</include>
-                                        <include>com/algomeet/authservice/controller/*</include>
+                                        <include>com/algomeet/authservice/service/**</include>
+                                        <include>com/algomeet/authservice/controller/**</include>
                                     </includes>
                                     <limits>
                                         <limit>
@@ -285,8 +291,6 @@
                                         </limit>
                                     </limits>
                                 </rule>
-
-                                <!-- PACKAGE-level aggregate check: dot notation -->
                                 <rule>
                                     <element>PACKAGE</element>
                                     <includes>
@@ -301,7 +305,6 @@
                                         </limit>
                                     </limits>
                                 </rule>
-
                             </rules>
                         </configuration>
                     </execution>

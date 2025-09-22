@@ -3,6 +3,7 @@ package com.algomeet.authservice.service;
 import com.algomeet.authservice.client.UserClient;
 import com.algomeet.authservice.config.AuthProperties;
 import com.algomeet.authservice.dto.*;
+import com.algomeet.authservice.enums.OtpChannel;
 import com.algomeet.authservice.enums.ResponseCode;
 import com.algomeet.authservice.exception.UserAlreadyExistsException;
 import com.algomeet.authservice.otp.PendingRegistrationRepository;
@@ -33,12 +34,20 @@ public class RegistrationService {
   private final UserClient userClient;
   private final AuthProperties props;
 
+  private static String normalize(String s) {
+    return s == null ? null : s.trim().toLowerCase(java.util.Locale.ROOT);
+  }
+
   public RegisterInitResponse init(RegisterInitRequest req, String ip) {
     if (!StringUtils.hasText(req.getEmail()) && !StringUtils.hasText(req.getPhone())) {
       throw new IllegalArgumentException("Either email or phone is required");
     }
+    // normalize just for duplicate check
+    String normEmail = normalize(req.getEmail());
+    String normUser  = normalize(req.getUsername());
+    String normPhone = normalize(req.getPhone());
 
-    Map<String, Boolean> exists = userClient.checkExists(req.getEmail(), req.getUsername(), req.getPhone());
+    Map<String, Boolean> exists = userClient.checkExists(normEmail, normUser, normPhone);
     checkForDuplicateUser(exists);
 
     String hash = passwordEncoder.encode(req.getPassword());
@@ -69,16 +78,17 @@ public class RegistrationService {
 
     pendingRepo.save(doc);
 
-    String channel;
+    OtpChannel channel;
     if (StringUtils.hasText(req.getEmail())) {
-      channel = "EMAIL";
+      channel = OtpChannel.EMAIL;
       otpService.initEmailRegistrationOtp(req.getEmail());
     } else {
-      channel = "SMS";
+      channel = OtpChannel.SMS; // internal enum value
       otpService.initSmsRegistrationOtp(req.getPhone());
     }
 
-    return new RegisterInitResponse(txn, channel, "OTP sent.");
+    // externalType() ensures the JSON says "PHONE" for SMS path
+    return new RegisterInitResponse(txn, channel.externalType(), "OTP sent.");
   }
 
   private void checkForDuplicateUser(Map<String, Boolean> exists) {
