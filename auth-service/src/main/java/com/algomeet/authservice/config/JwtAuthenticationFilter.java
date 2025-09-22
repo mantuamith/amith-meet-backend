@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.util.AntPathMatcher;
@@ -19,7 +20,10 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
+
+import static com.algomeet.authservice.enums.ResponseCode.AUTH_SESSION_REVOKED;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -42,7 +46,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 || "OPTIONS".equalsIgnoreCase(request.getMethod());
     }
 
-    @Override
+	@Override
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
                                     FilterChain chain)
@@ -65,7 +69,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             try {
                 // 2a) Validate JWT
                 if (!jwtUtil.isTokenValid(token)) {
-                    unauthorized(response, ResponseCode.AUTH_SESSION_REVOKED); // or AUTH_LOGIN_FAILED if you prefer
+                    unauthorized(response, AUTH_SESSION_REVOKED); // or AUTH_LOGIN_FAILED if you prefer
                     return;
                 }
 
@@ -73,9 +77,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 String email = jwtUtil.extractEmail(token);
                 String tokenSid = jwtUtil.extractSid(token);
                 String userKey = jwtUtil.extractUserKey(token);
+                String role = jwtUtil.extractRole(token);
 
                 if (email == null || tokenSid == null) {
-                    unauthorized(response, ResponseCode.AUTH_SESSION_REVOKED);
+                    unauthorized(response, AUTH_SESSION_REVOKED);
                     return;
                 }
 
@@ -84,12 +89,23 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 if (currentSid == null || !tokenSid.equals(currentSid)) {
                     log.warn("JWT SID mismatch: email={} tokenSid={} currentSid={}",
                             mask(email), tokenSid, currentSid);
-                    unauthorized(response, ResponseCode.AUTH_SESSION_REVOKED);
+                    unauthorized(response, AUTH_SESSION_REVOKED);
                     return;
                 }
 
                 // 2d) All good → set Authentication (principal=email)
-                var auth = new UsernamePasswordAuthenticationToken(email, null, Collections.emptyList());
+                List<GrantedAuthority> authorities = Collections.emptyList();
+                if (role != null) {                	
+                	authorities = List.of(new GrantedAuthority () {
+            			@Override
+            			public String getAuthority() {
+            				return role;
+            			}
+            		});
+                }
+                        
+                @SuppressWarnings("serial")
+				var auth = new UsernamePasswordAuthenticationToken(email, null, authorities);
                 auth.setDetails(Map.of(
                         "user_key", userKey,
                         "sid", tokenSid));
@@ -97,7 +113,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
             } catch (Exception ex) {
                 log.error("JWT filter error: {}", ex.toString());
-                unauthorized(response, ResponseCode.AUTH_SESSION_REVOKED);
+                unauthorized(response, AUTH_SESSION_REVOKED);
                 return;
             }
         }
