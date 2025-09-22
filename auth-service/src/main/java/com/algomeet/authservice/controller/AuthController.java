@@ -302,8 +302,8 @@ public class AuthController {
                 return ResponseEntity.ok(finalTokens);
             }
             case EMAIL: {
-                String msg = otpService.initEmailLoginOtp(request.getLogin());
-                log.info("LOGIN:init OTP dispatched login={} type=email", mLogin(request.getLogin()));
+                String msg = otpService.initEmailLoginOtp(user.getEmail());
+                log.info("LOGIN:init OTP dispatched login={} type=email", mLogin(user.getEmail()));
                 return ResponseEntity.ok(LoginResponse.emailOtp(msg));
             }
             case PHONE: {
@@ -338,22 +338,6 @@ public class AuthController {
         // 3) Enforce device type constraints
         LoginPolicyEnforcer.enforce(policy, request.getDeviceType());
 
-        // 4) Single-device
-        boolean override = Boolean.TRUE.equals(request.getOverrideExisting());
-        if (props.getAuth().isSingleActiveDevice()
-                && user.getActiveDeviceId() != null
-                && !user.getActiveDeviceId().equals(request.getDeviceId())
-                && !override) {
-            return ResponseEntity.status(423).body(
-                    AuthResponse.from(
-                            ResponseCode.AUTH_DEVICE_LOCKED,
-                            user,
-                            null,
-                            null
-                    )
-            );
-        }
-
         // 5) Type match
         LoginResponseType expectedType = switch (policy) {
             case DIRECT -> LoginResponseType.DIRECT;
@@ -376,7 +360,7 @@ public class AuthController {
                 }
                 boolean ok = otpService.verifyEmailLoginOtp(user.getEmail(), request.getCode());
                 if (!ok) throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid or expired OTP");
-                result = authService.issueTokensFor(user, request.getDeviceId(), override);
+                result = authService.issueTokensFor(user, request.getDeviceId(), false);
             }
             case PHONE -> {
                 if (request.getCode() == null || request.getCode().isBlank()) {
@@ -384,14 +368,14 @@ public class AuthController {
                 }
                 boolean ok = otpService.verifySmsLoginOtp(user.getEmail() /* or user.getPhone() */, request.getCode());
                 if (!ok) throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid or expired OTP");
-                result = authService.issueTokensFor(user, request.getDeviceId(), override);
+                result = authService.issueTokensFor(user, request.getDeviceId(), false);
             }
             case TOTP -> {
                 if (request.getCode() == null || request.getCode().isBlank()) {
                     throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "TOTP is required");
                 }
                 // TODO: totpService.verify(user, request.getCode());
-                result = authService.issueTokensFor(user, request.getDeviceId(), override);
+                result = authService.issueTokensFor(user, request.getDeviceId(), false);
             }
             default -> throw new IllegalArgumentException("Unsupported login policy: " + policy);
         }

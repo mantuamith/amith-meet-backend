@@ -172,8 +172,8 @@
 
 
         @PostMapping("/mark-as-read")
-        public ResponseEntity<Void> markAsRead(@Valid @RequestBody String senderId, @Valid @RequestBody String receiverId) {
-            messageService.markMessagesAsRead(senderId, receiverId);
+        public ResponseEntity<Void> markAsRead(@Valid @RequestBody ResetUnreadRequest request) {
+            messageService.markMessagesAsRead(request.getSender(), request.getReceiver());
             return ResponseEntity.noContent().build();
         }
 
