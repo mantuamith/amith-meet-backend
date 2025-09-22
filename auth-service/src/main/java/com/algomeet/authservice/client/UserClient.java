@@ -1,11 +1,15 @@
 package com.algomeet.authservice.client;
 
+import com.algomeet.authservice.dto.SearchUsersFilter;
 import com.algomeet.authservice.dto.UserRequest;
 import com.algomeet.authservice.dto.UserResponse;
 import org.springframework.cloud.openfeign.FeignClient;
+import org.springframework.data.domain.Pageable;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 
 @FeignClient(name = "user-service", url = "${feign.client.user-service.url}")
@@ -65,5 +69,13 @@ public interface UserClient {
                             @RequestParam("deviceToken") String deviceToken);
 
 
+    @GetMapping("/internal/users")
+    Pageable findAll(SearchUsersFilter filter);
+    
+    @GetMapping("/internal/users/{id}")
+    UserResponse findUserById(@PathVariable Long id);
+    
+    @GetMapping("/internal/users/userkey/{userKey}")
+    UserResponse findUserByUserKey(@PathVariable UUID userKey);
 }
 
