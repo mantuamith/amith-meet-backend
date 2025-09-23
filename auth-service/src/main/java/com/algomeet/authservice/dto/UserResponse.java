@@ -3,6 +3,9 @@ package com.algomeet.authservice.dto;
 import java.util.Map;
 import java.util.UUID;
 
+import org.springframework.security.access.AccessDeniedException;
+
+import com.algomeet.authservice.enums.UserRole;
 import com.algomeet.authservice.util.SecurityUtil;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
@@ -65,9 +68,32 @@ public class UserResponse implements SecuredDto{
 
 	@Override
 	public void secured() {
-		// If user not admin
-		if (!SecurityUtil.isUserHasAdminRole()) {
-			setTenantId(null);			
-		}		
+		// Check if user has authority, access right or data owner
+		if (!SecurityUtil.isSAUser()) {			
+			if (SecurityUtil.isUserHasAdminRole()) { 
+				// User has admin role but lower than "SA" check if user has same tenant Id to the record his/she is trying to access.
+			    if (SecurityUtil.getTenantId() != tenantId) {
+			    	throw new AccessDeniedException("Access denied");
+			    }
+			} else {
+				// For ordinary users, check the user key to identify if the user is the data owner.
+				if (userKey == null) {
+					throw new RuntimeException("Invalid record userKey has null value");
+				}
+								
+				if (!(userKey.equals(SecurityUtil.getUserKey()) 	
+						/* SecurityUtil.getUserKey() returned null if user token has not passed in the request header yet.
+						 * This will happen during registration or login those login URIs are exempted from authentication.
+						 */	
+						|| (SecurityUtil.getUserKey() == null))) {
+					throw new AccessDeniedException("Access denied");
+				}				
+			}					
+		}	
+				
+		// Hide fields for non-admin users
+		if (SecurityUtil.isUserHasAdminRole()) {
+			tenantId = null;
+		}
 	}
 }

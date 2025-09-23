@@ -4,6 +4,8 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
+import org.springframework.security.access.AccessDeniedException;
+
 import com.algomeet.authservice.util.SecurityUtil;
 
 import lombok.AllArgsConstructor;
@@ -44,9 +46,24 @@ public class UserProfileResponse implements SecuredDto{
     
     @Override
 	public void secured() {
-		// If user not admin
+    	// Check if user has authority, access right or data owner
+		if (!SecurityUtil.isSAUser()) {			
+			if (SecurityUtil.isUserHasAdminRole()) { 
+				// User has admin role but lower than "SA" check if user has same tenant Id to the record his/she is trying to access.
+			    if (SecurityUtil.getTenantId() != tenantId) {
+			    	throw new AccessDeniedException("Access denied");
+			    }
+			} else {
+				// For ordinary users, check the user key to identify if the user is the data owner.							
+				if (!id.equals(SecurityUtil.getUserKey())) {
+					throw new AccessDeniedException("Access denied");
+				}				
+			}					
+		}	
+				
+		// Hide fields for non-admin users
 		if (!SecurityUtil.isUserHasAdminRole()) {
-			setTenantId(null);
-		}		
+			tenantId = null;
+		}
 	}
 }

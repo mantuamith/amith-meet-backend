@@ -9,6 +9,7 @@ import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -273,6 +274,20 @@ public class GlobalExceptionHandler {
                 "method", req.getMethod(),
                 "timestamp", Instant.now().toString()
         ));
+    }
+    
+    // Catch Access Denied Exception 
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<Map<String, Object>> handleAccessDenied(AccessDeniedException ex, HttpServletRequest req) {
+        log.error("500 Unexpected error path={} method={} err={}", req.getRequestURI(), req.getMethod(), ex.toString(), ex);
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("status", 403);
+        body.put("error", "Access Denied Error");
+        body.put("message", "Forbidden access");
+        body.put("path", req.getRequestURI());
+        body.put("method", req.getMethod());
+        body.put("timestamp", Instant.now().toString());
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(body);
     }
 
     private ResponseCode selectDuplicateCode(Set<String> fields) {

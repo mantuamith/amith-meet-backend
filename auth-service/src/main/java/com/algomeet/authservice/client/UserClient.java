@@ -1,10 +1,13 @@
 package com.algomeet.authservice.client;
 
+import com.algomeet.authservice.dto.PageResponse;
 import com.algomeet.authservice.dto.SearchUsersFilter;
 import com.algomeet.authservice.dto.UserRequest;
 import com.algomeet.authservice.dto.UserResponse;
 import org.springframework.cloud.openfeign.FeignClient;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -68,14 +71,20 @@ public interface UserClient {
                             @RequestParam("deviceType") String deviceType,
                             @RequestParam("deviceToken") String deviceToken);
 
-
     @GetMapping("/internal/users")
-    Pageable findAll(SearchUsersFilter filter);
+    ResponseEntity<PageResponse<UserResponse>> findAll(@RequestParam(required = false) String username,
+            @RequestParam(required = false) String email,
+            @RequestParam(required = false, name = "phoneNumber") String phoneNumber,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "100") int size,
+            @RequestParam(defaultValue = "id") String sortBy,
+            @RequestParam(defaultValue = "desc") String direction,
+            @RequestParam(required = false) Integer tenantId);
     
     @GetMapping("/internal/users/{id}")
     UserResponse findUserById(@PathVariable Long id);
     
-    @GetMapping("/internal/users/userkey/{userKey}")
+    @GetMapping("/internal/users/by-user-key/{userKey}")
     UserResponse findUserByUserKey(@PathVariable UUID userKey);
 }
 
