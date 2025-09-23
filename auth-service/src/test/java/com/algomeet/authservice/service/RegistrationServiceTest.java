@@ -457,10 +457,4 @@ class RegistrationServiceTest {
         verify(userClient).checkExists(eq("a@x.com"), eq("alice"), isNull());
         verifyNoInteractions(otp, pendingRepo); // nothing saved/dispatched on duplicate
     }
-
-
-
-
-
-
 }
