@@ -53,6 +53,9 @@ public class UserProfileResponse implements SecuredDto{
 			    if (SecurityUtil.getTenantId() != tenantId) {
 			    	throw new AccessDeniedException("Access denied");
 			    }
+			    
+			    // hide passcode
+			    passcode = null;
 			} else {
 				// For ordinary users, check the user key to identify if the user is the data owner.							
 				if (!id.equals(SecurityUtil.getUserKey())) {

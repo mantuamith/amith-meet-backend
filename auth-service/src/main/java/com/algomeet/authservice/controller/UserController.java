@@ -28,6 +28,7 @@ public class UserController {
 	public ResponseEntity<? extends CommonResponse<?>> getUsers(SearchUsersFilter filter){
 		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, userService.searchUsers(filter)));
 	}	
+	
 	// GET user 
 	@GetMapping("/{id}")
 	@PreAuthorize("hasAnyRole('SA','ADMIN')")
