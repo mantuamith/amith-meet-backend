@@ -1,14 +1,11 @@
-package com.algomeet.authservice.config;
+package com.algomeet.controlservice.filter;
 
-import com.algomeet.authservice.enums.ResponseCode;
-import com.algomeet.authservice.session.SidCache;
-import com.algomeet.authservice.util.JwtUtil;
-import jakarta.servlet.FilterChain;
-import jakarta.servlet.ServletException;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.GrantedAuthority;
@@ -17,11 +14,14 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.AntPathMatcher;
 import org.springframework.web.filter.OncePerRequestFilter;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import com.algomeet.controlservice.enums.ResponseCode;
+import com.algomeet.controlservice.util.JwtUtil;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -29,18 +29,12 @@ import java.util.Map;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtUtil jwtUtil;
-    private final SidCache sidCache;     // <— tiny cache that calls user-service /active-sid
     private static final AntPathMatcher PATHS = new AntPathMatcher();
-
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getServletPath();
-        return PATHS.match("/auth/register/**", path)
-                || PATHS.match("/auth/login/**", path)
-                || PATHS.match("/auth/refresh", path)
-                || PATHS.match("/auth/password/**", path)
-                || PATHS.match("/actuator/**", path)
+        return PATHS.match("/actuator/**", path)
                 || "OPTIONS".equalsIgnoreCase(request.getMethod());
     }
 
@@ -63,7 +57,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 && SecurityContextHolder.getContext().getAuthentication() == null) {
 
             String token = authHeader.substring(7);
-
             try {
                 // 2a) Validate JWT
                 if (!jwtUtil.isTokenValid(token)) {
@@ -71,50 +64,34 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     return;
                 }
 
-                // 2b) Extract email + sid from token
-                String email = jwtUtil.extractEmail(token);
-                String tokenSid = jwtUtil.extractSid(token);
+                String username = jwtUtil.extractUsername(token);
                 String userKey = jwtUtil.extractUserKey(token);
                 String role = jwtUtil.extractRole(token);
-
-                if (email == null || tokenSid == null) {
-                    unauthorized(response, ResponseCode.AUTH_SESSION_REVOKED);
-                    return;
-                }
-
-                // 2c) Compare with server-authoritative SID
-                String currentSid = sidCache.getCurrentSid(email);
-                if (currentSid == null || !tokenSid.equals(currentSid)) {
-                    log.warn("JWT SID mismatch: email={} tokenSid={} currentSid={}",
-                            mask(email), tokenSid, currentSid);
-                    unauthorized(response, ResponseCode.AUTH_SESSION_REVOKED);
-                    return;
-                }
+                Integer tenantId = jwtUtil.extractTenantId(token);
 
                 // 2d) All good → set Authentication (principal=email)
                 List<GrantedAuthority> authorities = Collections.emptyList();
-                if (role != null) {                	
+                if (role != null) {
                 	authorities = List.of(new GrantedAuthority () {
             			@Override
             			public String getAuthority() {
-            				if (!role.toUpperCase().startsWith("ROLE_")) {
+            				if(!role.toUpperCase().startsWith("ROLE_")) {
             					return "ROLE_" + role;
             				}
-            				
             				return role;
             			}
             		});
                 }
-                        
+
                 @SuppressWarnings("serial")
-				var auth = new UsernamePasswordAuthenticationToken(email, null, authorities);
+				var auth = new UsernamePasswordAuthenticationToken(username, null, authorities);
                 auth.setDetails(Map.of(
                         "user_key", userKey,
-                        "sid", tokenSid));
+                        "tenantId", tenantId != null ? String.valueOf(tenantId) : ""));
                 SecurityContextHolder.getContext().setAuthentication(auth);
 
             } catch (Exception ex) {
-                log.error("JWT filter error: {}", ex.toString());
+                log.error("JWT filter error: {}", ex.toString(), ex);
                 unauthorized(response, ResponseCode.AUTH_SESSION_REVOKED);
                 return;
             }
