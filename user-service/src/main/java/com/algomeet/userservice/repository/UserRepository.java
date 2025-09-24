@@ -2,6 +2,10 @@ package com.algomeet.userservice.repository;
 
 import com.algomeet.multitenancy.annotations.UsePublicSchema;
 import com.algomeet.userservice.model.User;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -60,4 +64,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     @UsePublicSchema
     List<User> findByUserKeyIn(Collection<UUID> keys);
+    
+    @UsePublicSchema
+    Page<User> findAll(Specification<User> spec, Pageable pageable);
 }

@@ -1,7 +1,10 @@
 // dto/RegisterInitRequest.java
 package com.algomeet.authservice.dto;
 
+import org.springframework.security.access.AccessDeniedException;
+
 import com.algomeet.authservice.enums.DeviceType;
+import com.algomeet.authservice.enums.UserRole;
 import com.algomeet.authservice.util.SecurityUtil;
 
 //import com.algomeet.authservice.enums.VerificationType; // EMAIL or SMS
@@ -46,9 +49,15 @@ public class RegisterInitRequest implements SecuredDto{
 
 	@Override
 	public void secured() {
-		if (!SecurityUtil.isAdminUser()) {
-			setTenantId(null);
-			setRole(null);
+		if (!SecurityUtil.isUserHasAdminRole()) {
+			setRole(UserRole.ROLE_USER.name()); 
+			setTenantId(null); // Use default tenant Id			
+		}
+		
+		if (role != null 
+				&& (UserRole.ROLE_SA.name().equals(role.trim().toUpperCase())
+						|| "SA".equals(role.trim().toUpperCase()))){
+			throw new AccessDeniedException("Not allowed to create user with SA role");
 		}
 	}
 }

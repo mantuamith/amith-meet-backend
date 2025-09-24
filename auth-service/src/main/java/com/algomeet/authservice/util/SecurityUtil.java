@@ -1,8 +1,13 @@
 package com.algomeet.authservice.util;
 
+
+import java.util.Map;
+import java.util.UUID;
+
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.util.CollectionUtils;
+import org.springframework.util.StringUtils;
 
 import com.algomeet.authservice.enums.UserRole;
 
@@ -13,7 +18,7 @@ public class SecurityUtil {
 	public static UserRole getUserRole() {
 		Authentication auth = SecurityContextHolder.getContext().getAuthentication();
 		try {
-			if (auth != null 
+			if (auth != null
 					&& !CollectionUtils.isEmpty(auth.getAuthorities())) {
 				return UserRole.valueOf(auth.getAuthorities()
 						.iterator()
@@ -26,8 +31,53 @@ public class SecurityUtil {
 
 		return null;
 	}
+
+	public static Integer getTenantId() {
+		Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+		try {
+			if (auth != null
+					&& auth.getDetails() != null) {
+				if(auth.getDetails() instanceof Map) {
+					return (Integer) ((Map<?, ?>) auth.getDetails()).get("tenantId");
+				}
+			}
+		} catch(Exception ex) {
+			log.error("Error retriving tenant Id {}", ex.getMessage(), ex);
+		}
+		// Use public schema id
+		return 0;
+	}
 	
+	public static UUID getUserKey() {
+		Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+		try {
+			if (auth != null
+					&& auth.getDetails() != null) {
+				if(auth.getDetails() instanceof Map) {
+					String userKeyStr = (String) ((Map<?, ?>) auth.getDetails()).get("user_key");
+					if(StringUtils.hasLength(userKeyStr)) {
+						return UUID.fromString(userKeyStr);
+					}
+				}
+			}
+		} catch(Exception ex) {
+			log.error("Error retriving user key {}", ex.getMessage(), ex);
+		}
+
+		return null;
+	}
+
+
 	public static boolean isAdminUser() {
-		return UserRole.ADMIN.equals(getUserRole());
+		return UserRole.ROLE_ADMIN.equals(getUserRole());
+	}
+
+	public static boolean isSAUser() {
+		return UserRole.ROLE_SA.equals(getUserRole());
+	}
+	
+	public static boolean isUserHasAdminRole() {
+		return ((SecurityUtil.isAdminUser() 
+				|| SecurityUtil.isSAUser()));
 	}
 }
