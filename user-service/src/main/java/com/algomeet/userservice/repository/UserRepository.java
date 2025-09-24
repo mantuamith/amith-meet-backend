@@ -39,13 +39,13 @@ public interface UserRepository extends JpaRepository<User, Long> {
     //boolean deleteUserByEmail(String email);
 
 	@UsePublicSchema
-    boolean existsByEmail(String email);
+    boolean existsByEmailIgnoreCase(String email);
 
 	@UsePublicSchema
-    void deleteByEmail(String email);
+    void deleteByEmailIgnoreCase(String email);
 
 	@UsePublicSchema
-    boolean existsByUsername(String username);
+    boolean existsByUsernameIgnoreCase(String username);
 
 	@UsePublicSchema
     boolean existsByPhone(String phone);
