@@ -2,6 +2,7 @@ package com.algomeet.authservice.util;
 
 
 import java.util.Map;
+import java.util.UUID;
 
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -37,18 +38,35 @@ public class SecurityUtil {
 			if (auth != null
 					&& auth.getDetails() != null) {
 				if(auth.getDetails() instanceof Map) {
-					String tenantIdStr = (String) ((Map) auth.getDetails()).get("tenantId");
-					if(StringUtils.hasLength(tenantIdStr)) {
-						return Integer.valueOf(tenantIdStr);
-					}
+					return (Integer) ((Map<?, ?>) auth.getDetails()).get("tenantId");
 				}
 			}
 		} catch(Exception ex) {
-			log.error("Error retriving user role {}", ex.getMessage(), ex);
+			log.error("Error retriving tenant Id {}", ex.getMessage(), ex);
 		}
 		// Use public schema id
 		return 0;
 	}
+	
+	public static UUID getUserKey() {
+		Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+		try {
+			if (auth != null
+					&& auth.getDetails() != null) {
+				if(auth.getDetails() instanceof Map) {
+					String userKeyStr = (String) ((Map<?, ?>) auth.getDetails()).get("user_key");
+					if(StringUtils.hasLength(userKeyStr)) {
+						return UUID.fromString(userKeyStr);
+					}
+				}
+			}
+		} catch(Exception ex) {
+			log.error("Error retriving user key {}", ex.getMessage(), ex);
+		}
+
+		return null;
+	}
+
 
 	public static boolean isAdminUser() {
 		return UserRole.ROLE_ADMIN.equals(getUserRole());

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # List of all Spring Boot services
-ALL_SERVICES=("auth-service" "chat-service" "contact-service" "meeting-service" "user-service" "notification-service")
+ALL_SERVICES=("auth-service" "chat-service" "contact-service" "meeting-service" "user-service" "notification-service" "control-service")
 
 # GitHub organization for GHCR
 GITHUB_ORG="algoframe-private-limited"

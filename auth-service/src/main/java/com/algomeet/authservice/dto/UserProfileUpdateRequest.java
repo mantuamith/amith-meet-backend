@@ -29,7 +29,11 @@ public class UserProfileUpdateRequest implements SecuredDto{
 	@Override
 	public void secured() {
 		// If user not admin
-		if (!SecurityUtil.isUserHasAdminRole()) {
+		if (SecurityUtil.isUserHasAdminRole()) {
+			if (!SecurityUtil.isSAUser()) {
+				setTenantId(null);
+			}
+		} else {
 			setRole(null);
 			setTenantId(null);
 		}

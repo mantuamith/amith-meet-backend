@@ -22,6 +22,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static com.algomeet.authservice.enums.ResponseCode.AUTH_SESSION_REVOKED;
+
 @Slf4j
 @RequiredArgsConstructor
 @Component
@@ -75,6 +77,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 String tokenSid = jwtUtil.extractSid(token);
                 String userKey = jwtUtil.extractUserKey(token);
                 String role = jwtUtil.extractRole(token);
+                Integer tenantId = jwtUtil.extractTenantId(token);
 
                 if (email == null || tokenSid == null) {
                     unauthorized(response);
@@ -109,7 +112,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 				var auth = new UsernamePasswordAuthenticationToken(email, null, authorities);
                 auth.setDetails(Map.of(
                         "user_key", userKey,
-                        "sid", tokenSid));
+                        "sid", tokenSid,
+                        "tenantId", tenantId));
                 SecurityContextHolder.getContext().setAuthentication(auth);
 
             } catch (Exception ex) {

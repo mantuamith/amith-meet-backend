@@ -1,5 +1,7 @@
 package com.algomeet.userservice.controller;
 
+import com.algomeet.userservice.dto.PageResponse;
+import com.algomeet.userservice.dto.SearchUsersFilter;
 import com.algomeet.userservice.dto.UserDto;
 import com.algomeet.userservice.enums.ResponseCode;
 import com.algomeet.userservice.dto.UserRequest;
@@ -8,11 +10,21 @@ import com.algomeet.userservice.model.User;
 import com.algomeet.userservice.model.UserProfile;
 import com.algomeet.userservice.repository.UserProfileRepository;
 import com.algomeet.userservice.repository.UserRepository;
+import com.algomeet.userservice.repository.specification.UserSpecification;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -24,6 +36,7 @@ import java.math.BigDecimal;
 import java.util.*;
 import java.util.stream.Collectors;
 
+@Slf4j
 @RestController
 @RequestMapping("/internal/users")
 @RequiredArgsConstructor
@@ -39,8 +52,8 @@ public class UserController {
     // Feign client will call this from auth-service to register user
     @PostMapping
     public ResponseEntity<?> createUser(@RequestBody UserRequest request) {
-        boolean emailTaken    = userRepository.existsByEmail(request.getEmail());
-        boolean usernameTaken = userRepository.existsByUsername(request.getUsername());
+        boolean emailTaken    = userRepository.existsByEmailIgnoreCase(request.getEmail());
+        boolean usernameTaken = userRepository.existsByUsernameIgnoreCase(request.getUsername());
 
         if (emailTaken && usernameTaken) {
             return ResponseEntity.status(HttpStatus.CONFLICT).body(
@@ -235,11 +248,11 @@ public class UserController {
     @DeleteMapping("/email/{email}")
     @Transactional  //  Works as a quick fix
     public ResponseEntity<?> deleteUserByEmail(@PathVariable String email) {
-        if (!userRepository.existsByEmail(email)) {
+        if (!userRepository.existsByEmailIgnoreCase(email)) {
             return ResponseEntity.status(404).body(Map.of("error", "User not found"));
         }
 
-        userRepository.deleteByEmail(email);
+        userRepository.deleteByEmailIgnoreCase(email);
         return ResponseEntity.ok(Map.of("message", "User deleted successfully"));
     }
 
@@ -309,8 +322,8 @@ public class UserController {
             @RequestParam(required = false) String username,
             @RequestParam(required = false) String phone) {
 
-        boolean emailTaken = (email != null && !email.isBlank()) && userRepository.existsByEmail(email);
-        boolean usernameTaken = (username != null && !username.isBlank()) && userRepository.existsByUsername(username);
+        boolean emailTaken = (email != null && !email.isBlank()) && userRepository.existsByEmailIgnoreCase(email);
+        boolean usernameTaken = (username != null && !username.isBlank()) && userRepository.existsByUsernameIgnoreCase(username);
         boolean phoneTaken = (phone != null && !phone.isBlank()) && userRepository.existsByPhone(phone);
 
         return Map.of(
@@ -379,7 +392,34 @@ public class UserController {
 
         return Optional.empty();
     }
+    
+    @GetMapping
+    public ResponseEntity<PageResponse<UserResponse>> findAll(@ModelAttribute SearchUsersFilter filter) {
+        Sort sort = filter.getDirection().equalsIgnoreCase("asc")
+                ? Sort.by(filter.getSortBy()).ascending()
+                : Sort.by(filter.getSortBy()).descending();
 
+        Pageable pageable = PageRequest.of(filter.getPage(), filter.getSize(), sort);
+        Page<UserResponse> pageResponse = userRepository
+                .findAll(UserSpecification.filter(filter), pageable)
+                .map(u -> {
+                	u.setPassword(null); // remove password value
+                	return new UserResponse(u);
+                });
+        
+        return ResponseEntity.ok(PageResponse.from(pageResponse));
+    }
+    
+    @GetMapping("/by-user-key/{userKey}")
+    public ResponseEntity<UserResponse> findUserByUserKey(@PathVariable UUID userKey) {
+    	Optional<User> userOpt = userRepository.findByUserKey(userKey);
+    	
+    	return userOpt.map(u -> {
+    		u.setPassword(null); // remove password value
+    		return ResponseEntity.ok(new UserResponse(u));
+    	}).orElse(ResponseEntity.notFound().build());   	
+    }
+    
     private static UserDto toDto(User u) {
         UserDto dto = new UserDto();
         dto.setUserKey(u.getUserKey());
