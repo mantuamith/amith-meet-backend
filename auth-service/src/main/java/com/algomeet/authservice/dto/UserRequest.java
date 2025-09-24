@@ -1,5 +1,8 @@
 package com.algomeet.authservice.dto;
 
+import org.springframework.security.access.AccessDeniedException;
+
+import com.algomeet.authservice.enums.UserRole;
 import com.algomeet.authservice.util.SecurityUtil;
 
 import lombok.AllArgsConstructor;
@@ -38,9 +41,15 @@ public class UserRequest implements SecuredDto{
 	@Override
 	public void secured() {		
 		// If user not admin
-		if (!SecurityUtil.isAdminUser()) {
-			setRole(null);
-			setTenantId(null);	
+		if (!SecurityUtil.isUserHasAdminRole()) {
+			setRole(UserRole.ROLE_USER.name());
+			setTenantId(null);	// Use default tenant Id
 		}	
+		
+		if (role != null 
+				&& (UserRole.ROLE_SA.name().equals(role.trim().toUpperCase())
+						|| "SA".equals(role.trim().toUpperCase()))){
+			throw new AccessDeniedException("Not allowed to create user with SA role");
+		}
 	}
 }

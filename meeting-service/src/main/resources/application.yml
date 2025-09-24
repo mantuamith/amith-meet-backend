@@ -50,6 +50,7 @@ meeting:
   expiration:
     minutes: 1440
 
+
 logging:
   level:
     root: INFO
@@ -61,6 +62,13 @@ algomeet:
     app-id: algomeet               # -> aud
     issuer: algomeet               # -> iss
     sub: meet.algomeet.com         # -> sub (your Algomeet)
-    secret-base64: "gH0qKjp8oTzL8ZtW6M2w9Pj3r3y4ZK2m2b8JgQH0hQk="   # ${ALGOMEET_JWT_SECRET_BASE64:}  # HS256 shared secret, base64-encoded
+    secret-base64: "gH0qKjp8oTzL8ZtW6M2w9Pj3r3y4ZK2m2b8JgQH0hQk="
     ttl-seconds: 300               # 5 minutes is typical
+
+      
+feign:
+  client:
+    control-service:
+      url: http://localhost:8090
+
 

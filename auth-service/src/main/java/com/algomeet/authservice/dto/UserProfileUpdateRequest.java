@@ -2,6 +2,9 @@ package com.algomeet.authservice.dto;
 
 import java.math.BigDecimal;
 
+import org.springframework.security.access.AccessDeniedException;
+
+import com.algomeet.authservice.enums.UserRole;
 import com.algomeet.authservice.util.SecurityUtil;
 
 import lombok.Getter;
@@ -26,9 +29,19 @@ public class UserProfileUpdateRequest implements SecuredDto{
 	@Override
 	public void secured() {
 		// If user not admin
-		if (!SecurityUtil.isAdminUser()) {
+		if (SecurityUtil.isUserHasAdminRole()) {
+			if (!SecurityUtil.isSAUser()) {
+				setTenantId(null);
+			}
+		} else {
 			setRole(null);
 			setTenantId(null);
-		}		
+		}
+		
+		if (role != null 
+				&& (UserRole.ROLE_SA.name().equals(role.trim().toUpperCase())
+						|| "SA".equals(role.trim().toUpperCase()))){
+			throw new AccessDeniedException("Not allowed to update user role to SA role");
+		}
 	}
 }
