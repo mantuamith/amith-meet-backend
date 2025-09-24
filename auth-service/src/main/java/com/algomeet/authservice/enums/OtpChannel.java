@@ -9,5 +9,13 @@ public enum OtpChannel { EMAIL, SMS;
             default: throw new IllegalArgumentException("Unknown channel: " + s);
         }
     }
+
+    /** What we return to clients in JSON responses */
+    public String externalType() {
+        return switch (this) {
+            case EMAIL -> "EMAIL";
+            case SMS   -> "PHONE";
+        };
+    }
 }
 

@@ -14,12 +14,24 @@ public final class LoginPolicyEnforcer {
      * Throws ResponseStatusException on violations. Returns void otherwise.
      */
     public static void enforce(LoginPolicy policy, DeviceType deviceType) {
+        if (policy == null || deviceType == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Missing policy/deviceType");
+        }
         switch (policy) {
-            case DIRECT -> { /* no OTP required; any device type is fine */ }
-            case EMAIL, PHONE, TOTP -> {
-                // Currently no device restrictions; add if you need (e.g., TOTP not allowed on DESKTOP).
+            case DIRECT -> { /* no restriction */ }
+            case EMAIL, PHONE -> { /* no restriction (otp goes via channel) */ }
+            case TOTP -> {
+                // Example rule: TOTP allowed only on mobile apps; block browsers/desktop
+                if (deviceType == DeviceType.WEB || deviceType.name().equals("DESKTOP")) {
+                    throw new ResponseStatusException(
+                            HttpStatus.BAD_REQUEST,
+                            "TOTP not allowed on " + deviceType
+                    );
+                }
             }
-            default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unsupported login policy: " + policy);
+            default -> throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, "Unsupported login policy: " + policy
+            );
         }
     }
 
