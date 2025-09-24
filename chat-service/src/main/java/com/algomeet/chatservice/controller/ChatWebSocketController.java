@@ -9,11 +9,10 @@ import com.algomeet.chatservice.dto.*;
 import com.algomeet.chatservice.mapper.MessageMapper;
 import com.algomeet.chatservice.model.MessageStatus;
 import com.algomeet.chatservice.model.AppStatus;
-import com.algomeet.chatservice.registry.SessionMetadata;
-import com.algomeet.chatservice.registry.WebSocketSessionRegistry;
 import com.algomeet.chatservice.repository.MessageRepository;
 import com.algomeet.chatservice.service.MessageDeleteService;
 import com.algomeet.chatservice.service.MessageService;
+import com.algomeet.chatservice.service.UserSessionService;
 import com.algomeet.notificationservice.dto.Notification;
 import com.algomeet.notificationservice.dto.Notification.NotificationBuilder;
 import com.algomeet.notificationservice.enums.NotificationType;
@@ -49,7 +48,7 @@ public class ChatWebSocketController {
     private final MessageService messageService;
     private final MessageDeleteService deleteService;
     private final NotificationService notificationService;
-    private final WebSocketSessionRegistry sessionRegistry;
+    private final UserSessionService userSessionService;
 
     @MessageMapping("/chat")
     public void handleChatMessage(MessageDocument message, Principal principal) {
@@ -218,11 +217,14 @@ public class ChatWebSocketController {
      */
     @MessageMapping("/app-status")
     public void handleInActive(AppStatusMessage message, Principal principal) {
-    	Set<SessionMetadata> sessions = sessionRegistry.getSessions(principal.getName());
+    	Set<SessionMetadata> sessions = userSessionService.getSessions(principal.getName());
     	if (sessions != null) {
     		sessions.forEach(s -> {
     			s.setActive(AppStatus.ACTIVE == message.getStatus() ? true : false);
     		});
+    		
+    		// Update sessions
+    		userSessionService.updateSessions(principal.getName(), sessions);
     	}
     }
     
@@ -235,7 +237,7 @@ public class ChatWebSocketController {
      */
     private void sendPushNotification (String toKey, String message, NotificationType notifcationType, String receiverUser) {
     	// TODO: Need to finalize if we have to use username
-    	Set<SessionMetadata> sessions = sessionRegistry.getSessions(receiverUser);
+    	Set<SessionMetadata> sessions = userSessionService.getSessions(receiverUser);
     	if (CollectionUtils.isEmpty(sessions)
     			|| sessions.iterator().next().isActive() == false) {
     	    	
