@@ -1,33 +1,44 @@
 package com.algomeet.meetservice.scheduler;
 
-import com.algomeet.meetservice.model.Meeting;
-import com.algomeet.meetservice.repository.MeetingRepository;
-import com.algomeet.notificationservice.dto.Notification;
-import com.algomeet.notificationservice.enums.NotificationType;
-import com.algomeet.notificationservice.enums.ReceiverGroup;
-import com.algomeet.notificationservice.service.NotificationService;
-
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.stereotype.Component;
-
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Component;
+import org.springframework.util.CollectionUtils;
+
+import com.algomeet.meetservice.client.ControlClient;
+import com.algomeet.meetservice.model.Meeting;
+import com.algomeet.meetservice.repository.MeetingRepository;
+import com.algomeet.multitenancy.context.TenantContext;
+import com.algomeet.notificationservice.dto.Notification;
+import com.algomeet.notificationservice.enums.NotificationType;
+import com.algomeet.notificationservice.enums.ReceiverGroup;
+import com.algomeet.notificationservice.service.NotificationService;
 
 @Component
 public class MeetingCleanupScheduler {
 
     private static final Logger log = LoggerFactory.getLogger(MeetingCleanupScheduler.class);
+    
+    @Autowired
+    private ControlClient controlClient;
 
     @Autowired
     private MeetingRepository meetingRepository;
+   
     @Autowired
     private NotificationService notificationService;
-
+    
+    @Autowired
+    private RedisTemplate<String, Boolean> redisTemplate;
+    
     /**
      * Marks expired meetings as EXPIRED instead of deleting them.
      * Runs every 60 seconds.
@@ -90,24 +101,64 @@ public class MeetingCleanupScheduler {
      */
     @Scheduled(fixedRate = 60000) // Every minute
     public void processMeetingReminders() {
+    	log.info("Check for upcoming meeting reminders");
+    	
+    	String lockRedisKey = "meeting:meeting-reminder-scheduler-locked";
+    			
+    	if (!redisTemplate.opsForValue().setIfAbsent(lockRedisKey, 
+    			Boolean.TRUE, Duration.ofSeconds(30))) {
+    		return;
+    	}
+    	
+    	// Get active tenants
+    	List<Integer> tenantIds = null;
+    	try {
+    		tenantIds = controlClient.getActiveTenantIds().getBody();
+    		log.info("tenantIds {}", tenantIds);
+    	} catch (Exception ex) {
+    		log.error("Error retrieving tenant Ids {}", ex.getMessage(), ex);
+    	}
+    	
+    	// If empty, add 0 tenant Id for public users
+    	if (CollectionUtils.isEmpty(tenantIds) 
+    			|| !tenantIds.contains(Integer.valueOf(0))) {
+    		tenantIds = List.of(0);
+    	}
+    	
         Instant now = Instant.now();
         Instant inOneMinute = now.plusSeconds(60);
         
-        List<Meeting> meetings = meetingRepository.findMeetingsByReminderTimeBetween(now, inOneMinute);
-        for (Meeting meeting : meetings) {
-        	log.info("Meeting starts: {} , Meeting ends: {}", meetings.get(0).getMeetingStartTime(), meetings.get(0).getMeetingEndTime());       	
+        for (Integer tenantId : tenantIds) {
+        	//Switch schema
+        	TenantContext.switchTenantExplicitly(tenantId);
+        	
+        	try {
+        		List<Meeting> meetings = meetingRepository.findMeetingsByReminderTimeBetween(now, inOneMinute);
 
-        	Notification notif = Notification.builder()
-        			.type(NotificationType.MEETING_REMINDER)
-        			.receiverGroup(ReceiverGroup.MEETING_PARTICIPANTS)
-        			.receiverGroupRefId(meeting.getId())
-        			.title("Meeting reminder")
-        			.body("Your meeting starts in " + meeting.getReminderMinutes() + " minutes")
-        			.data(Map.of(
-        					"meetingId", meeting.getId()
-        					))
-        			.build();
-        	notificationService.sendPush(notif);            
+        		for (Meeting meeting : meetings) {
+        			log.info("Meeting start: {} , meeting end: {}", meeting.getMeetingStartTime(), meeting.getMeetingEndTime());       	
+
+        			Notification notif = Notification.builder()
+        					.type(NotificationType.MEETING_REMINDER)
+        					.receiverGroup(ReceiverGroup.MEETING_PARTICIPANTS)
+        					.receiverGroupRefId(meeting.getId())
+        					.title("Meeting reminder")
+        					.body("Your meeting starts in " + meeting.getReminderMinutes() + " minutes")
+        					.data(Map.of(
+        							"meetingId", meeting.getId()
+        							))
+        					.build();
+        			notificationService.sendPush(notif);            
+        		}
+        	} catch (Exception ex) {
+        		log.error("Error {}", ex.getMessage(), ex);
+        	}
+        	
+        	// Clean up
+        	TenantContext.clear();
         }
+        
+        //Remove redis lock;
+        redisTemplate.delete(lockRedisKey);
     }
 }
