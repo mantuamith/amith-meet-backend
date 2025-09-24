@@ -49,10 +49,9 @@ jwt:
 meeting:
   expiration:
     minutes: 1440
-
-logging:
-    level:
-      root: INFO
-      com.algomeet.meetservice.controller: DEBUG
-      com.algomeet.meetservice.service: DEBUG
+      
+feign:
+  client:
+    control-service:
+      url: http://localhost:8090
 
