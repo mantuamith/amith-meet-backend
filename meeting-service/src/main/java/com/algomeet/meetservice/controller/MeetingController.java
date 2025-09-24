@@ -41,8 +41,6 @@ public class MeetingController {
     private final AlgomeetJwtService algomeetJwtService;
     private final AlgomeetMeetingTokenRegistry tokenRegistry;
 
-    private final AnonymousJoinLinkVerifier anonymousJoinLinkVerifier;
-
     @PostMapping("/create")
     public ResponseEntity<Meeting> createMeeting(@RequestBody MeetingRequest request) {
         String email = currentUser();
