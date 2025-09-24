@@ -2,6 +2,8 @@
 package com.algomeet.authservice.dto;
 
 import com.algomeet.authservice.enums.DeviceType;
+import com.algomeet.authservice.util.SecurityUtil;
+
 //import com.algomeet.authservice.enums.VerificationType; // EMAIL or SMS
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Email;
@@ -11,7 +13,7 @@ import jakarta.validation.constraints.Pattern;
 import lombok.Data;
 
 @Data
-public class RegisterInitRequest {
+public class RegisterInitRequest implements SecuredDto{
     @NotBlank private String username;
 
     @Email private String email;                 // optional (email or phone required)
@@ -41,4 +43,12 @@ public class RegisterInitRequest {
         return (email != null && !email.isBlank()) ||
                 (phone != null && !phone.isBlank());
     }
+
+	@Override
+	public void secured() {
+		if (!SecurityUtil.isAdminUser()) {
+			setTenantId(null);
+			setRole(null);
+		}
+	}
 }

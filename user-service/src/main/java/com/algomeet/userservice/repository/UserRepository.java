@@ -11,33 +11,53 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+
 public interface UserRepository extends JpaRepository<User, Long> {
+	@UsePublicSchema
+	<S extends User> S save(S entity);
+	
+	@UsePublicSchema
+	Optional<User> findById(Long id);
+	
+	@UsePublicSchema
     Optional<User> findByUsername(String username);
 
+	@UsePublicSchema
     Optional<User> findByEmail(String email);
 
+	@UsePublicSchema
     List<User> findAllByEmailIn(List<String> emails);
 
+	@UsePublicSchema
     @Query("SELECT u FROM User u WHERE LOWER(u.username) LIKE LOWER(CONCAT('%', :query, '%')) OR LOWER(u.email) LIKE LOWER(CONCAT('%', :query, '%'))")
     List<User> searchUsers(@Param("query") String query);
 
     //boolean deleteUserByEmail(String email);
 
-    boolean existsByEmail(String email);
+	@UsePublicSchema
+    boolean existsByEmailIgnoreCase(String email);
 
-    void deleteByEmail(String email);
+	@UsePublicSchema
+    void deleteByEmailIgnoreCase(String email);
 
-    boolean existsByUsername(String username);
+	@UsePublicSchema
+    boolean existsByUsernameIgnoreCase(String username);
 
+	@UsePublicSchema
     boolean existsByPhone(String phone);
 
+	@UsePublicSchema
     Optional<User> findByUsernameIgnoreCase(String username);
+	
+	@UsePublicSchema
     Optional<User> findByEmailIgnoreCase(String email);
     
     @UsePublicSchema
     Optional<User> findByUserKey(UUID key);
 
+    @UsePublicSchema
     List<User> findAllByUserKeyIn(List<UUID> keys);
 
+    @UsePublicSchema
     List<User> findByUserKeyIn(Collection<UUID> keys);
 }
