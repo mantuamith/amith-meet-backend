@@ -29,7 +29,7 @@ public enum ResponseCode {
     AUTH_FORGOT_CHANNEL_MISMATCH("AUTH_FORGOT_CHANNEL_MISMATCH", "OTP Channel Mismatch"),
     AUTH_FORGOT_INVALID_TICKET("AUTH_FORGOT_INVALID_TICKET", "Invalid password reset ticket"),
     AUTH_FORGOT_EXPIRED_TICKET("AUTH_FORGOT_EXPIRED_TICKET", "Password reset ticket expired"),
-    AUTH_SESSION_REVOKED("AUTH_SESSION_REVOKED", "Your session was revoked (signed-in on another device)."),
+    AUTH_SESSION_REVOKED("AUTH_SESSION_REVOKED", "Your session was revoked"),
     AUTH_DEVICE_LOCKED("AUTH_DEVICE_LOCKED", "This account is active on another device."),
     AUTH_DUPLICATE_PHONE("AUTH_DUPLICATE_PHONE", "Phone Already exists"),
     

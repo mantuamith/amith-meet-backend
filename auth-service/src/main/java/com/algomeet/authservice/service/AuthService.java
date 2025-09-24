@@ -161,17 +161,37 @@ public class AuthService {
     //TODO: automatically log out from all devices by clearing their refresh tokens
 
     public AuthResponse refreshAccessToken(String refreshToken) {
-        if (!jwtUtil.isTokenValid(refreshToken)
-                || !jwtUtil.isRefreshToken(refreshToken)
-                || !refreshTokenStore.exists(refreshToken)) {
-            return AuthResponse.from(ResponseCode.AUTH_INVALID_REFRESH_TOKEN, null, null, null);
+        // 1) structural checks
+        if (!jwtUtil.isTokenValid(refreshToken) || !jwtUtil.isRefreshToken(refreshToken)) {
+            return AuthResponse.from(ResponseCode.AUTH_INVALID_REFRESH_TOKEN, null);
         }
 
+        // 2) pull identity
         String email = jwtUtil.extractEmail(refreshToken);
-        UserResponse user = userClient.getUserByEmail(email);
-        String newAccessToken = jwtUtil.generateToken(user);
+        String sidFromRt = jwtUtil.extractSid(refreshToken);
+        if (email == null || sidFromRt == null) {
+            return AuthResponse.from(ResponseCode.AUTH_INVALID_REFRESH_TOKEN,null);
+        }
 
-        return AuthResponse.from(ResponseCode.AUTH_REFRESH_SUCCESS, user, newAccessToken, refreshToken);
+        // 3) load user
+        UserResponse user = userClient.getUserByEmail(email);
+        if (user == null) {
+            return AuthResponse.from(ResponseCode.AUTH_LOGIN_FAILED, null);
+        }
+
+        // 4) compare with server-authoritative SID
+        String currentSid = sidCache.getCurrentSid(email); // your existing cache
+        if (currentSid == null || !currentSid.equals(sidFromRt)) {
+            // either revoked or another login rotated SID
+            return AuthResponse.from(ResponseCode.AUTH_SESSION_REVOKED, user);
+        }
+
+        // 5) issue new ACCESS token with SAME sid; optionally extend/rotate refresh here
+        String newAccess = jwtUtil.generateToken(user, currentSid);
+        // You can choose to reuse the same RT (until it nears expiry) or rotate it every time:
+        String newRefresh = jwtUtil.generateRefreshToken(user, currentSid);
+
+        return AuthResponse.from(ResponseCode.AUTH_REFRESH_SUCCESS, user, newAccess, newRefresh);
     }
 
     public void updatePassword(Long userId, String rawPassword) {

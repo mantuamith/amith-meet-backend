@@ -10,6 +10,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.security.Key;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.Date;
@@ -19,8 +20,8 @@ import java.util.function.Function;
 public class JwtUtil {
 
     private final Key secretKey;
-    private final long EXPIRATION_TIME = 24 * 60 * 60 * 1000; // 24 hours  TODO: Externalize this
-    private final long REFRESH_EXPIRATION_TIME = 30L * 24 * 60 * 60 * 1000; // 30 days  TODO: Externalize this
+    private static final Duration ACCESS_TTL  = Duration.ofMinutes(2);
+    private static final Duration REFRESH_TTL = Duration.ofDays(30);
     public JwtUtil(@Value("${jwt.secret}") String secret) {
         this.secretKey = Keys.hmacShaKeyFor(Base64.getDecoder().decode(secret));
     }
@@ -34,7 +35,7 @@ public class JwtUtil {
                 .claim("user_key", safeUserKey(user))
                 .claim("tenantId", user.getTenantId())
                 .setIssuedAt(new Date())
-                .setExpiration(new Date(System.currentTimeMillis() + EXPIRATION_TIME))
+                .setExpiration(Date.from(Instant.now().plus(ACCESS_TTL)))
                 .signWith(secretKey, SignatureAlgorithm.HS256)
                 .compact();
     }
@@ -48,7 +49,7 @@ public class JwtUtil {
                 .claim("user_key", safeUserKey(user))
                 .claim("tenantId", user.getTenantId())
                 .setIssuedAt(new Date())
-                .setExpiration(new Date(System.currentTimeMillis() + EXPIRATION_TIME))
+                .setExpiration(Date.from(Instant.now().plus(ACCESS_TTL)))
                 .signWith(secretKey, SignatureAlgorithm.HS256)
                 .compact();
     }
@@ -65,7 +66,7 @@ public class JwtUtil {
                 .claim("type", "refresh")
                 .claim("user_key", safeUserKey(user))
                 .setIssuedAt(new Date())
-                .setExpiration(new Date(System.currentTimeMillis() + REFRESH_EXPIRATION_TIME))
+                .setExpiration(Date.from(Instant.now().plus(REFRESH_TTL)))
                 .signWith(secretKey, SignatureAlgorithm.HS256)
                 .compact();
     }
@@ -79,7 +80,7 @@ public class JwtUtil {
                 .claim("sid", sessionId)
                 .claim("user_key", safeUserKey(user))
                 .setIssuedAt(new Date())
-                .setExpiration(Date.from(Instant.now().plusSeconds(REFRESH_EXPIRATION_TIME)))
+                .setExpiration(Date.from(Instant.now().plus(REFRESH_TTL)))
                 .signWith(secretKey, SignatureAlgorithm.HS256)
                 .compact();
     }

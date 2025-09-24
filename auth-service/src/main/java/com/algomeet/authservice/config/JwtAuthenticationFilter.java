@@ -9,7 +9,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.MediaType;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
@@ -17,7 +17,6 @@ import org.springframework.util.AntPathMatcher;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.Map;
 
@@ -61,11 +60,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 && SecurityContextHolder.getContext().getAuthentication() == null) {
 
             String token = authHeader.substring(7);
-
+            log.info("token =  {}",token);
             try {
                 // 2a) Validate JWT
                 if (!jwtUtil.isTokenValid(token)) {
-                    unauthorized(response, ResponseCode.AUTH_SESSION_REVOKED); // or AUTH_LOGIN_FAILED if you prefer
+                    unauthorized(response); // or AUTH_LOGIN_FAILED if you prefer
                     return;
                 }
 
@@ -75,7 +74,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 String userKey = jwtUtil.extractUserKey(token);
 
                 if (email == null || tokenSid == null) {
-                    unauthorized(response, ResponseCode.AUTH_SESSION_REVOKED);
+                    unauthorized(response);
                     return;
                 }
 
@@ -84,7 +83,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 if (currentSid == null || !tokenSid.equals(currentSid)) {
                     log.warn("JWT SID mismatch: email={} tokenSid={} currentSid={}",
                             mask(email), tokenSid, currentSid);
-                    unauthorized(response, ResponseCode.AUTH_SESSION_REVOKED);
+                    unauthorized(response);
                     return;
                 }
 
@@ -97,7 +96,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
             } catch (Exception ex) {
                 log.error("JWT filter error: {}", ex.toString());
-                unauthorized(response, ResponseCode.AUTH_SESSION_REVOKED);
+                unauthorized(response);
                 return;
             }
         }
@@ -106,14 +105,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         chain.doFilter(request, response);
     }
 
-    private void unauthorized(HttpServletResponse res, ResponseCode rc) throws IOException {
-        res.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-        res.setCharacterEncoding(StandardCharsets.UTF_8.name());
-        res.setContentType(MediaType.APPLICATION_JSON_VALUE);
-        String json = """
-            {"code":"%s","message":"%s"}
-        """.formatted(rc.getCode(), rc.getDefaultMessage());
-        res.getWriter().write(json);
+    private void unauthorized(HttpServletResponse response) throws IOException {
+        SecurityContextHolder.clearContext();
+        if (response.isCommitted()) return;
+        response.setStatus(HttpStatus.UNAUTHORIZED.value());
+        response.setContentType("application/json");
+        response.getWriter().write("""
+        {"code":"%s","message":"%s"}
+        """.formatted(ResponseCode.AUTH_SESSION_REVOKED.getCode(), ResponseCode.AUTH_SESSION_REVOKED.getDefaultMessage()));
+        response.getWriter().flush();
     }
 
     private String mask(String e) {
