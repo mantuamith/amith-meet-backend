@@ -19,7 +19,7 @@ import java.util.function.Function;
 public class JwtUtil {
 
     private final Key secretKey;
-    private final long EXPIRATION_TIME = 15 * 60 * 1000; // 24 hours  TODO: Externalize this
+    private final long EXPIRATION_TIME = 24 * 60 * 60 * 1000; // 24 hours  TODO: Externalize this
     private final long REFRESH_EXPIRATION_TIME = 30L * 24 * 60 * 60 * 1000; // 30 days  TODO: Externalize this
     public JwtUtil(@Value("${jwt.secret}") String secret) {
         this.secretKey = Keys.hmacShaKeyFor(Base64.getDecoder().decode(secret));
