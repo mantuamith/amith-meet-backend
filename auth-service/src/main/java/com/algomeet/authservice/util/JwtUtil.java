@@ -20,7 +20,7 @@ import java.util.function.Function;
 public class JwtUtil {
 
     private final Key secretKey;
-    private static final Duration ACCESS_TTL  = Duration.ofMinutes(2);
+    private static final Duration ACCESS_TTL  = Duration.ofMinutes(15);
     private static final Duration REFRESH_TTL = Duration.ofDays(30);
     public JwtUtil(@Value("${jwt.secret}") String secret) {
         this.secretKey = Keys.hmacShaKeyFor(Base64.getDecoder().decode(secret));
