@@ -93,9 +93,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 if (currentSid == null || !tokenSid.equals(currentSid)) {
                     log.warn("JWT SID mismatch: email={} tokenSid={} currentSid={}",
                             mask(email), tokenSid, currentSid);
-
                     unauthorized(response);
-
                     return;
                 }
 

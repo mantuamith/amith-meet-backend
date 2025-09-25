@@ -195,6 +195,7 @@ public class MeetingService {
         }
 
         Meeting m = meetingOpt.get();
+        m.setStatus(MeetingStatus.STARTED);
 
         if (!hasValidToken(token, m.getToken())) {
             log.warn("GetOpenMeetingById invalid token: id={}", id);

@@ -49,9 +49,26 @@ jwt:
 meeting:
   expiration:
     minutes: 1440
+
+
+logging:
+  level:
+    root: INFO
+    com.algomeet.meetservice.controller: DEBUG
+    com.algomeet.meetservice.service: DEBUG
+
+algomeet:
+  jwt:
+    app-id: algomeet               # -> aud
+    issuer: algomeet               # -> iss
+    sub: meet.algomeet.com         # -> sub (your Algomeet)
+    secret-base64: "gH0qKjp8oTzL8ZtW6M2w9Pj3r3y4ZK2m2b8JgQH0hQk="
+    ttl-seconds: 300               # 5 minutes is typical
+
       
 feign:
   client:
     control-service:
       url: http://localhost:8090
+
 

@@ -1,12 +1,15 @@
 package com.algomeet.meetservice.controller;
 
-import com.algomeet.meetservice.Dto.EditMeetingRequest;
-import com.algomeet.meetservice.Dto.MeetingRequest;
-import com.algomeet.meetservice.Dto.MeetingResponse;
-import com.algomeet.meetservice.Dto.ApproveRejectRequest;
+import com.algomeet.meetservice.Dto.*;
 import com.algomeet.meetservice.model.Meeting;
 import com.algomeet.meetservice.repository.MeetingRepository;
+import com.algomeet.meetservice.security.AlgomeetMeetingTokenRegistry;
+import com.algomeet.meetservice.security.GuestIdentity;
+import com.algomeet.meetservice.service.AlgomeetJwtService;
 import com.algomeet.meetservice.service.MeetingService;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,12 +19,14 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/meetings")
+@RequiredArgsConstructor
 public class MeetingController {
 
     private static final Logger log = LoggerFactory.getLogger(MeetingController.class);
@@ -31,6 +36,10 @@ public class MeetingController {
 
     @Autowired
     private MeetingRepository meetingRepository;
+
+
+    private final AlgomeetJwtService algomeetJwtService;
+    private final AlgomeetMeetingTokenRegistry tokenRegistry;
 
     @PostMapping("/create")
     public ResponseEntity<Meeting> createMeeting(@RequestBody MeetingRequest request) {
@@ -87,7 +96,7 @@ public class MeetingController {
     }
 
     // For open meetings (guests). Never log token value.
-    @GetMapping("/open/{id}")
+    /*@GetMapping("/open/{id}")
     public ResponseEntity<?> getOpenMeeting(
             @PathVariable String id,
             @RequestParam(required = false) String token) {
@@ -137,7 +146,106 @@ public class MeetingController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(MeetingResponse.error("INTERNAL_ERROR", "Unexpected error while fetching open meeting"));
         }
+    }*/
+
+    // imports omitted for brevity
+
+    @GetMapping("/open/{id}")
+    public ResponseEntity<?> getOpenMeeting(
+            @PathVariable String id,
+            @RequestParam(required = false) String token,      // join link token (NO user creds)
+            @RequestParam(required = false) String name,       // optional guest display name
+            HttpServletRequest request,
+            HttpServletResponse response
+    ) {
+
+        String userName = SecurityContextHolder.getContext().getAuthentication().getName();
+
+        // 1) Require the join link token (anonymous flow)
+        if (token == null || token.isBlank()) {
+            log.warn("OpenMeeting missing token: id={}", id);
+            return ResponseEntity.badRequest()
+                    .body(MeetingResponse.error("TOKEN_REQUIRED", "Join token is required."));
+        }
+
+        try {
+            final String linkToken = token.trim();
+
+            // 2) Resolve a STABLE guest identity for single-instance enforcement
+            //    - Prefer x-algomeet-client-id header (from FE localStorage)
+            //    - Else use/set an HttpOnly cookie algomeet_guest_id
+            final String guestKey = GuestIdentity.resolve(request, response);
+
+            // 3) Fetch meeting w/ your existing rules (status, expiry, lobby, etc.)
+            return meetingService.getOpenMeetingById(id, linkToken)
+                    .map(m -> switch (m.getStatus()) {
+                        case STARTED -> {
+                            // --- JOIN ALLOWED PATH FOR GUESTS ---
+
+                            // 4) Enforce single instance per (meetingId, guestKey)
+                            //    If token exists for this (meeting, guest), revoke/replace it (fresh issue).
+                            var existing = tokenRegistry.getIfActive(m.getId(), guestKey);
+                            if (existing.isPresent()) {
+                                tokenRegistry.revoke(m.getId(), guestKey);
+                            }
+
+                            // 5) Determine display name (guest). No moderator for anonymous users.
+                            String displayName = (userName != null && !userName.isBlank())
+                                    ? userName.trim()
+                                    : "";
+
+                            boolean moderator = false; // guests are not moderators
+
+                            // 6) Mint a fresh Algomeet JWT for THIS meeting and THIS guest
+                            var gen = algomeetJwtService.generateForMeeting(
+                                    m,
+                                    guestKey,        // userKey := guestKey
+                                    displayName,
+                                    null,            // email is null for guests
+                                    moderator
+                            );
+
+                            // 7) Cache it with TTL → guarantees only one ACTIVE token per (meeting, guest)
+                            tokenRegistry.save(
+                                    m.getId(), guestKey, gen.token(),
+                                    Duration.ofSeconds(300) // or props.getTtlSeconds()
+                            );
+
+                            // 8) Return meeting + the Algomeet token
+                            yield ResponseEntity.ok(MeetingResponse.success(
+                                    "MEETING_JOINED_SUCCESS", "You can join now.",
+                                    new OpenMeetingJoinResponse(m, gen.token(), gen.room(), gen.exp())
+                            ));
+                        }
+
+                        case SCHEDULED -> ResponseEntity.ok(
+                                MeetingResponse.success("MEETING_NOT_STARTED", "Host hasn’t started the meeting yet.", m));
+
+                        case COMPLETED -> ResponseEntity.status(HttpStatus.GONE)
+                                .body(MeetingResponse.error("MEETING_COMPLETED", "This meeting is over."));
+
+                        case EXPIRED -> ResponseEntity.status(HttpStatus.GONE)
+                                .body(MeetingResponse.error("MEETING_EXPIRED", "This meeting link has expired."));
+
+                        default -> ResponseEntity.ok(
+                                MeetingResponse.success("MEETING_FETCH_SUCCESS", "Meeting fetched.", m));
+                    })
+                    .orElseGet(() -> ResponseEntity.status(HttpStatus.FORBIDDEN)
+                            .body(MeetingResponse.error("MEETING_ACCESS_DENIED",
+                                    "Unauthorized, invalid token, or meeting unavailable")));
+
+        } catch (AccessDeniedException e) {
+            log.warn("OpenMeeting access denied: id={}, reason={}", id, e.getMessage());
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(MeetingResponse.error("MEETING_ACCESS_DENIED", e.getMessage()));
+        } catch (Exception e) {
+            log.error("OpenMeeting error: id={}, ex={}", id, e.toString(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(MeetingResponse.error("INTERNAL_ERROR", "Unexpected error while fetching open meeting"));
+        }
     }
+
+
 
     @GetMapping("/ping")
     public ResponseEntity<String> ping() {
