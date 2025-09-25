@@ -9,7 +9,7 @@ import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.messaging.*;
 
-import com.algomeet.chatservice.registry.WebSocketSessionRegistry;
+import com.algomeet.chatservice.service.UserSessionService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -18,7 +18,7 @@ import lombok.RequiredArgsConstructor;
 public class WebSocketEventListener {
 
     private static final Logger log = LoggerFactory.getLogger(WebSocketEventListener.class);
-    private final WebSocketSessionRegistry registry;
+    private final UserSessionService userSessionService;
 
     @EventListener
     public void handleWebSocketConnectListener(SessionConnectEvent event) {
@@ -32,7 +32,7 @@ public class WebSocketEventListener {
         String username = null;
         Principal user = accessor.getUser();
         if (user != null) {
-            registry.addSession(user.getName(), accessor.getSessionId());
+        	userSessionService.addSession(user.getName(), accessor.getSessionId());
             username = user.getName();
         }
         
@@ -45,7 +45,7 @@ public class WebSocketEventListener {
         Principal user = accessor.getUser();
         String username = null;
         if (user != null) {
-            registry.removeSession(user.getName(), accessor.getSessionId());
+        	userSessionService.removeSession(user.getName(), accessor.getSessionId());
             username = user.getName();
         }
         

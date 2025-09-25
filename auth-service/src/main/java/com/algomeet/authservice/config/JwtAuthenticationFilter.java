@@ -68,9 +68,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             try {
                 // 2a) Validate JWT
                 if (!jwtUtil.isTokenValid(token)) {
-
                     unauthorized(response); // or AUTH_LOGIN_FAILED if you prefer
-
                     return;
                 }
 
@@ -82,9 +80,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 Integer tenantId = jwtUtil.extractTenantId(token);
 
                 if (email == null || tokenSid == null) {
-
                     unauthorized(response);
-
                     return;
                 }
 
@@ -122,9 +118,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
             } catch (Exception ex) {
                 log.error("JWT filter error: {}", ex.toString());
-
                 unauthorized(response);
-
                 return;
             }
         }
