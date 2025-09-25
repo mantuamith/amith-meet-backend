@@ -59,6 +59,10 @@ public class TenantService {
     	
         tenantRepository.deleteById(id);
     }
+    
+    public List<Integer> getActiveTenantIds() {
+        return tenantRepository.findActiveTenantIds();
+    }
 
     // ---------------- Mappers ----------------
 

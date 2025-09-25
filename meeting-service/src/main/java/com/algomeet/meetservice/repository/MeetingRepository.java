@@ -1,6 +1,8 @@
 package com.algomeet.meetservice.repository;
 
 import com.algomeet.meetservice.model.Meeting;
+import com.algomeet.multitenancy.annotations.UsePublicSchema;
+
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -16,7 +18,7 @@ public interface MeetingRepository extends JpaRepository<Meeting, String> {
     List<Meeting> findAllByAttendeeEmail(@Param("email") String email);
 
     List<Meeting> findByMeetingStartTimeBetween(Instant start, Instant end);
-        
+     
     @Query(value = """
     	    SELECT *
     	    FROM meeting m
