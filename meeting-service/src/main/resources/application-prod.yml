@@ -63,4 +63,4 @@ algomeet:
 feign:
   client:
     control-service:
-      url: http://control-service:8082
+      url: http://control-service:8090
