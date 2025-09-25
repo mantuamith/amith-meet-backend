@@ -45,7 +45,7 @@ public class UserNativeRepository {
     
     @SuppressWarnings("unchecked")
     @UsePublicSchema
-    public List<UserDto> getUsersByUserNameList(List<String> usernames) {
+    public List<UserDto> getUsersByUsernameList(List<String> usernames) {
         String placeholders = String.join(",", java.util.Collections.nCopies(usernames.size(), "?"));
         String sql = String.format("SELECT id, CAST(user_key AS TEXT), username, email, device_type, device_token FROM users WHERE username IN (%s)", placeholders);
 

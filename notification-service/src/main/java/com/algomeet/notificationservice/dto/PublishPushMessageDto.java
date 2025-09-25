@@ -7,7 +7,7 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class PublishPushMessage {
+public class PublishPushMessageDto {
 	private String userKey;
 	private NotificationMessage notificationMessage;
 }
