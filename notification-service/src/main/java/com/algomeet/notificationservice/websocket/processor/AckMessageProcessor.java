@@ -24,7 +24,7 @@ public class AckMessageProcessor implements WebSocketMessageProcessor{
 	private UserNotificationService userNotificationService;
 
 	@Override
-	public void doProcess(WebSocketSession session, String payload, MessageType messageType) {
+	public void doProcess(WebSocketSession session, String payload) {
 		if(!(StringUtils.hasLength(payload))) {
 			return;
 		}
@@ -35,7 +35,7 @@ public class AckMessageProcessor implements WebSocketMessageProcessor{
 
 			userNotificationService.markAsDelivered(ack.getNotificationId());
 		} 
-	}
+	} 
 
 	private <T> T convertToObject(String json, Class<T> t) {
 		try {

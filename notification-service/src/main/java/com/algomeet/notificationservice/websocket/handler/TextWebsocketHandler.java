@@ -106,7 +106,7 @@ public class TextWebsocketHandler extends TextWebSocketHandler {
 		Map<MessageType, WebSocketMessageProcessor> processors = messageProcessorProvider.getProcessors();		
 		if (processors.containsKey(exchangeMessage.getType())){		
 			// Process message
-			processors.get(exchangeMessage.getType()).doProcess(session, payload, exchangeMessage.getType());
+			processors.get(exchangeMessage.getType()).doProcess(session, payload);
 		}
 
 		// Cleanup

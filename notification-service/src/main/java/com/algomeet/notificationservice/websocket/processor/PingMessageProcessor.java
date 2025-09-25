@@ -18,7 +18,7 @@ public class PingMessageProcessor implements WebSocketMessageProcessor{
 	private ObjectMapper mapper;
 		
 	@Override
-	public void doProcess(WebSocketSession session, String payload, MessageType messageType) {
+	public void doProcess(WebSocketSession session, String payload) {
 		if(!(StringUtils.hasLength(payload))) {
 			return;
 		}

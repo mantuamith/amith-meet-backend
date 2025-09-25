@@ -7,5 +7,5 @@ import com.algomeet.notificationservice.enums.MessageType;
 public interface WebSocketMessageProcessor {
 	MessageType getMessageType();
 	
-	void doProcess(WebSocketSession session, String payload, MessageType messageType);
+	void doProcess(WebSocketSession session, String payload);
 }
