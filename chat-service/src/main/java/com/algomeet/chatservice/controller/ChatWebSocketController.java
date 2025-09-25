@@ -13,6 +13,7 @@ import com.algomeet.chatservice.repository.MessageRepository;
 import com.algomeet.chatservice.service.MessageDeleteService;
 import com.algomeet.chatservice.service.MessageService;
 import com.algomeet.chatservice.service.UserSessionService;
+import com.algomeet.multitenancy.context.TenantContext;
 import com.algomeet.notificationservice.dto.Notification;
 import com.algomeet.notificationservice.dto.Notification.NotificationBuilder;
 import com.algomeet.notificationservice.enums.NotificationType;
@@ -187,7 +188,8 @@ public class ChatWebSocketController {
         	.title(principal.getName() + " is calling")
         	.body(principal.getName() + " is calling")
         	.type(NotificationType.VIDEO_CALL.name().equalsIgnoreCase(message.getType()) 
-        			? NotificationType.VIDEO_CALL : NotificationType.AUDIO_CALL);        	
+        			? NotificationType.VIDEO_CALL : NotificationType.AUDIO_CALL)
+        	.tenantId(TenantContext.getCurrentTenant());
         	notificationService.sendPush(notifBuilder.build());
         	
             messagingTemplate.convertAndSendToUser(
@@ -246,6 +248,7 @@ public class ChatWebSocketController {
     				.type(notifcationType)
     				.title("You have new message")
     				.body(message)
+    				.tenantId(TenantContext.getCurrentTenant())
     				.build();
 
     		notificationService.sendPush(notif);    	

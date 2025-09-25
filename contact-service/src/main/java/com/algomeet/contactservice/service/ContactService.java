@@ -6,6 +6,8 @@ import com.algomeet.contactservice.dto.UserDto;
 import com.algomeet.contactservice.entity.Contact;
 import com.algomeet.contactservice.entity.ContactStatus;
 import com.algomeet.contactservice.repository.ContactRepository;
+import com.algomeet.multitenancy.context.TenantContext;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
@@ -105,6 +107,7 @@ public class ContactService {
         		.title(user.getUsername() + " sent you a friend request")
         		.body(user.getUsername() + " sent you a friend request")
         		.deliveryAckRequired(true)
+        		.tenantId(TenantContext.getCurrentTenant())
         		.build();
         // Publish
         notificationService.sendPush(notif); 
@@ -151,6 +154,7 @@ public class ContactService {
         		.title(user.getUsername() + " accepted your friend request")
         		.body(user.getUsername() + " accepted your friend request")
         		.deliveryAckRequired(true)
+        		.tenantId(TenantContext.getCurrentTenant())
         		.build();
         // Publish
         notificationService.sendPush(notif); 
