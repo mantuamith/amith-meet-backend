@@ -144,4 +144,8 @@ public class JwtUtil {
     public String extractRole(String token) {
         return extractClaim(token, claims -> claims.get("role", String.class));
     }
+    
+    public Integer extractTenantId(String token) {
+        return extractClaim(token, claims -> claims.get("tenantId", Integer.class));
+    }
 }
