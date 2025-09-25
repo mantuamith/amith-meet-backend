@@ -3,6 +3,7 @@ package com.algomeet.authservice.dto;
 import java.util.Map;
 import java.util.UUID;
 
+import com.algomeet.authservice.util.SecurityUtil;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 import lombok.AllArgsConstructor;
@@ -16,7 +17,7 @@ import java.util.UUID;
 @AllArgsConstructor
 @NoArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class UserResponse {
+public class UserResponse implements SecuredDto{
     private Long id;
     private String username;
     private String email;
@@ -61,4 +62,12 @@ public class UserResponse {
         this.enabled = map.get("enabled") != null && Boolean.TRUE.equals(map.get("enabled"));
         this.tenantId = (Integer) map.get("tenantId");
     }
+
+	@Override
+	public void secured() {
+		// If user not admin
+		if (!SecurityUtil.isUserHasAdminRole()) {
+			setTenantId(null);			
+		}		
+	}
 }

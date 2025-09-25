@@ -65,6 +65,7 @@ public class JwtUtil {
                 .claim("id", user.getId())  // Useful for lookup if needed
                 .claim("type", "refresh")
                 .claim("user_key", safeUserKey(user))
+                .claim("tenantId", user.getTenantId())
                 .setIssuedAt(new Date())
                 .setExpiration(Date.from(Instant.now().plus(REFRESH_TTL)))
                 .signWith(secretKey, SignatureAlgorithm.HS256)
@@ -79,6 +80,7 @@ public class JwtUtil {
                 .claim("type", "refresh")
                 .claim("sid", sessionId)
                 .claim("user_key", safeUserKey(user))
+                .claim("tenantId", user.getTenantId())
                 .setIssuedAt(new Date())
                 .setExpiration(Date.from(Instant.now().plus(REFRESH_TTL)))
                 .signWith(secretKey, SignatureAlgorithm.HS256)
@@ -137,5 +139,9 @@ public class JwtUtil {
 
     public String extractUserKey(String token) {
         return extractClaim(token, claims -> claims.get("user_key", String.class));
+    }
+    
+    public String extractRole(String token) {
+        return extractClaim(token, claims -> claims.get("role", String.class));
     }
 }

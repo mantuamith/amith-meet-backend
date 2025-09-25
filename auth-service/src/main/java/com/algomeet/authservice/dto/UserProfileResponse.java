@@ -4,16 +4,18 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
+import com.algomeet.authservice.util.SecurityUtil;
+
 import lombok.AllArgsConstructor;
 import lombok.Builder;
-import lombok.Getter;
+import lombok.Data;
 import lombok.NoArgsConstructor;
 
-@Getter
+@Data
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
-public class UserProfileResponse {
+public class UserProfileResponse implements SecuredDto{
     private UUID id;
     private Short loginTypePolicy;
     private String country;
@@ -38,5 +40,13 @@ public class UserProfileResponse {
     	}
     	
     	return securityQuestionsEnabled;
-    }    
+    }  
+    
+    @Override
+	public void secured() {
+		// If user not admin
+		if (!SecurityUtil.isUserHasAdminRole()) {
+			setTenantId(null);
+		}		
+	}
 }
