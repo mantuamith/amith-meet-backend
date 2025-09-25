@@ -322,8 +322,8 @@ public class UserController {
             @RequestParam(required = false) String username,
             @RequestParam(required = false) String phone) {
 
-        boolean emailTaken = (email != null && !email.isBlank()) && userRepository.existsByEmail(email);
-        boolean usernameTaken = (username != null && !username.isBlank()) && userRepository.existsByUsername(username);
+        boolean emailTaken = (email != null && !email.isBlank()) && userRepository.existsByEmailIgnoreCase(email);
+        boolean usernameTaken = (username != null && !username.isBlank()) && userRepository.existsByUsernameIgnoreCase(username);
         boolean phoneTaken = (phone != null && !phone.isBlank()) && userRepository.existsByPhone(phone);
 
         return Map.of(
