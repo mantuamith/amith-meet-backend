@@ -29,7 +29,7 @@ class SecurityUtilTest {
     SecurityContextHolder.getContext().setAuthentication(auth);
 
     var role = SecurityUtil.getUserRole();
-    assertThat(role).isEqualTo(UserRole.ADMIN);
+    assertThat(role).isEqualTo(UserRole.ROLE_ADMIN);
   }
 
   @Test
@@ -42,7 +42,7 @@ class SecurityUtilTest {
     SecurityContextHolder.getContext().setAuthentication(auth);
 
     var role = SecurityUtil.getUserRole();
-    assertThat(role).isEqualTo(UserRole.USER);
+    assertThat(role).isEqualTo(UserRole.ROLE_USER);
   }
 
   @Test
