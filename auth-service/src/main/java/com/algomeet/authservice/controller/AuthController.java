@@ -58,8 +58,12 @@ public class AuthController {
     private final UserClient userClient;
 
     // ---------- Helpers (masking, safe logs) ----------
-    private String mLogin(String v){ return v == null ? "null" : v.replaceAll("^(.{2}).+(@.*)?$","$1***$2"); }
-    private String mDev(String v){ return v == null ? "null" : (v.length()<=6? "***" : v.substring(0,3)+"***"+v.substring(v.length()-3)); }
+    private String mLogin(String v){
+        return v == null ? "null" : v.replaceAll("^(.{2}).+(@.*)?$","$1***$2");
+    }
+    private String mDev(String v)
+    {
+        return v == null ? "null" : (v.length()<=6? "***" : v.substring(0,3)+"***"+v.substring(v.length()-3)); }
 
     // ----------------- Registration -------------------
     @Deprecated
@@ -248,7 +252,7 @@ public class AuthController {
         }
 
         AuthResponse auth = authService.validatePassword(request.getLogin(), request.getPassword());
-        if (!ResponseCode.AUTH_LOGIN_SUCCESS.getCode().equals(auth.getCode())) {
+        if (auth == null || !ResponseCode.AUTH_LOGIN_SUCCESS.getCode().equals(auth.getCode())) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials");
         }
 
@@ -288,12 +292,14 @@ public class AuthController {
                 
                 // Update user used to login device token
                	userClient.updateDeviceTypeAndToken(user.getId(), request.getDeviceType().name(), request.getDeviceToken());
-               	
+                String refId = (user.getUserKey() != null)
+                        ? user.getUserKey().toString()
+                        : String.valueOf(user.getUsername());
                 // Add push notification
                 Notification notif = Notification.builder()
                 		.type(NotificationType.USER_ONLINE)
                 		.receiverGroup(ReceiverGroup.USER_FRIENDS)
-                		.receiverGroupRefId(user.getUserKey().toString())
+                		.receiverGroupRefId(refId)
                 		.title(user.getUsername() + " is online")
                 		.body(user.getUsername() + " is online")
                 		.build();
