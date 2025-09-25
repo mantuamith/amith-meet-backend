@@ -147,6 +147,7 @@ public class MeetingCleanupScheduler {
         					.data(Map.of(
         							"meetingId", meeting.getId()
         							))
+        					.tenantId(TenantContext.getCurrentTenant())
         					.build();
         			notificationService.sendPush(notif);            
         		}

@@ -19,6 +19,7 @@ import com.algomeet.authservice.policy.LoginPolicyResolver;
 import com.algomeet.authservice.policy.SingleDeviceEnforcer;
 import com.algomeet.authservice.token.RefreshTokenStore;
 import com.algomeet.authservice.util.JwtUtil;
+import com.algomeet.multitenancy.context.TenantContext;
 import com.algomeet.notificationservice.dto.Notification;
 import com.algomeet.notificationservice.enums.NotificationType;
 import com.algomeet.notificationservice.enums.ReceiverGroup;
@@ -208,6 +209,7 @@ public class AuthController {
             		.receiverGroupRefId(user.getUserKey().toString())
             		.title(user.getUsername() + " is offline")
             		.body(user.getUsername() + " is offline")
+            		.tenantId(TenantContext.getCurrentTenant())
             		.build();
             notificationService.sendPush(notif);
             
@@ -269,6 +271,7 @@ public class AuthController {
                 		.receiverIds(Set.of(user.getUserKey() != null ? user.getUserKey().toString() : user.getUsername()))
                         .title("Account locked " + user.getActiveDeviceId() + " device")
                 		.body("Account locked " + user.getActiveDeviceId() + " device")
+                		.tenantId(TenantContext.getCurrentTenant())
                 		.build();
                 notificationService.sendPush(notif);
                 
@@ -302,6 +305,7 @@ public class AuthController {
                 		.receiverGroupRefId(refId)
                 		.title(user.getUsername() + " is online")
                 		.body(user.getUsername() + " is online")
+                		.tenantId(TenantContext.getCurrentTenant())
                 		.build();
                 notificationService.sendPush(notif);
                 
@@ -396,6 +400,7 @@ public class AuthController {
         		.receiverGroupRefId(user.getUserKey().toString())
         		.title(user.getUsername() + " is online")
         		.body(user.getUsername() + " is online")
+        		.tenantId(TenantContext.getCurrentTenant())
         		.build();
         notificationService.sendPush(notif);    
         
