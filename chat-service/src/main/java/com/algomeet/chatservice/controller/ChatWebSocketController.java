@@ -59,8 +59,7 @@ public class ChatWebSocketController {
         String username = up.username();
         message.setSender(username);
         message.setTimestamp(Instant.now());
-        if (message.getStatus() == null)
-        {
+        if (message.getStatus() == null) {
             message.setStatus(MessageStatus.SENT);
         }
         try {
@@ -75,14 +74,14 @@ public class ChatWebSocketController {
                         if (!member.equals(message.getSender())) {
                             messagingTemplate.convertAndSendToUser(member, "/queue/messages", response);
                             messageService.sendUnreadCountUpdate(member); // real-time update
-                            
+
                             // Send push notification
                             // Todo: get the member user key
-                            sendPushNotification (member, message.getContent(), NotificationType.GROUP_MESSAGE, member);
+                            sendPushNotification(member, message.getContent(), NotificationType.GROUP_MESSAGE, member);
                         }
-                    }catch (Exception e) {
+                    } catch (Exception e) {
                         // Fallback if one group member fails
-                       // log.error("Failed to deliver to group member {}: {}", member, e.getMessage());
+                        // log.error("Failed to deliver to group member {}: {}", member, e.getMessage());
                         failedMembers.add(member);
                     }
                     if (!failedMembers.isEmpty()) {
@@ -120,11 +119,11 @@ public class ChatWebSocketController {
                         "/queue/unread/contact",
                         new UnreadCountResponse(message.getReceiver(), unreadForSender)
                 );
-                
+
                 // Send push notifation
-                sendPushNotification (message.getReceiverKey(), message.getContent(), NotificationType.DIRECT_MESSAGE, message.getReceiver());
+                sendPushNotification(message.getReceiverKey(), message.getContent(), NotificationType.DIRECT_MESSAGE, message.getReceiver());
             }
-        }catch (Exception ex) {
+        } catch (Exception ex) {
             // Mark as FAILED and log
             message.setStatus(MessageStatus.FAILED);
             messageRepository.save(message);  // Update message with FAILED status
@@ -181,17 +180,17 @@ public class ChatWebSocketController {
     public void handleWebRTCSignal(SignalMessage message, Principal principal) {
         log.info("[STOMP /call] {} -> {} | Type: {}", principal.getName(), message.getTo(), message.getType());
         try {
-        	
-        	// Send calling event notification
-        	NotificationBuilder notifBuilder = Notification.builder()
-        			.receiverIds(Set.of(message.getToKey())) // To must be using user_key UUID
-        	.title(principal.getName() + " is calling")
-        	.body(principal.getName() + " is calling")
-        	.type(NotificationType.VIDEO_CALL.name().equalsIgnoreCase(message.getType()) 
-        			? NotificationType.VIDEO_CALL : NotificationType.AUDIO_CALL)
-        	.tenantId(TenantContext.getCurrentTenant());
-        	notificationService.sendPush(notifBuilder.build());
-        	
+
+            // Send calling event notification
+            NotificationBuilder notifBuilder = Notification.builder()
+                    .receiverIds(Set.of(message.getToKey())) // To must be using user_key UUID
+                    .title(principal.getName() + " is calling")
+                    .body(principal.getName() + " is calling")
+                    .type(NotificationType.VIDEO_CALL.name().equalsIgnoreCase(message.getType())
+                            ? NotificationType.VIDEO_CALL : NotificationType.AUDIO_CALL)
+                    .tenantId(TenantContext.getCurrentTenant());
+            notificationService.sendPush(notifBuilder.build());
+
             messagingTemplate.convertAndSendToUser(
                     message.getTo(),
                     "/queue/call",
@@ -211,47 +210,54 @@ public class ChatWebSocketController {
             );
         }
     }
-    
+
     /**
      * Used to set the user/client status
+     *
      * @param message
      * @param principal
      */
     @MessageMapping("/app-status")
     public void handleInActive(AppStatusMessage message, Principal principal) {
-    	Set<SessionMetadata> sessions = userSessionService.getSessions(principal.getName());
-    	if (sessions != null) {
-    		sessions.forEach(s -> {
-    			s.setActive(AppStatus.ACTIVE == message.getStatus() ? true : false);
-    		});
-    		
-    		// Update sessions
-    		userSessionService.updateSessions(principal.getName(), sessions);
-    	}
+        Set<SessionMetadata> sessions = userSessionService.getSessions(principal.getName());
+        if (sessions != null) {
+            sessions.forEach(s -> {
+                s.setActive(AppStatus.ACTIVE == message.getStatus() ? true : false);
+            });
+
+            // Update sessions
+            userSessionService.updateSessions(principal.getName(), sessions);
+        }
     }
-    
+
     /**
      * Used to send push notification for new message
+     *
      * @param toKey
      * @param message
      * @param notifcationType
      * @param receiverUser
      */
-    private void sendPushNotification (String toKey, String message, NotificationType notifcationType, String receiverUser) {
-    	// TODO: Need to finalize if we have to use username
-    	Set<SessionMetadata> sessions = userSessionService.getSessions(receiverUser);
-    	if (CollectionUtils.isEmpty(sessions)
-    			|| sessions.iterator().next().isActive() == false) {
-    	    	
-    		Notification notif = Notification.builder()
-    				.receiverIds(Set.of(toKey))
-    				.type(notifcationType)
-    				.title("You have new message")
-    				.body(message)
-    				.tenantId(TenantContext.getCurrentTenant())
-    				.build();
+    private void sendPushNotification(String toKey, String message, NotificationType notifcationType, String receiverUser) {
+        // TODO: Need to finalize if we have to use username
+        Set<SessionMetadata> sessions = userSessionService.getSessions(receiverUser);
+        if (CollectionUtils.isEmpty(sessions)
+                || sessions.iterator().next().isActive() == false) {
 
-    		notificationService.sendPush(notif);    	
-    	}
+            Notification notif = Notification.builder()
+                    .receiverIds(Set.of(toKey))
+                    .type(notifcationType)
+                    .title("You have new message")
+                    .body(message)
+                    .tenantId(TenantContext.getCurrentTenant())
+                    .build();
+
+            notificationService.sendPush(notif);
+        }
+    }
+
+    @MessageMapping("/deliver/pending")
+    public void deliverPending(Principal principal) {
+        messageService.deliverAllPendingTo(principal.getName());
     }
 }
