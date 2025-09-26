@@ -65,27 +65,6 @@ public class AuthController {
     {
         return v == null ? "null" : (v.length()<=6? "***" : v.substring(0,3)+"***"+v.substring(v.length()-3)); }
 
-    // ----------------- Registration -------------------
-    @Deprecated
-    @PostMapping("/register")
-    public ResponseEntity<?> register(@RequestBody Map<String, String> payload) {
-        final String username = payload.get("username");
-        final String email = payload.get("email");
-        // DO NOT LOG raw password
-        log.info("REGISTER: attempt username={} email={}", username, mLogin(email));
-        try {
-            UserResponse user = authService.registerUser(username, email, payload.get("password"));
-            log.info("REGISTER: success userId={} username={} email={}", user.getId(), user.getUsername(), mLogin(user.getEmail()));
-            return ResponseEntity.ok(AuthResponse.from(ResponseCode.AUTH_REGISTER_SUCCESS, user));
-        } catch (Exception e) {
-            log.error("REGISTER: failed username={} email={} error={}", username, mLogin(email), e.toString(), e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
-                    "code", ResponseCode.AUTH_REGISTER_FAILED.getCode(),
-                    "message", ResponseCode.AUTH_REGISTER_FAILED.getDefaultMessage(),
-                    "error", e.getMessage()
-            ));
-        }
-    }
 
     // ----------------- Token Refresh ------------------
     @PostMapping("/refresh")

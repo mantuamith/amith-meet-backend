@@ -99,19 +99,49 @@ class AuthServiceTest {
 
     @Test
     void refreshAccessToken_success() {
+        // given
         when(jwt.isTokenValid("R")).thenReturn(true);
         when(jwt.isRefreshToken("R")).thenReturn(true);
-        when(rts.exists("R")).thenReturn(true);
         when(jwt.extractEmail("R")).thenReturn("a@x.com");
+        when(jwt.extractSid("R")).thenReturn("SID1");
 
         var user = new UserResponse();
         user.setEmail("a@x.com");
         when(userClient.getUserByEmail("a@x.com")).thenReturn(user);
-        when(jwt.generateToken(user)).thenReturn("NEW");
+
+        when(sidCache.getCurrentSid("a@x.com")).thenReturn("SID1");
+        when(jwt.generateToken(user, "SID1")).thenReturn("NEW_ACCESS");
+        when(jwt.generateRefreshToken(user, "SID1")).thenReturn("NEW_REFRESH");
+
+        // when
+        var out = svc.refreshAccessToken("R");
+
+        // then
+        assertThat(out.getCode()).isEqualTo(ResponseCode.AUTH_REFRESH_SUCCESS.getCode());
+        assertThat(out.getAccessToken()).isEqualTo("NEW_ACCESS");
+        assertThat(out.getRefreshToken()).isEqualTo("NEW_REFRESH");
+    }
+
+    @Test
+    void refreshAccessToken_sidMismatch_returnsRevoked() {
+        when(jwt.isTokenValid("R")).thenReturn(true);
+        when(jwt.isRefreshToken("R")).thenReturn(true);
+        when(jwt.extractEmail("R")).thenReturn("a@x.com");
+        when(jwt.extractSid("R")).thenReturn("SID_OLD");
+
+        var user = new UserResponse();
+        user.setEmail("a@x.com");
+        when(userClient.getUserByEmail("a@x.com")).thenReturn(user);
+
+        // server has a different, rotated SID -> session revoked
+        when(sidCache.getCurrentSid("a@x.com")).thenReturn("SID_NEW");
 
         var out = svc.refreshAccessToken("R");
-        assertThat(out.getCode()).isEqualTo(ResponseCode.AUTH_REFRESH_SUCCESS.getCode());
-        assertThat(out.getAccessToken()).isEqualTo("NEW");
+
+        assertThat(out.getCode()).isEqualTo(ResponseCode.AUTH_SESSION_REVOKED.getCode());
+        assertThat(out.getUser()).isNotNull();
+        assertThat(out.getAccessToken()).isNull();
+        assertThat(out.getRefreshToken()).isNull();
     }
 
     @Test

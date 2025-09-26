@@ -24,7 +24,7 @@ class SecurityUtilTest {
   void getUserRole_returnsAdmin() {
     var auth = new UsernamePasswordAuthenticationToken(
             "alice", "n/a",
-            List.of(new SimpleGrantedAuthority("ADMIN"))
+            List.of(new SimpleGrantedAuthority("ROLE_ADMIN"))
     );
     SecurityContextHolder.getContext().setAuthentication(auth);
 
@@ -37,7 +37,7 @@ class SecurityUtilTest {
   void getUserRole_returnsUser() {
     var auth = new UsernamePasswordAuthenticationToken(
             "bob", "n/a",
-            List.of(new SimpleGrantedAuthority("USER"))
+            List.of(new SimpleGrantedAuthority("ROLE_USER"))
     );
     SecurityContextHolder.getContext().setAuthentication(auth);
 
@@ -66,7 +66,7 @@ class SecurityUtilTest {
   void getUserRole_nullWhenBadAuthority() {
     var auth = new UsernamePasswordAuthenticationToken(
             "dana", "n/a",
-            List.of(new SimpleGrantedAuthority("ROLE_ADMIN"))
+            List.of(new SimpleGrantedAuthority("ROLE_ADKIN"))
     );
     SecurityContextHolder.getContext().setAuthentication(auth);
 
@@ -79,7 +79,7 @@ class SecurityUtilTest {
     // ADMIN → true
     var adminAuth = new UsernamePasswordAuthenticationToken(
             "eva", "n/a",
-            List.of(new SimpleGrantedAuthority("ADMIN"))
+            List.of(new SimpleGrantedAuthority("ROLE_ADMIN"))
     );
     SecurityContextHolder.getContext().setAuthentication(adminAuth);
     assertThat(SecurityUtil.isAdminUser()).isTrue();
@@ -87,7 +87,7 @@ class SecurityUtilTest {
     // USER → false
     var userAuth = new UsernamePasswordAuthenticationToken(
             "frank", "n/a",
-            List.of(new SimpleGrantedAuthority("USER"))
+            List.of(new SimpleGrantedAuthority("ROLE_USER"))
     );
     SecurityContextHolder.getContext().setAuthentication(userAuth);
     assertThat(SecurityUtil.isAdminUser()).isFalse();

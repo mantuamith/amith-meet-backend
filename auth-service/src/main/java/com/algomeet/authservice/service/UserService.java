@@ -2,6 +2,7 @@ package com.algomeet.authservice.service;
 
 import java.util.UUID;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 
@@ -14,6 +15,7 @@ import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class UserService {
 	private final UserClient userClient;
 	
@@ -30,7 +32,8 @@ public class UserService {
 				filter.getTenantId()				
 				).getBody();	
 		} catch(Exception ex) {
-			ex.printStackTrace();
+			log.warn("user-service findAll failed: {}", ex.toString());
+			return null;
 		}
 		return page;
 	}
