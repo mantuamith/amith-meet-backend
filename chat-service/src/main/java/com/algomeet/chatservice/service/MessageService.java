@@ -370,4 +370,24 @@ public class MessageService {
         List<RecentReceivedMessageResponse> recent = getRecentMessages(me);
         messagingTemplate.convertAndSendToUser(me, "/queue/recent/summary", recent);
     }
+
+    /**
+     * Auto-deliver all messages that were SENT to this receiver while they were offline.
+     * Filters out messages hidden/deleted for this user.
+     */
+    public void deliverAllPendingTo(String receiverUsername) {
+        List<MessageDocument> pending = messageRepository
+                .findByReceiverAndStatus(receiverUsername, MessageStatus.SENT)
+                .stream()
+                .filter(m -> m.isVisibleTo(receiverUsername))
+                .toList();
+
+        if (pending.isEmpty())
+            return;
+
+        List<String> ids = pending.stream().map(MessageDocument::getId).toList();
+        // Reuse existing delivery logic (persists + notifies original senders)
+        markMessagesAsDelivered(ids, receiverUsername);
+    }
+
 }
