@@ -130,7 +130,7 @@
         <dependency>
             <groupId>com.algomeet</groupId>
             <artifactId>notification-service-publish-starter</artifactId>
-            <version>0.1.5</version>
+            <version>0.1.8</version>
         </dependency>
         <dependency>
             <groupId>com.algomeet</groupId>

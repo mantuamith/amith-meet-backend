@@ -8,6 +8,7 @@ import com.algomeet.chatservice.mapper.MessageMapper;
 import com.algomeet.chatservice.model.CallType;
 import com.algomeet.chatservice.model.MessageStatus;
 import com.algomeet.chatservice.repository.MessageRepository;
+import com.algomeet.multitenancy.context.TenantContext;
 import com.algomeet.notificationservice.dto.Notification;
 import com.algomeet.notificationservice.dto.Notification.NotificationBuilder;
 import com.algomeet.notificationservice.enums.NotificationType;
@@ -315,7 +316,8 @@ public class MessageService {
         			.title(msg.getSender() + " missed call")
         			.body(msg.getSender() + " missed call")
         			.type(CallType.AUDIO_VIDEO_TYPE == payload.getCallMetaData().getCallType()
-        			? NotificationType.VIDEO_MISSED_CALL : NotificationType.AUDIO_MISSED_CALL);   
+        			? NotificationType.VIDEO_MISSED_CALL : NotificationType.AUDIO_MISSED_CALL)
+        			.tenantId(TenantContext.getCurrentTenant());        	
 
         	notificationService.sendPush(notifBuilder.build());
         }

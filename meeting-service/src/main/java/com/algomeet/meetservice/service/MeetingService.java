@@ -7,6 +7,7 @@ import com.algomeet.meetservice.model.Meeting;
 import com.algomeet.meetservice.model.MeetingStatus;
 import com.algomeet.meetservice.repository.MeetingRepository;
 import com.algomeet.meetservice.util.RandomIdGenerator;
+import com.algomeet.multitenancy.context.TenantContext;
 import com.algomeet.notificationservice.dto.Notification;
 import com.algomeet.notificationservice.enums.NotificationType;
 import com.algomeet.notificationservice.enums.ReceiverGroup;
@@ -105,6 +106,7 @@ public class MeetingService {
                     .body(savedMeeting.getMeetingName())
                     .data(Map.of("meetingId", savedMeeting.getId()))
                     .deliveryAckRequired(true)
+                    .tenantId(TenantContext.getCurrentTenant())
                     .build();
             notificationService.sendPush(notif);
             log.info("Meeting invite notification queued: meetingId={}, attendeesCount={}",
