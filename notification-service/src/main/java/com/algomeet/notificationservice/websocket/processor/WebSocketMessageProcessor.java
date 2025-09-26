@@ -2,16 +2,10 @@ package com.algomeet.notificationservice.websocket.processor;
 
 import org.springframework.web.socket.WebSocketSession;
 
+import com.algomeet.notificationservice.enums.MessageType;
+
 public interface WebSocketMessageProcessor {
-	default int getOrder() {
-		return 0;
-	}
+	MessageType getMessageType();
 	
-	/**
-	 * Indicator if message processed
-	 * @param payload
-	 * @return return true if message processed, otherwise false so that next processor
-	 * will process the message.
-	 */
-	boolean doProcess(WebSocketSession session, String payload);
+	void doProcess(WebSocketSession session, String payload);
 }

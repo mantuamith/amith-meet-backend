@@ -2,16 +2,21 @@ package com.algomeet.notificationservice.dto;
 
 import java.time.Instant;
 
+import com.algomeet.notificationservice.enums.MessageType;
+
 import lombok.Data;
 
 @Data
-public class NotificationAckDto {
-
-    private String type;
+public class NotificationAckMessage extends ExchangeMessage {
     private long notificationId;
     private Status status;
     private Instant acknowledgedAt;
     private Metadata metadata;
+    
+    @Override
+    public MessageType getType() {
+    	return MessageType.ACK;
+    }
 
     public enum Status {
         DELIVERED,
@@ -35,11 +40,10 @@ public class NotificationAckDto {
         }
     }
 
-    public NotificationAckDto() {}
+    public NotificationAckMessage() {}
 
-    public NotificationAckDto(String type, long notificationId, String receiverId,
+    public NotificationAckMessage(long notificationId, String receiverId,
                               Status status, Instant acknowledgedAt, Metadata metadata) {
-        this.type = type;
         this.notificationId = notificationId;
         this.status = status;
         this.acknowledgedAt = acknowledgedAt;
