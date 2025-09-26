@@ -42,14 +42,14 @@ public class UserSecurityQuestionController {
     			UUID.fromString(request.getUserProfileId()), 
     			request.getSecurityQuestionId()))) {
     		// User security question id exists for the user profile id
-    		return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
+    		return ResponseEntity.status(HttpStatus.CONFLICT).body(
     				CommonResponse.from(ResponseCode.USER_SECURITY_QUESTION_ID_EXISTS, 
     						null));
     	}
     	
     	UserSecurityQuestionResponse resp = userSecurityQuestionService.create(request);
     	// Mask answer before returning to client
-    	resp.setAnswer("***");
+		maskAnswer(resp);
     	
     	return ResponseEntity.ok(CommonResponse.from(ResponseCode.ADD_USER_SECURITY_QUESTION_SUCCESS, resp));
     }
@@ -57,37 +57,36 @@ public class UserSecurityQuestionController {
     @PostMapping("/batch")
     public ResponseEntity<CommonResponse<List<UserSecurityQuestionResponse>>> create(@RequestBody List<UserSecurityQuestionRequest> requests) {
     	List<UserSecurityQuestionResponse> respList = new ArrayList<>();
-    	
-    	for (UserSecurityQuestionRequest request : requests) {    		
-    		if (Objects.nonNull(userSecurityQuestionService.getByUserProfileIdAndQuestionId(
-    				UUID.fromString(request.getUserProfileId()), request.getSecurityQuestionId()))) {
-    			// User security question id exists for the user profile id
-        		return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
-        				CommonResponse.from(ResponseCode.USER_SECURITY_QUESTION_ID_EXISTS, 
-        				null));
-        	}
-    		
-    		UserSecurityQuestionResponse resp = userSecurityQuestionService.create(request);
-    		// Mask answer before returning to client
-    		resp.setAnswer("***");
-    		respList.add(resp);
-    	}
-    	
+
+		if (CollectionUtils.isEmpty(requests)) {
+			return ResponseEntity.badRequest()
+					.body(CommonResponse.from(ResponseCode.USER_SECURITY_QUESTION_VERIFY_FAILED, List.of()));
+		}
+
+		for (UserSecurityQuestionRequest r : requests) {
+			if (Objects.nonNull(userSecurityQuestionService.getByUserProfileIdAndQuestionId(
+					UUID.fromString(r.getUserProfileId()), r.getSecurityQuestionId()))) {
+				return ResponseEntity.status(HttpStatus.CONFLICT)
+						.body(CommonResponse.from(ResponseCode.USER_SECURITY_QUESTION_ID_EXISTS, null));
+			}
+		}
+		for (UserSecurityQuestionRequest request : requests) {
+			UserSecurityQuestionResponse created = userSecurityQuestionService.create(request);
+			maskAnswer(created);
+			respList.add(created);
+		}
+
         return ResponseEntity.ok(CommonResponse.from(ResponseCode.ADD_USER_SECURITY_QUESTION_SUCCESS, respList));
     }
 
     @GetMapping("/{userProfileId}")
     public ResponseEntity<CommonResponse<List<UserSecurityQuestionResponse>>> getByUserProfileId(@PathVariable UUID userProfileId) {
-       	List<UserSecurityQuestionResponse> respList = userSecurityQuestionService.getByUserProfileId(userProfileId);
-    	// Mask answer before returning to client
-       	if (!CollectionUtils.isEmpty(respList)) {
-       		for (UserSecurityQuestionResponse resp: respList) {
-       			resp.setAnswer("***");
-       		}
-       	}
+		List<UserSecurityQuestionResponse> respList = userSecurityQuestionService.getByUserProfileId(userProfileId);
+		if (!CollectionUtils.isEmpty(respList)) {
+			respList.forEach(UserSecurityQuestionController::maskAnswer);
+		}
 
-    	return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, 
-    			respList));
+		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, respList));
     }
 
     @DeleteMapping("/{userProfileId}")
@@ -99,13 +98,18 @@ public class UserSecurityQuestionController {
     @GetMapping("/{userProfileId}/{securityQuestionId}")
     public ResponseEntity<CommonResponse<UserSecurityQuestionResponse>> getByUserProfileIdAndQuestionId(
             @PathVariable UUID userProfileId,
-            @PathVariable String securityQuestionId) {    
-    	UserSecurityQuestionResponse resp = userSecurityQuestionService.getByUserProfileIdAndQuestionId(userProfileId, securityQuestionId);
-    	// Mask answer before returning to client
-    	resp.setAnswer("***");
-    	
-        return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, resp));
-    }  
+            @PathVariable String securityQuestionId) {
+		UserSecurityQuestionResponse resp =
+				userSecurityQuestionService.getByUserProfileIdAndQuestionId(userProfileId, securityQuestionId);
+
+		if (resp == null) {
+			return ResponseEntity.status(HttpStatus.NOT_FOUND)
+					.body(CommonResponse.from(ResponseCode.USER_SECURITY_QUESTION_VERIFY_FAILED, null));
+		}
+
+		maskAnswer(resp);
+		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, resp));
+    }
     
     @PostMapping("/{userProfileId}/{securityQuestionId}/verify-answer")
     public ResponseEntity<?> verifyAnswer(
@@ -113,24 +117,26 @@ public class UserSecurityQuestionController {
             @PathVariable String securityQuestionId,
     		@Valid @RequestBody VerifySecurityQuestionRequest request) {
 
-    	UserSecurityQuestionResponse saved = userSecurityQuestionService.getByUserProfileIdAndQuestionId(
-    			userProfileId,
-    			securityQuestionId);    			
-    	
-    	if(saved != null) {
-    		boolean valid = saved.getAnswer().equalsIgnoreCase(request.getAnswer().trim());
+		UserSecurityQuestionResponse saved =
+				userSecurityQuestionService.getByUserProfileIdAndQuestionId(userProfileId, securityQuestionId);
 
-    		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS,
-    				new VerifySecurityQuestionResponse(
-    						valid,
-    						valid ? "Answer is correct" : "Answer is incorrect"
-    						)));
-    	}
-    			    	
-    	return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of(
-                        "code", ResponseCode.USER_SECURITY_QUESTION_VERIFY_FAILED.getCode(),
-                        "message", ResponseCode.USER_SECURITY_QUESTION_VERIFY_FAILED.getDefaultMessage(),
-                        "error", "RecordNotFound"
-                ));
+		if (saved == null) {
+			return ResponseEntity.status(HttpStatus.NOT_FOUND)
+					.body(CommonResponse.from(
+							ResponseCode.USER_SECURITY_QUESTION_VERIFY_FAILED,
+							new VerifySecurityQuestionResponse(false, "Security question not found")));
+		}
+
+		boolean valid = saved.getAnswer() != null
+				&& request.getAnswer() != null
+				&& saved.getAnswer().equalsIgnoreCase(request.getAnswer().trim());
+
+		return ResponseEntity.ok(CommonResponse.from(
+				ResponseCode.SUCCESS,
+				new VerifySecurityQuestionResponse(valid, valid ? "Answer is correct" : "Answer is incorrect")));
     }
+
+	private static void maskAnswer(UserSecurityQuestionResponse resp) {
+		if (resp != null) resp.setAnswer("***");
+	}
 }

@@ -8,19 +8,14 @@ import com.algomeet.authservice.exception.UserAlreadyExistsException;
 import com.algomeet.authservice.session.SidCache;
 import com.algomeet.authservice.token.RefreshTokenStore;
 import com.algomeet.authservice.util.JwtUtil;
-import com.algomeet.notificationservice.dto.Notification;
-import com.algomeet.notificationservice.enums.NotificationType;
-import com.algomeet.notificationservice.enums.ReceiverGroup;
 import com.algomeet.notificationservice.service.NotificationService;
 import com.algomeet.authservice.enums.ResponseCode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import feign.FeignException;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
 
 import java.util.Locale;
 import java.util.Map;
@@ -41,13 +36,6 @@ public class AuthService {
     private final ObjectMapper objectMapper; // for mapping user object
     private final SidCache sidCache;
     private final NotificationService notificationService;
-
-    public AuthResponse issueTokensFor(UserResponse user) {
-        String accessToken  = jwtUtil.generateToken(user);
-        String refreshToken = jwtUtil.generateRefreshToken(user);
-        refreshTokenStore.save(refreshToken, user.getEmail());
-        return AuthResponse.from(ResponseCode.AUTH_LOGIN_SUCCESS, user, accessToken, refreshToken);
-    }
 
     public AuthResponse issueTokensFor(UserResponse user, String deviceId, boolean overrideExisting) {
         // 1) Start/rotate server-side session to get sid
@@ -73,38 +61,6 @@ public class AuthService {
         return AuthResponse.from(ResponseCode.AUTH_LOGIN_SUCCESS, user, accessToken, refreshToken);
     }
 
-    public UserResponse registerUser(String username, String email, String password) {
-        UserRequest request = new UserRequest();
-        request.setUsername(username);
-        request.setEmail(email);
-        request.setPassword(password);
-        try {
-            Map<String,Object> responseMap = userClient.createUser(request);
-            // Extract and map "user" object to UserResponse
-            return objectMapper.convertValue(responseMap, UserResponse.class);
-        } catch (FeignException.Conflict e) {
-            Set<String> fields = extractDuplicateFields(e);
-            String upstreamCode = extractCode(e);
-            if (fields == null || fields.isEmpty()) {
-                if (ResponseCode.AUTH_DUPLICATE_EMAIL.getCode().equals(upstreamCode)) {
-                    fields = Set.of("email");
-                } else if (ResponseCode.AUTH_DUPLICATE_USERNAME.getCode().equals(upstreamCode)) {
-                    fields = Set.of("username");
-                } else if (ResponseCode.AUTH_DUPLICATE_PHONE.getCode().equals(upstreamCode)) {
-                    fields = Set.of("phone");
-                } else if (ResponseCode.AUTH_DUPLICATE_BOTH.getCode().equals(upstreamCode)) {
-                    fields = Set.of("email", "username");
-                }
-            }
-            if (fields == null || fields.isEmpty()) {
-                fields = Set.of("unknown");
-            }
-          ResponseCode code = mapFieldsToResponseCode(fields, upstreamCode);
-           String message = buildDuplicateMessage(fields);
-            throw new UserAlreadyExistsException(message, fields, code);
-        }
-    }
-    
     public AuthResponse validatePassword(String email, String rawPassword) {
         // 0) Basic sanity
         if (email == null || rawPassword == null || email.isBlank() || rawPassword.isBlank()) {
@@ -210,59 +166,6 @@ public class AuthService {
     private String safeMsg(Throwable t) {
         String m = t.getMessage();
         return (m == null || m.length() > 200) ? t.getClass().getSimpleName() : m;
-    }
-
-    private ResponseCode mapFieldsToResponseCode(Set<String> fields, String upstreamCode) {
-        // Prefer upstream code if it matches our enum
-        if (upstreamCode != null) {
-            for (ResponseCode rc : ResponseCode.values()) {
-                if (rc.getCode().equals(upstreamCode)) return rc;
-            }
-        }
-
-        // Otherwise, derive
-        boolean email    = fields.contains("email");
-        boolean username = fields.contains("username");
-        boolean phone    = fields.contains("phone");
-
-        if (email && username && phone) {
-            // If you add AUTH_DUPLICATE_ALL, return it here; otherwise reuse BOTH
-            return ResponseCode.AUTH_DUPLICATE_BOTH;
-        } else if (email && username) {
-            return ResponseCode.AUTH_DUPLICATE_BOTH;
-        } else if (email) {
-            return ResponseCode.AUTH_DUPLICATE_EMAIL;
-        } else if (username) {
-            return ResponseCode.AUTH_DUPLICATE_USERNAME;
-        } else if (phone && hasCode("AUTH_DUPLICATE_PHONE")) {
-            return ResponseCode.AUTH_DUPLICATE_PHONE; // add this to enum if not present
-        }
-        // Fallback
-        return ResponseCode.AUTH_DUPLICATE_BOTH;
-    }
-
-    private String buildDuplicateMessage(Set<String> fields) {
-        boolean email    = fields.contains("email");
-        boolean username = fields.contains("username");
-        boolean phone    = fields.contains("phone");
-
-        if (email && username && phone) return "Email, username and phone already exist";
-        if (email && username)          return "Email and username already exist";
-        if (email && phone)             return "Email and phone already exist";
-        if (username && phone)          return "Username and phone already exist";
-        if (email)                      return "Email already exists";
-        if (username)                   return "Username already exists";
-        if (phone)                      return "Phone already exists";
-        return "Duplicate user fields detected";
-    }
-
-    private boolean hasCode(String enumName) {
-        try {
-            ResponseCode.valueOf(enumName);
-            return true;
-        } catch (IllegalArgumentException ex) {
-            return false;
-        }
     }
 
 }

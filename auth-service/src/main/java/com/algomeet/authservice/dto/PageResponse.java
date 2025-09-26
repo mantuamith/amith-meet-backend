@@ -2,6 +2,7 @@ package com.algomeet.authservice.dto;
 
 import java.util.List;
 
+import lombok.Builder;
 import org.springframework.data.domain.Page;
 
 import lombok.AllArgsConstructor;
@@ -11,6 +12,7 @@ import lombok.NoArgsConstructor;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
+@Builder
 public class PageResponse<T> {
     private List<T> content;
     private int page;

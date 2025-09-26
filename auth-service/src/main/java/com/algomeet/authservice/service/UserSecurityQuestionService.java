@@ -3,6 +3,7 @@ package com.algomeet.authservice.service;
 import java.util.List;
 import java.util.UUID;
 
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -14,10 +15,10 @@ import com.algomeet.authservice.dto.UserSecurityQuestionResponse;
 import feign.FeignException;
 
 @Service
+@RequiredArgsConstructor
 public class UserSecurityQuestionService {
 
-	@Autowired
-	private UserSecurityQuestionClient userSecurityQuestionAnswerClient;
+	private final UserSecurityQuestionClient userSecurityQuestionAnswerClient;
 	
     public UserSecurityQuestionResponse create(UserSecurityQuestionRequest request) {
         return userSecurityQuestionAnswerClient.create(request).getBody();
@@ -28,7 +29,13 @@ public class UserSecurityQuestionService {
     }
 
     public void deleteByUserProfileId(UUID userProfileId) {
-        userSecurityQuestionAnswerClient.deleteByUserProfileId(userProfileId);
+        try {
+            userSecurityQuestionAnswerClient.deleteByUserProfileId(userProfileId);
+        } catch (FeignException ex) {
+            if (ex.status() != HttpStatus.NOT_FOUND.value()) {
+                throw ex;
+            }
+        }
     }
     
     public UserSecurityQuestionResponse getByUserProfileIdAndQuestionId(
