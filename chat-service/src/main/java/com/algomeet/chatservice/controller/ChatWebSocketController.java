@@ -13,6 +13,7 @@ import com.algomeet.chatservice.repository.MessageRepository;
 import com.algomeet.chatservice.service.MessageDeleteService;
 import com.algomeet.chatservice.service.MessageService;
 import com.algomeet.chatservice.service.UserSessionService;
+import com.algomeet.chatservice.sync.messaging.SimpMessagingSyncTemplate;
 import com.algomeet.multitenancy.context.TenantContext;
 import com.algomeet.notificationservice.dto.Notification;
 import com.algomeet.notificationservice.dto.Notification.NotificationBuilder;
@@ -50,6 +51,7 @@ public class ChatWebSocketController {
     private final MessageDeleteService deleteService;
     private final NotificationService notificationService;
     private final UserSessionService userSessionService;
+    private final SimpMessagingSyncTemplate messagingSyncTemplate;
 
     @MessageMapping("/chat")
     public void handleChatMessage(MessageDocument message, Principal principal) {
@@ -72,7 +74,7 @@ public class ChatWebSocketController {
                 for (String member : group.members) {
                     try {
                         if (!member.equals(message.getSender())) {
-                            messagingTemplate.convertAndSendToUser(member, "/queue/messages", response);
+                        	messagingSyncTemplate.convertAndSendToUser(member, "/queue/messages", response);
                             messageService.sendUnreadCountUpdate(member); // real-time update
 
                             // Send push notification
@@ -89,7 +91,7 @@ public class ChatWebSocketController {
                         savedMessage.setFailedRecipients(failedMembers);
                         messageRepository.save(savedMessage);
 
-                        messagingTemplate.convertAndSendToUser(
+                        messagingSyncTemplate.convertAndSendToUser(
                                 message.getSender(),
                                 "/queue/errors",
                                 "Message delivery failed for: " + String.join(", ", failedMembers)
@@ -98,23 +100,23 @@ public class ChatWebSocketController {
                 }
             } else {
                 //Send the new message to the receiver
-                messagingTemplate.convertAndSendToUser(message.getReceiver(), "/queue/messages", response);
+            	messagingSyncTemplate.convertAndSendToUser(message.getReceiver(), "/queue/messages", response);
                 // Update receiver’s unread counts
                 messageService.sendUnreadCountUpdate(message.getReceiver()); // real-time update
                 int unread = messageService.getUnreadCountFor(message.getReceiver(), message.getSender());
-                messagingTemplate.convertAndSendToUser(
+                messagingSyncTemplate.convertAndSendToUser(
                         message.getReceiver(),
                         "/queue/unread/contact",
                         new UnreadCountResponse(message.getSender(), unread)
 
                 );
-                messagingTemplate.convertAndSendToUser(message.getSender(), "/queue/update_message", response);
+                messagingSyncTemplate.convertAndSendToUser(message.getSender(), "/queue/update_message", response);
 
                 // Also update sender’s side (so their recent panel shows latest msg)
                 messageService.sendUnreadCountUpdate(message.getSender());
                 int unreadForSender = messageService.getUnreadCountFor(message.getSender(), message.getReceiver());
                 // Typically 0, but we still send event so FE refreshes “last message” row
-                messagingTemplate.convertAndSendToUser(
+                messagingSyncTemplate.convertAndSendToUser(
                         message.getSender(),
                         "/queue/unread/contact",
                         new UnreadCountResponse(message.getReceiver(), unreadForSender)
@@ -191,7 +193,7 @@ public class ChatWebSocketController {
                     .tenantId(TenantContext.getCurrentTenant());
             notificationService.sendPush(notifBuilder.build());
 
-            messagingTemplate.convertAndSendToUser(
+            messagingSyncTemplate.convertAndSendToUser(
                     message.getTo(),
                     "/queue/call",
                     new SignalResponse(

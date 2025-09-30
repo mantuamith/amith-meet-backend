@@ -7,6 +7,7 @@ import com.algomeet.chatservice.dto.messageactions.ReplyRequest;
 import com.algomeet.chatservice.mapper.MessageMapper;
 import com.algomeet.chatservice.model.MessageStatus;
 import com.algomeet.chatservice.repository.MessageRepository;
+import com.algomeet.chatservice.sync.messaging.SimpMessagingSyncTemplate;
 import com.algomeet.chatservice.dto.*;
 
 import lombok.RequiredArgsConstructor;
@@ -14,7 +15,6 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -24,7 +24,7 @@ public class MessageActionService {
     private final MessageRepository messageRepository;
     private final MongoTemplate mongoTemplate;
     private final MessageService messageService; // reuse unread counters & helpers
-    private final SimpMessagingTemplate messagingTemplate;
+    private final SimpMessagingSyncTemplate messagingSyncTemplate;
     private final GroupClient groupClient;
     private final MessageMapper messageMapper;
 
@@ -135,15 +135,15 @@ public class MessageActionService {
             try {
                 GroupDto group = groupClient.getGroupById(Long.parseLong(doc.getGroupId()));
                 for (String member : group.members) {
-                    messagingTemplate.convertAndSendToUser(member, "/queue/update_message", resp);
+                    messagingSyncTemplate.convertAndSendToUser(member, "/queue/update_message", resp);
                 }
             } catch (Exception ignored) {}
         } else {
             if (doc.getSender() != null) {
-                messagingTemplate.convertAndSendToUser(doc.getSender(), "/queue/update_message", resp);
+                messagingSyncTemplate.convertAndSendToUser(doc.getSender(), "/queue/update_message", resp);
             }
             if (doc.getReceiver() != null) {
-                messagingTemplate.convertAndSendToUser(doc.getReceiver(), "/queue/update_message", resp);
+                messagingSyncTemplate.convertAndSendToUser(doc.getReceiver(), "/queue/update_message", resp);
             }
         }
     }
@@ -155,7 +155,7 @@ public class MessageActionService {
                 GroupDto group = groupClient.getGroupById(Long.parseLong(doc.getGroupId()));
                 for (String member : group.members) {
                     if (!member.equals(doc.getSender())) {
-                        messagingTemplate.convertAndSendToUser(member, "/queue/messages", resp);
+                        messagingSyncTemplate.convertAndSendToUser(member, "/queue/messages", resp);
                         messageService.sendUnreadCountUpdate(member);
                     }
                 }
@@ -164,19 +164,19 @@ public class MessageActionService {
             }
         } else {
             // receiver side
-            messagingTemplate.convertAndSendToUser(doc.getReceiver(), "/queue/messages", resp);
+            messagingSyncTemplate.convertAndSendToUser(doc.getReceiver(), "/queue/messages", resp);
             messageService.sendUnreadCountUpdate(doc.getReceiver());
             int unread = messageService.getUnreadCountFor(doc.getReceiver(), doc.getSender());
-            messagingTemplate.convertAndSendToUser(
+            messagingSyncTemplate.convertAndSendToUser(
                     doc.getReceiver(),
                     "/queue/unread/contact",
                     new UnreadCountResponse(doc.getSender(), unread)
             );
             // sender side
-            messagingTemplate.convertAndSendToUser(doc.getSender(), "/queue/update_message", resp);
+            messagingSyncTemplate.convertAndSendToUser(doc.getSender(), "/queue/update_message", resp);
             messageService.sendUnreadCountUpdate(doc.getSender());
             int unreadForSender = messageService.getUnreadCountFor(doc.getSender(), doc.getReceiver());
-            messagingTemplate.convertAndSendToUser(
+            messagingSyncTemplate.convertAndSendToUser(
                     doc.getSender(),
                     "/queue/unread/contact",
                     new UnreadCountResponse(doc.getReceiver(), unreadForSender)
