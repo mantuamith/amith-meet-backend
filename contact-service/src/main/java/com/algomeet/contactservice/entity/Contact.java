@@ -1,6 +1,5 @@
 package com.algomeet.contactservice.entity;
 
-import com.algomeet.contactservice.entity.ContactStatus;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -19,7 +18,7 @@ import static java.util.Objects.requireNonNull;
                 @Index(name = "idx_contacts_ctkey_status", columnList = "contact_user_key,status")
         }
 )
-// Drop the old @UniqueConstraint — DB now enforces order-independent uniqueness via index
+
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

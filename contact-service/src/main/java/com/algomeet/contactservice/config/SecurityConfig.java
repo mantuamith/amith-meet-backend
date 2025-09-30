@@ -7,9 +7,11 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
 
 import java.util.List;
 
@@ -30,6 +32,22 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/contacts/**").authenticated()
                         .anyRequest().permitAll()
+                )
+                .exceptionHandling(x -> x
+                        .authenticationEntryPoint((req, res, ex) -> {
+                            if (!res.isCommitted()) {
+                                res.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                                res.setContentType("application/json");
+                                res.getWriter().write("{\"code\":\"AUTH_SESSION_REVOKED\",\"message\":\"Unauthorized\"}");
+                            }
+                        })
+                        .accessDeniedHandler((req, res, ex) -> {
+                            if (!res.isCommitted()) {
+                                res.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                                res.setContentType("application/json");
+                                res.getWriter().write("{\"code\":\"ACCESS_DENIED\",\"message\":\"Access Denied\"}");
+                            }
+                        })
                 )
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
