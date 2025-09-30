@@ -51,7 +51,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
             try {
                 Claims claims = Jwts.parserBuilder()
-                        .setSigningKey((key))
+                        .setSigningKey(key)
                         .build()
                         .parseClaimsJws(token)
                         .getBody();
@@ -83,12 +83,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             } catch (ExpiredJwtException ex) {
                 log.info("JWT expired: {} {}: {}", method, path, ex.getMessage());
                 response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Token expired");
+                return;
             } catch (MalformedJwtException ex) {
                 log.warn("JWT malformed: {} {}: {}", method, path, ex.getMessage());
                 response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Malformed token");
+                return;
             } catch (Exception ex) {
                 log.warn("JWT parsing failed: {} {}: {}", method, path, ex.getMessage());
                 response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Invalid or expired token");
+                return;
             }
         }
 
