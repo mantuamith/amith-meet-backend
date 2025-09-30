@@ -8,6 +8,7 @@ import com.algomeet.chatservice.mapper.MessageMapper;
 import com.algomeet.chatservice.model.CallType;
 import com.algomeet.chatservice.model.MessageStatus;
 import com.algomeet.chatservice.repository.MessageRepository;
+import com.algomeet.chatservice.sync.messaging.SimpMessagingSyncTemplate;
 import com.algomeet.multitenancy.context.TenantContext;
 import com.algomeet.notificationservice.dto.Notification;
 import com.algomeet.notificationservice.dto.Notification.NotificationBuilder;
@@ -19,7 +20,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.mongodb.core.MongoTemplate;
 
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
 
@@ -42,7 +42,7 @@ import static org.springframework.data.mongodb.core.query.Criteria.where;
 public class MessageService {
 
     private final MessageRepository messageRepository;
-    private final SimpMessagingTemplate messagingTemplate;
+    private final SimpMessagingSyncTemplate messagingSyncTemplate;
     private final MessageMapper messageMapper;
     private final MongoTemplate mongoTemplate;
     private final NotificationService notificationService;
@@ -90,7 +90,7 @@ public class MessageService {
 
         log.debug("[UnreadPush] user={} distinctContacts={} totalUnread={}",
                 userId, summary.size(), unread.size());
-        messagingTemplate.convertAndSendToUser(userId, "/queue/unread/count", summary);
+        messagingSyncTemplate.convertAndSendToUser(userId, "/queue/unread/count", summary);
     }
 
     // -------- PERSIST --------
@@ -200,7 +200,7 @@ public class MessageService {
             List<String> ids = msgs.stream().map(MessageDocument::getId).toList();
             DeliveryReceipt receipt = new DeliveryReceipt(receiverUsername, ids, nowSec);
             log.debug("[Delivered->Notify] toSender={} ids={} at={}", senderId, ids.size(), nowSec);
-            messagingTemplate.convertAndSendToUser(senderId, "/queue/delivery-receipts", receipt);
+            messagingSyncTemplate.convertAndSendToUser(senderId, "/queue/delivery-receipts", receipt);
         });
     }
 
@@ -228,7 +228,7 @@ public class MessageService {
             List<String> ids = msgs.stream().map(MessageDocument::getId).toList();
             ReadReceipt receipt = new ReadReceipt(readerId, ids, nowSec);
             log.debug("[Read->Notify] toSender={} ids={} at={}", senderId, ids.size(), nowSec);
-            messagingTemplate.convertAndSendToUser(senderId, "/queue/read-receipts", receipt);
+            messagingSyncTemplate.convertAndSendToUser(senderId, "/queue/read-receipts", receipt);
         });
 
         // keep the reader's unread badges current
@@ -258,7 +258,7 @@ public class MessageService {
             List<String> ids = msgs.stream().map(MessageDocument::getId).toList();
             ReadReceipt receipt = new ReadReceipt(contactId, ids, nowSec);
             log.debug("[Read->Notify] toSender={} ids={} at={}", senderId, ids.size(), nowSec);
-            messagingTemplate.convertAndSendToUser(senderId, "/queue/read-receipts", receipt);
+            messagingSyncTemplate.convertAndSendToUser(senderId, "/queue/read-receipts", receipt);
         });
         // keep the reader's unread badges current
         sendUnreadCountUpdate(reqSenderId);
@@ -304,7 +304,7 @@ public class MessageService {
         );
 
         // STOMP destination for call meta updates
-        messagingTemplate.convertAndSendToUser(other, "/queue/call-meta", evt);
+        messagingSyncTemplate.convertAndSendToUser(other, "/queue/call-meta", evt);
         
         // Send missed call notification
         if (payload.getCallMetaData() != null 
@@ -358,7 +358,7 @@ public class MessageService {
         long now = java.time.Instant.now().getEpochSecond();
 
         // 1) tell the client to clear the thread view (if open)
-        messagingTemplate.convertAndSendToUser(
+        messagingSyncTemplate.convertAndSendToUser(
                 me, "/queue/chat/cleared",
                 new com.algomeet.chatservice.dto.ChatClearedEvent(contact, affected, now)
         );
@@ -368,7 +368,7 @@ public class MessageService {
 
         // 3) refresh "recent messages" list for the left pane
         List<RecentReceivedMessageResponse> recent = getRecentMessages(me);
-        messagingTemplate.convertAndSendToUser(me, "/queue/recent/summary", recent);
+        messagingSyncTemplate.convertAndSendToUser(me, "/queue/recent/summary", recent);
     }
 
     /**
