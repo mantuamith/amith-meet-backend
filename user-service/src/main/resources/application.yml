@@ -5,6 +5,8 @@ spring:
 ---
 
 spring:
+  application:
+    name: user-service
   config:
     activate:
       on-profile: local

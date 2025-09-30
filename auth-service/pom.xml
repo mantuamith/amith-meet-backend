@@ -21,6 +21,7 @@
         <java.version>17</java.version>
         <jacoco.version>0.8.12</jacoco.version> <!-- or newer if available -->
         <maven.surefire.plugin.version>3.2.5</maven.surefire.plugin.version>
+        <skywalking.version>8.12.0</skywalking.version>
     </properties>
     <repositories>
         <repository>
@@ -155,6 +156,22 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-mail</artifactId>
         </dependency>
+        
+        <dependency>
+		    <groupId>net.logstash.logback</groupId>
+		    <artifactId>logstash-logback-encoder</artifactId>
+		    <version>7.4</version> <!-- or latest stable -->
+		</dependency>
+        <dependency>
+			<groupId>org.apache.skywalking</groupId>
+			<artifactId>apm-toolkit-trace</artifactId>
+			<version>${skywalking.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.skywalking</groupId>
+			<artifactId>apm-toolkit-logback-1.x</artifactId>
+			<version>${skywalking.version}</version>
+		</dependency>
 
         <!-- Add notification service library -->
         <dependency>
