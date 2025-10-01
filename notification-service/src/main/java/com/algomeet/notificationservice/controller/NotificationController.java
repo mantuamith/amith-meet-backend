@@ -11,6 +11,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 import com.algomeet.multitenancy.context.TenantContext;
+import com.algomeet.notificationservice.controller.swagger.NotificationControllerDoc;
 import com.algomeet.notificationservice.dto.PushNotificationRequest;
 import com.algomeet.notificationservice.enums.ResponseCode;
 import com.algomeet.notificationservice.publisher.NotificationStreamPublisher;
@@ -24,7 +25,7 @@ import jakarta.validation.Valid;
 @RestController
 @RequestMapping("/")
 @RequiredArgsConstructor
-public class NotificationController {
+public class NotificationController implements NotificationControllerDoc{
 
     private final NotificationStreamPublisher notificationPublisher;
     

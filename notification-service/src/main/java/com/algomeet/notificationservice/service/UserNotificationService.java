@@ -10,6 +10,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import com.algomeet.notificationservice.dto.UserNotificationDto;
+import com.algomeet.notificationservice.exceptions.RecordNotFoundException;
 import com.algomeet.notificationservice.repository.UserNotificationRepository;
 import com.algomeet.notificationservice.util.UserNotificationMapper;
 
@@ -54,23 +55,28 @@ public class UserNotificationService {
          
     public void markAsRead(Long id) {
         userNotificationRepository.findById(id)
-            .ifPresent(un -> {
-                un.setRead(true);
-                // Make as deliver also since when you able to read the message
-                un.setDelivered(true);
-                userNotificationRepository.save(un);
-            });
+        .map(un -> {
+            un.setRead(true);
+            // Mark as delivered also since when you are able to read the message
+            un.setDelivered(true);
+            return userNotificationRepository.save(un);
+        })
+        .orElseThrow(() -> new RecordNotFoundException("User notification with id " + id + " not found"));
     }
     
     public void markAsDelivered(Long id) {
         userNotificationRepository.findById(id)
-            .ifPresent(un -> {
+            .map(un -> {
                 un.setDelivered(true);
-                userNotificationRepository.save(un);
-            });
+                return userNotificationRepository.save(un);
+            }).orElseThrow(() -> new RecordNotFoundException("User notification with id " + id + " not found"));
     }
 
     public void deleteUserNotification(Long id) {
+    	if (userNotificationRepository.findById(id).isEmpty()) {
+    		throw new RecordNotFoundException("User notification with id " + id + " not found");
+    	}
+    	
         userNotificationRepository.deleteById(id);
     }
 }
