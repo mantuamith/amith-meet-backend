@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.algomeet.authservice.controller.swagger.UserControllerDoc;
 import com.algomeet.authservice.dto.CommonResponse;
 import com.algomeet.authservice.dto.SearchUsersFilter;
 import com.algomeet.authservice.dto.UserResponse;
@@ -20,7 +21,7 @@ import lombok.AllArgsConstructor;
 @RequestMapping("/auth/users")
 @RestController
 @AllArgsConstructor
-public class UserController {
+public class UserController implements UserControllerDoc{
 	private UserService userService;
 	
 	@GetMapping

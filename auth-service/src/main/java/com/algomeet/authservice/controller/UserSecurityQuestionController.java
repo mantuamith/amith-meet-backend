@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.algomeet.authservice.controller.swagger.UserSecurityQuestionControllerDoc;
 import com.algomeet.authservice.dto.CommonResponse;
 import com.algomeet.authservice.dto.UserSecurityQuestionRequest;
 import com.algomeet.authservice.dto.UserSecurityQuestionResponse;
@@ -32,7 +33,7 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequestMapping("/auth/user-security-questions")
 @RequiredArgsConstructor
-public class UserSecurityQuestionController {
+public class UserSecurityQuestionController implements UserSecurityQuestionControllerDoc {
 	
 	private final UserSecurityQuestionService userSecurityQuestionService;
 
