@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.algomeet.controlservice.controller.swagger.RoleControllerDoc;
 import com.algomeet.controlservice.dto.CommonResponse;
 import com.algomeet.controlservice.dto.CreateRoleRequest;
 import com.algomeet.controlservice.dto.RoleRequest;
@@ -28,7 +29,7 @@ import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/control/roles")
-public class RoleController {
+public class RoleController implements RoleControllerDoc{
 
     private final RoleService roleService;
 
