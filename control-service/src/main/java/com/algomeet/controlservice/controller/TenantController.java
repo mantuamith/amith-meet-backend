@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.algomeet.controlservice.controller.swagger.TenantControllerDoc;
 import com.algomeet.controlservice.dto.CommonResponse;
 import com.algomeet.controlservice.dto.RegisterTenantRequest;
 import com.algomeet.controlservice.dto.TenantRequest;
@@ -30,7 +31,7 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequestMapping("/control/tenants")
 @RequiredArgsConstructor
-public class TenantController {
+public class TenantController implements TenantControllerDoc{
 	private final TenantService tenantService;
 
 	@GetMapping
