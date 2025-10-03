@@ -3,6 +3,7 @@ package com.algomeet.authservice.controller;
 
 import com.algomeet.authservice.client.UserClient;
 import com.algomeet.authservice.config.AuthProperties;
+import com.algomeet.authservice.controller.swagger.AuthControllerDoc;
 import com.algomeet.authservice.dto.*;
 import com.algomeet.authservice.enums.LoginPolicy;
 import com.algomeet.authservice.enums.LoginResponseType;
@@ -43,7 +44,7 @@ import java.util.Set;
 @RestController
 @RequestMapping("/auth")
 @RequiredArgsConstructor
-public class AuthController {
+public class AuthController implements AuthControllerDoc{
 
     private final AuthService authService;
     private final RefreshTokenStore refreshTokenStore;

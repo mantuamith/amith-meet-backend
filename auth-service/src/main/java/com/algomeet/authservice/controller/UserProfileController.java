@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.algomeet.authservice.controller.swagger.UserProfileControllerDoc;
 import com.algomeet.authservice.dto.CommonResponse;
 import com.algomeet.authservice.dto.UserProfileResponse;
 import com.algomeet.authservice.dto.UserProfileUpdateRequest;
@@ -21,7 +22,7 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequestMapping("/auth/user-profiles")
 @RequiredArgsConstructor
-public class UserProfileController {	
+public class UserProfileController implements UserProfileControllerDoc{	
 	private final UserProfileService userProfileService;
 
     // GET user profile
