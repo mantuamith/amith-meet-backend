@@ -101,7 +101,13 @@
 	  <groupId>com.eatthepath</groupId>
 	  <artifactId>pushy</artifactId>
 	  <version>0.15.2</version>
-	</dependency>
+	</dependency>	
+    <dependency>
+      <groupId>org.springdoc</groupId>
+	  <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+	  <version>2.5.0</version>
+    </dependency>
+		
     <dependency>
        <groupId>com.algomeet</groupId>
        <artifactId>multi-tenancy-core</artifactId>
