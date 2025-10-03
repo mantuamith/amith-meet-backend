@@ -29,6 +29,20 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/chat-ws/**").permitAll()
                 .requestMatchers("/api/messages/**").authenticated()
+               
+                // Swagger - start
+                .requestMatchers("/swagger-ui.html").permitAll() 
+                .requestMatchers("/swagger-ui/index.html").permitAll()   
+                .requestMatchers("/swagger-ui/swagger-ui.css").permitAll()  
+                .requestMatchers("/swagger-ui/index.css").permitAll()  
+                .requestMatchers("/swagger-ui/swagger-ui-bundle.js").permitAll()  
+                .requestMatchers("/swagger-ui/swagger-ui-standalone-preset.js").permitAll()  
+                .requestMatchers("/swagger-ui/swagger-initializer.js").permitAll()  
+                .requestMatchers("/swagger-ui/favicon-32x32.png").permitAll()  
+                .requestMatchers("/swagger-ui/favicon-16x16.png").permitAll()  
+                .requestMatchers("/v3/api-docs/swagger-config").permitAll() 
+                .requestMatchers("/v3/api-docs").permitAll() 
+                // Swagger - end  
                 .anyRequest().permitAll()
             ).sessionManagement(sm -> sm.sessionCreationPolicy(org.springframework.security.config.http.SessionCreationPolicy.STATELESS))
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
