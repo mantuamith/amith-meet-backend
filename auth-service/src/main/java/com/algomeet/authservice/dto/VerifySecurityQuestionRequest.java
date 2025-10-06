@@ -7,6 +7,6 @@ import lombok.Setter;
 @Getter
 @Setter
 public class VerifySecurityQuestionRequest {
-	@NotEmpty
+	@NotEmpty(message = "{user-security-question.empty-answer}")
     private String answer;
 }
