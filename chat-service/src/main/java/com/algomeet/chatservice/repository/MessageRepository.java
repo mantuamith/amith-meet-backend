@@ -8,6 +8,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.data.mongodb.repository.Query;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -114,4 +115,6 @@ public interface MessageRepository extends MongoRepository<MessageDocument, Stri
 
     // For a single message load (and checks)
     Optional<MessageDocument> findById(String id);
+
+    List<MessageDocument> findByReceiverAndStatus(String receiver, MessageStatus status);
 }

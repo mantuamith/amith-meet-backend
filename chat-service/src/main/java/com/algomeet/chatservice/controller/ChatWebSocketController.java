@@ -9,11 +9,12 @@ import com.algomeet.chatservice.dto.*;
 import com.algomeet.chatservice.mapper.MessageMapper;
 import com.algomeet.chatservice.model.MessageStatus;
 import com.algomeet.chatservice.model.AppStatus;
-import com.algomeet.chatservice.registry.SessionMetadata;
-import com.algomeet.chatservice.registry.WebSocketSessionRegistry;
 import com.algomeet.chatservice.repository.MessageRepository;
 import com.algomeet.chatservice.service.MessageDeleteService;
 import com.algomeet.chatservice.service.MessageService;
+import com.algomeet.chatservice.service.UserSessionService;
+import com.algomeet.chatservice.sync.messaging.SimpMessagingSyncTemplate;
+import com.algomeet.multitenancy.context.TenantContext;
 import com.algomeet.notificationservice.dto.Notification;
 import com.algomeet.notificationservice.dto.Notification.NotificationBuilder;
 import com.algomeet.notificationservice.enums.NotificationType;
@@ -49,7 +50,8 @@ public class ChatWebSocketController {
     private final MessageService messageService;
     private final MessageDeleteService deleteService;
     private final NotificationService notificationService;
-    private final WebSocketSessionRegistry sessionRegistry;
+    private final UserSessionService userSessionService;
+    private final SimpMessagingSyncTemplate messagingSyncTemplate;
 
     @MessageMapping("/chat")
     public void handleChatMessage(MessageDocument message, Principal principal) {
@@ -59,8 +61,7 @@ public class ChatWebSocketController {
         String username = up.username();
         message.setSender(username);
         message.setTimestamp(Instant.now());
-        if (message.getStatus() == null)
-        {
+        if (message.getStatus() == null) {
             message.setStatus(MessageStatus.SENT);
         }
         try {
@@ -73,16 +74,16 @@ public class ChatWebSocketController {
                 for (String member : group.members) {
                     try {
                         if (!member.equals(message.getSender())) {
-                            messagingTemplate.convertAndSendToUser(member, "/queue/messages", response);
+                        	messagingSyncTemplate.convertAndSendToUser(member, "/queue/messages", response);
                             messageService.sendUnreadCountUpdate(member); // real-time update
-                            
+
                             // Send push notification
                             // Todo: get the member user key
-                            sendPushNotification (member, message.getContent(), NotificationType.GROUP_MESSAGE, member);
+                            sendPushNotification(member, message.getContent(), NotificationType.GROUP_MESSAGE, member);
                         }
-                    }catch (Exception e) {
+                    } catch (Exception e) {
                         // Fallback if one group member fails
-                       // log.error("Failed to deliver to group member {}: {}", member, e.getMessage());
+                        // log.error("Failed to deliver to group member {}: {}", member, e.getMessage());
                         failedMembers.add(member);
                     }
                     if (!failedMembers.isEmpty()) {
@@ -90,7 +91,7 @@ public class ChatWebSocketController {
                         savedMessage.setFailedRecipients(failedMembers);
                         messageRepository.save(savedMessage);
 
-                        messagingTemplate.convertAndSendToUser(
+                        messagingSyncTemplate.convertAndSendToUser(
                                 message.getSender(),
                                 "/queue/errors",
                                 "Message delivery failed for: " + String.join(", ", failedMembers)
@@ -99,32 +100,32 @@ public class ChatWebSocketController {
                 }
             } else {
                 //Send the new message to the receiver
-                messagingTemplate.convertAndSendToUser(message.getReceiver(), "/queue/messages", response);
+            	messagingSyncTemplate.convertAndSendToUser(message.getReceiver(), "/queue/messages", response);
                 // Update receiver’s unread counts
                 messageService.sendUnreadCountUpdate(message.getReceiver()); // real-time update
                 int unread = messageService.getUnreadCountFor(message.getReceiver(), message.getSender());
-                messagingTemplate.convertAndSendToUser(
+                messagingSyncTemplate.convertAndSendToUser(
                         message.getReceiver(),
                         "/queue/unread/contact",
                         new UnreadCountResponse(message.getSender(), unread)
 
                 );
-                messagingTemplate.convertAndSendToUser(message.getSender(), "/queue/update_message", response);
+                messagingSyncTemplate.convertAndSendToUser(message.getSender(), "/queue/update_message", response);
 
                 // Also update sender’s side (so their recent panel shows latest msg)
                 messageService.sendUnreadCountUpdate(message.getSender());
                 int unreadForSender = messageService.getUnreadCountFor(message.getSender(), message.getReceiver());
                 // Typically 0, but we still send event so FE refreshes “last message” row
-                messagingTemplate.convertAndSendToUser(
+                messagingSyncTemplate.convertAndSendToUser(
                         message.getSender(),
                         "/queue/unread/contact",
                         new UnreadCountResponse(message.getReceiver(), unreadForSender)
                 );
-                
+
                 // Send push notifation
-                sendPushNotification (message.getReceiverKey(), message.getContent(), NotificationType.DIRECT_MESSAGE, message.getReceiver());
+                sendPushNotification(message.getReceiverKey(), message.getContent(), NotificationType.DIRECT_MESSAGE, message.getReceiver());
             }
-        }catch (Exception ex) {
+        } catch (Exception ex) {
             // Mark as FAILED and log
             message.setStatus(MessageStatus.FAILED);
             messageRepository.save(message);  // Update message with FAILED status
@@ -181,17 +182,18 @@ public class ChatWebSocketController {
     public void handleWebRTCSignal(SignalMessage message, Principal principal) {
         log.info("[STOMP /call] {} -> {} | Type: {}", principal.getName(), message.getTo(), message.getType());
         try {
-        	
-        	// Send calling event notification
-        	NotificationBuilder notifBuilder = Notification.builder()
-        			.receiverIds(Set.of(message.getToKey())) // To must be using user_key UUID
-        	.title(principal.getName() + " is calling")
-        	.body(principal.getName() + " is calling")
-        	.type(NotificationType.VIDEO_CALL.name().equalsIgnoreCase(message.getType()) 
-        			? NotificationType.VIDEO_CALL : NotificationType.AUDIO_CALL);        	
-        	notificationService.sendPush(notifBuilder.build());
-        	
-            messagingTemplate.convertAndSendToUser(
+
+            // Send calling event notification
+            NotificationBuilder notifBuilder = Notification.builder()
+                    .receiverIds(Set.of(message.getToKey())) // To must be using user_key UUID
+                    .title(principal.getName() + " is calling")
+                    .body(principal.getName() + " is calling")
+                    .type(NotificationType.VIDEO_CALL.name().equalsIgnoreCase(message.getType())
+                            ? NotificationType.VIDEO_CALL : NotificationType.AUDIO_CALL)
+                    .tenantId(TenantContext.getCurrentTenant());
+            notificationService.sendPush(notifBuilder.build());
+
+            messagingSyncTemplate.convertAndSendToUser(
                     message.getTo(),
                     "/queue/call",
                     new SignalResponse(
@@ -210,43 +212,54 @@ public class ChatWebSocketController {
             );
         }
     }
-    
+
     /**
      * Used to set the user/client status
+     *
      * @param message
      * @param principal
      */
     @MessageMapping("/app-status")
     public void handleInActive(AppStatusMessage message, Principal principal) {
-    	Set<SessionMetadata> sessions = sessionRegistry.getSessions(principal.getName());
-    	if (sessions != null) {
-    		sessions.forEach(s -> {
-    			s.setActive(AppStatus.ACTIVE == message.getStatus() ? true : false);
-    		});
-    	}
+        Set<SessionMetadata> sessions = userSessionService.getSessions(principal.getName());
+        if (sessions != null) {
+            sessions.forEach(s -> {
+                s.setActive(AppStatus.ACTIVE == message.getStatus() ? true : false);
+            });
+
+            // Update sessions
+            userSessionService.updateSessions(principal.getName(), sessions);
+        }
     }
-    
+
     /**
      * Used to send push notification for new message
+     *
      * @param toKey
      * @param message
      * @param notifcationType
      * @param receiverUser
      */
-    private void sendPushNotification (String toKey, String message, NotificationType notifcationType, String receiverUser) {
-    	// TODO: Need to finalize if we have to use username
-    	Set<SessionMetadata> sessions = sessionRegistry.getSessions(receiverUser);
-    	if (CollectionUtils.isEmpty(sessions)
-    			|| sessions.iterator().next().isActive() == false) {
-    	    	
-    		Notification notif = Notification.builder()
-    				.receiverIds(Set.of(toKey))
-    				.type(notifcationType)
-    				.title("You have new message")
-    				.body(message)
-    				.build();
+    private void sendPushNotification(String toKey, String message, NotificationType notifcationType, String receiverUser) {
+        // TODO: Need to finalize if we have to use username
+        Set<SessionMetadata> sessions = userSessionService.getSessions(receiverUser);
+        if (CollectionUtils.isEmpty(sessions)
+                || sessions.iterator().next().isActive() == false) {
 
-    		notificationService.sendPush(notif);    	
-    	}
+            Notification notif = Notification.builder()
+                    .receiverIds(Set.of(toKey))
+                    .type(notifcationType)
+                    .title("You have new message")
+                    .body(message)
+                    .tenantId(TenantContext.getCurrentTenant())
+                    .build();
+
+            notificationService.sendPush(notif);
+        }
+    }
+
+    @MessageMapping("/deliver/pending")
+    public void deliverPending(Principal principal) {
+        messageService.deliverAllPendingTo(principal.getName());
     }
 }

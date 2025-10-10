@@ -4,8 +4,9 @@ import com.algomeet.chatservice.document.MessageDocument;
 import com.algomeet.chatservice.dto.MessageDeleteResult;
 import com.algomeet.chatservice.dto.MessageDeletedEvent;
 import com.algomeet.chatservice.repository.MessageRepository;
+import com.algomeet.chatservice.sync.messaging.SimpMessagingSyncTemplate;
+
 import lombok.RequiredArgsConstructor;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -19,7 +20,7 @@ import static java.lang.Boolean.TRUE;
 public class MessageDeleteService {
 
     private final MessageRepository messageRepository;
-    private final SimpMessagingTemplate messagingTemplate;
+    private final SimpMessagingSyncTemplate messagingSyncTemplate;
 
     /**
      * Bulk delete. If deleteForEveryone = true → only the sender of each message can do this.
@@ -106,7 +107,7 @@ public class MessageDeleteService {
                         true,
                        now
                 );
-                messagingTemplate.convertAndSendToUser(e.getKey(), "/queue/message-deletes", evt);
+                messagingSyncTemplate.convertAndSendToUser(e.getKey(), "/queue/message-deletes", evt);
             }
         }
 
@@ -118,7 +119,7 @@ public class MessageDeleteService {
                     false,
                     now
             );
-            messagingTemplate.convertAndSendToUser(requester, "/queue/message-deletes", evt);
+            messagingSyncTemplate.convertAndSendToUser(requester, "/queue/message-deletes", evt);
         }
 
         return MessageDeleteResult.builder()
