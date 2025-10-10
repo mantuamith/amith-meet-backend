@@ -4,7 +4,7 @@ import com.algomeet.controlservice.util.MessageUtil;
 
 public enum ResponseCode {
     AUTH_SESSION_REVOKED("AUTH_SESSION_REVOKED", "auth.session.revoked"),
-	SUCCESS("SUCCESS", "Success"),
+	SUCCESS("SUCCESS", "success"),
     ADD_TENANT_SUCCESS("ADD_TENANT_SUCCESS", "tenant.add.success"),
     TENANT_ID_ALREADY_EXISTS("TENANT_ID_ALREADY_EXISTS", "tenant.id.exists"),
     UPDATE_TENANT_SUCCESS("UPDATE_TENANT_SUCCESS", "tenant.update.success"),
