@@ -7,6 +7,8 @@ import com.algomeet.meetservice.security.AlgomeetMeetingTokenRegistry;
 import com.algomeet.meetservice.security.GuestIdentity;
 import com.algomeet.meetservice.service.AlgomeetJwtService;
 import com.algomeet.meetservice.service.MeetingService;
+import static com.algomeet.meetservice.util.MessageUtil.i18n;
+
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -75,11 +77,11 @@ public class MeetingController {
             String code;
             String msg;
             switch (meeting.getStatus()) {
-                case STARTED -> { code = "MEETING_JOINED_SUCCESS"; msg = "You can join now."; }
-                case SCHEDULED -> { code = "MEETING_NOT_STARTED";  msg = "Host hasn’t started the meeting yet."; }
-                case COMPLETED -> { code = "MEETING_COMPLETED";    msg = "This meeting is over."; }
-                case EXPIRED -> { code = "MEETING_EXPIRED";        msg = "This meeting link has expired."; }
-                default -> { code = "MEETING_FETCH_SUCCESS";       msg = "Meeting fetched."; }
+                case STARTED -> { code = "MEETING_JOINED_SUCCESS"; msg = i18n("meeting.join.success"); }
+                case SCHEDULED -> { code = "MEETING_NOT_STARTED";  msg = i18n("meeting.not-started-yet"); }
+                case COMPLETED -> { code = "MEETING_COMPLETED";    msg = i18n("meeting.completed"); }
+                case EXPIRED -> { code = "MEETING_EXPIRED";        msg = i18n("meeting.expired"); }
+                default -> { code = "MEETING_FETCH_SUCCESS";       msg = i18n("meeting.fetch.success"); }
             }
             log.info("GetMeeting success: id={}, status={}", id, meeting.getStatus());
             return ResponseEntity.ok(MeetingResponse.success(code, msg, meeting));
@@ -91,7 +93,7 @@ public class MeetingController {
         } catch (Exception e) {
             log.error("GetMeeting error: id={}, user={}, ex={}", id, maskEmail(email), e.toString(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(MeetingResponse.error("INTERNAL_ERROR", "Unexpected error while fetching meeting"));
+                    .body(MeetingResponse.error("INTERNAL_ERROR", i18n("internal-error")));
         }
     }
 
@@ -165,7 +167,7 @@ public class MeetingController {
         if (token == null || token.isBlank()) {
             log.warn("OpenMeeting missing token: id={}", id);
             return ResponseEntity.badRequest()
-                    .body(MeetingResponse.error("TOKEN_REQUIRED", "Join token is required."));
+                    .body(MeetingResponse.error("TOKEN_REQUIRED", i18n("join-token.required")));
         }
 
         try {
@@ -213,22 +215,22 @@ public class MeetingController {
 
                             // 8) Return meeting + the Algomeet token
                             yield ResponseEntity.ok(MeetingResponse.success(
-                                    "MEETING_JOINED_SUCCESS", "You can join now.",
+                                    "MEETING_JOINED_SUCCESS", i18n("meeting.join.success"),
                                     new OpenMeetingJoinResponse(m, gen.token(), gen.room(), gen.exp())
                             ));
                         }
 
                         case SCHEDULED -> ResponseEntity.ok(
-                                MeetingResponse.success("MEETING_NOT_STARTED", "Host hasn’t started the meeting yet.", m));
+                                MeetingResponse.success("MEETING_NOT_STARTED", i18n("meeting.not-started-yet"), m));
 
                         case COMPLETED -> ResponseEntity.status(HttpStatus.GONE)
-                                .body(MeetingResponse.error("MEETING_COMPLETED", "This meeting is over."));
+                                .body(MeetingResponse.error("MEETING_COMPLETED", i18n("meeting.completed")));
 
                         case EXPIRED -> ResponseEntity.status(HttpStatus.GONE)
-                                .body(MeetingResponse.error("MEETING_EXPIRED", "This meeting link has expired."));
+                                .body(MeetingResponse.error("MEETING_EXPIRED", i18n("meeting.expired")));
 
                         default -> ResponseEntity.ok(
-                                MeetingResponse.success("MEETING_FETCH_SUCCESS", "Meeting fetched.", m));
+                                MeetingResponse.success("MEETING_FETCH_SUCCESS", i18n("meeting.fetch.success"), m));
                     })
                     .orElseGet(() -> ResponseEntity.status(HttpStatus.FORBIDDEN)
                             .body(MeetingResponse.error("MEETING_ACCESS_DENIED",
@@ -241,7 +243,7 @@ public class MeetingController {
         } catch (Exception e) {
             log.error("OpenMeeting error: id={}, ex={}", id, e.toString(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(MeetingResponse.error("INTERNAL_ERROR", "Unexpected error while fetching open meeting"));
+                    .body(MeetingResponse.error("INTERNAL_ERROR", i18n("unauthorized")));
         }
     }
 
@@ -280,13 +282,13 @@ public class MeetingController {
             // TODO: Integrate notification-service for push notifications
             return ResponseEntity.ok(Map.of(
                     "code", "MEETING_COMPLETED",
-                    "message", "Meeting marked as completed"
+                    "message", i18n("meeting.update.mark-completed")
             ));
         } else {
             log.warn("CompleteMeeting failed/forbidden: id={}, by={}", id, maskEmail(email));
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of(
                     "code", "MEETING_COMPLETE_FAILED",
-                    "message", "Not allowed or meeting not found"
+                    "message", i18n("meeting.update.not-allowed")
             ));
         }
     }
@@ -312,10 +314,10 @@ public class MeetingController {
 
         if (success) {
             log.info("ApproveParticipant success: meetingId={}, attendee={}", meetingId, maskEmail(request.getAttendeeEmail()));
-            return ResponseEntity.ok(Map.of("message", "Participant approved"));
+            return ResponseEntity.ok(Map.of("message", i18n("meeting.participant.approved ")));
         } else {
             log.warn("ApproveParticipant denied/invalid: meetingId={}, host={}", meetingId, maskEmail(hostEmail));
-            return ResponseEntity.status(403).body(Map.of("error", "Not allowed or invalid"));
+            return ResponseEntity.status(403).body(Map.of("error", i18n("meeting.participant.approve.not-allowed")));
         }
     }
 
@@ -331,10 +333,10 @@ public class MeetingController {
 
         if (success) {
             log.info("RejectParticipant success: meetingId={}, attendee={}", meetingId, maskEmail(request.getAttendeeEmail()));
-            return ResponseEntity.ok(Map.of("message", "Participant rejected"));
+            return ResponseEntity.ok(Map.of("message", i18n("meeting.participant.reject")));
         } else {
             log.warn("RejectParticipant denied/invalid: meetingId={}, host={}", meetingId, maskEmail(hostEmail));
-            return ResponseEntity.status(403).body(Map.of("error", "Not allowed or invalid"));
+            return ResponseEntity.status(403).body(Map.of("error", i18n("meeting.participant.reject.not-allowed")));
         }
     }
 
@@ -349,7 +351,7 @@ public class MeetingController {
         try {
             Meeting updated = meetingService.updateMeeting(email, id, request);
             log.info("EditMeeting success: id={}", id);
-            return ResponseEntity.ok(MeetingResponse.success("SUCCESS", "Meeting updated", updated));
+            return ResponseEntity.ok(MeetingResponse.success("SUCCESS", i18n("meeting.update.success"), updated));
         } catch (AccessDeniedException ade) {
             log.warn("EditMeeting access denied: id={}, by={}, reason={}", id, maskEmail(email), ade.getMessage());
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
@@ -361,7 +363,7 @@ public class MeetingController {
         } catch (Exception e) {
             log.error("EditMeeting error: id={}, ex={}", id, e.toString(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(MeetingResponse.error("INTERNAL_ERROR", "Unexpected error while updating meeting"));
+                    .body(MeetingResponse.error("INTERNAL_ERROR", i18n("meeting.update.unexpected-error")));
         }
     }
 
@@ -373,7 +375,7 @@ public class MeetingController {
         try {
             meetingService.deleteMeeting(email, id);
             log.info("DeleteMeeting success: id={}", id);
-            return ResponseEntity.ok(MeetingResponse.success("SUCCESS", "Meeting deleted", null));
+            return ResponseEntity.ok(MeetingResponse.success("SUCCESS", i18n("meeting.delete.success"), null));
         } catch (AccessDeniedException ade) {
             log.warn("DeleteMeeting access denied: id={}, by={}, reason={}", id, maskEmail(email), ade.getMessage());
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
@@ -385,7 +387,7 @@ public class MeetingController {
         } catch (Exception e) {
             log.error("DeleteMeeting error: id={}, ex={}", id, e.toString(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(MeetingResponse.error("INTERNAL_ERROR", "Unexpected error while deleting meeting"));
+                    .body(MeetingResponse.error("INTERNAL_ERROR", i18n("meeting.delete.unexpected-error")));
         }
     }
 
