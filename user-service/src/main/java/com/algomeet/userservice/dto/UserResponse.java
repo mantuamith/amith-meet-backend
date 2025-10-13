@@ -23,14 +23,14 @@ public class UserResponse {
     private String deviceType;
 
     private String userKey;
-    
-    private String lang;
 
 
     // NEW: expose loginTypePolicy so auth-service can enforce device policy
     private Short loginTypePolicy;
 
     private Integer tenantId;
+    
+    private String lang;
 
     public UserResponse(User user) {
         this.id = user.getId();
