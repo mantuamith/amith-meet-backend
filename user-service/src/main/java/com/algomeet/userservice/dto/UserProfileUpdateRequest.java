@@ -20,4 +20,5 @@ public class UserProfileUpdateRequest {
     private Boolean securityQuestionsEnabled;
     private String role;
     private Integer tenantId;
+    private String lang;
 }

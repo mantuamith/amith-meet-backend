@@ -25,6 +25,7 @@ public class UserProfileUpdateRequest implements SecuredDto{
     private Boolean securityQuestionsEnabled;
     private String role;
     private Integer tenantId;
+    private String lang;
     
 	@Override
 	public void secured() {

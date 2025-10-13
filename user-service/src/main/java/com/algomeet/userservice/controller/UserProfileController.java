@@ -57,6 +57,10 @@ public class UserProfileController {
     			user.setRole(request.getRole());
     		}
     		
+    		if (request.getLang() != null) {
+    			user.setLang(request.getLang());
+    		}
+    		
     		savedUser = userRepository.save(user);
     	} else {
     		return ResponseEntity.notFound().build();
@@ -104,6 +108,7 @@ public class UserProfileController {
                 .phone(user.getPhone())
                 .role(user.getRole())
                 .tenantId(user.getTenantId())
+                .lang(user.getLang())
                 .build();
     }
 }
