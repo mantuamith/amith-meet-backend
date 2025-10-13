@@ -97,7 +97,7 @@ public class User {
     /**
      * User preferred language
      */
-    @Column(name = "lang", length = 5, columnDefinition = "varchar default 'en'")
+    @Column(name = "lang", length = 5, nullable = false, columnDefinition = "VARCHAR(5) DEFAULT 'en'")
     private String lang;
 
     @PrePersist @PreUpdate
