@@ -11,7 +11,7 @@ public class UserSecurityQuestionRequest {
 	@NotEmpty
 	@Pattern(
 	        regexp = "^[0-9a-fA-F]{8}\\-[0-9a-fA-F]{4}\\-[1-5][0-9a-fA-F]{3}\\-[89abAB][0-9a-fA-F]{3}\\-[0-9a-fA-F]{12}$",
-	        message = "Must be a valid UUID"
+	        message = "{user-security-question.invalid-user-profile-id}"
 	    )
     private String userProfileId;
 	@NotEmpty
