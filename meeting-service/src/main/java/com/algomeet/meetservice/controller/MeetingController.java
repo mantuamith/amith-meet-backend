@@ -32,7 +32,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/meetings")
 @RequiredArgsConstructor
-public class MeetingController implements MeetingControllerDoc {
+public class MeetingController implements MeetingControllerDoc  {
 
     private static final Logger log = LoggerFactory.getLogger(MeetingController.class);
 
