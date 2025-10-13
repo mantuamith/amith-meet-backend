@@ -2,6 +2,7 @@ package com.algomeet.meetservice.controller;
 
 import com.algomeet.meetservice.Dto.*;
 import com.algomeet.meetservice.client.UserDirectoryClient;
+import com.algomeet.meetservice.controller.swagger.MeetingControllerDoc;
 import com.algomeet.meetservice.mapper.MeetingMapper;
 import com.algomeet.meetservice.model.Meeting;
 import com.algomeet.meetservice.model.MeetingStatus;
@@ -31,7 +32,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/meetings")
 @RequiredArgsConstructor
-public class MeetingController {
+public class MeetingController implements MeetingControllerDoc {
 
     private static final Logger log = LoggerFactory.getLogger(MeetingController.class);
 
@@ -127,6 +128,14 @@ public class MeetingController {
 
         return meetingService.getOpenMeetingById(id, req.token().trim())
                 .map(m -> {
+                    if (m.getStatus() == MeetingStatus.COMPLETED) {
+                        return ResponseEntity.status(HttpStatus.GONE)
+                                .body(MeetingResponse.error("MEETING_COMPLETED", "This meeting is over."));
+                    }
+                    if (m.getStatus() == MeetingStatus.EXPIRED) {
+                        return ResponseEntity.status(HttpStatus.GONE)
+                                .body(MeetingResponse.error("MEETING_EXPIRED", "This meeting link has expired."));
+                    }
                     if (!meetingService.verifyPassword(m, req.password())) {
                         return ResponseEntity.status(HttpStatus.FORBIDDEN)
                                 .body(MeetingResponse.error("PASSWORD_REQUIRED", "Password incorrect or missing."));
@@ -265,7 +274,7 @@ public class MeetingController {
                             ));
                         }
                         case SCHEDULED -> ResponseEntity.ok(
-                                MeetingResponse.success("MEETING_NOT_STARTED", "Host hasn’t started the meeting yet.", m));
+                                MeetingResponse.success("MEETING_NOT_STARTED", "Host hasn’t started the meeting yet.", mapper.toDto(m)));
 
                         case COMPLETED -> ResponseEntity.status(HttpStatus.GONE)
                                 .body(MeetingResponse.error("MEETING_COMPLETED", "This meeting is over."));
@@ -273,7 +282,7 @@ public class MeetingController {
                                 .body(MeetingResponse.error("MEETING_EXPIRED", "This meeting link has expired."));
 
                         default -> ResponseEntity.ok(
-                                MeetingResponse.success("MEETING_FETCH_SUCCESS", "Meeting fetched.", m));
+                                MeetingResponse.success("MEETING_FETCH_SUCCESS", "Meeting fetched.", mapper.toDto(m)));
                     })
                     .orElseGet(() -> ResponseEntity.status(HttpStatus.FORBIDDEN)
                             .body(MeetingResponse.error("MEETING_ACCESS_DENIED",
