@@ -14,7 +14,9 @@ public class MeetingRequest {
 
     private String meetingName;       // Friendly meeting title
 
-    private String password;          // Optional password
+    private Boolean usePersonalRoom;
+
+    private String password;
 
     private Instant meetingStartTime;      // Scheduled start time
 

@@ -11,6 +11,7 @@ import com.algomeet.userservice.model.UserProfile;
 import com.algomeet.userservice.repository.UserProfileRepository;
 import com.algomeet.userservice.repository.UserRepository;
 import com.algomeet.userservice.repository.specification.UserSpecification;
+import com.algomeet.userservice.util.PersonalRoomIdAllocator;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -18,6 +19,11 @@ import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
+import com.algomeet.userservice.constants.ApiConstants;
+import com.algomeet.userservice.constants.MsgKeys;
+import org.springframework.context.MessageSource;
+import org.springframework.context.i18n.LocaleContextHolder;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -46,93 +52,115 @@ public class UserController {
     private final UserRepository userRepository;
 
     private final PasswordEncoder passwordEncoder;
-    
+
     private final UserProfileRepository userProfileRepository;
+
+    @Autowired private MessageSource messageSource;
+
+    @Autowired private PersonalRoomIdAllocator personalRoomIdAllocator;
 
     // Feign client will call this from auth-service to register user
     @PostMapping
+    @Transactional
     public ResponseEntity<?> createUser(@RequestBody UserRequest request) {
         boolean emailTaken    = userRepository.existsByEmailIgnoreCase(request.getEmail());
         boolean usernameTaken = userRepository.existsByUsernameIgnoreCase(request.getUsername());
 
         if (emailTaken && usernameTaken) {
             return ResponseEntity.status(HttpStatus.CONFLICT).body(
-            Map.of(
-                    "code", ResponseCode.AUTH_DUPLICATE_BOTH.getCode(),
-                    "message", ResponseCode.AUTH_DUPLICATE_BOTH.getDefaultMessage(),
-                   "fields", List.of("email", "username")
-            ));
+                    Map.of(
+                            ApiConstants.KEY_CODE,    ResponseCode.AUTH_DUPLICATE_BOTH.getCode(),
+                            ApiConstants.KEY_MESSAGE, ResponseCode.AUTH_DUPLICATE_BOTH.getDefaultMessage(),
+                            ApiConstants.KEY_FIELDS,  List.of("email", "username")
+                    )
+            );
         }
         if (emailTaken) {
-            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
-                    "code", ResponseCode.AUTH_DUPLICATE_EMAIL.getCode(),
-                    "message", ResponseCode.AUTH_DUPLICATE_EMAIL.getDefaultMessage(),
-                    "fields", List.of("email")
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(
+                    Map.of(
+                            ApiConstants.KEY_CODE,    ResponseCode.AUTH_DUPLICATE_BOTH.getCode(),
+                            ApiConstants.KEY_MESSAGE, ResponseCode.AUTH_DUPLICATE_BOTH.getDefaultMessage(),
+                            ApiConstants.KEY_FIELDS, List.of("email")
             ));
         }
         if (usernameTaken) {
-            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
-                    "code", ResponseCode.AUTH_DUPLICATE_USERNAME.getCode(),
-                    "message", ResponseCode.AUTH_DUPLICATE_USERNAME.getDefaultMessage(),
-                    "fields", List.of("username")
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(
+                    Map.of(
+                            ApiConstants.KEY_CODE,    ResponseCode.AUTH_DUPLICATE_BOTH.getCode(),
+                            ApiConstants.KEY_MESSAGE, ResponseCode.AUTH_DUPLICATE_BOTH.getDefaultMessage(),
+                            ApiConstants.KEY_FIELDS, List.of("username")
             ));
         }
 
+        // ---- Build user ----
         User user = new User();
         user.setUsername(request.getUsername());
         user.setEmail(request.getEmail());
-
         user.setPassword(request.getPassword()); // already BCrypted by auth-service
-
         user.setPhone(request.getPhone());
-
         user.setEmailVerified(Boolean.TRUE.equals(request.getIsEmailVerified()));
         user.setPhoneVerified(Boolean.TRUE.equals(request.getIsPhoneVerified()));
         user.setRegistrationIp(request.getRegistrationIp());
-        
         user.setTenantId(request.getTenantId());
         user.setRole(request.getRole());
 
-        if (request.getLoginTypePolicy()!=null)
-        	user.setLoginTypePolicy(request.getLoginTypePolicy().shortValue());
-
-        // TODO: user.setRole(...); user.setEnabled(...);
-        // Generate usr key key to link users and user_profile table
-        UUID userKey = UUID.randomUUID();        
-        user.setUserKey(userKey); 
-        
-        try {
-            userRepository.save(user);
-            
-            try {
-            	// Add user profile
-            	UserProfile userProfile = new UserProfile();
-            	userProfile.setId(userKey);
-            	
-            	userProfile.setCountry(request.getCountry());
-            	userProfile.setCity(request.getCity());
-            	userProfile.setRegion(request.getRegion());
-            	userProfile.setLatitude(request.getLatitude());
-            	userProfile.setLongitude(request.getLongitude());
-                
-            	userProfileRepository.save(userProfile);
-            } finally {
-            	// Add clean-up
-            }
-            
-            return ResponseEntity.ok(Map.of(
-                    "code", ResponseCode.AUTH_REGISTER_SUCCESS.getCode(),
-                    "message", ResponseCode.AUTH_REGISTER_SUCCESS.getDefaultMessage(),
-                    "user", new UserResponse(user)
-            ));
-        } catch (DataIntegrityViolationException ex) {
-            // Safety net in case of race condition vs. DB unique constraints
-            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
-                    "code", ResponseCode.AUTH_DUPLICATE_BOTH.getCode(),
-                    "message", "Email or username already exists"
-            ));
+        if (request.getLoginTypePolicy() != null) {
+            user.setLoginTypePolicy(request.getLoginTypePolicy().shortValue());
         }
+
+        // Generate user key (UUID) used also as profile PK
+        UUID userKey = UUID.randomUUID();
+        user.setUserKey(userKey);
+
+        // ---- Allocate 12-digit personal room id (PRID) ----
+        // Retry in the extremely rare case of a race on DB unique index
+        String prid = null;
+        DataIntegrityViolationException lastDup = null;
+        for (int attempt = 0; attempt < 5; attempt++) {
+            prid = personalRoomIdAllocator.allocateForTenant(
+                    String.valueOf(Optional.ofNullable(request.getTenantId()).orElse(0))
+            ); // e.g., "270000001234"
+            user.setPersonalRoomId(prid);
+
+            try {
+                // Persist user (will fail if unique constraints hit)
+                userRepository.saveAndFlush(user);
+
+                // ---- Create user profile ----
+                UserProfile userProfile = new UserProfile();
+                userProfile.setId(userKey);
+                userProfile.setCountry(request.getCountry());
+                userProfile.setCity(request.getCity());
+                userProfile.setRegion(request.getRegion());
+                userProfile.setLatitude(request.getLatitude());
+                userProfile.setLongitude(request.getLongitude());
+                userProfileRepository.save(userProfile);
+
+                // Success -> respond
+                return ResponseEntity.ok(Map.of(
+                        ApiConstants.KEY_CODE, ResponseCode.AUTH_REGISTER_SUCCESS.getCode(),
+                        ApiConstants.KEY_MESSAGE, ResponseCode.AUTH_REGISTER_SUCCESS.getDefaultMessage(),
+                        ApiConstants.KEY_USER, new UserResponse(user)
+                ));
+            } catch (DataIntegrityViolationException ex) {
+                // Could be rare PRID collision (or concurrent email/username race)
+                lastDup = ex;
+                // Re-generate on next loop iteration
+            }
+        }
+
+        // If we got here, 5 attempts failed due to a race/dup
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(
+                Map.of(
+                        ApiConstants.KEY_CODE,    ResponseCode.AUTH_DUPLICATE_BOTH.getCode(),
+                        ApiConstants.KEY_MESSAGE, msg(MsgKeys.PRID_ALLOCATE_FAILED),
+                        "details", Optional.ofNullable(lastDup)
+                                .map(Throwable::getMessage)
+                                .orElse(ApiConstants.DUPLICATE_FALLBACK_DETAILS)
+                )
+        );
     }
+
 
 
 
@@ -144,7 +172,7 @@ public class UserController {
     }
 
     @GetMapping("/lookup")
-    public ResponseEntity<UserResponse> getUserByLogin(@RequestParam("login") String login) {
+    public ResponseEntity<UserResponse> getUserByLogin(@RequestParam(ApiConstants.PARAM_LOGIN) String login) {
         String key = normalize(login);
         Optional<User> user = userRepository.findByEmail(key)
                 .or(() -> userRepository.findByUsername(key));
@@ -187,7 +215,7 @@ public class UserController {
                         user.getTenantId()
                 ))
                 .collect(Collectors.toList());
-       
+
         return ResponseEntity.ok(users);
     }
 
@@ -249,18 +277,19 @@ public class UserController {
     @Transactional  //  Works as a quick fix
     public ResponseEntity<?> deleteUserByEmail(@PathVariable String email) {
         if (!userRepository.existsByEmailIgnoreCase(email)) {
-            return ResponseEntity.status(404).body(Map.of("error", "User not found"));
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                    Map.of(ApiConstants.KEY_ERROR, msg(MsgKeys.USER_NOT_FOUND))
+            );
         }
-
         userRepository.deleteByEmailIgnoreCase(email);
-        return ResponseEntity.ok(Map.of("message", "User deleted successfully"));
+        return ResponseEntity.ok(Map.of(ApiConstants.KEY_MESSAGE, msg(MsgKeys.USER_DELETE_SUCCESS)));
     }
 
     @PostMapping("/{id}/active-device")
     public ResponseEntity<Void> updateActiveDevice(
             @PathVariable Long id, @RequestParam String deviceId) {
         User user = userRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("User not found"));
+                .orElseThrow(() -> new EntityNotFoundException(msg(MsgKeys.USER_NOT_FOUND)));
         user.setActiveDeviceId(deviceId);
         userRepository.save(user);
         return ResponseEntity.ok().build();
@@ -270,10 +299,10 @@ public class UserController {
     @PutMapping("/{id}/password")
     public ResponseEntity<Void> updatePassword(
             @PathVariable Long id,
-            @RequestParam("passwordHash") String passwordHash) {
+            @RequestParam(ApiConstants.PARAM_PASSWORD_HASH) String passwordHash) {
 
         User user = userRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("User not found"));
+                .orElseThrow(() -> new EntityNotFoundException(msg(MsgKeys.USER_NOT_FOUND)));
         user.setPassword(passwordHash); // already BCrypted by auth-service
         userRepository.save(user);
         return ResponseEntity.ok().build();
@@ -291,7 +320,7 @@ public class UserController {
             @RequestParam(required = false) String sid) {
 
         User user = userRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("User not found"));
+                .orElseThrow(() -> new EntityNotFoundException(msg(MsgKeys.USER_NOT_FOUND)));
 
         String newSid = (sid == null || sid.isBlank()) ? UUID.randomUUID().toString() : sid;
 
@@ -299,16 +328,16 @@ public class UserController {
         user.setActiveSessionId(newSid);
         userRepository.save(user);
 
-        return ResponseEntity.ok(Map.of("sid", newSid));
+        return ResponseEntity.ok(Map.of(ApiConstants.KEY_SID, newSid));
     }
 
     /**
      * Fetch current active sid by email (used by JWT filter to invalidate old tokens instantly).
      */
     @GetMapping("/active-sid")
-    public ResponseEntity<Map<String, String>> getActiveSid(@RequestParam("email") String email) {
+    public ResponseEntity<Map<String, String>> getActiveSid(@RequestParam(ApiConstants.PARAM_EMAIL) String email) {
         return userRepository.findByEmail(email)
-                .map(u -> ResponseEntity.ok(Map.of("sid", u.getActiveSessionId())))
+                .map(u -> ResponseEntity.ok(Map.of(ApiConstants.KEY_SID, u.getActiveSessionId())))
                 .orElse(ResponseEntity.notFound().build());
     }
 
@@ -327,32 +356,32 @@ public class UserController {
         boolean phoneTaken = (phone != null && !phone.isBlank()) && userRepository.existsByPhone(phone);
 
         return Map.of(
-                "emailTaken", emailTaken,
-                "usernameTaken", usernameTaken,
-                "phoneTaken", phoneTaken
+                ApiConstants.KEY_EMAIL_TAKEN,    emailTaken,
+                ApiConstants.KEY_USERNAME_TAKEN, usernameTaken,
+                ApiConstants.KEY_PHONE_TAKEN,    phoneTaken
         );
     }
-    
+
     @PostMapping("/{id}/update-log-in-device")
     public ResponseEntity<Void> updateClientPlatformDeviceToken(
-            @PathVariable Long id, @RequestParam("deviceType") Optional<String> deviceTypeOpt, 
-            @RequestParam("deviceToken") Optional<String> deviceTokenOpt) {
-        
+            @PathVariable Long id, @RequestParam(ApiConstants.PARAM_DEVICE_TYPE) Optional<String> deviceTypeOpt,
+            @RequestParam(ApiConstants.PARAM_DEVICE_TOKEN) Optional<String> deviceTokenOpt) {
+
     	User user = userRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("User not found"));
-    	
+                .orElseThrow(() -> new EntityNotFoundException(msg(MsgKeys.USER_NOT_FOUND)));
+
     	if (deviceTypeOpt.isPresent()) {
-    		user.setDeviceType(deviceTypeOpt.get()); 
+    		user.setDeviceType(deviceTypeOpt.get());
     	} else {
     		user.setDeviceType(null);
     	}
-    	
+
     	if (deviceTokenOpt.isPresent()) {
-    		user.setDeviceToken(deviceTokenOpt.get()); 
+    		user.setDeviceToken(deviceTokenOpt.get());
     	} else {
     		user.setDeviceToken(null);
     	}
-    	   	
+
         userRepository.save(user);
         return ResponseEntity.ok().build();
 
@@ -392,7 +421,7 @@ public class UserController {
 
         return Optional.empty();
     }
-    
+
     @GetMapping
     public ResponseEntity<PageResponse<UserResponse>> findAll(@ModelAttribute SearchUsersFilter filter) {
         Sort sort = filter.getDirection().equalsIgnoreCase("asc")
@@ -406,20 +435,20 @@ public class UserController {
                 	u.setPassword(null); // remove password value
                 	return new UserResponse(u);
                 });
-        
+
         return ResponseEntity.ok(PageResponse.from(pageResponse));
     }
-    
+
     @GetMapping("/by-user-key/{userKey}")
     public ResponseEntity<UserResponse> findUserByUserKey(@PathVariable UUID userKey) {
     	Optional<User> userOpt = userRepository.findByUserKey(userKey);
-    	
+
     	return userOpt.map(u -> {
     		u.setPassword(null); // remove password value
     		return ResponseEntity.ok(new UserResponse(u));
-    	}).orElse(ResponseEntity.notFound().build());   	
+    	}).orElse(ResponseEntity.notFound().build());
     }
-    
+
     private static UserDto toDto(User u) {
         UserDto dto = new UserDto();
         dto.setUserKey(u.getUserKey());
@@ -428,8 +457,12 @@ public class UserController {
         dto.setEmail(u.getEmail());
         dto.setTenantId(u.getTenantId());
         dto.setRole(u.getRole());
-        
+
         return dto;
+    }
+
+    private String msg(String key, Object... args) {
+        return messageSource.getMessage(key, args, LocaleContextHolder.getLocale());
     }
 }
 

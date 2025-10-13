@@ -27,6 +27,9 @@ public class User {
     @Column(unique = true, nullable = false)
     private String username;
 
+    @Column(name = "personal_room_id", length = 32)
+    private String personalRoomId;
+
     @Column(nullable = false)
     private String password;
 
