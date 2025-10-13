@@ -99,6 +99,7 @@ class MessageActionsControllerTest {
         MessageResponse resp = new MessageResponse();
         resp.setId("m3");
         resp.setText("edited!");
+        resp.setContent("edited!");
 
         when(actions.editMessage(eq("m3"), eq("edited!"), eq("alice"))).thenReturn(updated);
         when(messageMapper.toResponse(updated)).thenReturn(resp);
@@ -111,6 +112,7 @@ class MessageActionsControllerTest {
             .andExpect(content().contentType(MediaType.APPLICATION_JSON))
             .andExpect(jsonPath("$.id").value("m3"))
             .andExpect(jsonPath("$.text").value("edited!"));
+            .andExpect(jsonPath("$.content").value("edited!"));
     }
 
     @Test
@@ -144,6 +146,7 @@ class MessageActionsControllerTest {
         MessageResponse resp = new MessageResponse();
         resp.setId("newReplyId");
         resp.setText("reply text");
+        resp.setContent("reply text");
 
         when(actions.replyTo(any(ReplyRequest.class), eq("alice"), isNull())).thenReturn(saved);
         when(messageMapper.toResponse(saved)).thenReturn(resp);
@@ -155,6 +158,7 @@ class MessageActionsControllerTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.id").value("newReplyId"))
             .andExpect(jsonPath("$.text").value("reply text"));
+            .andExpect(jsonPath("$.content").value("reply text"));
     }
 
     @Test

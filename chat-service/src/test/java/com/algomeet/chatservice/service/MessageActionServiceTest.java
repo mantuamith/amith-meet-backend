@@ -30,6 +30,7 @@ class MessageActionServiceTest {
     @Mock private MongoTemplate mongo;
     @Mock private MessageService messageService; // for unread counters
     @Mock private SimpMessagingSyncTemplate simp;
+    @Mock private SimpMessagingTemplate simp;
     @Mock private GroupClient groupClient;
     @Mock private MessageMapper mapper;
 
