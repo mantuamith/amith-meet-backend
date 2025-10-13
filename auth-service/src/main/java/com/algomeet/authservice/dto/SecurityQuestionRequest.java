@@ -9,8 +9,9 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class SecurityQuestionRequest {
-	@NotEmpty
+	@NotEmpty(message = "{security-question.empty-id}")
 	private String id;
 	@NotEmpty
+	@NotEmpty(message = "{security-question.empty-question}")
     private String question;
 }

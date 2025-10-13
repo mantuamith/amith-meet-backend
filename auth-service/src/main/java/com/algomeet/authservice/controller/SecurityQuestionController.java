@@ -5,6 +5,7 @@ import java.util.Objects;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -35,6 +36,7 @@ public class SecurityQuestionController implements SecurityQuestionControllerDoc
 	
     // Create
     @PostMapping
+    @PreAuthorize("hasAnyRole('SA','ADMIN')")
     public ResponseEntity<CommonResponse<SecurityQuestionResponse>> create(@Valid @RequestBody SecurityQuestionRequest request) {
     	if(Objects.nonNull(securityQuestionService.getById(request.getId()))) {
     		// Id exist
@@ -62,6 +64,7 @@ public class SecurityQuestionController implements SecurityQuestionControllerDoc
 
 
     // Update (PUT = full replace)
+    @PreAuthorize("hasAnyRole('SA','ADMIN')")
     @PutMapping("/{id}")
     public ResponseEntity<CommonResponse<SecurityQuestionResponse>> update(
             @PathVariable String id,
