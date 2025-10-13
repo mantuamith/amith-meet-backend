@@ -8,6 +8,7 @@ import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -23,6 +24,7 @@ import com.algomeet.notificationservice.enums.ReceiverGroup;
 import com.algomeet.notificationservice.service.NotificationService;
 
 @Component
+@ConditionalOnProperty(name = "algomeet.cleanupScheduler.enabled", havingValue = "true")
 public class MeetingCleanupScheduler {
 
     private static final Logger log = LoggerFactory.getLogger(MeetingCleanupScheduler.class);
@@ -113,8 +115,15 @@ public class MeetingCleanupScheduler {
     	// Get active tenants
     	List<Integer> tenantIds = null;
     	try {
-    		tenantIds = controlClient.getActiveTenantIds().getBody();
+			var resp = controlClient.getActiveTenantIds();
+			tenantIds = (resp != null && resp.getBody() != null)
+					? resp.getBody()
+					: List.of();
     		log.info("tenantIds {}", tenantIds);
+			if (tenantIds.isEmpty()) {
+				log.warn("No tenant IDs available; skipping reminders run");
+				return;
+			}
     	} catch (Exception ex) {
     		log.error("Error retrieving tenant Ids {}", ex.getMessage(), ex);
     	}

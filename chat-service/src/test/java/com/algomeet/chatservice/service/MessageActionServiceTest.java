@@ -6,6 +6,7 @@ import com.algomeet.chatservice.dto.messageactions.ForwardRequest;
 import com.algomeet.chatservice.dto.messageactions.ReplyRequest;
 import com.algomeet.chatservice.mapper.MessageMapper;
 import com.algomeet.chatservice.repository.MessageRepository;
+import com.algomeet.chatservice.sync.messaging.SimpMessagingSyncTemplate;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.*;
@@ -28,7 +29,7 @@ class MessageActionServiceTest {
     @Mock private MessageRepository repo;
     @Mock private MongoTemplate mongo;
     @Mock private MessageService messageService; // for unread counters
-    @Mock private SimpMessagingTemplate simp;
+    @Mock private SimpMessagingSyncTemplate simp;
     @Mock private GroupClient groupClient;
     @Mock private MessageMapper mapper;
 

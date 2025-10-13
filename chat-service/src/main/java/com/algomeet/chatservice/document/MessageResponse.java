@@ -19,7 +19,6 @@ public class MessageResponse {
     private Long timestamp;
     private MessageType type;
     private MessageStatus status;
-    private String content;
     private String text;
     private List<MediaItem> mediaGroup;
     private MessageMetaData meta;

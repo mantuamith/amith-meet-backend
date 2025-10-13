@@ -7,6 +7,7 @@ import lombok.Data;
 import java.time.Instant;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.UUID;
 
 @Data
 @Entity
@@ -23,17 +24,26 @@ public class Meeting {
 
     private String hostEmail;  // Added field
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "room", nullable = false)
+    private Room room;
+
+    /** BCrypt hash of the meeting password (if enabled). */
+    @Column(name = "password_hash")
+    private String passwordHash;
 
     private Instant createdAt;
 
     private Instant expiresAt;
 
-    private String password; // Optional meeting password
+
 
     private String meetingName; // Friendly meeting title
 
     @Column(name = "meeting_start_time", nullable = false)  // renamed from meeting_time
     private Instant meetingStartTime; // was meetingTime
+
+    private UUID  hostUserKey;
 
     @Column(name = "meeting_end_time")
     private Instant meetingEndTime;   // NEW
@@ -71,4 +81,18 @@ public class Meeting {
     @CollectionTable(name = "meeting_pending_participants", joinColumns = @JoinColumn(name = "meeting_id"))
     @Column(name = "email")
     private Set<String> pendingParticipants = new HashSet<>();
+
 }
+
+//**
+//ALTER TABLE meeting
+//  ADD COLUMN IF NOT EXISTS algomeet_room VARCHAR(64);
+//
+//-- Keep old behavior for existing rows
+//UPDATE meeting SET algomeet_room = id WHERE jitsi_room IS NULL;
+//
+//
+//
+//
+//
+// ?//
