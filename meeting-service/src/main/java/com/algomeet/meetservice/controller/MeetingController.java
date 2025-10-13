@@ -335,7 +335,7 @@ public class MeetingController {
     }
 
     @GetMapping
-    public ResponseEntity<List<Meeting>> getMeetings() {
+    public ResponseEntity<List<MeetingDto>> getMeetings() {
         String email = currentUser();
         log.info("GetMeetings (host view) request by user={}", maskEmail(email));
         var list = meetingService.getMeetingsByHostEmail(email)
@@ -395,7 +395,6 @@ public class MeetingController {
             var updated = meetingService.updateMeeting(email, id, request);
             var dto =  mapper.toDto(updated);
             log.info("EditMeeting success: id={}", id);
-            return ResponseEntity.ok(MeetingResponse.success("SUCCESS", "Meeting updated", dto));
             return ResponseEntity.ok(MeetingResponse.success("SUCCESS", i18n("meeting.update.success"), updated));
         } catch (AccessDeniedException ade) {
             log.warn("EditMeeting access denied: id={}, by={}, reason={}", id, maskEmail(email), ade.getMessage());
