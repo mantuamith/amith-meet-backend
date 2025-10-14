@@ -2,6 +2,8 @@ package com.algomeet.contactservice.service;
 
 
 import com.algomeet.contactservice.client.UserClient;
+import com.algomeet.contactservice.dto.RelationStatus;
+import com.algomeet.contactservice.dto.SearchUserResponse;
 import com.algomeet.contactservice.dto.UserDto;
 import com.algomeet.contactservice.entity.Contact;
 import com.algomeet.contactservice.entity.ContactStatus;
@@ -211,36 +213,68 @@ public class ContactService {
                 });
     }
 
-    public List<UserDto> searchUsers(String query, Principal auth) {
+    public SearchUserResponse searchUsersWithStatus(String query, Principal auth) {
         log.debug("Searching users with query='{}' by {}", query, auth.getName());
 
         if (query == null || query.isBlank()) {
             log.info("Empty search query received from {}", auth.getName());
-            return List.of();
+            return SearchUserResponse.builder()
+                    .code("EMPTY_QUERY")
+                    .message("Please enter something to search.")
+                    .relation(RelationStatus.EMPTY_QUERY)
+                    .build();
         }
 
-        UUID me = currentUserKey(auth.getName());
-        UserDto hit = userClient.exact(query);
+        UUID me = currentUserKey(auth.getName()); // your existing helper
+
+        UserDto hit = userClient.exact(query); // your existing exact match call
         if (hit == null || hit.getUserKey() == null) {
             log.info("No user found for query='{}'", query);
-            return List.of();
+            return SearchUserResponse.builder()
+                    .code("NOT_FOUND")
+                    .message("No matching Algomeet user.")
+                    .relation(RelationStatus.NOT_FOUND)
+                    .build();
         }
 
         UUID cand = UUID.fromString(hit.getUserKey());
         if (cand.equals(me)) {
             log.debug("Skipping self match for {}", me);
-            return List.of();
+            return SearchUserResponse.builder()
+                    .code("SELF")
+                    .message("You can’t add yourself.")
+                    .relation(RelationStatus.SELF)
+                    .build();
         }
 
         var accepted = new HashSet<>(contactRepository.findAccepted(me));
         var pending  = new HashSet<>(contactRepository.findPending(me));
-        if (accepted.contains(cand) || pending.contains(cand)) {
-            log.info("User {} already has accepted/pending relation with {}", me, cand);
-            return List.of();
+
+        if (accepted.contains(cand)) {
+            log.info("User {} already friends with {}", me, cand);
+            return SearchUserResponse.builder()
+                    .code("ALREADY_FRIEND")
+                    .message("Already in your contacts.")
+                    .relation(RelationStatus.ALREADY_FRIEND)
+                    .build();
+        }
+
+        if (pending.contains(cand)) {
+            log.info("User {} has a pending relation with {}", me, cand);
+            return SearchUserResponse.builder()
+                    .code("PENDING")
+                    .message("Request already sent.")
+                    .relation(RelationStatus.PENDING)
+                    .build();
         }
 
         log.info("Search hit found for query='{}': {}", query, hit.getUsername());
-        return List.of(hit);
+        return SearchUserResponse.builder()
+                .code("OK")
+                .message("User found.")
+                .relation(RelationStatus.FOUND)
+                .user(hit)
+                .build();
     }
 
     private UUID resolveKeyFromLogin(String login) {
@@ -271,7 +305,7 @@ public class ContactService {
             throw new IllegalArgumentException("User not found: " + q);
         }
 
-        return java.util.UUID.fromString(String.valueOf(u.getUserKey()));
+        return UUID.fromString(String.valueOf(u.getUserKey()));
     }
 
     private UUID currentUserKey(String currentLogin) {

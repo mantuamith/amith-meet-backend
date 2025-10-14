@@ -1,5 +1,6 @@
 package com.algomeet.contactservice.controller;
 
+import com.algomeet.contactservice.dto.SearchUserResponse;
 import com.algomeet.contactservice.dto.UserDto;
 import com.algomeet.contactservice.service.ContactService;
 import lombok.RequiredArgsConstructor;
@@ -60,8 +61,8 @@ public class ContactController {
     }
 
     @GetMapping("/search")
-    public ResponseEntity<List<UserDto>> searchUsers(@RequestParam String query,  Principal principal) {
-        return ResponseEntity.ok(contactService.searchUsers(query, principal));
+    public ResponseEntity<SearchUserResponse> searchUsers(@RequestParam String query, Principal principal) {
+        return ResponseEntity.ok(contactService.searchUsersWithStatus(query, principal));
     }
 
     @PostMapping("/reject")
