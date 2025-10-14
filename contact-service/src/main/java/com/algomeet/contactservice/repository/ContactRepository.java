@@ -68,8 +68,7 @@ WHERE (c.userKey = :a AND c.contactUserKey = :b)
         return findIncomingByStatus(key, ContactStatus.PENDING);
     }
 
+    boolean existsByUserKeyAndContactUserKeyAndStatus(UUID me, UUID other, ContactStatus contactStatus);
 
-    List<Contact> findByContactUserKeyAndStatus(UUID userId, ContactStatus contactStatus);
-
-
+    Optional<Contact> findByUserKeyAndContactUserKeyAndStatus(UUID other, UUID me, ContactStatus contactStatus);
 }

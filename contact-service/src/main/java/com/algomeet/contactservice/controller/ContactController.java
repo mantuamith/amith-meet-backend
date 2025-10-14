@@ -1,5 +1,7 @@
 package com.algomeet.contactservice.controller;
 
+import com.algomeet.contactservice.dto.ContactActionResponse;
+import com.algomeet.contactservice.dto.SearchUserResponse;
 import com.algomeet.contactservice.dto.UserDto;
 import com.algomeet.contactservice.service.ContactService;
 import lombok.RequiredArgsConstructor;
@@ -22,18 +24,18 @@ public class ContactController {
 
     //1. Send a contact request
     @PostMapping("/request")
-    public ResponseEntity<String> sendContactRequest(@RequestParam String receiverId, Authentication auth) {
+    public ResponseEntity<ContactActionResponse> sendContactRequest(@RequestParam String receiverId, Authentication auth) {
 
         contactService.sendContactRequest(auth, receiverId);
-        return ResponseEntity.ok("Contact request sent.");
+        return ResponseEntity.ok(contactService.sendContactRequest(auth, receiverId));
     }
 
     // 2. Accept a contact request
     @PostMapping("/accept")
-    public ResponseEntity<String> acceptContactRequest(@RequestParam String senderId, Principal principal) {
+    public ResponseEntity<ContactActionResponse> acceptContactRequest(@RequestParam String senderId, Principal principal) {
         String receiverId = principal.getName();
-        contactService.acceptContactRequest(receiverId, senderId);
-        return ResponseEntity.ok("Contact request accepted.");
+
+        return ResponseEntity.ok(contactService.acceptContactRequest(receiverId, senderId));
     }
 
     // 3. Get accepted contacts
@@ -53,15 +55,15 @@ public class ContactController {
     }
 
     @DeleteMapping("/remove")
-    public ResponseEntity<String> deleteContact(@RequestParam String contactUserId, Principal principal) {
+    public ResponseEntity<ContactActionResponse> deleteContact(
+            @RequestParam String contactUserId, Principal principal) {
         String userId = principal.getName();
-        contactService.deleteContact(userId, contactUserId);
-        return ResponseEntity.ok("Contact removed.");
+        return ResponseEntity.ok(contactService.deleteContact(userId, contactUserId));
     }
 
     @GetMapping("/search")
-    public ResponseEntity<List<UserDto>> searchUsers(@RequestParam String query,  Principal principal) {
-        return ResponseEntity.ok(contactService.searchUsers(query, principal));
+    public ResponseEntity<SearchUserResponse> searchUsers(@RequestParam String query, Principal principal) {
+        return ResponseEntity.ok(contactService.searchUsersWithStatus(query, principal));
     }
 
     @PostMapping("/reject")
