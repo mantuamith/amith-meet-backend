@@ -29,6 +29,8 @@ public class UserResponse {
     private Short loginTypePolicy;
 
     private Integer tenantId;
+    
+    private String lang;
 
     public UserResponse(User user) {
         this.id = user.getId();
@@ -44,5 +46,6 @@ public class UserResponse {
         }
         
         this.tenantId = user.getTenantId();
+        this.lang = user.getLang();
     }
 }
