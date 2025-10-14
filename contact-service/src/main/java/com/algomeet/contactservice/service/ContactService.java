@@ -197,6 +197,18 @@ public class ContactService {
                     contactRepository.delete(contact);
                     log.info("Deleted contact request {} -> {}", other, me);
                 });
+               
+        Notification notif = Notification.builder()       
+        		// Set receiver
+        		.receiverIds(Set.of(other.toString()))                 
+        		.type(NotificationType.FRIEND_REQUEST_REJECTED)        
+        		.title(userLogin + " rejected your friend request")
+        		.body(userLogin + " rejected your friend request")
+        		.deliveryAckRequired(true)
+        		.tenantId(TenantContext.getCurrentTenant())
+        		.build();
+        // Publish
+        notificationService.sendPush(notif); 
     }
 
     public void deleteContact(String userId, String contactUserId) {
