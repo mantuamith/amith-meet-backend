@@ -2,6 +2,7 @@ package com.algomeet.contactservice.service;
 
 
 import com.algomeet.contactservice.client.UserClient;
+import com.algomeet.contactservice.dto.ContactActionResponse;
 import com.algomeet.contactservice.dto.RelationStatus;
 import com.algomeet.contactservice.dto.SearchUserResponse;
 import com.algomeet.contactservice.dto.UserDto;
@@ -25,6 +26,7 @@ import java.util.stream.Collectors;
 import com.algomeet.notificationservice.dto.Notification;
 import com.algomeet.notificationservice.enums.NotificationType;
 import com.algomeet.notificationservice.service.NotificationService;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
@@ -66,100 +68,196 @@ public class ContactService {
         return userClient.getUsersByIds(contactUserIds);
     }
 
-    public void sendContactRequest(Authentication auth, String receiverLoginOrId) {
+    @Transactional
+    public ContactActionResponse sendContactRequest(Authentication auth, String receiverLoginOrId) {
         log.debug("Sending contact request: sender={}, receiver={}", auth.getName(), receiverLoginOrId);
 
-        UUID me = AuthCtx.userKeyFrom(auth);
-        String senderLogin = auth.getName();
-        if (me == null) {
-            log.warn("AuthCtx returned null, resolving sender key from login: {}", senderLogin);
-            me = resolveKeyFlexible(senderLogin);
-        }
+        try {
+            if (receiverLoginOrId == null || receiverLoginOrId.isBlank()) {
+                return ContactActionResponse.builder()
+                        .code("RECEIVER_NOT_FOUND")
+                        .message("Enter a valid handle, email, or phone.")
+                        .build();
+            }
 
-        UUID other = resolveKeyFlexible(receiverLoginOrId);
-        if (me.equals(other)) {
-            log.error("User {} attempted to send a contact request to themselves.", senderLogin);
-            throw new IllegalArgumentException("Cannot add yourself.");
-        }
+            UUID me = AuthCtx.userKeyFrom(auth);
+            String senderLogin = auth.getName();
+            if (me == null) {
+                log.warn("AuthCtx returned null, resolving sender key from login: {}", senderLogin);
+                me = resolveKeyFlexible(senderLogin);
+            }
 
-        if (contactRepository.existsUuidPair(me, other)) {
-            log.error("Duplicate contact request: {} -> {}", me, other);
-            throw new RuntimeException("Contact or request already exists.");
-        }
+            UUID other = resolveKeyFlexible(receiverLoginOrId);
+            if (other == null) {
+                return ContactActionResponse.builder()
+                        .code("RECEIVER_NOT_FOUND")
+                        .message("No matching Algomeet user.")
+                        .build();
+            }
 
-        Contact c = Contact.builder()
-                .userKey(me)
-                .contactUserKey(other)
-                .userId(senderLogin == null ? null : senderLogin.trim().toLowerCase())
-                .contactUserId(receiverLoginOrId.trim().toLowerCase())
-                .status(ContactStatus.PENDING)
-                .createdAt(Instant.now())
-                .build();
+            if (me.equals(other)) {
+                return ContactActionResponse.builder()
+                        .code("SELF")
+                        .message("You can’t add your own account.")
+                        .relation(RelationStatus.SELF)
+                        .build();
+            }
 
-        contactRepository.save(c);
-        log.info("Contact request saved: {} -> {}", me, other);
+            // ✅ Already friends? (either direction)
+            boolean acceptedAB = contactRepository
+                    .existsByUserKeyAndContactUserKeyAndStatus(me, other, ContactStatus.ACCEPTED);
+            boolean acceptedBA = contactRepository
+                    .existsByUserKeyAndContactUserKeyAndStatus(other, me, ContactStatus.ACCEPTED);
+            if (acceptedAB || acceptedBA) {
+                return ContactActionResponse.builder()
+                        .code("ALREADY_FRIEND")
+                        .message("Already in your contacts.")
+                        .relation(RelationStatus.ALREADY_FRIEND)
+                        .user(userClient.byKey(other))
+                        .build();
+            }
 
-        UserDto user = userClient.byKey(me);
+            // ⏳ Outgoing pending already exists?
+            boolean pendingOut = contactRepository
+                    .existsByUserKeyAndContactUserKeyAndStatus(me, other, ContactStatus.PENDING);
+            if (pendingOut) {
+                return ContactActionResponse.builder()
+                        .code("PENDING_EXISTS")
+                        .message("Request already sent.")
+                        .relation(RelationStatus.PENDING)
+                        .user(userClient.byKey(other))
+                        .build();
+            }
 
-        Notification notif = Notification.builder()  
-        		.receiverIds(Set.of(other.toString()))
-        		.type(NotificationType.FRIEND_REQUEST)
-        		.title(user.getUsername() + " sent you a friend request")
-        		.body(user.getUsername() + " sent you a friend request")
-        		.deliveryAckRequired(true)
-        		.build();
-        // Publish
-        notificationService.sendPush(notif); 
-      log.info("Friend request notification sent from {} to {}", me, other);
+            // 🔄 Incoming pending from them → optional auto-accept (great UX)
+            Optional<Contact> incoming = contactRepository
+                    .findByUserKeyAndContactUserKeyAndStatus(other, me, ContactStatus.PENDING);
+            if (incoming.isPresent()) {
+                Contact req = incoming.get();
+                req.setStatus(ContactStatus.ACCEPTED);
+                contactRepository.save(req);
 
-    }
+                // Ensure reverse row exists
+                boolean reverseExists = contactRepository.existsByUserKeyAndContactUserKey(me, other);
+                if (!reverseExists) {
+                    Contact rev = Contact.builder()
+                            .userKey(me)
+                            .contactUserKey(other)
+                            .userId(senderLogin == null ? null : senderLogin.trim().toLowerCase())
+                            .contactUserId(receiverLoginOrId == null ? null : receiverLoginOrId.trim().toLowerCase())
+                            .status(ContactStatus.ACCEPTED)
+                            .createdAt(Instant.now())
+                            .build();
+                    contactRepository.save(rev);
+                }
 
-    public void acceptContactRequest(String receiverLogin, String senderLoginOrId) {
-        log.debug("Accepting contact request: receiver={}, sender={}", receiverLogin, senderLoginOrId);
+                safeNotifyFriendAccepted(me, other);
 
-        UUID me = currentUserKey(receiverLogin);
-        UUID other = resolveKeyFlexible(senderLoginOrId);
+                return ContactActionResponse.builder()
+                        .code("AUTO_ACCEPTED")
+                        .message("You’re now connected.")
+                        .relation(RelationStatus.ALREADY_FRIEND)
+                        .user(userClient.byKey(other))
+                        .build();
+            }
 
-        Contact req = contactRepository.findByUserKeyAndContactUserKey(other, me)
-                .orElseThrow(() -> {
-                    log.error("No contact request found from {} to {}", other, me);
-                    return new RuntimeException("No contact request found");
-                });
-
-        req.setStatus(ContactStatus.ACCEPTED);
-        contactRepository.save(req);
-        log.info("Contact request accepted: {} <-> {}", me, other);
-
-        boolean reverseExists = contactRepository.existsByUserKeyAndContactUserKey(me, other);
-        if (!reverseExists) {
-            Contact rev = Contact.builder()
+            // 🆕 Create new pending request
+            Contact c = Contact.builder()
                     .userKey(me)
                     .contactUserKey(other)
-                    .userId(receiverLogin == null ? null : receiverLogin.trim().toLowerCase())
-                    .contactUserId(senderLoginOrId == null ? null : senderLoginOrId.trim().toLowerCase())
-                    .status(ContactStatus.ACCEPTED)
+                    .userId(senderLogin == null ? null : senderLogin.trim().toLowerCase())
+                    .contactUserId(receiverLoginOrId.trim().toLowerCase())
+                    .status(ContactStatus.PENDING)
                     .createdAt(Instant.now())
                     .build();
-            contactRepository.save(rev);
-            log.debug("Reverse contact entry created: {} <-> {}", me, other);
+            contactRepository.save(c);
+
+            safeNotifyFriendRequest(me, other);
+
+            return ContactActionResponse.builder()
+                    .code("OK")
+                    .message("Request sent.")
+                    .relation(RelationStatus.PENDING)
+                    .user(userClient.byKey(other))
+                    .build();
+
+        } catch (Exception e) {
+            log.warn("sendContactRequest failed: {}", e.toString());
+            return ContactActionResponse.builder()
+                    .code("ERROR")
+                    .message("We couldn’t send your request. Please try again.")
+                    .build();
         }
-
-        UserDto user = userClient.byKey(me);
-
-        Notification notif = Notification.builder()       
-        		// Set receiver
-        		.receiverIds(Set.of(other.toString()))                 
-        		.type(NotificationType.FRIEND_REQUEST_ACCEPTED)        
-        		.title(user.getUsername() + " accepted your friend request")
-        		.body(user.getUsername() + " accepted your friend request")
-        		.deliveryAckRequired(true)
-        		.build();
-        // Publish
-        notificationService.sendPush(notif); 
-
-        log.info("Friend request acceptance notification sent from {} to {}", me, other);
-
     }
+
+    @Transactional
+    public ContactActionResponse acceptContactRequest(String receiverLogin, String senderLoginOrId) {
+        log.debug("Accepting contact request: receiver={}, sender={}", receiverLogin, senderLoginOrId);
+
+        try {
+            UUID me = currentUserKey(receiverLogin);
+            UUID other = resolveKeyFlexible(senderLoginOrId);
+
+            if (me == null || other == null) {
+                return ContactActionResponse.builder()
+                        .code("NO_REQUEST_FOUND")
+                        .message("No contact request found.")
+                        .build();
+            }
+            if (me.equals(other)) {
+                return ContactActionResponse.builder()
+                        .code("SELF")
+                        .message("Invalid accept operation.")
+                        .relation(RelationStatus.SELF)
+                        .build();
+            }
+
+            Contact req = contactRepository
+                    .findByUserKeyAndContactUserKeyAndStatus(other, me, ContactStatus.PENDING)
+                    .orElse(null);
+
+            if (req == null) {
+
+                return ContactActionResponse.builder()
+                        .code("NO_REQUEST_FOUND")
+                        .message("No contact request found.")
+                        .build();
+            }
+
+            // Accept
+            req.setStatus(ContactStatus.ACCEPTED);
+            contactRepository.save(req);
+
+            boolean reverseExists = contactRepository.existsByUserKeyAndContactUserKey(me, other);
+            if (!reverseExists) {
+                contactRepository.save(Contact.builder()
+                        .userKey(me)
+                        .contactUserKey(other)
+                        .userId(receiverLogin == null ? null : receiverLogin.trim().toLowerCase())
+                        .contactUserId(senderLoginOrId == null ? null : senderLoginOrId.trim().toLowerCase())
+                        .status(ContactStatus.ACCEPTED)
+                        .createdAt(Instant.now())
+                        .build());
+            }
+
+            safeNotifyFriendAccepted(me, other);
+
+            return ContactActionResponse.builder()
+                    .code("OK")
+                    .message("Contact added.")
+                    .relation(RelationStatus.ALREADY_FRIEND)
+                    .user(userClient.byKey(other))
+                    .build();
+
+        } catch (Exception e) {
+            log.warn("acceptContactRequest failed: {}", e.toString());
+            return ContactActionResponse.builder()
+                    .code("ERROR")
+                    .message("We couldn’t accept the request. Please try again.")
+                    .build();
+        }
+    }
+
 
     public List<UserDto> getContactList(UUID userKey) {
         log.debug("Fetching accepted contacts for userId={}", userKey);
@@ -180,37 +278,156 @@ public class ContactService {
 
     }
 
-    public void rejectContactRequest(String userLogin, String contactLoginOrId) {
+    @Transactional
+    public ContactActionResponse rejectContactRequest(String userLogin, String contactLoginOrId) {
         log.debug("Rejecting contact request: user={}, contact={}", userLogin, contactLoginOrId);
-        UUID me = currentUserKey(userLogin);
-        UUID other = resolveKeyFlexible(contactLoginOrId);
 
-        contactRepository.findByUserKeyAndContactUserKey(me, other)
-                .ifPresent(contact -> {
-                    contactRepository.delete(contact);
-                    log.info("Deleted contact request {} -> {}", me, other);
-                });
-        contactRepository.findByUserKeyAndContactUserKey(other, me)
-                .ifPresent(contact -> {
-                    contactRepository.delete(contact);
-                    log.info("Deleted contact request {} -> {}", other, me);
-                });
+        try {
+            UUID me = currentUserKey(userLogin);
+            UUID other = resolveKeyFlexible(contactLoginOrId);
+
+            if (me == null || other == null) {
+                return ContactActionResponse.builder()
+                        .code("NO_REQUEST_FOUND")
+                        .message("No contact request found.")
+                        .build();
+            }
+            if (me.equals(other)) {
+                return ContactActionResponse.builder()
+                        .code("SELF")
+                        .message("Invalid operation on your own account.")
+                        .relation(RelationStatus.SELF)
+                        .build();
+            }
+
+            // We only reject a PENDING request that was sent from 'other' -> 'me'
+            var incomingOpt = contactRepository
+                    .findByUserKeyAndContactUserKeyAndStatus(other, me, ContactStatus.PENDING);
+
+            if (incomingOpt.isEmpty()) {
+                // Idempotent: if already friends, say OK
+                boolean acceptedAB = contactRepository
+                        .existsByUserKeyAndContactUserKeyAndStatus(me, other, ContactStatus.ACCEPTED);
+                boolean acceptedBA = contactRepository
+                        .existsByUserKeyAndContactUserKeyAndStatus(other, me, ContactStatus.ACCEPTED);
+                if (acceptedAB || acceptedBA) {
+                    return ContactActionResponse.builder()
+                            .code("OK")
+                            .message("Contact already added.")
+                            .relation(RelationStatus.ALREADY_FRIEND)
+                            .user(userClient.byKey(other))
+                            .build();
+                }
+
+                return ContactActionResponse.builder()
+                        .code("NO_REQUEST_FOUND")
+                        .message("No contact request found.")
+                        .build();
+            }
+
+            // Delete the incoming pending (other -> me)
+            contactRepository.delete(incomingOpt.get());
+            log.info("Rejected (deleted) incoming request {} -> {}", other, me);
+
+            // If you also maintain a mirror pending (rare in this model), clean it too (me -> other)
+            contactRepository.findByUserKeyAndContactUserKeyAndStatus(me, other, ContactStatus.PENDING)
+                    .ifPresent(p -> {
+                        contactRepository.delete(p);
+                        log.debug("Deleted mirrored pending {} -> {}", me, other);
+                    });
+
+            return ContactActionResponse.builder()
+                    .code("OK")
+                    .message("Contact request rejected.")
+                    .relation(RelationStatus.NOT_FOUND) // nothing to add now
+                    .user(userClient.byKey(other))
+                    .build();
+
+        } catch (Exception e) {
+            log.warn("rejectContactRequest failed: {}", e.toString());
+            return ContactActionResponse.builder()
+                    .code("ERROR")
+                    .message("We couldn’t reject the request. Please try again.")
+                    .build();
+        }
     }
 
-    public void deleteContact(String userId, String contactUserId) {
+    @Transactional
+    public ContactActionResponse deleteContact(String userId, String contactUserId) {
         log.debug("Deleting contact between {} and {}", userId, contactUserId);
-        UUID me = currentUserKey(userId);
-        UUID other = resolveKeyFlexible(contactUserId);
-        contactRepository.findByUserKeyAndContactUserKey(me, other)
-                .ifPresent(contact -> {
-                    contactRepository.delete(contact);
-                    log.info("Deleted contact request {} -> {}", me, other);
-                });
-        contactRepository.findByUserKeyAndContactUserKey(other, me)
-                .ifPresent(contact -> {
-                    contactRepository.delete(contact);
-                    log.info("Deleted contact request {} -> {}", other, me);
-                });
+
+        try {
+            UUID me = currentUserKey(userId);
+            UUID other = resolveKeyFlexible(contactUserId);
+
+            if (me == null || other == null) {
+                return ContactActionResponse.builder()
+                        .code("NO_CONTACT_FOUND")
+                        .message("No contact found.")
+                        .build();
+            }
+            if (me.equals(other)) {
+                return ContactActionResponse.builder()
+                        .code("SELF")
+                        .message("Invalid operation on your own account.")
+                        .relation(RelationStatus.SELF)
+                        .build();
+            }
+
+            // We treat DELETE as removing an accepted contact.
+            var a1 = contactRepository.findByUserKeyAndContactUserKeyAndStatus(me, other, ContactStatus.ACCEPTED);
+            var a2 = contactRepository.findByUserKeyAndContactUserKeyAndStatus(other, me, ContactStatus.ACCEPTED);
+
+            boolean anyAccepted = false;
+            if (a1.isPresent()) {
+                contactRepository.delete(a1.get());
+                anyAccepted = true;
+                log.info("Deleted accepted contact {} -> {}", me, other);
+            }
+            if (a2.isPresent()) {
+                contactRepository.delete(a2.get());
+                anyAccepted = true;
+                log.info("Deleted accepted contact {} -> {}", other, me);
+            }
+
+            if (!anyAccepted) {
+                // If only pending exists, don’t silently remove friendship — let FE call cancel/reject endpoints
+                boolean pendingAB = contactRepository
+                        .existsByUserKeyAndContactUserKeyAndStatus(me, other, ContactStatus.PENDING);
+                boolean pendingBA = contactRepository
+                        .existsByUserKeyAndContactUserKeyAndStatus(other, me, ContactStatus.PENDING);
+
+                if (pendingAB || pendingBA) {
+                    return ContactActionResponse.builder()
+                            .code("ONLY_PENDING")
+                            .message("There’s a pending request. Use cancel/reject instead.")
+                            .relation(RelationStatus.PENDING)
+                            .user(userClient.byKey(other))
+                            .build();
+                }
+
+                return ContactActionResponse.builder()
+                        .code("NO_CONTACT_FOUND")
+                        .message("No contact found.")
+                        .build();
+            }
+
+
+
+            return ContactActionResponse.builder()
+                    .code("OK")
+                    .message("Contact removed.")
+                    .relation(RelationStatus.NOT_FOUND)
+                    .user(userClient.byKey(other))
+                    .build();
+
+        } catch (Exception e) {
+            log.warn("deleteContact failed: {}", e.toString());
+            return ContactActionResponse.builder()
+                    .code("ERROR")
+                    .message("We couldn’t remove the contact. Please try again.")
+                    .build();
+        }
     }
 
     public SearchUserResponse searchUsersWithStatus(String query, Principal auth) {
@@ -225,9 +442,9 @@ public class ContactService {
                     .build();
         }
 
-        UUID me = currentUserKey(auth.getName()); // your existing helper
+        UUID me = currentUserKey(auth.getName());
 
-        UserDto hit = userClient.exact(query); // your existing exact match call
+        UserDto hit = userClient.exact(query);
         if (hit == null || hit.getUserKey() == null) {
             log.info("No user found for query='{}'", query);
             return SearchUserResponse.builder()
@@ -247,24 +464,40 @@ public class ContactService {
                     .build();
         }
 
-        var accepted = new HashSet<>(contactRepository.findAccepted(me));
-        var pending  = new HashSet<>(contactRepository.findPending(me));
-
-        if (accepted.contains(cand)) {
+        // accepted = both directions already handled by your repo helper
+        var acceptedKeys = new HashSet<>(contactRepository.findAccepted(me));
+        if (acceptedKeys.contains(cand)) {
             log.info("User {} already friends with {}", me, cand);
             return SearchUserResponse.builder()
                     .code("ALREADY_FRIEND")
                     .message("Already in your contacts.")
                     .relation(RelationStatus.ALREADY_FRIEND)
+                    .user(hit)
                     .build();
         }
 
-        if (pending.contains(cand)) {
-            log.info("User {} has a pending relation with {}", me, cand);
+        // ✅ Pending checks: outgoing (me -> cand) and incoming (cand -> me)
+        boolean pendingOutgoing = contactRepository
+                .existsByUserKeyAndContactUserKeyAndStatus(me, cand, ContactStatus.PENDING);
+        if (pendingOutgoing) {
+            log.info("User {} has an OUTGOING pending request to {}", me, cand);
             return SearchUserResponse.builder()
                     .code("PENDING")
                     .message("Request already sent.")
-                    .relation(RelationStatus.PENDING)
+                    .relation(RelationStatus.PENDING) // reuse existing enum
+                    .user(hit)
+                    .build();
+        }
+
+        boolean pendingIncoming = contactRepository
+                .existsByUserKeyAndContactUserKeyAndStatus(cand, me, ContactStatus.PENDING);
+        if (pendingIncoming) {
+            log.info("User {} has an INCOMING pending request from {}", me, cand);
+            return SearchUserResponse.builder()
+                    .code("PENDING_INCOMING")
+                    .message("They’ve sent you a request.")
+                    .relation(RelationStatus.PENDING) // same relation, different code/message for CTA
+                    .user(hit)
                     .build();
         }
 
@@ -325,5 +558,39 @@ public class ContactService {
         }
         log.debug("Falling back to resolveKeyFromLogin for login={}", currentLogin);
         return resolveKeyFromLogin(currentLogin);
+    }
+
+    private void safeNotifyFriendRequest(UUID me, UUID other) {
+        try {
+            UserDto user = userClient.byKey(me);
+            Notification notif = Notification.builder()
+                    .receiverIds(Set.of(other.toString()))
+                    .type(NotificationType.FRIEND_REQUEST)
+                    .title(user.getUsername() + " sent you a friend request")
+                    .body(user.getUsername() + " sent you a friend request")
+                    .deliveryAckRequired(true)
+                    .build();
+            notificationService.sendPush(notif);
+            log.info("Friend request notification sent from {} to {}", me, other);
+        } catch (Exception e) {
+            log.warn("notify FRIEND_REQUEST failed ({} -> {}): {}", me, other, e.toString());
+        }
+    }
+
+    private void safeNotifyFriendAccepted(UUID me, UUID other) {
+        try {
+            UserDto user = userClient.byKey(me);
+            Notification notif = Notification.builder()
+                    .receiverIds(Set.of(other.toString()))
+                    .type(NotificationType.FRIEND_REQUEST_ACCEPTED)
+                    .title(user.getUsername() + " accepted your friend request")
+                    .body(user.getUsername() + " accepted your friend request")
+                    .deliveryAckRequired(true)
+                    .build();
+            notificationService.sendPush(notif);
+            log.info("Friend request acceptance notification sent from {} to {}", me, other);
+        } catch (Exception e) {
+            log.warn("notify FRIEND_REQUEST_ACCEPTED failed ({} -> {}): {}", me, other, e.toString());
+        }
     }
 }
