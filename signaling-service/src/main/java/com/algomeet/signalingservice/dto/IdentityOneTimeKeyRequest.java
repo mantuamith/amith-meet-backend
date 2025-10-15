@@ -2,10 +2,11 @@ package com.algomeet.signalingservice.dto;
 
 import java.util.List;
 
+import jakarta.validation.constraints.NotEmpty;
 import lombok.Data;
 
 @Data
-public class IdentityOneTimeKeyRequest {
-    private String identityKey; 
+public class IdentityOneTimeKeyRequest {	
+	@NotEmpty(message = "{one-time-key.update.empty-one-time-keys}")
     private List<String> oneTimeKeys;
 }

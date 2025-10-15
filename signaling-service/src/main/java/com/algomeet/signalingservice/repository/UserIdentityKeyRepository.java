@@ -12,5 +12,7 @@ import com.algomeet.signalingservice.entity.UserIdentityKey;
 public interface UserIdentityKeyRepository extends JpaRepository<UserIdentityKey, UUID> {
     boolean existsByIdentityKey(String identityKey);
     
+    Optional<UserIdentityKey> findByUserKey(UUID userKey);
+    
     Optional<UserIdentityKey> findByIdentityKey(String identityKey);
 }

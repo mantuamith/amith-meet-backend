@@ -9,6 +9,7 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
@@ -26,7 +27,13 @@ public class UserIdentityKey {
 	@Column(name = "identity_key", nullable = false, unique = true, length = 255)
     private String identityKey;
 	
-	@OneToMany(mappedBy = "identityKey", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+	// Join via the identity_key string column
+    @OneToMany(
+        cascade = CascadeType.ALL,
+        orphanRemoval = true,
+        fetch = FetchType.LAZY
+    )
+    @JoinColumn(name = "user_key", referencedColumnName = "user_key", insertable = false, updatable = false)
     private List<IdentityOneTimeKey> oneTimeKeys;
 	
     private Instant createdAt;

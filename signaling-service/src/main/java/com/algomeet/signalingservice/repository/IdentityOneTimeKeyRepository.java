@@ -10,4 +10,6 @@ import com.algomeet.signalingservice.entity.IdentityOneTimeKey;
 @Repository
 public interface IdentityOneTimeKeyRepository extends JpaRepository<IdentityOneTimeKey, Long> {
     List<IdentityOneTimeKey> findByIdentityKey(String identityKey);
+    List<IdentityOneTimeKey> findByIdentityKeyAndUsedFalse(String identityKey);
+    
 }

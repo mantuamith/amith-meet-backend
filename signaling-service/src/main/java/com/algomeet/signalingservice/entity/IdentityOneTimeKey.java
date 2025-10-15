@@ -1,6 +1,7 @@
 package com.algomeet.signalingservice.entity;
 
 import java.time.Instant;
+import java.util.UUID;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -21,11 +22,14 @@ public class IdentityOneTimeKey {
     @Column(name = "id", updatable = false, nullable = false)
     private Long id;
 
-    @Column(name = "identity_key", nullable = false, length = 255)
-    private String identityKey;
+    @Column(name = "user_key", nullable = false, length = 255)
+    private UUID userKey;
     
     @Column(name = "one_time_key", nullable = false, length = 255)
     private String oneTimeKey;
+    
+    @Column(name = "used", nullable = false)     
+    private boolean used = false; 
 	
     private Instant createdAt;
     private Instant updatedAt;
@@ -33,8 +37,8 @@ public class IdentityOneTimeKey {
 	public IdentityOneTimeKey() {		
 	}
 	
-	public IdentityOneTimeKey(String identityKey, String oneTimeKey) {
-		this.identityKey = identityKey;
+	public IdentityOneTimeKey(UUID userKey, String oneTimeKey) {
+		this.userKey = userKey;
 		this.oneTimeKey = oneTimeKey;
 	}
         
