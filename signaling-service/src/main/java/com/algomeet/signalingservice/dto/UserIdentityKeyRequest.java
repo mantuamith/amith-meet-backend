@@ -10,6 +10,5 @@ public class UserIdentityKeyRequest {
 	@NotEmpty(message = "{identity-key.register.empty-identity-key}")
     private String identityKey;
 	
-	@NotEmpty(message = "{identity-key.register.empty-one-time-keys}")
     private List<String> oneTimeKeys;
 }

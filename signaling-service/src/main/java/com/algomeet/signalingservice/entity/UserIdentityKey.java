@@ -30,7 +30,6 @@ public class UserIdentityKey {
 	// Join via the identity_key string column
     @OneToMany(
         cascade = CascadeType.ALL,
-        orphanRemoval = true,
         fetch = FetchType.LAZY
     )
     @JoinColumn(name = "user_key", referencedColumnName = "user_key", insertable = false, updatable = false)

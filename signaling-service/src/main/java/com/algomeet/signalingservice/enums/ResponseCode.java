@@ -10,13 +10,14 @@ public enum ResponseCode {
 	IDENTITY_KEY_REGISTER_FAILED("IDENTITY_KEY_REGISTER_FAILED", "identity-key.register.failed"),
 	IDENTITY_KEY_UPDATE_SUCCESS("IDENTITY_KEY_UPDATE_SUCCESS", "identity-key.update.sucess"),
 	IDENTITY_KEY_NOT_FOUND("IDENTITY_KEY_NOT_FOUND", "identity-key.not-found"),
-	ONE_TIME_KEY_ADD_SUCCESS("ONE_TIME_KEY_ADD_SUCCESS", "ione-time-key.add.sucess"),
+	ONE_TIME_KEY_ADD_SUCCESS("ONE_TIME_KEY_ADD_SUCCESS", "one-time-key.add.sucess"),
 	ONE_TIME_KEY_ADD_FAILED("ONE_TIME_KEY_ADD_FAILED", "one-time-key.add.failed"),
 	ONE_TIME_KEY_DELETE_SUCCESS("ONE_TIME_KEY_DELETE_SUCCESS", "one-time-key.delete.success"),
 	ONE_TIME_KEY_ID_NOT_FOUND("ONE_TIME_KEY_ID_NOT_FOUND", "one-time-key.id-not-found"),
 	USER_KEY_ALREADY_EXISTS("USER_KEY_ALREADY_EXISTS", "identity-key.register.user-key-already-exists"),
 	USER_KEY_NOT_FOUND("USER_KEY_NOT_FOUND", "user-key.not-found"),
-	ONE_TIME_KEY_NOT_AVAILABLE("ONE_TIME_KEY_NOT_AVAILABLE", "one-time-key.not-available");
+	ONE_TIME_KEY_IS_NOT_AVAILABLE("ONE_TIME_KEY_IS_NOT_AVAILABLE", "one-time-key.not-available"),
+	ONE_TIME_KEY_ALREADY_EXISTS("ONE_TIME_KEY_ALREADY_EXISTS", "one-time-key.key-already-exists");
 	
     private final String code;
     private final String message;
