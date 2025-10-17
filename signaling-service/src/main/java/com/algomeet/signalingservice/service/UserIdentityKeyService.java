@@ -205,14 +205,14 @@ public class UserIdentityKeyService {
     }
     
     public void createPrivateKeyBackup(UUID userKey, UserPrivateKeyBackupRequest request) {
-    	UserPrivateKeyBackup keyBackup = new UserPrivateKeyBackup(userKey, request.getPrivateKey());
+    	UserPrivateKeyBackup keyBackup = new UserPrivateKeyBackup(userKey, request.getEncryptedPrivateKey());
     	keyBackupRepo.save(keyBackup);
     }
     
     public UserPrivateKeyBackupResponse getPrivateKeyBackup(UUID userKey) {
     	Optional<UserPrivateKeyBackupResponse> userKeyBackupOpt = keyBackupRepo.findById(userKey).map(kb -> UserPrivateKeyBackupResponse.builder()
     			.userKey(kb.getUserKey())
-    			.privateKey(kb.getPrivateKey())
+    			.encryptedPrivateKey(kb.getEncryptedPrivateKey())
     			.createdAt(kb.getCreatedAt())
     			.updatedAt(kb.getUpdatedAt())
     			.build());
