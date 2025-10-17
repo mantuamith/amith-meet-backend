@@ -56,7 +56,7 @@ public class UserIdentityKeyService {
                 		.stream()
                 		.map(otk -> IdentityOneTimeKeyResponse.builder()
                 				.id(otk.getId())
-                				.oneTimeKey(otk.getOneTimeKey())
+                				.key(otk.getOneTimeKey())
                 				.createdAt(otk.getCreatedAt())
                 				.build()).toList())
                 .createdAt(userIdentityKey.getCreatedAt())
@@ -96,7 +96,7 @@ public class UserIdentityKeyService {
                 		.map(otk -> IdentityOneTimeKeyResponse.builder()
                 				.id(otk.getId())
                 				.userKey(otk.getUserKey())
-                				.oneTimeKey(otk.getOneTimeKey())
+                				.key(otk.getOneTimeKey())
                 				.createdAt(otk.getCreatedAt())
                 				.updatedAt(otk.getUpdatedAt())
                 				.build()).toList())
@@ -154,7 +154,7 @@ public class UserIdentityKeyService {
     	Optional<IdentityOneTimeKeyResponse> optionalResponse = oneTimeKeyOpt    			
     			.map(k -> IdentityOneTimeKeyResponse.builder()
     					.id(k.getId())
-    					.oneTimeKey(k.getOneTimeKey())
+    					.key(k.getOneTimeKey())
     					.build());
 
     	IdentityOneTimeKeyResponse oneTimeKey = optionalResponse
@@ -180,7 +180,7 @@ public class UserIdentityKeyService {
                 .stream()
                 .map(k -> IdentityOneTimeKeyResponse.builder()
                         .id(k.getId())
-                        .oneTimeKey(k.getOneTimeKey())
+                        .key(k.getOneTimeKey())
                         .userKey(k.getUserKey())  
                         .used(k.isUsed())
                         .createdAt(k.getCreatedAt())

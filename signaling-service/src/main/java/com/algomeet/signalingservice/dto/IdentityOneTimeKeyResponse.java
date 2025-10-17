@@ -16,7 +16,7 @@ import lombok.Data;
 public class IdentityOneTimeKeyResponse {	
     private UUID userKey;
     private Long id;
-    private String oneTimeKey;
+    private String key;
     private Instant createdAt;
     private Instant updatedAt; 
     private Boolean used;
@@ -27,6 +27,6 @@ public class IdentityOneTimeKeyResponse {
     public IdentityOneTimeKeyResponse(Long id, UUID userKey, String oneTimekey) {
 		this.id = id;
 		this.userKey = userKey;
-		this.oneTimeKey = oneTimekey;
+		this.key = oneTimekey;
 	}   
 }
