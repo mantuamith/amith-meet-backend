@@ -22,6 +22,8 @@ import com.algomeet.signalingservice.dto.IdentityOneTimeKeyResponse;
 import com.algomeet.signalingservice.dto.UserIdentityAndOneTimeKeyResponse;
 import com.algomeet.signalingservice.dto.UserIdentityKeyRequest;
 import com.algomeet.signalingservice.dto.UserIdentityKeyResponse;
+import com.algomeet.signalingservice.dto.UserPrivateKeyBackupRequest;
+import com.algomeet.signalingservice.dto.UserPrivateKeyBackupResponse;
 import com.algomeet.signalingservice.enums.ResponseCode;
 import com.algomeet.signalingservice.exceptions.IdentityKeyAlreadyExistsException;
 import com.algomeet.signalingservice.exceptions.RecordNotFoundException;
@@ -127,4 +129,22 @@ public class UserIdentityKeyController {
 			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.ONE_TIME_KEY_ID_NOT_FOUND));
 		}
 	}	
+	
+	// Create back up for user private key 
+	@PostMapping("/backup")
+	public ResponseEntity<CommonResponse<?>> createPrivateKeyBackup(@Valid @RequestBody UserPrivateKeyBackupRequest request) {
+		keyService.createPrivateKeyBackup(UUID.fromString(SecurityUtil.getUserKey()), request);
+		return ResponseEntity.ok(CommonResponse.from(ResponseCode.USER_PRIVATE_KEY_BACKUP_SUCCESS));		 	
+	}
+	
+	// Get user private key backup
+	@GetMapping("/backup")
+	public ResponseEntity<CommonResponse<UserPrivateKeyBackupResponse>> getPrivateKeyBackup() {
+		try {
+			return ResponseEntity.ok(CommonResponse.from(ResponseCode.USER_PRIVATE_KEY_BACKUP_SUCCESS, 
+					keyService.getPrivateKeyBackup(UUID.fromString(SecurityUtil.getUserKey()))));	
+		} catch (RecordNotFoundException ex) {
+			return ResponseEntity.ok(CommonResponse.from(ResponseCode.USER_PRIVATE_KEY_BACKUP_NOT_FOUND));	
+		}
+	}
 }

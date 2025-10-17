@@ -35,6 +35,7 @@ public class UserIdentityKey {
     @JoinColumn(name = "user_key", referencedColumnName = "user_key", insertable = false, updatable = false)
     private List<IdentityOneTimeKey> oneTimeKeys;
 	
+    @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
     private Instant updatedAt;
         

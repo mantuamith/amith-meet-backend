@@ -10,14 +10,24 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
 
-import com.algomeet.signalingservice.dto.*;
-import com.algomeet.signalingservice.entity.*;
+import com.algomeet.signalingservice.dto.IdentityOneTimeKeyRequest;
+import com.algomeet.signalingservice.dto.IdentityOneTimeKeyResponse;
+import com.algomeet.signalingservice.dto.UserIdentityAndOneTimeKeyResponse;
+import com.algomeet.signalingservice.dto.UserIdentityKeyRequest;
+import com.algomeet.signalingservice.dto.UserIdentityKeyResponse;
+import com.algomeet.signalingservice.dto.UserPrivateKeyBackupRequest;
+import com.algomeet.signalingservice.dto.UserPrivateKeyBackupResponse;
+import com.algomeet.signalingservice.entity.IdentityOneTimeKey;
+import com.algomeet.signalingservice.entity.UserIdentityKey;
+import com.algomeet.signalingservice.entity.UserPrivateKeyBackup;
 import com.algomeet.signalingservice.exceptions.IdentityKeyAlreadyExistsException;
-import com.algomeet.signalingservice.exceptions.RecordNotFoundException;
 import com.algomeet.signalingservice.exceptions.NoUserOneTimeKeyIsAvailableException;
 import com.algomeet.signalingservice.exceptions.OneTimeKeyAlreadyExistsException;
+import com.algomeet.signalingservice.exceptions.RecordNotFoundException;
 import com.algomeet.signalingservice.exceptions.UserKeyAlreadyExistsException;
-import com.algomeet.signalingservice.repository.*;
+import com.algomeet.signalingservice.repository.IdentityOneTimeKeyRepository;
+import com.algomeet.signalingservice.repository.UserIdentityKeyRepository;
+import com.algomeet.signalingservice.repository.UserPrivateKeyBackupRepository;
 
 import lombok.RequiredArgsConstructor;
 
@@ -28,6 +38,7 @@ public class UserIdentityKeyService {
 
     private final UserIdentityKeyRepository userIdentityRepo;
     private final IdentityOneTimeKeyRepository oneTimeRepo;
+    private final UserPrivateKeyBackupRepository keyBackupRepo;
 
     public UserIdentityKeyResponse registerUserIdentity(UUID userKey, UserIdentityKeyRequest request) {
     	if (userIdentityRepo.findByIdentityKey(request.getIdentityKey()).isPresent()) {    		
@@ -65,7 +76,7 @@ public class UserIdentityKeyService {
     }
         
     public UserIdentityKeyResponse updateUserIdentity(UUID userKey, UserIdentityKeyRequest request) {
-    	UserIdentityKey oldUserIdentityKey = userIdentityRepo.findById(userKey).orElseThrow(() -> new RecordNotFoundException("User key not found"));
+    	userIdentityRepo.findById(userKey).orElseThrow(() -> new RecordNotFoundException("User key not found"));
     	
     	// Clean up the old one-time-keys
     	//oneTimeRepo.deleteByUserKey(userKey);
@@ -73,7 +84,6 @@ public class UserIdentityKeyService {
     	UserIdentityKey userIdentityKey = new UserIdentityKey();
         userIdentityKey.setUserKey(userKey);
         userIdentityKey.setIdentityKey(request.getIdentityKey());
-        userIdentityKey.setCreatedAt(oldUserIdentityKey.getCreatedAt());
         
         // Update identity table
         UserIdentityKey savedUserIdentityKey = userIdentityRepo.save(userIdentityKey); 
@@ -192,5 +202,21 @@ public class UserIdentityKeyService {
     public void deleteOneTimeKey(Long id, UUID userKey) {
     	oneTimeRepo.findById(id).orElseThrow(() -> new RecordNotFoundException("One time key ID is not found"));
     	oneTimeRepo.deleteByIdAndUserKeyOrUsed(id, userKey, true);
+    }
+    
+    public void createPrivateKeyBackup(UUID userKey, UserPrivateKeyBackupRequest request) {
+    	UserPrivateKeyBackup keyBackup = new UserPrivateKeyBackup(userKey, request.getPrivateKey());
+    	keyBackupRepo.save(keyBackup);
+    }
+    
+    public UserPrivateKeyBackupResponse getPrivateKeyBackup(UUID userKey) {
+    	Optional<UserPrivateKeyBackupResponse> userKeyBackupOpt = keyBackupRepo.findById(userKey).map(kb -> UserPrivateKeyBackupResponse.builder()
+    			.userKey(kb.getUserKey())
+    			.privateKey(kb.getPrivateKey())
+    			.createdAt(kb.getCreatedAt())
+    			.updatedAt(kb.getUpdatedAt())
+    			.build());
+    			    	
+    	return userKeyBackupOpt.orElseThrow(() -> new RecordNotFoundException("User key/ backup not found"));
     }
 }
