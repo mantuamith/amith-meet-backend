@@ -11,16 +11,6 @@ public class GroupSessionRequest implements Serializable{
 	private Long groupChatId;
 	
 	/**
-	 * Out bound group session ID
-	 */
-	private String outboundSessionId;
-	
-	/**
-	 * Out bound group session key
-	 */
-	private String encryptedOutboundSessionKey;
-	
-	/**
 	 * Out bound group session
 	 */
 	private String encryptedOutboundSession;

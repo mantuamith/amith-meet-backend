@@ -34,7 +34,6 @@ public class GroupSessionKeysUtil {
 	private static void encodeToBase64(List<GroupSessionRequest> groupSessions) throws UnsupportedEncodingException {
 		if(!CollectionUtils.isEmpty(groupSessions)) {
 			for (GroupSessionRequest groupSession : groupSessions) {
-				groupSession.setEncryptedOutboundSessionKey(encodeToBase64(groupSession.getEncryptedOutboundSessionKey()));
 				groupSession.setEncryptedOutboundSession(encodeToBase64(groupSession.getEncryptedOutboundSession()));
 				
 				if(!CollectionUtils.isEmpty(groupSession.getInboundSessionKeys())) {
@@ -59,7 +58,6 @@ public class GroupSessionKeysUtil {
 	private static void decodeBase64(List<GroupSessionRequest> groupSessions) throws UnsupportedEncodingException {
 		if(!CollectionUtils.isEmpty(groupSessions)) {
 			for (GroupSessionRequest groupSession : groupSessions) {
-				groupSession.setEncryptedOutboundSessionKey(decodeBase64(groupSession.getEncryptedOutboundSessionKey()));
 				groupSession.setEncryptedOutboundSession(decodeBase64(groupSession.getEncryptedOutboundSession()));
 				
 				if(!CollectionUtils.isEmpty(groupSession.getInboundSessionKeys())) {
