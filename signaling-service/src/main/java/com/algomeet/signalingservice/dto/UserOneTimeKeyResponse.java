@@ -10,7 +10,7 @@ import lombok.Data;
 @Data
 @Builder
 @AllArgsConstructor
-public class IdentityOneTimeKeyResponse {	
+public class UserOneTimeKeyResponse {	
     private UUID userKey;
     private Long id;
     private String key;
@@ -18,10 +18,10 @@ public class IdentityOneTimeKeyResponse {
     private Instant updatedAt; 
     private Boolean used;
     
-	public IdentityOneTimeKeyResponse() {		
+	public UserOneTimeKeyResponse() {		
 	}	
 	
-    public IdentityOneTimeKeyResponse(Long id, UUID userKey, String oneTimekey) {
+    public UserOneTimeKeyResponse(Long id, UUID userKey, String oneTimekey) {
 		this.id = id;
 		this.userKey = userKey;
 		this.key = oneTimekey;

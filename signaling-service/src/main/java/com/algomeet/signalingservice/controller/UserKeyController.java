@@ -17,8 +17,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.algomeet.signalingservice.dto.CommonResponse;
-import com.algomeet.signalingservice.dto.IdentityOneTimeKeyRequest;
-import com.algomeet.signalingservice.dto.IdentityOneTimeKeyResponse;
+import com.algomeet.signalingservice.dto.UserOneTimeKeyRequest;
+import com.algomeet.signalingservice.dto.UserOneTimeKeyResponse;
 import com.algomeet.signalingservice.dto.UserIdentityAndOneTimeKeyResponse;
 import com.algomeet.signalingservice.dto.UserIdentityKeyRequest;
 import com.algomeet.signalingservice.dto.UserIdentityKeyResponse;
@@ -95,9 +95,9 @@ public class UserKeyController {
 	// Add one-time key for existing user identity key
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	@PostMapping("/one-time")
-	public ResponseEntity<CommonResponse<List<IdentityOneTimeKeyResponse>>> addOneTimeKeys(@Valid @RequestBody IdentityOneTimeKeyRequest request) {
+	public ResponseEntity<CommonResponse<List<UserOneTimeKeyResponse>>> addOneTimeKeys(@Valid @RequestBody UserOneTimeKeyRequest request) {
 		try {
-			List<IdentityOneTimeKeyResponse> savedKeys = keyService.addOneTimeKeys(UUID.fromString(SecurityUtil.getUserKey()), request);
+			List<UserOneTimeKeyResponse> savedKeys = keyService.addOneTimeKeys(UUID.fromString(SecurityUtil.getUserKey()), request);
 			return ResponseEntity.ok(CommonResponse.from(ResponseCode.ONE_TIME_KEY_ADD_SUCCESS, savedKeys));
 		} catch (RecordNotFoundException ex) {
 			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.USER_KEY_NOT_FOUND));
@@ -110,9 +110,9 @@ public class UserKeyController {
 
 	// Get one-time keys for existing user identity key
 	@GetMapping("/one-time")
-	public ResponseEntity<CommonResponse<List<IdentityOneTimeKeyResponse>>> getOneTimeKeys() {
+	public ResponseEntity<CommonResponse<List<UserOneTimeKeyResponse>>> getOneTimeKeys() {
 		try {
-			List<IdentityOneTimeKeyResponse> savedKeys = keyService.getOneTimeKeys(UUID.fromString(SecurityUtil.getUserKey()));
+			List<UserOneTimeKeyResponse> savedKeys = keyService.getOneTimeKeys(UUID.fromString(SecurityUtil.getUserKey()));
 			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, savedKeys));
 		} catch(RecordNotFoundException ex) {
 			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.IDENTITY_KEY_NOT_FOUND));

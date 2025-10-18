@@ -10,14 +10,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
 
-import com.algomeet.signalingservice.dto.IdentityOneTimeKeyRequest;
-import com.algomeet.signalingservice.dto.IdentityOneTimeKeyResponse;
+import com.algomeet.signalingservice.dto.UserOneTimeKeyRequest;
+import com.algomeet.signalingservice.dto.UserOneTimeKeyResponse;
 import com.algomeet.signalingservice.dto.UserIdentityAndOneTimeKeyResponse;
 import com.algomeet.signalingservice.dto.UserIdentityKeyRequest;
 import com.algomeet.signalingservice.dto.UserIdentityKeyResponse;
 import com.algomeet.signalingservice.dto.UserKeysBackupRequest;
 import com.algomeet.signalingservice.dto.UserKeysBackupResponse;
-import com.algomeet.signalingservice.entity.IdentityOneTimeKey;
+import com.algomeet.signalingservice.entity.UserOneTimeKey;
 import com.algomeet.signalingservice.entity.UserIdentityKey;
 import com.algomeet.signalingservice.entity.UserKeysBackup;
 import com.algomeet.signalingservice.exceptions.IdentityKeyAlreadyExistsException;
@@ -25,7 +25,7 @@ import com.algomeet.signalingservice.exceptions.NoUserOneTimeKeyIsAvailableExcep
 import com.algomeet.signalingservice.exceptions.OneTimeKeyAlreadyExistsException;
 import com.algomeet.signalingservice.exceptions.RecordNotFoundException;
 import com.algomeet.signalingservice.exceptions.UserKeyAlreadyExistsException;
-import com.algomeet.signalingservice.repository.IdentityOneTimeKeyRepository;
+import com.algomeet.signalingservice.repository.UserOneTimeKeyRepository;
 import com.algomeet.signalingservice.repository.UserIdentityKeyRepository;
 import com.algomeet.signalingservice.repository.UserKeysBackupRepository;
 
@@ -37,7 +37,7 @@ import lombok.RequiredArgsConstructor;
 public class UserKeyService {
 
     private final UserIdentityKeyRepository userIdentityRepo;
-    private final IdentityOneTimeKeyRepository oneTimeRepo;
+    private final UserOneTimeKeyRepository oneTimeRepo;
     private final UserKeysBackupRepository keyBackupRepo;
 
     public UserIdentityKeyResponse registerUserIdentity(UUID userKey, UserIdentityKeyRequest request) {
@@ -52,9 +52,9 @@ public class UserKeyService {
         UserIdentityKey userIdentityKey = new UserIdentityKey();
         userIdentityKey.setUserKey(userKey);
         userIdentityKey.setIdentityKey(request.getIdentityKey());
-        List<IdentityOneTimeKey> oneTimeKeys = Optional.ofNullable(request.getOneTimeKeys()).orElse(List.of())
+        List<UserOneTimeKey> oneTimeKeys = Optional.ofNullable(request.getOneTimeKeys()).orElse(List.of())
         		.stream()
-        		.map(otk -> new IdentityOneTimeKey(userKey, otk))
+        		.map(otk -> new UserOneTimeKey(userKey, otk))
         		.collect(Collectors.toList());
         userIdentityKey.setOneTimeKeys(oneTimeKeys);
         
@@ -65,7 +65,7 @@ public class UserKeyService {
                 .identityKey(userIdentityKey.getIdentityKey())
                 .oneTimeKeys(Optional.ofNullable(userIdentityKey.getOneTimeKeys()).orElse(List.of())
                 		.stream()
-                		.map(otk -> IdentityOneTimeKeyResponse.builder()
+                		.map(otk -> UserOneTimeKeyResponse.builder()
                 				.id(otk.getId())
                 				.key(otk.getOneTimeKey())
                 				.createdAt(otk.getCreatedAt())
@@ -88,13 +88,13 @@ public class UserKeyService {
         // Update identity table
         UserIdentityKey savedUserIdentityKey = userIdentityRepo.save(userIdentityKey); 
         
-       	List<IdentityOneTimeKey> oneTimeKeys = Optional.ofNullable(request.getOneTimeKeys()).orElse(List.of())
+       	List<UserOneTimeKey> oneTimeKeys = Optional.ofNullable(request.getOneTimeKeys()).orElse(List.of())
         			.stream()
-        			.map(otk -> new IdentityOneTimeKey(userKey, otk))
+        			.map(otk -> new UserOneTimeKey(userKey, otk))
         			.collect(Collectors.toList());
        	
        	if (!CollectionUtils.isEmpty(oneTimeKeys)) {
-       		List<IdentityOneTimeKey> savedOneTimeKeys = oneTimeRepo.saveAll(oneTimeKeys);
+       		List<UserOneTimeKey> savedOneTimeKeys = oneTimeRepo.saveAll(oneTimeKeys);
        		savedUserIdentityKey.setOneTimeKeys(savedOneTimeKeys);
        	}       	       	      
 
@@ -103,7 +103,7 @@ public class UserKeyService {
                 .identityKey(savedUserIdentityKey.getIdentityKey())
                 .oneTimeKeys(Optional.ofNullable(savedUserIdentityKey.getOneTimeKeys()).orElse(List.of())
                 		.stream()
-                		.map(otk -> IdentityOneTimeKeyResponse.builder()
+                		.map(otk -> UserOneTimeKeyResponse.builder()
                 				.id(otk.getId())
                 				.userKey(otk.getUserKey())
                 				.key(otk.getOneTimeKey())
@@ -115,30 +115,30 @@ public class UserKeyService {
                 .build();
     }
 
-    public List<IdentityOneTimeKeyResponse> addOneTimeKeys(UUID userKey, IdentityOneTimeKeyRequest request) {
+    public List<UserOneTimeKeyResponse> addOneTimeKeys(UUID userKey, UserOneTimeKeyRequest request) {
         UserIdentityKey userIdentity = userIdentityRepo.findById(userKey)
                 .orElseThrow(() -> new RecordNotFoundException("User key not found"));
         
         
-        List<IdentityOneTimeKey> onetimeKeys = new ArrayList<>();
+        List<UserOneTimeKey> onetimeKeys = new ArrayList<>();
         if (!CollectionUtils.isEmpty(userIdentity.getOneTimeKeys())) {
         	for(String oneTimeKey : request.getOneTimeKeys()) {
-        		onetimeKeys.add(new IdentityOneTimeKey(userKey, oneTimeKey));
+        		onetimeKeys.add(new UserOneTimeKey(userKey, oneTimeKey));
         	}
         }
 
         // Check if one time keys already exist
-        List<IdentityOneTimeKey> existingOneTimeKeys = oneTimeRepo.findByUserKeyAndOneTimeKeyIn(userKey, request.getOneTimeKeys());
+        List<UserOneTimeKey> existingOneTimeKeys = oneTimeRepo.findByUserKeyAndOneTimeKeyIn(userKey, request.getOneTimeKeys());
         if (!CollectionUtils.isEmpty(existingOneTimeKeys)) {
         	
         	throw new OneTimeKeyAlreadyExistsException(existingOneTimeKeys.stream().map(otk -> otk.getOneTimeKey())
         			.collect(Collectors.joining(", ", "(", ")")));
         }
         
-        List<IdentityOneTimeKey> saved = oneTimeRepo.saveAll(onetimeKeys);
+        List<UserOneTimeKey> saved = oneTimeRepo.saveAll(onetimeKeys);
 
         return saved.stream()
-        	    .map(otk -> new IdentityOneTimeKeyResponse(otk.getId(), otk.getUserKey(), otk.getOneTimeKey()))
+        	    .map(otk -> new UserOneTimeKeyResponse(otk.getId(), otk.getUserKey(), otk.getOneTimeKey()))
         	    .collect(Collectors.toList());
     }    
     
@@ -159,19 +159,19 @@ public class UserKeyService {
     public UserIdentityAndOneTimeKeyResponse getUserIdentityAndOneTimeKey(UUID userKey) {
     	UserIdentityKey userIdentityKey = userIdentityRepo.findById(userKey).orElseThrow(() -> new RecordNotFoundException("User key not found"));
     	
-    	Optional<IdentityOneTimeKey> oneTimeKeyOpt = oneTimeRepo.findFirstByUserKeyAndUsedFalse(userKey);
+    	Optional<UserOneTimeKey> oneTimeKeyOpt = oneTimeRepo.findFirstByUserKeyAndUsedFalse(userKey);
     	
-    	Optional<IdentityOneTimeKeyResponse> optionalResponse = oneTimeKeyOpt    			
-    			.map(k -> IdentityOneTimeKeyResponse.builder()
+    	Optional<UserOneTimeKeyResponse> optionalResponse = oneTimeKeyOpt    			
+    			.map(k -> UserOneTimeKeyResponse.builder()
     					.id(k.getId())
     					.key(k.getOneTimeKey())
     					.build());
 
-    	IdentityOneTimeKeyResponse oneTimeKey = optionalResponse
+    	UserOneTimeKeyResponse oneTimeKey = optionalResponse
     			.orElseThrow(() -> new NoUserOneTimeKeyIsAvailableException("No user one time key is available"));
      	    	
     	// Update one time key "used" value to true
-    	IdentityOneTimeKey usedOneTimeKey = oneTimeKeyOpt.get();
+    	UserOneTimeKey usedOneTimeKey = oneTimeKeyOpt.get();
     	usedOneTimeKey.setUsed(true);
     	oneTimeRepo.save(usedOneTimeKey);
     	
@@ -182,13 +182,13 @@ public class UserKeyService {
     			.build();
     }
         
-    public List<IdentityOneTimeKeyResponse> getOneTimeKeys(UUID userKey) {
+    public List<UserOneTimeKeyResponse> getOneTimeKeys(UUID userKey) {
     	userIdentityRepo.findById(userKey)
     			.orElseThrow(() -> new RecordNotFoundException("User key not found"));
         
     	return oneTimeRepo.findByUserKey(userKey)
                 .stream()
-                .map(k -> IdentityOneTimeKeyResponse.builder()
+                .map(k -> UserOneTimeKeyResponse.builder()
                         .id(k.getId())
                         .key(k.getOneTimeKey())
                         .userKey(k.getUserKey())  

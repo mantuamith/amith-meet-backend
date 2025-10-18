@@ -10,5 +10,5 @@ import lombok.Data;
 public class UserIdentityAndOneTimeKeyResponse {
     private UUID userKey;
     private String identityKey;
-    private IdentityOneTimeKeyResponse oneTimeKey;
+    private UserOneTimeKeyResponse oneTimeKey;
 }

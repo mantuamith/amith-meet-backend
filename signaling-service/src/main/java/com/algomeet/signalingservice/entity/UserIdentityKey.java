@@ -33,7 +33,7 @@ public class UserIdentityKey {
         fetch = FetchType.LAZY
     )
     @JoinColumn(name = "user_key", referencedColumnName = "user_key", insertable = false, updatable = false)
-    private List<IdentityOneTimeKey> oneTimeKeys;
+    private List<UserOneTimeKey> oneTimeKeys;
 	
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

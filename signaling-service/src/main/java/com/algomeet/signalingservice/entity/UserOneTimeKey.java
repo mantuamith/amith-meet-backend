@@ -15,8 +15,8 @@ import lombok.Data;
 
 @Data
 @Entity
-@Table(name = "identity_one_time_keys")
-public class IdentityOneTimeKey {
+@Table(name = "user_one_time_keys")
+public class UserOneTimeKey {
 	@Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id", updatable = false, nullable = false)
@@ -35,10 +35,10 @@ public class IdentityOneTimeKey {
     private Instant createdAt;
     private Instant updatedAt;
     
-	public IdentityOneTimeKey() {		
+	public UserOneTimeKey() {		
 	}
 	
-	public IdentityOneTimeKey(UUID userKey, String oneTimeKey) {
+	public UserOneTimeKey(UUID userKey, String oneTimeKey) {
 		this.userKey = userKey;
 		this.oneTimeKey = oneTimeKey;
 	}

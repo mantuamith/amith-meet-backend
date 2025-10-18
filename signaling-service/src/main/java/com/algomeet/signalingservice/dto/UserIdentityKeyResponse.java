@@ -14,5 +14,5 @@ public class UserIdentityKeyResponse {
     private String identityKey;
     private Instant createdAt;
     private Instant updatedAt;
-    private List<IdentityOneTimeKeyResponse> oneTimeKeys;
+    private List<UserOneTimeKeyResponse> oneTimeKeys;
 }
