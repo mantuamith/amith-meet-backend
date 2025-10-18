@@ -24,8 +24,8 @@ public class UserKeysBackup {
 
 	// Use TEXT column for long encrypted strings (safe for large ciphertexts)
     @Lob
-    @Column(name = "private_key", nullable = false, columnDefinition = "TEXT")
-    private String privateKey;
+    @Column(name = "encrypted_private_key", nullable = false, columnDefinition = "TEXT")
+    private String encryptedPrivateKey;
     
     // Use TEXT column for long encrypted strings (safe for large ciphertexts)
     @Lob
@@ -49,7 +49,7 @@ public class UserKeysBackup {
 	public UserKeysBackup(UUID userKey, String encryptedPrivateKey, String jsonGroupSessionKeys) {
 		this.userKey = userKey;
 		System.out.println(encryptedPrivateKey);
-		this.privateKey = encryptedPrivateKey;
+		this.encryptedPrivateKey = encryptedPrivateKey;
 		this.groupSessionKeys = jsonGroupSessionKeys;
 	}
 }

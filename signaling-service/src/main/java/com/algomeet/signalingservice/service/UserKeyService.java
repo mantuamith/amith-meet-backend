@@ -220,7 +220,7 @@ public class UserKeyService {
     	
     	return UserKeysBackupResponse.builder()
     			.userKey(userKeyBackup.getUserKey())
-    			.encryptedPrivateKey(userKeyBackup.getPrivateKey())
+    			.encryptedPrivateKey(userKeyBackup.getEncryptedPrivateKey())
     			.groupSessions(GroupSessionKeysUtil.converToObject(userKeyBackup.getGroupSessionKeys()))
     			.createdAt(userKeyBackup.getCreatedAt())
     			.updatedAt(userKeyBackup.getUpdatedAt())

@@ -34,10 +34,11 @@ public class GroupSessionKeysUtil {
 	private static void encodeToBase64(List<GroupSessionRequest> groupSessions) throws UnsupportedEncodingException {
 		if(!CollectionUtils.isEmpty(groupSessions)) {
 			for (GroupSessionRequest groupSession : groupSessions) {
-				groupSession.setEncryptedSession(encodeToBase64(groupSession.getEncryptedSession()));
+				groupSession.setEncryptedOutboundSessionKey(encodeToBase64(groupSession.getEncryptedOutboundSessionKey()));
+				groupSession.setEncryptedOutboundSession(encodeToBase64(groupSession.getEncryptedOutboundSession()));
 				
-				if(!CollectionUtils.isEmpty(groupSession.getInboundGroupSessionKeys())) {
-					for (InboundGroupSessionKey sessionKey : groupSession.getInboundGroupSessionKeys()) {
+				if(!CollectionUtils.isEmpty(groupSession.getInboundSessionKeys())) {
+					for (InboundGroupSessionKey sessionKey : groupSession.getInboundSessionKeys()) {
 						sessionKey.setEncryptedSessionKey(encodeToBase64(sessionKey.getEncryptedSessionKey()));
 					}
 				}
@@ -58,10 +59,11 @@ public class GroupSessionKeysUtil {
 	private static void decodeBase64(List<GroupSessionRequest> groupSessions) throws UnsupportedEncodingException {
 		if(!CollectionUtils.isEmpty(groupSessions)) {
 			for (GroupSessionRequest groupSession : groupSessions) {
-				groupSession.setEncryptedSession(decodeBase64(groupSession.getEncryptedSession()));
+				groupSession.setEncryptedOutboundSessionKey(decodeBase64(groupSession.getEncryptedOutboundSessionKey()));
+				groupSession.setEncryptedOutboundSession(decodeBase64(groupSession.getEncryptedOutboundSession()));
 				
-				if(!CollectionUtils.isEmpty(groupSession.getInboundGroupSessionKeys())) {
-					for (InboundGroupSessionKey sessionKey : groupSession.getInboundGroupSessionKeys()) {
+				if(!CollectionUtils.isEmpty(groupSession.getInboundSessionKeys())) {
+					for (InboundGroupSessionKey sessionKey : groupSession.getInboundSessionKeys()) {
 						sessionKey.setEncryptedSessionKey(decodeBase64(sessionKey.getEncryptedSessionKey()));
 					}
 				}

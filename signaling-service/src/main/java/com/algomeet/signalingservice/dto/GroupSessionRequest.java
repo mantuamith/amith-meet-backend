@@ -13,17 +13,17 @@ public class GroupSessionRequest implements Serializable{
 	/**
 	 * Out bound group session ID
 	 */
-	private String sessionId;
+	private String outboundSessionId;
 	
 	/**
 	 * Out bound group session key
 	 */
-	private String sessionKey;
+	private String encryptedOutboundSessionKey;
 	
 	/**
 	 * Out bound group session
 	 */
-	private String encryptedSession;
+	private String encryptedOutboundSession;
 	
-	private List<InboundGroupSessionKey> inboundGroupSessionKeys;
+	private List<InboundGroupSessionKey> inboundSessionKeys;
 }
