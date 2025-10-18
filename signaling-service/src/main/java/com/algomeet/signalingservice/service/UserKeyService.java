@@ -1,5 +1,6 @@
 package com.algomeet.signalingservice.service;
 
+import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -26,6 +27,8 @@ import com.algomeet.signalingservice.exceptions.OneTimeKeyAlreadyExistsException
 import com.algomeet.signalingservice.exceptions.RecordNotFoundException;
 import com.algomeet.signalingservice.exceptions.UserKeyAlreadyExistsException;
 import com.algomeet.signalingservice.repository.UserOneTimeKeyRepository;
+import com.algomeet.signalingservice.util.GroupSessionKeysUtil;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.algomeet.signalingservice.repository.UserIdentityKeyRepository;
 import com.algomeet.signalingservice.repository.UserKeysBackupRepository;
 
@@ -204,19 +207,23 @@ public class UserKeyService {
     	oneTimeRepo.deleteByIdAndUserKeyOrUsed(id, userKey, true);
     }
     
-    public void createPrivateKeyBackup(UUID userKey, UserKeysBackupRequest request) {
-    	UserKeysBackup keyBackup = new UserKeysBackup(userKey, request.getEncryptedPrivateKey());
+    public void createPrivateKeyBackup(UUID userKey, UserKeysBackupRequest request) throws JsonProcessingException, UnsupportedEncodingException {
+    	UserKeysBackup keyBackup = new UserKeysBackup(userKey, 
+    			request.getEncryptedPrivateKey(),
+    			GroupSessionKeysUtil.converToJson(request.getGroupSessions()));
+    	
     	keyBackupRepo.save(keyBackup);
     }
     
-    public UserKeysBackupResponse getPrivateKeyBackup(UUID userKey) {
-    	Optional<UserKeysBackupResponse> userKeyBackupOpt = keyBackupRepo.findById(userKey).map(kb -> UserKeysBackupResponse.builder()
-    			.userKey(kb.getUserKey())
-    			.encryptedPrivateKey(kb.getEncryptedPrivateKey())
-    			.createdAt(kb.getCreatedAt())
-    			.updatedAt(kb.getUpdatedAt())
-    			.build());
-    			    	
-    	return userKeyBackupOpt.orElseThrow(() -> new RecordNotFoundException("User key/ backup not found"));
+    public UserKeysBackupResponse getPrivateKeyBackup(UUID userKey) throws JsonProcessingException, UnsupportedEncodingException {
+    	UserKeysBackup userKeyBackup = keyBackupRepo.findById(userKey).orElseThrow(() -> new RecordNotFoundException("User key/ backup not found"));;
+    	
+    	return UserKeysBackupResponse.builder()
+    			.userKey(userKeyBackup.getUserKey())
+    			.encryptedPrivateKey(userKeyBackup.getPrivateKey())
+    			.groupSessions(GroupSessionKeysUtil.converToObject(userKeyBackup.getGroupSessionKeys()))
+    			.createdAt(userKeyBackup.getCreatedAt())
+    			.updatedAt(userKeyBackup.getUpdatedAt())
+    			.build();  	
     }
 }

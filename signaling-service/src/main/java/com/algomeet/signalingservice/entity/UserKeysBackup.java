@@ -25,7 +25,12 @@ public class UserKeysBackup {
 	// Use TEXT column for long encrypted strings (safe for large ciphertexts)
     @Lob
     @Column(name = "private_key", nullable = false, columnDefinition = "TEXT")
-    private String encryptedPrivateKey;
+    private String privateKey;
+    
+    // Use TEXT column for long encrypted strings (safe for large ciphertexts)
+    @Lob
+    @Column(name = "group_session_keys", nullable = false, columnDefinition = "TEXT")
+    private String groupSessionKeys;
 	
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -40,8 +45,11 @@ public class UserKeysBackup {
     protected void onUpdate() {
         updatedAt = Instant.now();
     }
-	public UserKeysBackup(UUID userKey, String encryptedPrivateKey) {
+    
+	public UserKeysBackup(UUID userKey, String encryptedPrivateKey, String jsonGroupSessionKeys) {
 		this.userKey = userKey;
-		this.encryptedPrivateKey = encryptedPrivateKey;
+		System.out.println(encryptedPrivateKey);
+		this.privateKey = encryptedPrivateKey;
+		this.groupSessionKeys = jsonGroupSessionKeys;
 	}
 }

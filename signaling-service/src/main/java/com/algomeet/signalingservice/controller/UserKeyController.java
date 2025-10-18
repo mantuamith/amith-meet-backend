@@ -1,5 +1,6 @@
 package com.algomeet.signalingservice.controller;
 
+import java.io.UnsupportedEncodingException;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -32,6 +33,7 @@ import com.algomeet.signalingservice.exceptions.OneTimeKeyAlreadyExistsException
 import com.algomeet.signalingservice.exceptions.UserKeyAlreadyExistsException;
 import com.algomeet.signalingservice.service.UserKeyService;
 import com.algomeet.signalingservice.util.SecurityUtil;
+import com.fasterxml.jackson.core.JsonProcessingException;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -132,14 +134,14 @@ public class UserKeyController {
 	
 	// Create back up for user private key 
 	@PostMapping("/backup")
-	public ResponseEntity<CommonResponse<?>> createPrivateKeyBackup(@Valid @RequestBody UserKeysBackupRequest request) {
+	public ResponseEntity<CommonResponse<?>> createPrivateKeyBackup(@Valid @RequestBody UserKeysBackupRequest request) throws JsonProcessingException, UnsupportedEncodingException {
 		keyService.createPrivateKeyBackup(UUID.fromString(SecurityUtil.getUserKey()), request);
 		return ResponseEntity.ok(CommonResponse.from(ResponseCode.USER_KEYS_BACKUP_SUCCESS));		 	
 	}
 	
 	// Get user private key backup
 	@GetMapping("/backup")
-	public ResponseEntity<CommonResponse<UserKeysBackupResponse>> getPrivateKeyBackup() {
+	public ResponseEntity<CommonResponse<UserKeysBackupResponse>> getPrivateKeyBackup() throws JsonProcessingException, UnsupportedEncodingException {
 		try {
 			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, 
 					keyService.getPrivateKeyBackup(UUID.fromString(SecurityUtil.getUserKey()))));	
