@@ -15,11 +15,11 @@ import com.algomeet.signalingservice.dto.IdentityOneTimeKeyResponse;
 import com.algomeet.signalingservice.dto.UserIdentityAndOneTimeKeyResponse;
 import com.algomeet.signalingservice.dto.UserIdentityKeyRequest;
 import com.algomeet.signalingservice.dto.UserIdentityKeyResponse;
-import com.algomeet.signalingservice.dto.UserPrivateKeyBackupRequest;
-import com.algomeet.signalingservice.dto.UserPrivateKeyBackupResponse;
+import com.algomeet.signalingservice.dto.UserKeysBackupRequest;
+import com.algomeet.signalingservice.dto.UserKeysBackupResponse;
 import com.algomeet.signalingservice.entity.IdentityOneTimeKey;
 import com.algomeet.signalingservice.entity.UserIdentityKey;
-import com.algomeet.signalingservice.entity.UserPrivateKeyBackup;
+import com.algomeet.signalingservice.entity.UserKeysBackup;
 import com.algomeet.signalingservice.exceptions.IdentityKeyAlreadyExistsException;
 import com.algomeet.signalingservice.exceptions.NoUserOneTimeKeyIsAvailableException;
 import com.algomeet.signalingservice.exceptions.OneTimeKeyAlreadyExistsException;
@@ -27,18 +27,18 @@ import com.algomeet.signalingservice.exceptions.RecordNotFoundException;
 import com.algomeet.signalingservice.exceptions.UserKeyAlreadyExistsException;
 import com.algomeet.signalingservice.repository.IdentityOneTimeKeyRepository;
 import com.algomeet.signalingservice.repository.UserIdentityKeyRepository;
-import com.algomeet.signalingservice.repository.UserPrivateKeyBackupRepository;
+import com.algomeet.signalingservice.repository.UserKeysBackupRepository;
 
 import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
 @Transactional
-public class UserIdentityKeyService {
+public class UserKeyService {
 
     private final UserIdentityKeyRepository userIdentityRepo;
     private final IdentityOneTimeKeyRepository oneTimeRepo;
-    private final UserPrivateKeyBackupRepository keyBackupRepo;
+    private final UserKeysBackupRepository keyBackupRepo;
 
     public UserIdentityKeyResponse registerUserIdentity(UUID userKey, UserIdentityKeyRequest request) {
     	if (userIdentityRepo.findByIdentityKey(request.getIdentityKey()).isPresent()) {    		
@@ -204,13 +204,13 @@ public class UserIdentityKeyService {
     	oneTimeRepo.deleteByIdAndUserKeyOrUsed(id, userKey, true);
     }
     
-    public void createPrivateKeyBackup(UUID userKey, UserPrivateKeyBackupRequest request) {
-    	UserPrivateKeyBackup keyBackup = new UserPrivateKeyBackup(userKey, request.getEncryptedPrivateKey());
+    public void createPrivateKeyBackup(UUID userKey, UserKeysBackupRequest request) {
+    	UserKeysBackup keyBackup = new UserKeysBackup(userKey, request.getEncryptedPrivateKey());
     	keyBackupRepo.save(keyBackup);
     }
     
-    public UserPrivateKeyBackupResponse getPrivateKeyBackup(UUID userKey) {
-    	Optional<UserPrivateKeyBackupResponse> userKeyBackupOpt = keyBackupRepo.findById(userKey).map(kb -> UserPrivateKeyBackupResponse.builder()
+    public UserKeysBackupResponse getPrivateKeyBackup(UUID userKey) {
+    	Optional<UserKeysBackupResponse> userKeyBackupOpt = keyBackupRepo.findById(userKey).map(kb -> UserKeysBackupResponse.builder()
     			.userKey(kb.getUserKey())
     			.encryptedPrivateKey(kb.getEncryptedPrivateKey())
     			.createdAt(kb.getCreatedAt())

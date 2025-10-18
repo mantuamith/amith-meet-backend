@@ -22,15 +22,15 @@ import com.algomeet.signalingservice.dto.IdentityOneTimeKeyResponse;
 import com.algomeet.signalingservice.dto.UserIdentityAndOneTimeKeyResponse;
 import com.algomeet.signalingservice.dto.UserIdentityKeyRequest;
 import com.algomeet.signalingservice.dto.UserIdentityKeyResponse;
-import com.algomeet.signalingservice.dto.UserPrivateKeyBackupRequest;
-import com.algomeet.signalingservice.dto.UserPrivateKeyBackupResponse;
+import com.algomeet.signalingservice.dto.UserKeysBackupRequest;
+import com.algomeet.signalingservice.dto.UserKeysBackupResponse;
 import com.algomeet.signalingservice.enums.ResponseCode;
 import com.algomeet.signalingservice.exceptions.IdentityKeyAlreadyExistsException;
 import com.algomeet.signalingservice.exceptions.RecordNotFoundException;
 import com.algomeet.signalingservice.exceptions.NoUserOneTimeKeyIsAvailableException;
 import com.algomeet.signalingservice.exceptions.OneTimeKeyAlreadyExistsException;
 import com.algomeet.signalingservice.exceptions.UserKeyAlreadyExistsException;
-import com.algomeet.signalingservice.service.UserIdentityKeyService;
+import com.algomeet.signalingservice.service.UserKeyService;
 import com.algomeet.signalingservice.util.SecurityUtil;
 
 import jakarta.validation.Valid;
@@ -39,8 +39,8 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequestMapping("/signaling/keys")
 @RequiredArgsConstructor
-public class UserIdentityKeyController {
-	private final UserIdentityKeyService keyService;
+public class UserKeyController {
+	private final UserKeyService keyService;
 
 	// Register a new user identity key
 	@PostMapping("/identity")
@@ -132,14 +132,14 @@ public class UserIdentityKeyController {
 	
 	// Create back up for user private key 
 	@PostMapping("/backup")
-	public ResponseEntity<CommonResponse<?>> createPrivateKeyBackup(@Valid @RequestBody UserPrivateKeyBackupRequest request) {
+	public ResponseEntity<CommonResponse<?>> createPrivateKeyBackup(@Valid @RequestBody UserKeysBackupRequest request) {
 		keyService.createPrivateKeyBackup(UUID.fromString(SecurityUtil.getUserKey()), request);
 		return ResponseEntity.ok(CommonResponse.from(ResponseCode.USER_PRIVATE_KEY_BACKUP_SUCCESS));		 	
 	}
 	
 	// Get user private key backup
 	@GetMapping("/backup")
-	public ResponseEntity<CommonResponse<UserPrivateKeyBackupResponse>> getPrivateKeyBackup() {
+	public ResponseEntity<CommonResponse<UserKeysBackupResponse>> getPrivateKeyBackup() {
 		try {
 			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, 
 					keyService.getPrivateKeyBackup(UUID.fromString(SecurityUtil.getUserKey()))));	

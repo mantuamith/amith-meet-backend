@@ -12,7 +12,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 @Data
-public class UserPrivateKeyBackupResponse {
+public class UserKeysBackupResponse {
 	private UUID userKey;
     private String encryptedPrivateKey;		
     private Instant createdAt;
