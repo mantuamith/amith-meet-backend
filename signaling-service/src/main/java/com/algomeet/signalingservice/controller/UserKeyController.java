@@ -134,7 +134,7 @@ public class UserKeyController {
 	@PostMapping("/backup")
 	public ResponseEntity<CommonResponse<?>> createPrivateKeyBackup(@Valid @RequestBody UserKeysBackupRequest request) {
 		keyService.createPrivateKeyBackup(UUID.fromString(SecurityUtil.getUserKey()), request);
-		return ResponseEntity.ok(CommonResponse.from(ResponseCode.USER_PRIVATE_KEY_BACKUP_SUCCESS));		 	
+		return ResponseEntity.ok(CommonResponse.from(ResponseCode.USER_KEYS_BACKUP_SUCCESS));		 	
 	}
 	
 	// Get user private key backup
@@ -144,7 +144,7 @@ public class UserKeyController {
 			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, 
 					keyService.getPrivateKeyBackup(UUID.fromString(SecurityUtil.getUserKey()))));	
 		} catch (RecordNotFoundException ex) {
-			return ResponseEntity.ok(CommonResponse.from(ResponseCode.USER_PRIVATE_KEY_BACKUP_NOT_FOUND));	
+			return ResponseEntity.ok(CommonResponse.from(ResponseCode.USER_KEYS_BACKUP_NOT_FOUND));	
 		}
 	}
 }

@@ -18,8 +18,8 @@ public enum ResponseCode {
 	USER_KEY_NOT_FOUND("USER_KEY_NOT_FOUND", "user-key.not-found"),
 	ONE_TIME_KEY_IS_NOT_AVAILABLE("ONE_TIME_KEY_IS_NOT_AVAILABLE", "one-time-key.not-available"),
 	ONE_TIME_KEY_ALREADY_EXISTS("ONE_TIME_KEY_ALREADY_EXISTS", "one-time-key.key-already-exists"),
-	USER_PRIVATE_KEY_BACKUP_SUCCESS("USER_PRIVATE_KEY_BACKUP_SUCCESS", "user-private-key-backup.success"),
-	USER_PRIVATE_KEY_BACKUP_NOT_FOUND("USER_PRIVATE_KEY_BACKUP_NOT_FOUND", "user-private-key-backup.not-found");;
+	USER_KEYS_BACKUP_SUCCESS("USER_KEYS_BACKUP_SUCCESS", "user-keys-backup.success"),
+	USER_KEYS_BACKUP_NOT_FOUND("USER_KEYS_BACKUP_NOT_FOUND", "user-keys-backup.not-found");;
 	
     private final String code;
     private final String message;
