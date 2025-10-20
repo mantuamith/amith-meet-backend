@@ -14,7 +14,7 @@ public class GroupSession implements Serializable{
     private Long groupId;
  
     /**
-	 * Out bound group session.
+	 * Inbound/Outbound group session.
 	 * The pickled (encrypted serialized) session data
 	 */
 	private String encryptedSession;

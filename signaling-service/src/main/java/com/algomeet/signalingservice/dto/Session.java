@@ -8,7 +8,7 @@ import lombok.Data;
 public class Session {
 	private UUID userKey;
 	/**
-	 * Inbound session.
+	 * Inbound/Outbound session.
 	 * The pickled (encrypted serialized) session data
 	 */
 	private String encryptedSession;
