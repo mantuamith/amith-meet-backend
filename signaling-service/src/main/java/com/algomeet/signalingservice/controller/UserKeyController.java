@@ -134,9 +134,9 @@ public class UserKeyController {
 	
 	// Create back up for user private key 
 	@PostMapping("/backup")
-	public ResponseEntity<CommonResponse<?>> createPrivateKeyBackup(@Valid @RequestBody UserKeysBackupRequest request) throws JsonProcessingException, UnsupportedEncodingException {
-		keyService.createPrivateKeyBackup(UUID.fromString(SecurityUtil.getUserKey()), request);
-		return ResponseEntity.ok(CommonResponse.from(ResponseCode.USER_KEYS_BACKUP_SUCCESS));		 	
+	public ResponseEntity<CommonResponse<UserKeysBackupResponse>> createPrivateKeyBackup(@Valid @RequestBody UserKeysBackupRequest request) throws JsonProcessingException, UnsupportedEncodingException {
+		UserKeysBackupResponse savedBackup = keyService.createPrivateKeyBackup(UUID.fromString(SecurityUtil.getUserKey()), request);
+		return ResponseEntity.ok(CommonResponse.from(ResponseCode.USER_KEYS_BACKUP_SUCCESS, savedBackup));		 	
 	}
 	
 	// Get user private key backup

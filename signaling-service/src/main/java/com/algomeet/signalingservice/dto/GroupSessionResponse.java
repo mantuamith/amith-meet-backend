@@ -16,9 +16,12 @@ public class GroupSessionResponse implements Serializable{
 	 * The pickled (encrypted serialized) session data
 	 */
 	private String encryptedOutboundSession;
-
+	
+	/** Group session ID for synchronization or verification **/
+	private String outboundSessionId;
+	
 	/** The current ratchet index for synchronization or verification */
-    private Long ratchetIndex;
+    private Long outboundRatchetIndex;
 
     /** The encryption algorithm, e.g. "MEGOLM" */
     private String algorithm;	

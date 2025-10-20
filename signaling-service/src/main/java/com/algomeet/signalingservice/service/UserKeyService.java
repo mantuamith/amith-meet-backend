@@ -207,20 +207,31 @@ public class UserKeyService {
     	oneTimeRepo.deleteByIdAndUserKeyOrUsed(id, userKey, true);
     }
     
-    public void createPrivateKeyBackup(UUID userKey, UserKeysBackupRequest request) throws JsonProcessingException, UnsupportedEncodingException {
+    public UserKeysBackupResponse createPrivateKeyBackup(UUID userKey, UserKeysBackupRequest request) throws JsonProcessingException, UnsupportedEncodingException {
     	UserKeysBackup keyBackup = new UserKeysBackup(userKey, 
     			request.getEncryptedPrivateKey(),
+    			request.getPrivateKeyRatchetIndex(),
     			GroupSessionKeysUtil.converToJson(request.getGroupSessions()));
     	
-    	keyBackupRepo.save(keyBackup);
+    	UserKeysBackup savedBackup = keyBackupRepo.save(keyBackup);
+    	
+    	return UserKeysBackupResponse.builder()
+    			.userKey(savedBackup.getUserKey())
+    			.encryptedPrivateKey(savedBackup.getEncryptedPrivateKey())
+    			.privateKeyRatchetIndex(savedBackup.getPrivateKeyRatchetIndex())
+    			.groupSessions(GroupSessionKeysUtil.converToObject(savedBackup.getGroupSessionKeys()))
+    			.createdAt(savedBackup.getCreatedAt())
+    			.updatedAt(savedBackup.getUpdatedAt())
+    			.build();  
     }
     
     public UserKeysBackupResponse getPrivateKeyBackup(UUID userKey) throws JsonProcessingException, UnsupportedEncodingException {
-    	UserKeysBackup userKeyBackup = keyBackupRepo.findById(userKey).orElseThrow(() -> new RecordNotFoundException("User key/ backup not found"));;
+    	UserKeysBackup userKeyBackup = keyBackupRepo.findById(userKey).orElseThrow(() -> new RecordNotFoundException("User key/ backup not found"));
     	
     	return UserKeysBackupResponse.builder()
     			.userKey(userKeyBackup.getUserKey())
     			.encryptedPrivateKey(userKeyBackup.getEncryptedPrivateKey())
+    			.privateKeyRatchetIndex(userKeyBackup.getPrivateKeyRatchetIndex())
     			.groupSessions(GroupSessionKeysUtil.converToObject(userKeyBackup.getGroupSessionKeys()))
     			.createdAt(userKeyBackup.getCreatedAt())
     			.updatedAt(userKeyBackup.getUpdatedAt())

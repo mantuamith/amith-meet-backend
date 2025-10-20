@@ -15,7 +15,10 @@ import lombok.NoArgsConstructor;
 @Data
 public class UserKeysBackupResponse {
 	private UUID userKey;
-    private String encryptedPrivateKey;		    
+    private String encryptedPrivateKey;		
+	/** The current ratchet index for synchronization or verification */
+    private Long privateKeyRatchetIndex;
+    
     private List<GroupSessionResponse> groupSessions;
     private Instant createdAt;
     private Instant updatedAt;

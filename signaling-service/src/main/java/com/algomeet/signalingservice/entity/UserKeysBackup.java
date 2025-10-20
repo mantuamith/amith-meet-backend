@@ -27,6 +27,8 @@ public class UserKeysBackup {
     @Column(name = "encrypted_private_key", nullable = false, columnDefinition = "TEXT")
     private String encryptedPrivateKey;
     
+    private Long privateKeyRatchetIndex;
+    
     // Use TEXT column for long encrypted strings (safe for large ciphertexts)
     @Lob
     @Column(name = "group_session_keys", nullable = false, columnDefinition = "TEXT")
@@ -46,10 +48,10 @@ public class UserKeysBackup {
         updatedAt = Instant.now();
     }
     
-	public UserKeysBackup(UUID userKey, String encryptedPrivateKey, String jsonGroupSessionKeys) {
+	public UserKeysBackup(UUID userKey, String encryptedPrivateKey, Long privateKeyRatchetIndex, String jsonGroupSessionKeys) {
 		this.userKey = userKey;
-		System.out.println(encryptedPrivateKey);
 		this.encryptedPrivateKey = encryptedPrivateKey;
+		this.privateKeyRatchetIndex = privateKeyRatchetIndex;
 		this.groupSessionKeys = jsonGroupSessionKeys;
 	}
 }
