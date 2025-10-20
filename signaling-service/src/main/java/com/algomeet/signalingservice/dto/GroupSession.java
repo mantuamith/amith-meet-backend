@@ -1,13 +1,15 @@
 package com.algomeet.signalingservice.dto;
 
 import java.io.Serializable;
-import java.util.List;
+import java.util.UUID;
 
 import lombok.Data;
 
 @Data
-public class GroupSessionRequest implements Serializable{
+public class GroupSession implements Serializable{
 	private static final long serialVersionUID = 1L;	
+	private UUID userKey;
+	
 	/** The group or room identifier */
     private Long groupId;
  
@@ -15,16 +17,14 @@ public class GroupSessionRequest implements Serializable{
 	 * Out bound group session.
 	 * The pickled (encrypted serialized) session data
 	 */
-	private String encryptedOutboundSession;
+	private String encryptedSession;
 
 	/** Group session ID for synchronization or verification **/
-	private String outboundSessionId;
+	private String sessionId;
 	
 	/** The current ratchet index for synchronization or verification */
-    private Long outboundRatchetIndex;
+    private Long ratchetIndex;
 
     /** The encryption algorithm, e.g. "MEGOLM" */
     private String algorithm;	
-	
-	private List<InboundGroupSessionKey> inboundSessionKeys;
 }

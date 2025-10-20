@@ -10,7 +10,11 @@ public class UserKeysBackupRequest {
 	@NotEmpty(message = "{user-keys-backup.create.empty-encrypted-account}")
     private String encryptedAccount;	
 	
-	private List<OutboundSessionRequest> outboundSessions;
+	private List<Session> inboundSessions;
 	
-	private List<GroupSessionRequest> groupSessions;
+	private List<Session> outboundSessions;
+	
+	private List<GroupSession> inboundGroupSessions;
+	
+	private List<GroupSession> outboundGroupSessions;
 }

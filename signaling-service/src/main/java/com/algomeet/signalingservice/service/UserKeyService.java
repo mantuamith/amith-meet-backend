@@ -11,27 +11,27 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
 
-import com.algomeet.signalingservice.dto.UserOneTimeKeyRequest;
-import com.algomeet.signalingservice.dto.UserOneTimeKeyResponse;
 import com.algomeet.signalingservice.dto.UserIdentityAndOneTimeKeyResponse;
 import com.algomeet.signalingservice.dto.UserIdentityKeyRequest;
 import com.algomeet.signalingservice.dto.UserIdentityKeyResponse;
 import com.algomeet.signalingservice.dto.UserKeysBackupRequest;
 import com.algomeet.signalingservice.dto.UserKeysBackupResponse;
-import com.algomeet.signalingservice.entity.UserOneTimeKey;
+import com.algomeet.signalingservice.dto.UserOneTimeKeyRequest;
+import com.algomeet.signalingservice.dto.UserOneTimeKeyResponse;
 import com.algomeet.signalingservice.entity.UserIdentityKey;
 import com.algomeet.signalingservice.entity.UserKeysBackup;
+import com.algomeet.signalingservice.entity.UserOneTimeKey;
 import com.algomeet.signalingservice.exceptions.IdentityKeyAlreadyExistsException;
 import com.algomeet.signalingservice.exceptions.NoUserOneTimeKeyIsAvailableException;
 import com.algomeet.signalingservice.exceptions.OneTimeKeyAlreadyExistsException;
 import com.algomeet.signalingservice.exceptions.RecordNotFoundException;
 import com.algomeet.signalingservice.exceptions.UserKeyAlreadyExistsException;
+import com.algomeet.signalingservice.repository.UserIdentityKeyRepository;
+import com.algomeet.signalingservice.repository.UserKeysBackupRepository;
 import com.algomeet.signalingservice.repository.UserOneTimeKeyRepository;
 import com.algomeet.signalingservice.util.GroupSessionUtil;
 import com.algomeet.signalingservice.util.SessionUtil;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.algomeet.signalingservice.repository.UserIdentityKeyRepository;
-import com.algomeet.signalingservice.repository.UserKeysBackupRepository;
 
 import lombok.RequiredArgsConstructor;
 
@@ -211,16 +211,20 @@ public class UserKeyService {
     public UserKeysBackupResponse createPrivateKeyBackup(UUID userKey, UserKeysBackupRequest request) throws JsonProcessingException, UnsupportedEncodingException {
     	UserKeysBackup keyBackup = new UserKeysBackup(userKey, 
     			request.getEncryptedAccount(),
+    			SessionUtil.converToJson(request.getInboundSessions()),
     			SessionUtil.converToJson(request.getOutboundSessions()),
-    			GroupSessionUtil.converToJson(request.getGroupSessions()));
+    			GroupSessionUtil.converToJson(request.getInboundGroupSessions()),
+    			GroupSessionUtil.converToJson(request.getOutboundGroupSessions()));
     	
     	UserKeysBackup savedBackup = keyBackupRepo.save(keyBackup);
     	
     	return UserKeysBackupResponse.builder()
     			.userKey(savedBackup.getUserKey())
     			.encryptedAccount(savedBackup.getEncryptedAccount())
+    			.inboundSessions(SessionUtil.converToObject(savedBackup.getInboundSessions()))
     			.outboundSessions(SessionUtil.converToObject(savedBackup.getOutboundSessions()))
-    			.groupSessions(GroupSessionUtil.converToObject(savedBackup.getGroupSessions()))
+    			.inboundGroupSessions(GroupSessionUtil.converToObject(savedBackup.getInboundGroupSessions()))
+    		    .outboundGroupSessions(GroupSessionUtil.converToObject(savedBackup.getOutboundGroupSessions()))
     			.createdAt(savedBackup.getCreatedAt())
     			.updatedAt(savedBackup.getUpdatedAt())
     			.build();  
@@ -232,8 +236,10 @@ public class UserKeyService {
     	return UserKeysBackupResponse.builder()
     			.userKey(userKeyBackup.getUserKey())
     			.encryptedAccount(userKeyBackup.getEncryptedAccount())
+    			.inboundSessions(SessionUtil.converToObject(userKeyBackup.getInboundSessions()))
     			.outboundSessions(SessionUtil.converToObject(userKeyBackup.getOutboundSessions()))
-    			.groupSessions(GroupSessionUtil.converToObject(userKeyBackup.getGroupSessions()))
+    			.inboundGroupSessions(GroupSessionUtil.converToObject(userKeyBackup.getInboundGroupSessions()))
+    		    .outboundGroupSessions(GroupSessionUtil.converToObject(userKeyBackup.getOutboundGroupSessions()))
     			.createdAt(userKeyBackup.getCreatedAt())
     			.updatedAt(userKeyBackup.getUpdatedAt())
     			.build();  	

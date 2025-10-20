@@ -6,40 +6,36 @@ import java.util.List;
 
 import org.springframework.util.CollectionUtils;
 
-import com.algomeet.signalingservice.dto.GroupSessionRequest;
-import com.algomeet.signalingservice.dto.GroupSessionResponse;
-import com.algomeet.signalingservice.dto.InboundGroupSessionKey;
-import com.algomeet.signalingservice.dto.OutboundSessionRequest;
-import com.algomeet.signalingservice.dto.OutboundSessionResponse;
+import com.algomeet.signalingservice.dto.Session;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 public class SessionUtil {
-	public static String converToJson(List<OutboundSessionRequest> outboundsessions) throws UnsupportedEncodingException, JsonProcessingException {
-		encodeToBase64(outboundsessions);
+	public static String converToJson(List<Session> sessions) throws UnsupportedEncodingException, JsonProcessingException {
+		encodeToBase64(sessions);
 		
 		// Convert to JSON
 		ObjectMapper om = new ObjectMapper();
-		return om.writeValueAsString(outboundsessions);
+		return om.writeValueAsString(sessions);
 	}
 	
-	public static List<OutboundSessionResponse> converToObject(String json) throws UnsupportedEncodingException, JsonProcessingException {
+	public static List<Session> converToObject(String json) throws UnsupportedEncodingException, JsonProcessingException {
 		// Convert to Object
 		ObjectMapper om = new ObjectMapper();
 		om.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-		List<OutboundSessionResponse> outboundSessions = om.readValue(json, new TypeReference<List<OutboundSessionResponse>>() {});
+		List<Session> sessions = om.readValue(json, new TypeReference<List<Session>>() {});
 				
-		decodeBase64(outboundSessions);
+		decodeBase64(sessions);
 		
-		return outboundSessions;
+		return sessions;
 	}
 	
-	private static void encodeToBase64(List<OutboundSessionRequest> sessions) throws UnsupportedEncodingException {
+	private static void encodeToBase64(List<Session> sessions) throws UnsupportedEncodingException {
 		if(!CollectionUtils.isEmpty(sessions)) {
-			for (OutboundSessionRequest groupSession : sessions) {
-				groupSession.setEncryptedSession(encodeToBase64(groupSession.getEncryptedSession()));
+			for (Session session : sessions) {
+				session.setEncryptedSession(encodeToBase64(session.getEncryptedSession()));
 			}
 		}
 	}
@@ -54,10 +50,10 @@ public class SessionUtil {
 		return encoder.encodeToString(utf8Bytes);
 	}
 		
-	private static void decodeBase64(List<OutboundSessionResponse> sessions) throws UnsupportedEncodingException {
+	private static void decodeBase64(List<Session> sessions) throws UnsupportedEncodingException {
 		if(!CollectionUtils.isEmpty(sessions)) {
-			for (OutboundSessionResponse groupSession : sessions) {
-				groupSession.setEncryptedSession(decodeBase64(groupSession.getEncryptedSession()));			
+			for (Session session : sessions) {
+				session.setEncryptedSession(decodeBase64(session.getEncryptedSession()));			
 			}
 		}
 	}

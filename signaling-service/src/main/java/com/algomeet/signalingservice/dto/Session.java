@@ -1,11 +1,14 @@
 package com.algomeet.signalingservice.dto;
 
+import java.util.UUID;
+
 import lombok.Data;
 
 @Data
-public class OutboundSessionRequest {
+public class Session {
+	private UUID userKey;
 	/**
-	 * Outbound session.
+	 * Inbound session.
 	 * The pickled (encrypted serialized) session data
 	 */
 	private String encryptedSession;
