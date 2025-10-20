@@ -6,7 +6,7 @@ import java.util.List;
 import lombok.Data;
 
 @Data
-public class GroupSessionRequest implements Serializable{
+public class GroupSessionResponse implements Serializable{
 	private static final long serialVersionUID = 1L;	
 	/** The group or room identifier */
     private Long groupId;

@@ -16,7 +16,7 @@ import lombok.NoArgsConstructor;
 public class UserKeysBackupResponse {
 	private UUID userKey;
     private String encryptedPrivateKey;		    
-    private List<GroupSessionRequest> groupSessions;
+    private List<GroupSessionResponse> groupSessions;
     private Instant createdAt;
     private Instant updatedAt;
 }

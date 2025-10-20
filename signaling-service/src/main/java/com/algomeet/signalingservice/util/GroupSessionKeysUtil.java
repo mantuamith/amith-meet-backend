@@ -7,9 +7,11 @@ import java.util.List;
 import org.springframework.util.CollectionUtils;
 
 import com.algomeet.signalingservice.dto.GroupSessionRequest;
+import com.algomeet.signalingservice.dto.GroupSessionResponse;
 import com.algomeet.signalingservice.dto.InboundGroupSessionKey;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 public class GroupSessionKeysUtil {
@@ -21,10 +23,11 @@ public class GroupSessionKeysUtil {
 		return om.writeValueAsString(groupSessions);
 	}
 	
-	public static List<GroupSessionRequest> converToObject(String json) throws UnsupportedEncodingException, JsonProcessingException {
+	public static List<GroupSessionResponse> converToObject(String json) throws UnsupportedEncodingException, JsonProcessingException {
 		// Convert to Object
 		ObjectMapper om = new ObjectMapper();
-		List<GroupSessionRequest> groupSessions	= om.readValue(json, new TypeReference<List<GroupSessionRequest>>() {});
+		om.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+		List<GroupSessionResponse> groupSessions = om.readValue(json, new TypeReference<List<GroupSessionResponse>>() {});
 				
 		decodeBase64(groupSessions);
 		
@@ -55,9 +58,9 @@ public class GroupSessionKeysUtil {
 		return encoder.encodeToString(utf8Bytes);
 	}
 		
-	private static void decodeBase64(List<GroupSessionRequest> groupSessions) throws UnsupportedEncodingException {
+	private static void decodeBase64(List<GroupSessionResponse> groupSessions) throws UnsupportedEncodingException {
 		if(!CollectionUtils.isEmpty(groupSessions)) {
-			for (GroupSessionRequest groupSession : groupSessions) {
+			for (GroupSessionResponse groupSession : groupSessions) {
 				groupSession.setEncryptedOutboundSession(decodeBase64(groupSession.getEncryptedOutboundSession()));
 				
 				if(!CollectionUtils.isEmpty(groupSession.getInboundSessionKeys())) {
