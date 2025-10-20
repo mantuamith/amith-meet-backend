@@ -27,7 +27,8 @@ import com.algomeet.signalingservice.exceptions.OneTimeKeyAlreadyExistsException
 import com.algomeet.signalingservice.exceptions.RecordNotFoundException;
 import com.algomeet.signalingservice.exceptions.UserKeyAlreadyExistsException;
 import com.algomeet.signalingservice.repository.UserOneTimeKeyRepository;
-import com.algomeet.signalingservice.util.GroupSessionKeysUtil;
+import com.algomeet.signalingservice.util.GroupSessionUtil;
+import com.algomeet.signalingservice.util.SessionUtil;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.algomeet.signalingservice.repository.UserIdentityKeyRepository;
 import com.algomeet.signalingservice.repository.UserKeysBackupRepository;
@@ -209,17 +210,17 @@ public class UserKeyService {
     
     public UserKeysBackupResponse createPrivateKeyBackup(UUID userKey, UserKeysBackupRequest request) throws JsonProcessingException, UnsupportedEncodingException {
     	UserKeysBackup keyBackup = new UserKeysBackup(userKey, 
-    			request.getEncryptedPrivateKey(),
-    			request.getPrivateKeyRatchetIndex(),
-    			GroupSessionKeysUtil.converToJson(request.getGroupSessions()));
+    			request.getEncryptedAccount(),
+    			SessionUtil.converToJson(request.getOutboundSessions()),
+    			GroupSessionUtil.converToJson(request.getGroupSessions()));
     	
     	UserKeysBackup savedBackup = keyBackupRepo.save(keyBackup);
     	
     	return UserKeysBackupResponse.builder()
     			.userKey(savedBackup.getUserKey())
-    			.encryptedPrivateKey(savedBackup.getEncryptedPrivateKey())
-    			.privateKeyRatchetIndex(savedBackup.getPrivateKeyRatchetIndex())
-    			.groupSessions(GroupSessionKeysUtil.converToObject(savedBackup.getGroupSessionKeys()))
+    			.encryptedAccount(savedBackup.getEncryptedAccount())
+    			.outboundSessions(SessionUtil.converToObject(savedBackup.getOutboundSessions()))
+    			.groupSessions(GroupSessionUtil.converToObject(savedBackup.getGroupSessions()))
     			.createdAt(savedBackup.getCreatedAt())
     			.updatedAt(savedBackup.getUpdatedAt())
     			.build();  
@@ -230,9 +231,9 @@ public class UserKeyService {
     	
     	return UserKeysBackupResponse.builder()
     			.userKey(userKeyBackup.getUserKey())
-    			.encryptedPrivateKey(userKeyBackup.getEncryptedPrivateKey())
-    			.privateKeyRatchetIndex(userKeyBackup.getPrivateKeyRatchetIndex())
-    			.groupSessions(GroupSessionKeysUtil.converToObject(userKeyBackup.getGroupSessionKeys()))
+    			.encryptedAccount(userKeyBackup.getEncryptedAccount())
+    			.outboundSessions(SessionUtil.converToObject(userKeyBackup.getOutboundSessions()))
+    			.groupSessions(GroupSessionUtil.converToObject(userKeyBackup.getGroupSessions()))
     			.createdAt(userKeyBackup.getCreatedAt())
     			.updatedAt(userKeyBackup.getUpdatedAt())
     			.build();  	

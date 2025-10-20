@@ -14,7 +14,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-public class GroupSessionKeysUtil {
+public class GroupSessionUtil {
 	public static String converToJson(List<GroupSessionRequest> groupSessions) throws UnsupportedEncodingException, JsonProcessingException {
 		encodeToBase64(groupSessions);
 		

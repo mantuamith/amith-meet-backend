@@ -24,15 +24,18 @@ public class UserKeysBackup {
 
 	// Use TEXT column for long encrypted strings (safe for large ciphertexts)
     @Lob
-    @Column(name = "encrypted_private_key", nullable = false, columnDefinition = "TEXT")
-    private String encryptedPrivateKey;
-    
-    private Long privateKeyRatchetIndex;
+    @Column(name = "encrypted_account", nullable = false, columnDefinition = "TEXT")
+    private String encryptedAccount;
     
     // Use TEXT column for long encrypted strings (safe for large ciphertexts)
     @Lob
-    @Column(name = "group_session_keys", nullable = false, columnDefinition = "TEXT")
-    private String groupSessionKeys;
+    @Column(name = "outbound_sessions", nullable = false, columnDefinition = "TEXT")
+    private String outboundSessions;
+    
+    // Use TEXT column for long encrypted strings (safe for large ciphertexts)
+    @Lob
+    @Column(name = "group_sessions", nullable = false, columnDefinition = "TEXT")
+    private String groupSessions;
 	
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -48,10 +51,10 @@ public class UserKeysBackup {
         updatedAt = Instant.now();
     }
     
-	public UserKeysBackup(UUID userKey, String encryptedPrivateKey, Long privateKeyRatchetIndex, String jsonGroupSessionKeys) {
+	public UserKeysBackup(UUID userKey, String encryptedAccount, String jsonOutboundSessions, String jsonGroupSessions) {
 		this.userKey = userKey;
-		this.encryptedPrivateKey = encryptedPrivateKey;
-		this.privateKeyRatchetIndex = privateKeyRatchetIndex;
-		this.groupSessionKeys = jsonGroupSessionKeys;
+		this.encryptedAccount = encryptedAccount;
+		this.outboundSessions = jsonOutboundSessions;
+		this.groupSessions = jsonGroupSessions;
 	}
 }

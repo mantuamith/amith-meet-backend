@@ -7,11 +7,10 @@ import lombok.Data;
 
 @Data
 public class UserKeysBackupRequest {
-	@NotEmpty(message = "{user-private-key-backup.create.empty-private-key}")
-    private String encryptedPrivateKey;	
+	@NotEmpty(message = "{user-keys-backup.create.empty-encrypted-account}")
+    private String encryptedAccount;	
 	
-	/** The current ratchet index for synchronization or verification */
-    private Long privateKeyRatchetIndex;
+	private List<OutboundSessionRequest> outboundSessions;
 	
 	private List<GroupSessionRequest> groupSessions;
 }
