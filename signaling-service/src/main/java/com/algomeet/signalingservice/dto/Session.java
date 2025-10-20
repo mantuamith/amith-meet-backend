@@ -13,7 +13,7 @@ public class Session {
 	 */
 	private String encryptedSession;
 
-	/** Group session ID for synchronization or verification **/
+	/** Session ID for synchronization or verification **/
 	private String sessionId;
 	
 	/** The current ratchet index for synchronization or verification */
