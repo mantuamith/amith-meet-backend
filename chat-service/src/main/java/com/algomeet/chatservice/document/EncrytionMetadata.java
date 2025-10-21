@@ -19,11 +19,7 @@ public class EncrytionMetadata {
     // Optional: store actual ciphertext separately if you want plaintext 'content' to remain empty
     @Field("ciphertext")
     private String ciphertext;
-    
-    // Reference to stored Megolm key
-    @Field("sessionKeyId")
-    private String sessionKeyId;
-    
+        
     // Optional integrity tag, e.g., from Olm message JSON
     @Field("mac")
     private String mac;

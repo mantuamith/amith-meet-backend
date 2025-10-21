@@ -30,8 +30,8 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @Document(collection = "group_session_messages")
 @CompoundIndexes({
-    @CompoundIndex(name = "idx_receiver",
-            def  = "{'receiver': 1}")
+	@CompoundIndex(name = "idx_to_ts_id",
+            def  = "{'to': 1, 'timestamp': -1, '_id': -1}"),
 })
 public class GroupSessionMessageDocument {
     @Id
