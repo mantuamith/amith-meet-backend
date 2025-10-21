@@ -21,11 +21,13 @@ public class Session {
 	private String encryptedSession;
 
 	/** Session ID for synchronization or verification **/
+	@Size(max = 88, message = "Value too long") 
 	private String sessionId;
 	
 	/** The current ratchet index for synchronization or verification */
     private Long ratchetIndex;
     
     /** The encryption algorithm, e.g. "OLM" */
+    @Size(max = 24, message = "Value too long") 
     private String algorithm;	
 }

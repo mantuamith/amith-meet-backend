@@ -27,11 +27,13 @@ public class GroupSession implements Serializable{
 	private String encryptedSession;
 
 	/** Group session ID for synchronization or verification **/
+    @Size(max = 88, message = "Value too long") 
 	private String sessionId;
 	
 	/** The current ratchet index for synchronization or verification */
     private Long ratchetIndex;
 
     /** The encryption algorithm, e.g. "MEGOLM" */
+    @Size(max = 24, message = "Value too long") 
     private String algorithm;	
 }
