@@ -18,6 +18,7 @@ public class UserIdentityKeyRequest {
 	@Size(max = 88, message = "Base64 value too long") // adjust based on expected length
     private String identityKey;
 	
+	@Size(max = 500, message = "One time key list cannot contain more than 500 keys")	
 	@Valid
 	private List<@Size(max = 88, message = "Each key must be at most 88 characters long") String> oneTimeKeys;
 }
