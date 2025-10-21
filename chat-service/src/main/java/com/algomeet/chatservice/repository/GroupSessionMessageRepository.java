@@ -6,12 +6,11 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.mongodb.repository.MongoRepository;
 
 import com.algomeet.chatservice.document.GroupSessionMessageDocument;
-import com.algomeet.chatservice.document.MessageDocument;
 
 public interface GroupSessionMessageRepository extends MongoRepository<GroupSessionMessageDocument, String> {
 	void deleteByCorrelationId(String correlationId);
 	
-    List<MessageDocument> findByTo(String receiver, Pageable pageable);
+    List<GroupSessionMessageDocument> findByTo(String receiver, Pageable pageable);
 
-    List<MessageDocument> findByTo(String receiver);      
+    List<GroupSessionMessageDocument> findByTo(String receiver);      
 }

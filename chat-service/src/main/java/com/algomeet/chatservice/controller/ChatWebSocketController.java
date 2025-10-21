@@ -288,8 +288,8 @@ public class ChatWebSocketController {
                     "/queue/keys/group/share",
                     reponse
             );
-        } catch (Exception e) {
-            log.error("Failed to send message to {}: {}", message.getTo(), e.getMessage());
+        } catch (Exception ex) {
+            log.error("Failed to send message to {}: {}", message.getTo(), ex.getMessage(), ex);
 
             messagingTemplate.convertAndSendToUser(
                     principal.getName(),
