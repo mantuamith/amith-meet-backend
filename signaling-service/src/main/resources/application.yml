@@ -8,18 +8,33 @@ spring:
   config:
     activate:
       on-profile: local
+      
   datasource:
-    url: jdbc:postgresql://localhost:5432/chatdb
-    username: chatuser
-    password: chatpass
+    url: jdbc:postgresql://192.168.0.156:5432/clorameet_db
+    username: clorameet_sandro
+    password: algo@123
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+       
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
   data:
-    mongodb:
-      uri: mongodb://localhost:27017/chatdb
-  redis:
-    host: localhost
-    port: 6379
+    redis:
+      host: localhost
+      port: 6379
+
   jackson:
     serialization:
       INDENT_OUTPUT: true
+
 server:
-  port: 8080
+  port: 8091
+
+jwt:
+  secret: Y0h4TkFxWkd6Um9TTktOVlFobU9naFN3SzY5cWhVY08=
