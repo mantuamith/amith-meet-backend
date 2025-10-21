@@ -1,9 +1,14 @@
 package com.algomeet.chatservice.document;
 
 import org.springframework.data.mongodb.core.mapping.Field;
+
+import lombok.Data;
+import lombok.NoArgsConstructor;
 /**
 * 🔐 Encryption metadata
 */
+@Data
+@NoArgsConstructor
 public class EncrytionMetadata {
     @Field("isEncrypted")
     private Boolean encrypted = false;  // true if message.content is ciphertext
