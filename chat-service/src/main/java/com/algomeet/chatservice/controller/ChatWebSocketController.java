@@ -3,12 +3,16 @@ package com.algomeet.chatservice.controller;
 import com.algomeet.chatservice.client.GroupClient;
 import com.algomeet.chatservice.config.StompUserPrincipal;
 import com.algomeet.chatservice.document.GroupDto;
+import com.algomeet.chatservice.document.GroupSessionMessageDocument;
+import com.algomeet.chatservice.document.GroupSessionMessageResponse;
 import com.algomeet.chatservice.document.MessageDocument;
 import com.algomeet.chatservice.document.MessageResponse;
 import com.algomeet.chatservice.dto.*;
 import com.algomeet.chatservice.mapper.MessageMapper;
 import com.algomeet.chatservice.model.MessageStatus;
 import com.algomeet.chatservice.model.AppStatus;
+import com.algomeet.chatservice.model.GroupSessionMessageType;
+import com.algomeet.chatservice.repository.GroupSessionMessageRepository;
 import com.algomeet.chatservice.repository.MessageRepository;
 import com.algomeet.chatservice.service.MessageDeleteService;
 import com.algomeet.chatservice.service.MessageService;
@@ -52,6 +56,7 @@ public class ChatWebSocketController {
     private final NotificationService notificationService;
     private final UserSessionService userSessionService;
     private final SimpMessagingSyncTemplate messagingSyncTemplate;
+    private final GroupSessionMessageRepository groupSessionMessageRepository;
 
     @MessageMapping("/chat")
     public void handleChatMessage(MessageDocument message, Principal principal) {
@@ -261,5 +266,36 @@ public class ChatWebSocketController {
     @MessageMapping("/deliver/pending")
     public void deliverPending(Principal principal) {
         messageService.deliverAllPendingTo(principal.getName());
+    }
+    
+    @MessageMapping("/keys/group/share")
+    public void handleGroupSessionKeySharing(GroupSessionMessageDocument message, Principal principal) {
+        log.info("[STOMP /keys/group/share] {} -> {} | Type: {}", principal.getName(), message.getTo(), message.getType());
+        try {
+        	if (GroupSessionMessageType.ACKNOWLEDGE == message.getType()) {
+        		// Delete parent message
+        		groupSessionMessageRepository.deleteById(message.getCorrelationId());
+        		// Delete sub-messages
+        		groupSessionMessageRepository.deleteByCorrelationId(message.getCorrelationId());
+        		return;
+        	}
+        	
+        	GroupSessionMessageDocument savedMessage = groupSessionMessageRepository.save(message);        	
+        	GroupSessionMessageResponse reponse = messageMapper.toResponse(savedMessage);
+        	
+            messagingSyncTemplate.convertAndSendToUser(
+                    message.getTo(),
+                    "/queue/keys/group/share",
+                    reponse
+            );
+        } catch (Exception e) {
+            log.error("Failed to send keys to {}: {}", message.getTo(), e.getMessage());
+
+            messagingTemplate.convertAndSendToUser(
+                    principal.getName(),
+                    "/queue/errors",
+                    "WebRTC keys failed to deliver to: " + message.getTo()
+            );
+        }
     }
 }

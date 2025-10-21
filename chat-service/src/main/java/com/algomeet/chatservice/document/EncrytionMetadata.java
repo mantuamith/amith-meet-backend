@@ -2,9 +2,9 @@ package com.algomeet.chatservice.document;
 
 import org.springframework.data.mongodb.core.mapping.Field;
 /**
-* Encryption metadata
+* 🔐 Encryption metadata
 */
-public class EncrytionMedata {
+public class EncrytionMetadata {
     @Field("isEncrypted")
     private Boolean encrypted = false;  // true if message.content is ciphertext
 
@@ -19,7 +19,11 @@ public class EncrytionMedata {
     // Optional: store actual ciphertext separately if you want plaintext 'content' to remain empty
     @Field("ciphertext")
     private String ciphertext;
-       
+    
+    // Reference to stored Megolm key
+    @Field("sessionKeyId")
+    private String sessionKeyId;
+    
     // Optional integrity tag, e.g., from Olm message JSON
     @Field("mac")
     private String mac;

@@ -1,5 +1,7 @@
 package com.algomeet.chatservice.mapper;
 
+import com.algomeet.chatservice.document.GroupSessionMessageDocument;
+import com.algomeet.chatservice.document.GroupSessionMessageResponse;
 import com.algomeet.chatservice.document.MessageDocument;
 import com.algomeet.chatservice.document.MessageResponse;
 import org.springframework.stereotype.Component;
@@ -23,6 +25,20 @@ public class MessageMapper {
                 .meta(document.getMetaData())
                 .failedRecipients(document.getFailedRecipients())
                 .forwarded(document.getForwarded())
+                .encryptionMetadata(document.getEncryptionMetadata())
                 .build();
+    }
+    
+    public GroupSessionMessageResponse toResponse(GroupSessionMessageDocument document) {
+    	return GroupSessionMessageResponse.builder()
+    			.id(document.getId())
+    			.type(document.getType())
+    			.groupId(document.getGroupId())
+    			.to(document.getTo())
+    			.toKey(document.getToKey())
+    			.from(document.getFrom())
+    			.fromKey(document.getFromKey())
+    			.payload(document.getPayload())
+    			.build();		
     }
 }

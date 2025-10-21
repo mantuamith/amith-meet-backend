@@ -30,4 +30,6 @@ public class MessageResponse {
 
     private String fromKey;  // UUID string
     private String toKey;    // UUID string
+    
+    private EncrytionMetadata encryptionMetadata;
 }
