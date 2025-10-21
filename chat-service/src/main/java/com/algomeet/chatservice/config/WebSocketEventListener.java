@@ -71,7 +71,7 @@ public class WebSocketEventListener {
         StompHeaderAccessor accessor = StompHeaderAccessor.wrap(event.getMessage());
         log.info("[WS SUBSCRIBE] Session ID: {}, Destination: {}", accessor.getSessionId(), accessor.getDestination());
         
-        if (Constants.DESTINATION_KEYS_GROUP_SHAERE.equalsIgnoreCase(accessor.getDestination())) {
+        if (Constants.DESTINATION_KEYS_GROUP_SHARE.equalsIgnoreCase(accessor.getDestination())) {
 			try {
 				// Deliver all pending group session messages
 				groupSessionMessageService.deliverAllPendingTo(event.getUser().getName());
