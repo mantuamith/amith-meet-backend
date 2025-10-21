@@ -7,7 +7,7 @@ import org.springframework.stereotype.Service;
 
 import com.algomeet.chatservice.document.GroupSessionMessageDocument;
 import com.algomeet.chatservice.document.GroupSessionMessageResponse;
-import com.algomeet.chatservice.mapper.MessageMapper;
+import com.algomeet.chatservice.mapper.GroupSessionMessageMapper;
 import com.algomeet.chatservice.repository.GroupSessionMessageRepository;
 
 import lombok.RequiredArgsConstructor;
@@ -19,14 +19,14 @@ import lombok.extern.slf4j.Slf4j;
 public class GroupSessionMessageService {
 	private final GroupSessionMessageRepository groupSessionMessageRepository;
 	private final SimpMessagingTemplate messagingTemplate;
-	private final MessageMapper messageMapper;
+	private final GroupSessionMessageMapper groupSessionMessageMapper;
 
 	public void deliverAllPendingTo(String receiverUsername) {
 		List<GroupSessionMessageDocument> unsendMessages = groupSessionMessageRepository.findByTo(receiverUsername);   
 		
 		for (GroupSessionMessageDocument message : unsendMessages) {
 			try {    			        	
-				GroupSessionMessageResponse reponse = messageMapper.toResponse(message);
+				GroupSessionMessageResponse reponse = groupSessionMessageMapper.toResponse(message);
 				messagingTemplate.convertAndSendToUser(
 						message.getTo(),
 						"/queue/keys/group/share",
