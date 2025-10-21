@@ -8,6 +8,7 @@ import com.algomeet.chatservice.document.GroupSessionMessageResponse;
 import com.algomeet.chatservice.document.MessageDocument;
 import com.algomeet.chatservice.document.MessageResponse;
 import com.algomeet.chatservice.dto.*;
+import com.algomeet.chatservice.mapper.GroupSessionMessageMapper;
 import com.algomeet.chatservice.mapper.MessageMapper;
 import com.algomeet.chatservice.model.MessageStatus;
 import com.algomeet.chatservice.model.AppStatus;
@@ -57,6 +58,7 @@ public class ChatWebSocketController {
     private final UserSessionService userSessionService;
     private final SimpMessagingSyncTemplate messagingSyncTemplate;
     private final GroupSessionMessageRepository groupSessionMessageRepository;
+    private final GroupSessionMessageMapper groupSessionMessageMapper;
 
     @MessageMapping("/chat")
     public void handleChatMessage(MessageDocument message, Principal principal) {
@@ -281,7 +283,7 @@ public class ChatWebSocketController {
         	}
         	
         	GroupSessionMessageDocument savedMessage = groupSessionMessageRepository.save(message);        	
-        	GroupSessionMessageResponse reponse = messageMapper.toResponse(savedMessage);
+        	GroupSessionMessageResponse reponse = groupSessionMessageMapper.toResponse(savedMessage);
         	
             messagingSyncTemplate.convertAndSendToUser(
                     message.getTo(),
