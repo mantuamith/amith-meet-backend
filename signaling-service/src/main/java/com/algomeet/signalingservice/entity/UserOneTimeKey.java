@@ -22,10 +22,10 @@ public class UserOneTimeKey {
     @Column(name = "id", updatable = false, nullable = false)
     private Long id;
 
-    @Column(name = "user_key", nullable = false, length = 255)
+    @Column(name = "user_key", nullable = false, length = 88)
     private UUID userKey;
     
-    @Column(name = "one_time_key", nullable = false, length = 255)
+    @Column(name = "one_time_key", nullable = false, length = 88)
     private String oneTimeKey;
     
     @Column(name = "used", nullable = false)     

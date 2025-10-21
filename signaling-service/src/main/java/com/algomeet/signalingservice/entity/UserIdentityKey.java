@@ -24,7 +24,7 @@ public class UserIdentityKey {
 	@Column(name = "user_key", nullable = false, updatable = false)
 	private UUID userKey;
 
-	@Column(name = "identity_key", nullable = false, unique = true, length = 255)
+	@Column(name = "identity_key", nullable = false, unique = true, length = 88)
     private String identityKey;
 	
 	// Join via the identity_key string column

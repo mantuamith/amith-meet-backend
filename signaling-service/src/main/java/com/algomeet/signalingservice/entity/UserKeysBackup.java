@@ -24,7 +24,7 @@ public class UserKeysBackup {
 
 	// Use TEXT column for long encrypted strings (safe for large ciphertexts)
     @Lob
-    @Column(name = "encrypted_account", nullable = false, columnDefinition = "TEXT")
+    @Column(name = "encrypted_account", nullable = false, columnDefinition = "TEXT", length = 4500)
     private String encryptedAccount;
     
     // Use TEXT column for long encrypted strings (safe for large ciphertexts)
@@ -47,6 +47,17 @@ public class UserKeysBackup {
     @Column(name = "outbound_group_sessions", nullable = true, columnDefinition = "TEXT")
     private String outboundGroupSessions;
 	
+    @Column(name = "version", length = 10)
+    private String version;
+
+    /** Algorithm name, e.g. "AES/GCM/NoPadding" or "AES-CBC". */
+    @Column(name = "alg", length = 32)
+    private String alg;
+
+    /** Base64-encoded salt for key derivation. */
+    @Column(name = "salt", length = 88)
+    private String salt;
+    
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
     private Instant updatedAt;

@@ -3,6 +3,8 @@ package com.algomeet.signalingservice.dto;
 import java.io.Serializable;
 import java.util.UUID;
 
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 @Data
@@ -17,6 +19,11 @@ public class GroupSession implements Serializable{
 	 * Inbound/Outbound group session.
 	 * The pickled (encrypted serialized) session data
 	 */
+    @Pattern(
+		    regexp = "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$",
+		    message = "Invalid Base64 format"
+		)
+	@Size(max = 2000, message = "Base64 value too long") 
 	private String encryptedSession;
 
 	/** Group session ID for synchronization or verification **/

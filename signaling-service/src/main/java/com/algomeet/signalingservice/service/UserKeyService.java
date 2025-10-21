@@ -215,6 +215,9 @@ public class UserKeyService {
     			SessionUtil.converToJson(request.getOutboundSessions()),
     			GroupSessionUtil.converToJson(request.getInboundGroupSessions()),
     			GroupSessionUtil.converToJson(request.getOutboundGroupSessions()));
+    	keyBackup.setVersion(request.getVersion());
+    	keyBackup.setAlg(request.getAlg());
+    	keyBackup.setSalt(request.getSalt());
     	
     	UserKeysBackup savedBackup = keyBackupRepo.save(keyBackup);
     	
@@ -225,6 +228,9 @@ public class UserKeyService {
     			.outboundSessions(SessionUtil.converToObject(savedBackup.getOutboundSessions()))
     			.inboundGroupSessions(GroupSessionUtil.converToObject(savedBackup.getInboundGroupSessions()))
     		    .outboundGroupSessions(GroupSessionUtil.converToObject(savedBackup.getOutboundGroupSessions()))
+    		    .version(savedBackup.getVersion())
+    		    .salt(savedBackup.getSalt())
+    		    .alg(savedBackup.getAlg())
     			.createdAt(savedBackup.getCreatedAt())
     			.updatedAt(savedBackup.getUpdatedAt())
     			.build();  
@@ -240,6 +246,9 @@ public class UserKeyService {
     			.outboundSessions(SessionUtil.converToObject(userKeyBackup.getOutboundSessions()))
     			.inboundGroupSessions(GroupSessionUtil.converToObject(userKeyBackup.getInboundGroupSessions()))
     		    .outboundGroupSessions(GroupSessionUtil.converToObject(userKeyBackup.getOutboundGroupSessions()))
+    		    .version(userKeyBackup.getVersion())
+    		    .salt(userKeyBackup.getSalt())
+    		    .alg(userKeyBackup.getAlg())
     			.createdAt(userKeyBackup.getCreatedAt())
     			.updatedAt(userKeyBackup.getUpdatedAt())
     			.build();  	
