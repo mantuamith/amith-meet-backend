@@ -19,7 +19,7 @@ public class GroupSessionPayload {
     private String sessionId;     // Megolm session ID
     
     @Field("sessionKey")
-    private String sessionKey;    // Ciphertext - Base64-encoded session key (for SHARE)  
+    private String sessionKey;    // Ciphertext of session key, encrypted using OLM (for SHARE)  
     
     @Field("algorithm")
     private String algorithm;     // e.g. "MEGOLM"    

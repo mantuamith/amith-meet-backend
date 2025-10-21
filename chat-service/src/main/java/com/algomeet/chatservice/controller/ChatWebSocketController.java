@@ -289,12 +289,12 @@ public class ChatWebSocketController {
                     reponse
             );
         } catch (Exception e) {
-            log.error("Failed to send keys to {}: {}", message.getTo(), e.getMessage());
+            log.error("Failed to send message to {}: {}", message.getTo(), e.getMessage());
 
             messagingTemplate.convertAndSendToUser(
                     principal.getName(),
                     "/queue/errors",
-                    "WebRTC keys failed to deliver to: " + message.getTo()
+                    "WebRTC message failed to deliver to: " + message.getTo()
             );
         }
     }

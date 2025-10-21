@@ -38,13 +38,12 @@ public class GroupSessionMessageDocument {
     private String id;
     
     /** 
-     * Message Id of the parent message (
+     * Correlation ID is used to correlate two or more messages, it's value is coming from message Id of the parent message 
      * e.g 
      * 1. If REQUEST message is initiated, the response SHARE message correlation ID must be 
      * set using the REQUEST message id., then the ACKNOWLEDGE message must be using same correlation ID.
      * 
      * 2. If SHARE message is initiated without REQUEST, the ACKNOWLEDGE message correlation ID must be set using SHARE message ID.
-     * )
      */    
     @Field("correlationId")
     private String correlationId;
