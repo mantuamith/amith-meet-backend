@@ -4,6 +4,9 @@ import com.algomeet.chatservice.document.CallMetaData;
 import com.algomeet.chatservice.document.MessageDocument;
 import com.algomeet.chatservice.document.MessageResponse;
 import com.algomeet.chatservice.dto.*;
+import com.algomeet.chatservice.dto.clearchat.ChatClearedEvent;
+import com.algomeet.chatservice.dto.signalling.CallMessageMetaUpdate;
+import com.algomeet.chatservice.dto.signalling.CallMetaUpdatedEvent;
 import com.algomeet.chatservice.mapper.MessageMapper;
 import com.algomeet.chatservice.model.CallType;
 import com.algomeet.chatservice.model.MessageStatus;
@@ -15,8 +18,6 @@ import com.algomeet.notificationservice.dto.Notification.NotificationBuilder;
 import com.algomeet.notificationservice.enums.NotificationType;
 import com.algomeet.notificationservice.service.NotificationService;
 import com.mongodb.client.result.UpdateResult;
-import jakarta.persistence.criteria.CriteriaBuilder;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.mongodb.core.MongoTemplate;
@@ -32,7 +33,6 @@ import java.util.stream.Collectors;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;     // <— THIS ONE
 import org.springframework.data.mongodb.core.query.Update;
-import org.springframework.web.bind.annotation.RequestBody;
 
 import static org.springframework.data.mongodb.core.query.Criteria.where;
 
@@ -361,7 +361,7 @@ public class MessageService {
         // 1) tell the client to clear the thread view (if open)
         messagingSyncTemplate.convertAndSendToUser(
                 me, "/queue/chat/cleared",
-                new com.algomeet.chatservice.dto.ChatClearedEvent(contact, affected, now)
+                new ChatClearedEvent(contact, affected, now)
         );
 
         // 2) refresh unread counters for the left pane

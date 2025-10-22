@@ -1,4 +1,4 @@
-package com.algomeet.chatservice.dto;
+package com.algomeet.chatservice.dto.groupsession;
 
 import org.springframework.data.mongodb.core.mapping.Field;
 

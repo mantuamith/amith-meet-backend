@@ -1,4 +1,4 @@
-package com.algomeet.chatservice.dto;
+package com.algomeet.chatservice.dto.msgdelete;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;

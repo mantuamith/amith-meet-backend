@@ -1,6 +1,6 @@
 package com.algomeet.chatservice.document;
 
-import com.algomeet.chatservice.dto.GroupSessionPayload;
+import com.algomeet.chatservice.dto.groupsession.GroupSessionPayload;
 import com.algomeet.chatservice.model.GroupSessionMessageType;
 
 import lombok.AllArgsConstructor;

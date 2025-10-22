@@ -1,4 +1,4 @@
-package com.algomeet.chatservice.dto;
+package com.algomeet.chatservice.dto.signalling;
 
 import com.algomeet.chatservice.document.CallMetaData;
 import lombok.AllArgsConstructor;
