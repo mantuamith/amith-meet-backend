@@ -15,23 +15,23 @@ public class UserKeysBackupRequest {
 		    regexp = "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$",
 		    message = "Invalid Base64 format"
 		)
-	@Size(max = 400000, message = "Base64 value too long")  // More than 256 KB
+	@Size(max = 350000, message = "Base64 value too long")  // More than 256 KB
     private String encryptedAccount;	
 	
 	@Valid
-	@Size(max = 30000, message = "Inbound sessions list cannot contain more than 30000 sessions") //more than 30 KB 
+	@Size(max = 10000, message = "Inbound sessions list cannot contain more than 10000 sessions") 
 	private List<Session> inboundSessions;
 	
 	@Valid
-	@Size(max = 30000, message = "Outbound sessions list cannot contain more than 30000 sessions") 
+	@Size(max = 10000, message = "Outbound sessions list cannot contain more than 10000 sessions") 
 	private List<Session> outboundSessions;
 	
 	@Valid
-	@Size(max = 50000, message = "Inbound group sessions list cannot contain more than 50000 sessions") // More than 50 KB 
+	@Size(max = 10000, message = "Inbound group sessions list cannot contain more than 10000 sessions") 
 	private List<GroupSession> inboundGroupSessions;
 	
 	@Valid
-	@Size(max = 50000, message = "Inbound group sessions list cannot contain more than 50000 sessions")
+	@Size(max = 10000, message = "Inbound group sessions list cannot contain more than 10000 sessions")
 	private List<GroupSession> outboundGroupSessions;
 	
 	/** Encryption algorithm version (for compatibility, e.g. "v1", "v2"). */

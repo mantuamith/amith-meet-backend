@@ -17,7 +17,7 @@ public class Session {
 		    regexp = "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$",
 		    message = "Invalid Base64 format"
 		)
-	@Size(max = 2000, message = "Base64 value too long") 
+	@Size(max = 25000, message = "Base64 value too long") // 32 KB
 	private String encryptedSession;
 
 	/** Session ID for synchronization or verification **/
