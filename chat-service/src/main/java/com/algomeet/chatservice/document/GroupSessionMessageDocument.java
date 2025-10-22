@@ -8,7 +8,7 @@ import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
 
-import com.algomeet.chatservice.dto.GroupSessionPayload;
+import com.algomeet.chatservice.dto.groupsession.GroupSessionPayload;
 import com.algomeet.chatservice.model.GroupSessionMessageType;
 
 import lombok.AllArgsConstructor;

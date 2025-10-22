@@ -1,5 +1,5 @@
 // STOMP event to the user who cleared the chat
-package com.algomeet.chatservice.dto;
+package com.algomeet.chatservice.dto.clearchat;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;

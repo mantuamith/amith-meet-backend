@@ -1,5 +1,5 @@
 // Delete request over REST
-package com.algomeet.chatservice.dto;
+package com.algomeet.chatservice.dto.msgdelete;
 import lombok.Data;
 
 import java.util.List;

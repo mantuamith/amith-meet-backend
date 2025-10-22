@@ -1,5 +1,5 @@
 // REST response
-package com.algomeet.chatservice.dto;
+package com.algomeet.chatservice.dto.clearchat;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
