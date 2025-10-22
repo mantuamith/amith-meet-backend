@@ -40,6 +40,7 @@ public class UserSecurityQuestion {
     @JoinColumn(name = "sec_question_id", referencedColumnName = "id") 
     private SecurityQuestions securityQuestion;
 
+    @Column(length = 255)
     private String answer;
     
     private Instant createdAt;
