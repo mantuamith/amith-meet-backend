@@ -92,7 +92,7 @@
      <dependency>
        <groupId>com.algomeet</groupId>
        <artifactId>notification-service-publish-starter</artifactId>
-       <version>0.1.6</version>
+       <version>0.1.9</version>
      </dependency>
     <!-- Lombok -->
     <dependency>
