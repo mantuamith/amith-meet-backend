@@ -24,7 +24,7 @@ public class UserKeysBackup {
 
 	// Use TEXT column for long encrypted strings (safe for large ciphertexts)
     @Lob
-    @Column(name = "encrypted_account", nullable = false, columnDefinition = "TEXT", length = 4500)
+    @Column(name = "encrypted_account", nullable = false, columnDefinition = "TEXT", length = 400000)
     private String encryptedAccount;
     
     // Use TEXT column for long encrypted strings (safe for large ciphertexts)
