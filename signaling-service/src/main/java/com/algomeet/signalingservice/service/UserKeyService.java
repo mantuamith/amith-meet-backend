@@ -46,7 +46,7 @@ public class UserKeyService {
     private final UserOneTimeKeyRepository oneTimeRepo;
     private final UserKeysBackupRepository keyBackupRepo;
     
-    @Value("${one-time-keys.reserved-max-limit:1000}")
+    @Value("${one-time-keys.reserved-max-limit:5000}")
     private int reservedOneTimeKeysMaxLimit;
 
     public UserIdentityKeyResponse registerUserIdentity(UUID userKey, UserIdentityKeyRequest request) {
