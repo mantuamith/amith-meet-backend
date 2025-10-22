@@ -2,6 +2,7 @@ package com.algomeet.authservice.dto;
 
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -16,6 +17,8 @@ public class UserSecurityQuestionRequest {
     private String userProfileId;
 	@NotEmpty
     private String securityQuestionId; // reference to SecurityQuestions.id
+	
+	@Size(max = 255)
 	@NotEmpty
     private String answer;
 }
