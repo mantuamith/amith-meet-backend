@@ -7,6 +7,7 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
@@ -24,6 +25,7 @@ import com.algomeet.signalingservice.entity.UserOneTimeKey;
 import com.algomeet.signalingservice.exceptions.IdentityKeyAlreadyExistsException;
 import com.algomeet.signalingservice.exceptions.NoUserOneTimeKeyIsAvailableException;
 import com.algomeet.signalingservice.exceptions.OneTimeKeyAlreadyExistsException;
+import com.algomeet.signalingservice.exceptions.OneTimeKeysReservedMaxLimitExceededException;
 import com.algomeet.signalingservice.exceptions.RecordNotFoundException;
 import com.algomeet.signalingservice.exceptions.UserKeyAlreadyExistsException;
 import com.algomeet.signalingservice.repository.UserIdentityKeyRepository;
@@ -43,6 +45,9 @@ public class UserKeyService {
     private final UserIdentityKeyRepository userIdentityRepo;
     private final UserOneTimeKeyRepository oneTimeRepo;
     private final UserKeysBackupRepository keyBackupRepo;
+    
+    @Value("${one-time-keys.reserved-max-limit:5000}")
+    private int reservedOneTimeKeysMaxLimit;
 
     public UserIdentityKeyResponse registerUserIdentity(UUID userKey, UserIdentityKeyRequest request) {
     	if (userIdentityRepo.findByIdentityKey(request.getIdentityKey()).isPresent()) {    		
@@ -123,6 +128,11 @@ public class UserKeyService {
         UserIdentityKey userIdentity = userIdentityRepo.findById(userKey)
                 .orElseThrow(() -> new RecordNotFoundException("User key not found"));
         
+        // Check if reserved keys max limit did not exceed
+        List<UserOneTimeKey> allUserOnetimeKeys = oneTimeRepo.findByUserKey(userKey);         
+        if (allUserOnetimeKeys != null && allUserOnetimeKeys.size() > reservedOneTimeKeysMaxLimit) {
+        	throw new OneTimeKeysReservedMaxLimitExceededException("Number of user reserved one time keys max limit exceeded");
+        }        
         
         List<UserOneTimeKey> onetimeKeys = new ArrayList<>();
         if (!CollectionUtils.isEmpty(userIdentity.getOneTimeKeys())) {
@@ -215,6 +225,9 @@ public class UserKeyService {
     			SessionUtil.converToJson(request.getOutboundSessions()),
     			GroupSessionUtil.converToJson(request.getInboundGroupSessions()),
     			GroupSessionUtil.converToJson(request.getOutboundGroupSessions()));
+    	keyBackup.setVersion(request.getVersion());
+    	keyBackup.setAlg(request.getAlg());
+    	keyBackup.setSalt(request.getSalt());
     	
     	UserKeysBackup savedBackup = keyBackupRepo.save(keyBackup);
     	
@@ -225,6 +238,9 @@ public class UserKeyService {
     			.outboundSessions(SessionUtil.converToObject(savedBackup.getOutboundSessions()))
     			.inboundGroupSessions(GroupSessionUtil.converToObject(savedBackup.getInboundGroupSessions()))
     		    .outboundGroupSessions(GroupSessionUtil.converToObject(savedBackup.getOutboundGroupSessions()))
+    		    .version(savedBackup.getVersion())
+    		    .salt(savedBackup.getSalt())
+    		    .alg(savedBackup.getAlg())
     			.createdAt(savedBackup.getCreatedAt())
     			.updatedAt(savedBackup.getUpdatedAt())
     			.build();  
@@ -240,6 +256,9 @@ public class UserKeyService {
     			.outboundSessions(SessionUtil.converToObject(userKeyBackup.getOutboundSessions()))
     			.inboundGroupSessions(GroupSessionUtil.converToObject(userKeyBackup.getInboundGroupSessions()))
     		    .outboundGroupSessions(GroupSessionUtil.converToObject(userKeyBackup.getOutboundGroupSessions()))
+    		    .version(userKeyBackup.getVersion())
+    		    .salt(userKeyBackup.getSalt())
+    		    .alg(userKeyBackup.getAlg())
     			.createdAt(userKeyBackup.getCreatedAt())
     			.updatedAt(userKeyBackup.getUpdatedAt())
     			.build();  	

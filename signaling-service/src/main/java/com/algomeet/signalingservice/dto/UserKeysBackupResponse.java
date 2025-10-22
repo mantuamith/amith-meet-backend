@@ -23,6 +23,10 @@ public class UserKeysBackupResponse {
 	private List<GroupSession> inboundGroupSessions;	
 	private List<GroupSession> outboundGroupSessions;
 	
+    private String version;
+    private String alg;
+    private String salt;
+	
     private Instant createdAt;
     private Instant updatedAt;
 }
