@@ -60,7 +60,7 @@ public class ChatWebSocketController {
         String userKey = up.userKey();   // <-- UUID string (may be null on old tokens)
         String username = up.username();
         message.setSender(username);
-        message.setTimestamp(Instant.now());
+        message.setTimestamp(message.getTimestamp());
         if (message.getStatus() == null) {
             message.setStatus(MessageStatus.SENT);
         }
@@ -155,13 +155,13 @@ public class ChatWebSocketController {
     @MessageMapping("/delivered")
     public void markAsDelivered(@Payload MessageStatusUpdate payload, Principal principal) {
         System.out.println("[STOMP /delivered] User: " + principal.getName() + ", Message IDs: " + payload.getMessageIds());
-        messageService.markMessagesAsDelivered(payload.getMessageIds(), principal.getName());
+        messageService.markMessagesAsDelivered(payload, principal.getName());
     }
 
     @MessageMapping("/read")
     public void markAsRead(@Payload MessageStatusUpdate payload, Principal principal) {
         System.out.println("[STOMP /read] User: " + principal.getName() + ", Message IDs: " + payload.getMessageIds());
-        messageService.markMessagesAsRead(payload.getMessageIds(), principal.getName());
+        messageService.markMessagesAsRead(payload, principal.getName());
     }
 
     @MessageMapping("/update-call-meta")
