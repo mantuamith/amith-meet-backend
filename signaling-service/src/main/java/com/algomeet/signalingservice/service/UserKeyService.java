@@ -7,6 +7,7 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
@@ -24,6 +25,7 @@ import com.algomeet.signalingservice.entity.UserOneTimeKey;
 import com.algomeet.signalingservice.exceptions.IdentityKeyAlreadyExistsException;
 import com.algomeet.signalingservice.exceptions.NoUserOneTimeKeyIsAvailableException;
 import com.algomeet.signalingservice.exceptions.OneTimeKeyAlreadyExistsException;
+import com.algomeet.signalingservice.exceptions.OneTimeKeysReservedMaxLimitExceededException;
 import com.algomeet.signalingservice.exceptions.RecordNotFoundException;
 import com.algomeet.signalingservice.exceptions.UserKeyAlreadyExistsException;
 import com.algomeet.signalingservice.repository.UserIdentityKeyRepository;
@@ -43,6 +45,9 @@ public class UserKeyService {
     private final UserIdentityKeyRepository userIdentityRepo;
     private final UserOneTimeKeyRepository oneTimeRepo;
     private final UserKeysBackupRepository keyBackupRepo;
+    
+    @Value("${one-time-keys.reserved-max-limit:1000}")
+    private int reservedOneTimeKeysMaxLimit;
 
     public UserIdentityKeyResponse registerUserIdentity(UUID userKey, UserIdentityKeyRequest request) {
     	if (userIdentityRepo.findByIdentityKey(request.getIdentityKey()).isPresent()) {    		
@@ -123,6 +128,11 @@ public class UserKeyService {
         UserIdentityKey userIdentity = userIdentityRepo.findById(userKey)
                 .orElseThrow(() -> new RecordNotFoundException("User key not found"));
         
+        // Check if reserved keys max limit did not exceed
+        List<UserOneTimeKey> allUserOnetimeKeys = oneTimeRepo.findByUserKey(userKey);         
+        if (allUserOnetimeKeys != null && allUserOnetimeKeys.size() > reservedOneTimeKeysMaxLimit) {
+        	throw new OneTimeKeysReservedMaxLimitExceededException("Number of user reserved one time keys max limit exceeded");
+        }        
         
         List<UserOneTimeKey> onetimeKeys = new ArrayList<>();
         if (!CollectionUtils.isEmpty(userIdentity.getOneTimeKeys())) {

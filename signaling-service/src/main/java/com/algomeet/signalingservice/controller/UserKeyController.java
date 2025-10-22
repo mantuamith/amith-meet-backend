@@ -30,6 +30,7 @@ import com.algomeet.signalingservice.exceptions.IdentityKeyAlreadyExistsExceptio
 import com.algomeet.signalingservice.exceptions.RecordNotFoundException;
 import com.algomeet.signalingservice.exceptions.NoUserOneTimeKeyIsAvailableException;
 import com.algomeet.signalingservice.exceptions.OneTimeKeyAlreadyExistsException;
+import com.algomeet.signalingservice.exceptions.OneTimeKeysReservedMaxLimitExceededException;
 import com.algomeet.signalingservice.exceptions.UserKeyAlreadyExistsException;
 import com.algomeet.signalingservice.service.UserKeyService;
 import com.algomeet.signalingservice.util.SecurityUtil;
@@ -37,7 +38,9 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @RestController
 @RequestMapping("/signaling/keys")
 @RequiredArgsConstructor
@@ -107,7 +110,12 @@ public class UserKeyController {
 			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
 					new CommonResponse(ResponseCode.ONE_TIME_KEY_ALREADY_EXISTS.getCode(), 
 							ResponseCode.ONE_TIME_KEY_ALREADY_EXISTS.getMessage() + " " + ex.getMessage()));
-		} 		
+		} catch (OneTimeKeysReservedMaxLimitExceededException ex) {
+			log.error("Error {}", ex.getMessage(), ex);
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
+					new CommonResponse(ResponseCode.ONE_TIME_KEY_RESERVED_MAX_LIMIT_EXCEEDED.getCode(), 
+							ResponseCode.ONE_TIME_KEY_RESERVED_MAX_LIMIT_EXCEEDED.getMessage() + " " + ex.getMessage()));
+		}
 	}
 
 	// Get one-time keys for existing user identity key
