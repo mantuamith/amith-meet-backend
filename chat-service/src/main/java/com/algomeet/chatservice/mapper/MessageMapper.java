@@ -23,6 +23,7 @@ public class MessageMapper {
                 .meta(document.getMetaData())
                 .failedRecipients(document.getFailedRecipients())
                 .forwarded(document.getForwarded())
+                .replyContent(document.getReplyContent())
                 .build();
     }
 }
