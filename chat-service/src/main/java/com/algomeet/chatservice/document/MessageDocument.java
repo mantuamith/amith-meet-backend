@@ -84,6 +84,11 @@ public class MessageDocument {
 
     private CallMetaData callMetaData;
 
+    private Long msgReadTimeStamp;
+
+    private Long msgDeliveredTimeStamp;
+
+
     @Field("failedRecipients")
     private List<String> failedRecipients;
     
