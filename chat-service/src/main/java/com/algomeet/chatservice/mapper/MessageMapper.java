@@ -25,6 +25,8 @@ public class MessageMapper {
                 .failedRecipients(document.getFailedRecipients())
                 .forwarded(document.getForwarded())
                 .encryptionMetadata(document.getEncryptionMetadata())
+                .msgReadTimeStamp(document.getMsgReadTimeStamp())
+                .msgDeliveredTimeStamp(document.getMsgDeliveredTimeStamp())
                 .build();
     }  
 }

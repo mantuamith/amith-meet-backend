@@ -189,7 +189,9 @@ public class MessageService {
             return;
         }
 
-        messages.forEach(m -> m.setStatus(MessageStatus.DELIVERED));
+        messages.forEach(m -> {m.setStatus(MessageStatus.DELIVERED);
+            m.setMsgDeliveredTimeStamp(deliverStatus.getStatusTimeStamp());
+        });
         messageRepository.saveAll(messages);
         long nowSec = deliverStatus.getStatusTimeStamp();
         log.info("[Delivered] Updated count={} receiver={}", messages.size(), receiverUsername);
@@ -217,7 +219,10 @@ public class MessageService {
             return;
         }
 
-        messages.forEach(m -> m.setStatus(MessageStatus.READ));
+        messages.forEach(m -> {
+            m.setStatus(MessageStatus.READ);
+            m.setMsgReadTimeStamp(readUpdate.getStatusTimeStamp());
+        });
         messageRepository.saveAll(messages);
         long nowSec = readUpdate.getStatusTimeStamp();
         log.info("[Read] Updated count={} reader={}", messages.size(), readerId);
