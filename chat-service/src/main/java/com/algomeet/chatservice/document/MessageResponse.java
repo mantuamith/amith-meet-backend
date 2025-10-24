@@ -22,6 +22,7 @@ public class MessageResponse {
     private String content;
     private String text;
     private List<MediaItem> mediaGroup;
+    private ReplyContent replyContent;
     private MessageMetaData meta;
     private ForwardInfo forwarded;
     private Integer nMessages;

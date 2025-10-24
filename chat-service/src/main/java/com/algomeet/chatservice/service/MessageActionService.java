@@ -85,9 +85,12 @@ public class MessageActionService {
         } else {
             reply.setReceiver(req.getReceiver());
         }
-        MessageMetaData meta = new MessageMetaData();
-        meta.setReplyToMessageId(req.getReplyToMessageId());
-        reply.setMetaData(meta);
+        MessageDocument msg = messageRepository.findById(req.getReplyToMessageId()).orElse(null);
+        ReplyContent replyContent = new ReplyContent();
+        replyContent.setOriginalMessageId(req.getReplyToMessageId());
+        replyContent.setOriginalFrom(msg.getReceiver());
+        replyContent.setOriginalMesg(msg.getContent());
+        reply.setReplyContent(replyContent);
         MessageDocument saved = messageRepository.save(reply);
         dispatchNewMessage(saved);
         return saved;

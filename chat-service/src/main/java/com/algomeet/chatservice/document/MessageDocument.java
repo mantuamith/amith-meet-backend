@@ -78,6 +78,8 @@ public class MessageDocument {
     private MessageMetaData metaData;      // reply, reactions, etc.
     private ForwardInfo forwarded;         // forward tracking
 
+    private ReplyContent replyContent;
+
     private CallMetaData callMetaData;
 
     @Field("failedRecipients")

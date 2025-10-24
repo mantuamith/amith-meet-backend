@@ -11,8 +11,8 @@ import java.util.Map;
 @NoArgsConstructor
 public class MessageMetaData {
 
-    @Field("replyToMessageId")
-    private String replyToMessageId;
+    @Field("reactionToMessageId")
+    private String reactionToMessageId;
 
     @Field("reactions")
     private Map<String, List<String>> reactions; // emoji → list of userIds
