@@ -1,8 +1,8 @@
 package com.algomeet.chatservice.service;
 
 import com.algomeet.chatservice.document.MessageDocument;
-import com.algomeet.chatservice.dto.MessageDeleteResult;
-import com.algomeet.chatservice.dto.MessageDeletedEvent;
+import com.algomeet.chatservice.dto.msgdelete.MessageDeleteResult;
+import com.algomeet.chatservice.dto.msgdelete.MessageDeletedEvent;
 import com.algomeet.chatservice.repository.MessageRepository;
 import com.algomeet.chatservice.sync.messaging.SimpMessagingSyncTemplate;
 

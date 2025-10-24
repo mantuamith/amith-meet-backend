@@ -3,12 +3,21 @@ package com.algomeet.chatservice.controller;
 import com.algomeet.chatservice.client.GroupClient;
 import com.algomeet.chatservice.config.StompUserPrincipal;
 import com.algomeet.chatservice.document.GroupDto;
+import com.algomeet.chatservice.document.GroupSessionMessageDocument;
+import com.algomeet.chatservice.document.GroupSessionMessageResponse;
 import com.algomeet.chatservice.document.MessageDocument;
 import com.algomeet.chatservice.document.MessageResponse;
 import com.algomeet.chatservice.dto.*;
+import com.algomeet.chatservice.dto.msgdelete.MessageDeleteCommand;
+import com.algomeet.chatservice.dto.signalling.CallMessageMetaUpdate;
+import com.algomeet.chatservice.dto.signalling.SignalMessage;
+import com.algomeet.chatservice.dto.signalling.SignalResponse;
+import com.algomeet.chatservice.mapper.GroupSessionMessageMapper;
 import com.algomeet.chatservice.mapper.MessageMapper;
 import com.algomeet.chatservice.model.MessageStatus;
 import com.algomeet.chatservice.model.AppStatus;
+import com.algomeet.chatservice.model.GroupSessionMessageType;
+import com.algomeet.chatservice.repository.GroupSessionMessageRepository;
 import com.algomeet.chatservice.repository.MessageRepository;
 import com.algomeet.chatservice.service.MessageDeleteService;
 import com.algomeet.chatservice.service.MessageService;
@@ -23,16 +32,13 @@ import com.algomeet.notificationservice.service.NotificationService;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
-import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
-import org.springframework.messaging.simp.user.SimpUserRegistry;
 import org.springframework.util.CollectionUtils;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -52,6 +58,8 @@ public class ChatWebSocketController {
     private final NotificationService notificationService;
     private final UserSessionService userSessionService;
     private final SimpMessagingSyncTemplate messagingSyncTemplate;
+    private final GroupSessionMessageRepository groupSessionMessageRepository;
+    private final GroupSessionMessageMapper groupSessionMessageMapper;
 
     @MessageMapping("/chat")
     public void handleChatMessage(MessageDocument message, Principal principal) {
@@ -60,7 +68,7 @@ public class ChatWebSocketController {
         String userKey = up.userKey();   // <-- UUID string (may be null on old tokens)
         String username = up.username();
         message.setSender(username);
-        message.setTimestamp(Instant.now());
+        message.setTimestamp(message.getTimestamp());
         if (message.getStatus() == null) {
             message.setStatus(MessageStatus.SENT);
         }
@@ -155,13 +163,13 @@ public class ChatWebSocketController {
     @MessageMapping("/delivered")
     public void markAsDelivered(@Payload MessageStatusUpdate payload, Principal principal) {
         System.out.println("[STOMP /delivered] User: " + principal.getName() + ", Message IDs: " + payload.getMessageIds());
-        messageService.markMessagesAsDelivered(payload.getMessageIds(), principal.getName());
+        messageService.markMessagesAsDelivered(payload, principal.getName());
     }
 
     @MessageMapping("/read")
     public void markAsRead(@Payload MessageStatusUpdate payload, Principal principal) {
         System.out.println("[STOMP /read] User: " + principal.getName() + ", Message IDs: " + payload.getMessageIds());
-        messageService.markMessagesAsRead(payload.getMessageIds(), principal.getName());
+        messageService.markMessagesAsRead(payload, principal.getName());
     }
 
     @MessageMapping("/update-call-meta")
@@ -261,5 +269,36 @@ public class ChatWebSocketController {
     @MessageMapping("/deliver/pending")
     public void deliverPending(Principal principal) {
         messageService.deliverAllPendingTo(principal.getName());
+    }
+    
+    @MessageMapping("/keys/group/share")
+    public void handleGroupSessionKeySharing(GroupSessionMessageDocument message, Principal principal) {
+        log.info("[STOMP /keys/group/share] {} -> {} | Type: {}", principal.getName(), message.getTo(), message.getType());
+        try {
+        	if (GroupSessionMessageType.ACKNOWLEDGE == message.getType()) {
+        		// Delete parent message
+        		groupSessionMessageRepository.deleteById(message.getCorrelationId());
+        		// Delete sub-messages
+        		groupSessionMessageRepository.deleteByCorrelationId(message.getCorrelationId());
+        		return;
+        	}
+        	
+        	GroupSessionMessageDocument savedMessage = groupSessionMessageRepository.save(message);        	
+        	GroupSessionMessageResponse reponse = groupSessionMessageMapper.toResponse(savedMessage);
+        	
+            messagingSyncTemplate.convertAndSendToUser(
+                    message.getTo(),
+                    "/queue/keys/group/share",
+                    reponse
+            );
+        } catch (Exception ex) {
+            log.error("Failed to send message to {}: {}", message.getTo(), ex.getMessage(), ex);
+
+            messagingTemplate.convertAndSendToUser(
+                    principal.getName(),
+                    "/queue/errors",
+                    "WebRTC message failed to deliver to: " + message.getTo()
+            );
+        }
     }
 }

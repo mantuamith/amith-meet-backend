@@ -4,6 +4,9 @@ import com.algomeet.chatservice.document.CallMetaData;
 import com.algomeet.chatservice.document.MessageDocument;
 import com.algomeet.chatservice.document.MessageResponse;
 import com.algomeet.chatservice.dto.*;
+import com.algomeet.chatservice.dto.clearchat.ChatClearedEvent;
+import com.algomeet.chatservice.dto.signalling.CallMessageMetaUpdate;
+import com.algomeet.chatservice.dto.signalling.CallMetaUpdatedEvent;
 import com.algomeet.chatservice.mapper.MessageMapper;
 import com.algomeet.chatservice.model.CallType;
 import com.algomeet.chatservice.model.MessageStatus;
@@ -15,7 +18,6 @@ import com.algomeet.notificationservice.dto.Notification.NotificationBuilder;
 import com.algomeet.notificationservice.enums.NotificationType;
 import com.algomeet.notificationservice.service.NotificationService;
 import com.mongodb.client.result.UpdateResult;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.mongodb.core.MongoTemplate;
@@ -31,7 +33,6 @@ import java.util.stream.Collectors;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;     // <— THIS ONE
 import org.springframework.data.mongodb.core.query.Update;
-import org.springframework.web.bind.annotation.RequestBody;
 
 import static org.springframework.data.mongodb.core.query.Criteria.where;
 
@@ -176,21 +177,23 @@ public class MessageService {
     }
 
     // -------- DELIVERY RECEIPTS --------
-    public void markMessagesAsDelivered(List<String> messageIds, String receiverUsername) {
-        log.info("[Delivered] receiver={} ids={}", receiverUsername, messageIds);
-        List<MessageDocument> messages = messageRepository.findAllById(messageIds).stream()
+    public void markMessagesAsDelivered(MessageStatusUpdate deliverStatus, String receiverUsername) {
+        log.info("[Delivered] receiver={} ids={}", receiverUsername, deliverStatus.getMessageIds());
+        List<MessageDocument> messages = messageRepository.findAllById(deliverStatus.getMessageIds()).stream()
                 .filter(m -> receiverUsername.equals(m.getReceiver()))
                 .filter(m -> m.getStatus() == MessageStatus.SENT)
                 .toList();
 
         if (messages.isEmpty()) {
-            log.debug("[Delivered] No eligible messages to mark. receiver={} ids={}", receiverUsername, messageIds);
+            log.debug("[Delivered] No eligible messages to mark. receiver={} ids={}", receiverUsername, deliverStatus.getMessageIds());
             return;
         }
 
-        messages.forEach(m -> m.setStatus(MessageStatus.DELIVERED));
+        messages.forEach(m -> {m.setStatus(MessageStatus.DELIVERED);
+            m.setMsgDeliveredTimeStamp(deliverStatus.getStatusTimeStamp());
+        });
         messageRepository.saveAll(messages);
-        long nowSec = Instant.now().getEpochSecond();
+        long nowSec = deliverStatus.getStatusTimeStamp();
         log.info("[Delivered] Updated count={} receiver={}", messages.size(), receiverUsername);
 
         Map<String, List<MessageDocument>> bySender =
@@ -205,20 +208,23 @@ public class MessageService {
     }
 
     // -------- READ RECEIPTS --------
-    public void markMessagesAsRead(List<String> messageIds, String readerId) {
-        log.info("[Read] reader={} ids={}", readerId, messageIds);
-        List<MessageDocument> messages = messageRepository.findAllById(messageIds).stream()
+    public void markMessagesAsRead(MessageStatusUpdate readUpdate, String readerId) {
+        log.info("[Read] reader={} ids={}", readerId, readUpdate.getMessageIds());
+        List<MessageDocument> messages = messageRepository.findAllById(readUpdate.getMessageIds()).stream()
                 .filter(m -> readerId.equals(m.getReceiver()) && m.getStatus() != MessageStatus.READ)
                 .toList();
 
         if (messages.isEmpty()) {
-            log.debug("[Read] No eligible messages to mark. reader={} ids={}", readerId, messageIds);
+            log.debug("[Read] No eligible messages to mark. reader={} ids={}", readerId, readUpdate.getMessageIds());
             return;
         }
 
-        messages.forEach(m -> m.setStatus(MessageStatus.READ));
+        messages.forEach(m -> {
+            m.setStatus(MessageStatus.READ);
+            m.setMsgReadTimeStamp(readUpdate.getStatusTimeStamp());
+        });
         messageRepository.saveAll(messages);
-        long nowSec = Instant.now().getEpochSecond();
+        long nowSec = readUpdate.getStatusTimeStamp();
         log.info("[Read] Updated count={} reader={}", messages.size(), readerId);
 
         Map<String, List<MessageDocument>> bySender =
@@ -360,7 +366,7 @@ public class MessageService {
         // 1) tell the client to clear the thread view (if open)
         messagingSyncTemplate.convertAndSendToUser(
                 me, "/queue/chat/cleared",
-                new com.algomeet.chatservice.dto.ChatClearedEvent(contact, affected, now)
+                new ChatClearedEvent(contact, affected, now)
         );
 
         // 2) refresh unread counters for the left pane
@@ -387,7 +393,10 @@ public class MessageService {
 
         List<String> ids = pending.stream().map(MessageDocument::getId).toList();
         // Reuse existing delivery logic (persists + notifies original senders)
-        markMessagesAsDelivered(ids, receiverUsername);
+        MessageStatusUpdate msUpdate = new MessageStatusUpdate();
+        msUpdate.setMessageIds(ids);
+        msUpdate.setStatusTimeStamp(Instant.now().getEpochSecond());
+        markMessagesAsDelivered(msUpdate, receiverUsername);
     }
 
 }
