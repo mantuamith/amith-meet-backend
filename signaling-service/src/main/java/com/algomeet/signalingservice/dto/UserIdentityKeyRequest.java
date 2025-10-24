@@ -12,7 +12,7 @@ import lombok.Data;
 public class UserIdentityKeyRequest {
 	@NotEmpty(message = "{identity-key.register.empty-identity-key}")
 	@Pattern(
-			regexp = "^[A-Za-z0-9_-]{43,88}$",
+			regexp = "^[A-Za-z0-9_\\-+/=]+$",
 		    message = "{invalid-base64-format}"
 		)
 	@Size(max = 88, message = "{identity-keyidentity-key-exceeded-max-size}") // adjust based on expected length
