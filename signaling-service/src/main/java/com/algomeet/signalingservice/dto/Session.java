@@ -15,19 +15,19 @@ public class Session {
 	 */
 	@Pattern(
 		    regexp = "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$",
-		    message = "Invalid Base64 format"
+		    message = "{invalid-base64-format}"
 		)
-	@Size(max = 25000, message = "Base64 value too long") // 32 KB
+	@Size(max = 25000, message = "{session.encrypted-session.exceeded-max-size}") // 32 KB
 	private String encryptedSession;
 
 	/** Session ID for synchronization or verification **/
-	@Size(max = 88, message = "Value too long") 
+	@Size(max = 88, message = "{session.session-id.exceeded-max-size}") 
 	private String sessionId;
 	
 	/** The current ratchet index for synchronization or verification */
     private Long ratchetIndex;
     
     /** The encryption algorithm, e.g. "OLM" */
-    @Size(max = 24, message = "Value too long") 
+    @Size(max = 24, message = "{session.algorithm.exceeded-max-size}") 
     private String algorithm;	
 }
