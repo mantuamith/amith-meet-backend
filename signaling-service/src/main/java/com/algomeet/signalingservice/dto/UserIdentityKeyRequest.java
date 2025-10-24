@@ -13,7 +13,7 @@ public class UserIdentityKeyRequest {
 	@NotEmpty(message = "{identity-key.register.empty-identity-key}")
 	@Pattern(
 			regexp = "^[A-Za-z0-9_\\-+/=]+$",
-		    message = "{invalid-base64-format}"
+		    message = "{invalid-base64-url-format}"
 		)
 	@Size(max = 88, message = "{identity-keyidentity-key-exceeded-max-size}") // adjust based on expected length
     private String identityKey;
