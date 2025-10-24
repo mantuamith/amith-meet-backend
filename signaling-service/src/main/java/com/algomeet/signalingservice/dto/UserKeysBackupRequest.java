@@ -1,6 +1,7 @@
 package com.algomeet.signalingservice.dto;
 
 import java.util.List;
+import java.util.UUID;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
@@ -10,6 +11,8 @@ import lombok.Data;
 
 @Data
 public class UserKeysBackupRequest {
+	private UUID userKey;
+	
 	@NotEmpty(message = "{user-keys-backup.create.empty-encrypted-account}")	
 	@Pattern(
 		    regexp = "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$",
