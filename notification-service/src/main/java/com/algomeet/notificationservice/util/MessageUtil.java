@@ -35,7 +35,12 @@ public class MessageUtil {
      * @return localized message string
      */
     public static String getMessage(String key, Locale locale, Object... args) {
-        return messageSource.getMessage(key, args, locale);
+    	try {
+    		return messageSource.getMessage(key, args, locale);
+    	} catch (Exception ex) {
+    		// silent 
+    		return null;
+    	}
     }
 }
 

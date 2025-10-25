@@ -27,6 +27,7 @@ import com.algomeet.notificationservice.publisher.PushMessagePublisher;
 import com.algomeet.notificationservice.repository.UserNativeRepository;
 import com.algomeet.notificationservice.repository.UserNotificationRepository;
 import com.algomeet.notificationservice.service.ApnsSenderService;
+import com.algomeet.notificationservice.util.NotificationMessageI18nUtil;
 import com.algomeet.notificationservice.util.UserNotificationUtil;
 import com.algomeet.notificationservice.websocket.handler.TextWebsocketHandler;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -94,10 +95,13 @@ public class PushNotificationProcessor implements NotificationProcessor{
 				}
 				
 				// Save user notification
-				UserNotification userNotification = saveUserNotification(userDto.getUserKey(), notification);
+				UserNotification savedUserNotification = saveUserNotification(userDto.getUserKey(), notification);
 
 				// Add metadata such as user notification id, and notification type
-				UserNotificationUtil.addNotificationCustomData(notification, userNotification);
+				UserNotificationUtil.addNotificationCustomData(notification, savedUserNotification);
+				
+				// Translate / apply i18n to notification
+				NotificationMessageI18nUtil.i18n(notification, userDto.getLang());
 
 				// Push notification
 				if (DeviceType.IOS.name().equals(userDto.getDeviceType())
@@ -106,7 +110,7 @@ public class PushNotificationProcessor implements NotificationProcessor{
 					try {
 						boolean deliveryStatus = apnsSenderService.sendPush(userDto.getDeviceToken(), notification);
 						// Update status
-						updateDeliveryStataus(deliveryStatus, userNotification);
+						updateDeliveryStataus(deliveryStatus, savedUserNotification);
 
 					} catch (Exception e) {}
 				} else {
