@@ -62,7 +62,10 @@ public class NotificationMessageI18nUtil {
 		properties.put(NotificationType.VIDEO_CALL.name() + BODY , "video-call.body");
 		
 		properties.put(NotificationType.VIDEO_MISSED_CALL.name() + TITLE, "video-missed-call.title");
-		properties.put(NotificationType.VIDEO_MISSED_CALL.name() + BODY , "video-missed-call.body");		
+		properties.put(NotificationType.VIDEO_MISSED_CALL.name() + BODY , "video-missed-call.body");	
+		
+		properties.put(NotificationType.LOCKED_SINGLE_DEVICE.name() + TITLE, "locked-single-device.title");
+		properties.put(NotificationType.LOCKED_SINGLE_DEVICE.name() + BODY , "locked-single-device.body");
 	}
 	
 	public static void i18n(NotificationDto notification, String lang) {
