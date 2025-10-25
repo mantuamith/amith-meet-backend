@@ -24,6 +24,16 @@ public class MessageUtil {
     public static String getMessage(String key, Object... args) {
         return messageSource.getMessage(key, args, LocaleContextHolder.getLocale());
     }
+    
+    /**
+     * Used to wrap the text with "{}" braces to be used as placeholder substitute during language 
+     * translation in notification-service.
+     * @param str
+     * @return
+     */
+    public static String wrapWithBraces(String str) {
+    	return "{" + str + "}";
+    }
 }
 
 
