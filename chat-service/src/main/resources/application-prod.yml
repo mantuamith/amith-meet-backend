@@ -59,3 +59,10 @@ jwt:
 server:
   port: ${SERVER_PORT:8084}
   # TODO: Move to .env for deployment-based overrides
+
+
+logging:
+  level:
+    root: DEBUG
+    com.algomeet.chatservice.controller: ${CHAT_LOG_LEVEL}
+    com.algomeet.chatservice.service: ${CHAT_LOG_LEVEL}

@@ -89,7 +89,7 @@ public class MessageService {
                 .sorted(Comparator.comparing(UnreadCountResponse::getContactId))
                 .toList();
 
-        log.debug("[UnreadPush] user={} distinctContacts={} totalUnread={}",
+        log.info("[UnreadPush] user={} distinctContacts={} totalUnread={}",
                 userId, summary.size(), unread.size());
         messagingSyncTemplate.convertAndSendToUser(userId, "/queue/unread/count", summary);
     }
@@ -249,6 +249,7 @@ public class MessageService {
 
         if (messages.isEmpty()) {
             log.debug("[Read] No eligible messages to mark. reader={}", contactId);
+            sendUnreadCountUpdate(reqSenderId);
             return;
         }
 

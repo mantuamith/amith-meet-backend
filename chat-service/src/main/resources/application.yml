@@ -65,3 +65,9 @@ server:
 chat:
   index:
     auto-create: true
+
+logging:
+  level:
+    root: DEBUG
+    com.algomeet.chatservice.controller: ${CHAT_LOG_LEVEL}
+    com.algomeet.chatservice.service: ${CHAT_LOG_LEVEL}
