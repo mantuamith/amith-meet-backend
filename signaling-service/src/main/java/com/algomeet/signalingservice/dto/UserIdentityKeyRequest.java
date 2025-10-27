@@ -12,13 +12,13 @@ import lombok.Data;
 public class UserIdentityKeyRequest {
 	@NotEmpty(message = "{identity-key.register.empty-identity-key}")
 	@Pattern(
-		    regexp = "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$",
-		    message = "Invalid Base64 format"
+			regexp = "^[A-Za-z0-9_\\-+/=]+$",
+		    message = "{invalid-base64-url-format}"
 		)
-	@Size(max = 88, message = "Base64 value too long") // adjust based on expected length
+	@Size(max = 88, message = "{identity-keyidentity-key-exceeded-max-size}") // adjust based on expected length
     private String identityKey;
 	
-	@Size(max = 500, message = "One time key list cannot contain more than 500 keys")	
+	@Size(max = 500, message = "{identity-key.one-time-key-list-exceeded-max-size}")	
 	@Valid
-	private List<@Size(max = 88, message = "Each key must be at most 88 characters long") String> oneTimeKeys;
+	private List<@Size(max = 88, message = "{identity-key.one-time-key-exceeded-max-size}") String> oneTimeKeys;
 }
