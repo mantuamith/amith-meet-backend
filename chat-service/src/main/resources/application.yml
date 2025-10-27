@@ -68,6 +68,6 @@ chat:
 
 logging:
   level:
-    root: ${DEFUALT_LOG_LEVEL}
+    root: ${DEFAULT_LOG_LEVEL}
     com.algomeet.chatservice.controller: ${CHAT_LOG_LEVEL}
     com.algomeet.chatservice.service: ${CHAT_LOG_LEVEL}
