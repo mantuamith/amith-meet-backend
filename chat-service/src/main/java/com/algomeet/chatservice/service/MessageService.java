@@ -34,6 +34,7 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;     // <— THIS ONE
 import org.springframework.data.mongodb.core.query.Update;
 
+import static com.algomeet.chatservice.util.MessageUtil.wrapWithBraces;
 import static org.springframework.data.mongodb.core.query.Criteria.where;
 
 
@@ -319,8 +320,8 @@ public class MessageService {
 
         	NotificationBuilder notifBuilder = Notification.builder()
         			.receiverIds(Set.of(msg.getReceiverKey())) // To must be using user_key UUID
-        			.title(msg.getSender() + " missed call")
-        			.body(msg.getSender() + " missed call")
+        			.title(wrapWithBraces(msg.getSender()) + " missed call")
+        			.body(wrapWithBraces(msg.getSender()) + " missed call")
         			.type(CallType.AUDIO_VIDEO_TYPE == payload.getCallMetaData().getCallType()
         			? NotificationType.VIDEO_MISSED_CALL : NotificationType.AUDIO_MISSED_CALL)
         			.tenantId(TenantContext.getCurrentTenant());        	

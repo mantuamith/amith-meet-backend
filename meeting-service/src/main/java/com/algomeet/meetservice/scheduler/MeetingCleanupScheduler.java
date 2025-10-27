@@ -22,6 +22,7 @@ import com.algomeet.notificationservice.dto.Notification;
 import com.algomeet.notificationservice.enums.NotificationType;
 import com.algomeet.notificationservice.enums.ReceiverGroup;
 import com.algomeet.notificationservice.service.NotificationService;
+import static com.algomeet.meetservice.util.MessageUtil.wrapWithBraces;
 
 @Component
 @ConditionalOnProperty(name = "algomeet.cleanupScheduler.enabled", havingValue = "true")
@@ -152,7 +153,7 @@ public class MeetingCleanupScheduler {
         					.receiverGroup(ReceiverGroup.MEETING_PARTICIPANTS)
         					.receiverGroupRefId(meeting.getId())
         					.title("Meeting reminder")
-        					.body("Your meeting starts in " + meeting.getReminderMinutes() + " minutes")
+        					.body("Your meeting starts in " + wrapWithBraces(String.valueOf(meeting.getReminderMinutes())) + " minutes")
         					.data(Map.of(
         							"meetingId", meeting.getId()
         							))

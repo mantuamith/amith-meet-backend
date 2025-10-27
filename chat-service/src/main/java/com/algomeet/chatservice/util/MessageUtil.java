@@ -1,4 +1,4 @@
-package com.algomeet.meetservice.util;
+package com.algomeet.chatservice.util;
 
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
@@ -21,7 +21,7 @@ public class MessageUtil {
      * @param args optional message arguments
      * @return localized message string
      */
-    public static String i18n(String key, Object... args) {
+    public static String getMessage(String key, Object... args) {
         return messageSource.getMessage(key, args, LocaleContextHolder.getLocale());
     }
     
@@ -34,7 +34,6 @@ public class MessageUtil {
     public static String wrapWithBraces(String str) {
     	return "{" + str + "}";
     }
-
 }
 
 
