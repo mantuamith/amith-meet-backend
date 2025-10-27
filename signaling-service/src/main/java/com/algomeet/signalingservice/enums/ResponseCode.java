@@ -20,7 +20,11 @@ public enum ResponseCode {
 	ONE_TIME_KEY_ALREADY_EXISTS("ONE_TIME_KEY_ALREADY_EXISTS", "one-time-key.key-already-exists"),
 	ONE_TIME_KEY_RESERVED_MAX_LIMIT_EXCEEDED("ONE_TIME_KEY_RESERVED_MAX_LIMIT_EXCEEDED", "one-time-key.reserved-max-limit-exceeded"),
 	USER_KEYS_BACKUP_SUCCESS("USER_KEYS_BACKUP_SUCCESS", "user-keys-backup.success"),
-	USER_KEYS_BACKUP_NOT_FOUND("USER_KEYS_BACKUP_NOT_FOUND", "user-keys-backup.not-found");
+	USER_KEYS_BACKUP_NOT_FOUND("USER_KEYS_BACKUP_NOT_FOUND", "user-keys-backup.not-found"),
+	
+	SESSION_BACKUP_NOT_FOUND("SESSION_BACKUP_NOT_FOUND", "session-backup.not-found"),
+	GROUP_SESSION_BACKUP_NOT_FOUND("GROUP_SESSION_BACKUP_NOT_FOUND", "group-session-backup.not-found"),
+	USER_ACCOUNT_BACKUP_NOT_FOUND("USER_ACCOUNT_BACKUP_NOT_FOUND", "user-account-backup.not-found");
 	
     private final String code;
     private final String message;

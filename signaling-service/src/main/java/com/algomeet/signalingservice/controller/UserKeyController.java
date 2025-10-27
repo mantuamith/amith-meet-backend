@@ -1,6 +1,5 @@
 package com.algomeet.signalingservice.controller;
 
-import java.io.UnsupportedEncodingException;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -18,23 +17,20 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.algomeet.signalingservice.dto.CommonResponse;
-import com.algomeet.signalingservice.dto.UserOneTimeKeyRequest;
-import com.algomeet.signalingservice.dto.UserOneTimeKeyResponse;
 import com.algomeet.signalingservice.dto.UserIdentityAndOneTimeKeyResponse;
 import com.algomeet.signalingservice.dto.UserIdentityKeyRequest;
 import com.algomeet.signalingservice.dto.UserIdentityKeyResponse;
-import com.algomeet.signalingservice.dto.UserKeysBackupRequest;
-import com.algomeet.signalingservice.dto.UserKeysBackupResponse;
+import com.algomeet.signalingservice.dto.UserOneTimeKeyRequest;
+import com.algomeet.signalingservice.dto.UserOneTimeKeyResponse;
 import com.algomeet.signalingservice.enums.ResponseCode;
 import com.algomeet.signalingservice.exceptions.IdentityKeyAlreadyExistsException;
-import com.algomeet.signalingservice.exceptions.RecordNotFoundException;
 import com.algomeet.signalingservice.exceptions.NoUserOneTimeKeyIsAvailableException;
 import com.algomeet.signalingservice.exceptions.OneTimeKeyAlreadyExistsException;
 import com.algomeet.signalingservice.exceptions.OneTimeKeysReservedMaxLimitExceededException;
+import com.algomeet.signalingservice.exceptions.RecordNotFoundException;
 import com.algomeet.signalingservice.exceptions.UserKeyAlreadyExistsException;
 import com.algomeet.signalingservice.service.UserKeyService;
 import com.algomeet.signalingservice.util.SecurityUtil;
-import com.fasterxml.jackson.core.JsonProcessingException;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -75,7 +71,7 @@ public class UserKeyController {
 	
 	// Get identity key 
 	@GetMapping("/identity")
-	public ResponseEntity<CommonResponse<UserIdentityKeyResponse>> getUserOneTimeKey(@RequestParam("userKey") Optional<UUID> userKeyOpt) {
+	public ResponseEntity<CommonResponse<UserIdentityKeyResponse>> getUserIdentityKey(@RequestParam("userKey") Optional<UUID> userKeyOpt) {
 		try {
 			UUID userKey = userKeyOpt.orElse(UUID.fromString(SecurityUtil.getUserKey()));
 			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, keyService.getUserIdentityKey(userKey)));
@@ -139,22 +135,4 @@ public class UserKeyController {
 			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.ONE_TIME_KEY_ID_NOT_FOUND));
 		}
 	}	
-	
-	// Create back up for user private key 
-	@PostMapping("/backup")
-	public ResponseEntity<CommonResponse<UserKeysBackupResponse>> createPrivateKeyBackup(@Valid @RequestBody UserKeysBackupRequest request) throws JsonProcessingException, UnsupportedEncodingException {
-		UserKeysBackupResponse savedBackup = keyService.createPrivateKeyBackup(UUID.fromString(SecurityUtil.getUserKey()), request);
-		return ResponseEntity.ok(CommonResponse.from(ResponseCode.USER_KEYS_BACKUP_SUCCESS, savedBackup));		 	
-	}
-	
-	// Get user private key backup
-	@GetMapping("/backup")
-	public ResponseEntity<CommonResponse<UserKeysBackupResponse>> getPrivateKeyBackup() throws JsonProcessingException, UnsupportedEncodingException {
-		try {
-			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, 
-					keyService.getPrivateKeyBackup(UUID.fromString(SecurityUtil.getUserKey()))));	
-		} catch (RecordNotFoundException ex) {
-			return ResponseEntity.ok(CommonResponse.from(ResponseCode.USER_KEYS_BACKUP_NOT_FOUND));	
-		}
-	}
 }
