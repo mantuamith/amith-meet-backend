@@ -38,4 +38,8 @@ public interface InboundGroupSessionBackupRepository extends JpaRepository<Inbou
     
 	@Transactional(readOnly = true)
     List<InboundGroupSessionBackup> findById_UserKey(UUID userKey);
+	
+	/** Count all inbound group session backups for a specific user key */
+    @Transactional(readOnly = true)
+    long countById_UserKey(UUID userKey);
 }

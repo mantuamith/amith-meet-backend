@@ -13,6 +13,7 @@ import com.algomeet.signalingservice.dto.CommonResponse;
 import com.algomeet.signalingservice.dto.GroupSessionBackupRequest;
 import com.algomeet.signalingservice.dto.GroupSessionBackupResponse;
 import com.algomeet.signalingservice.enums.ResponseCode;
+import com.algomeet.signalingservice.exceptions.MaxSessionsLimitExceededException;
 import com.algomeet.signalingservice.exceptions.RecordNotFoundException;
 import com.algomeet.signalingservice.service.GroupSessionBackupService;
 import com.algomeet.signalingservice.util.SecurityUtil;
@@ -32,10 +33,14 @@ public class GroupSessionBackupController {
 
     @PostMapping("/inbound")
     public ResponseEntity<CommonResponse<GroupSessionBackupResponse>> saveInboundBackup(
-            @Validated @RequestBody GroupSessionBackupRequest request) {
-
-        GroupSessionBackupResponse response = service.saveInboundBackup(UUID.fromString(SecurityUtil.getUserKey()), request);
-        return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, response));
+    		@Validated @RequestBody GroupSessionBackupRequest request) {
+    	try {
+    		GroupSessionBackupResponse response = service.saveInboundBackup(UUID.fromString(SecurityUtil.getUserKey()), request);
+    		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, response));
+    	} catch (MaxSessionsLimitExceededException ex) {
+    		return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+    				.body(CommonResponse.from(ResponseCode.GROUP_SESSION_BACKUP_MAX_INBOUND_SESSIONS_LIMIT_EXCEEDED));
+    	}
     }
 
     @GetMapping("/inbound/restore")
@@ -88,10 +93,15 @@ public class GroupSessionBackupController {
 
     @PostMapping("/outbound")
     public ResponseEntity<CommonResponse<GroupSessionBackupResponse>> saveOutboundBackup(
-             @Validated @RequestBody GroupSessionBackupRequest request) {
+    		@Validated @RequestBody GroupSessionBackupRequest request) {
 
-        GroupSessionBackupResponse response = service.saveOutboundBackup(UUID.fromString(SecurityUtil.getUserKey()), request);
-        return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, response));
+    	try {
+    		GroupSessionBackupResponse response = service.saveOutboundBackup(UUID.fromString(SecurityUtil.getUserKey()), request);        
+    		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, response));
+    	} catch (MaxSessionsLimitExceededException ex) {
+    		return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+    				.body(CommonResponse.from(ResponseCode.GROUP_SESSION_BACKUP_MAX_OUTBOUND_SESSIONS_LIMIT_EXCEEDED));
+    	}
     }
 
     @GetMapping("/outbound/restore")

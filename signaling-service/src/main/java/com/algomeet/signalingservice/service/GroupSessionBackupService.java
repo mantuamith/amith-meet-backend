@@ -1,31 +1,46 @@
 package com.algomeet.signalingservice.service;
 
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
-import com.algomeet.signalingservice.entity.OutboundGroupSessionBackup;
-import com.algomeet.signalingservice.entity.OutboundGroupSessionBackupId;
-import com.algomeet.signalingservice.exceptions.RecordNotFoundException;
-import com.algomeet.signalingservice.dto.GroupSessionBackupRequest;
-import com.algomeet.signalingservice.dto.GroupSessionBackupResponse;
-import com.algomeet.signalingservice.entity.InboundGroupSessionBackupId;
-import com.algomeet.signalingservice.entity.InboundGroupSessionBackup;
-import com.algomeet.signalingservice.repository.OutboundGroupSessionBackupRepository;
-
-import lombok.AllArgsConstructor;
-
-import com.algomeet.signalingservice.repository.InboundGroupSessionBackupRepository;
-
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.algomeet.signalingservice.dto.GroupSessionBackupRequest;
+import com.algomeet.signalingservice.dto.GroupSessionBackupResponse;
+import com.algomeet.signalingservice.entity.InboundGroupSessionBackup;
+import com.algomeet.signalingservice.entity.InboundGroupSessionBackupId;
+import com.algomeet.signalingservice.entity.OutboundGroupSessionBackup;
+import com.algomeet.signalingservice.entity.OutboundGroupSessionBackupId;
+import com.algomeet.signalingservice.exceptions.MaxSessionsLimitExceededException;
+import com.algomeet.signalingservice.exceptions.RecordNotFoundException;
+import com.algomeet.signalingservice.repository.InboundGroupSessionBackupRepository;
+import com.algomeet.signalingservice.repository.OutboundGroupSessionBackupRepository;
+
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.RequiredArgsConstructor;
+
 @AllArgsConstructor
+@RequiredArgsConstructor
 @Service
+@Data
 public class GroupSessionBackupService {
-    private final InboundGroupSessionBackupRepository inboundRepo;
-    private final OutboundGroupSessionBackupRepository outboundRepo;
+	@Value("${group-session.max-inbound-sessions-limit:15000}")
+	private int maxInboundSessionsLimit;
+	
+	@Value("${group-session.max-outbound-sessions-limit:7000}")
+	private int maxOutboundSessionsLimit;
+	
+	@Autowired
+    private InboundGroupSessionBackupRepository inboundRepo;
+	
+	@Autowired
+    private OutboundGroupSessionBackupRepository outboundRepo;
 
     // -------------------------
     // Inbound backup methods
@@ -33,6 +48,10 @@ public class GroupSessionBackupService {
 
     @Transactional
     public GroupSessionBackupResponse saveInboundBackup(UUID userKey, GroupSessionBackupRequest request) {
+    	if (inboundRepo.countById_UserKey(userKey) > maxInboundSessionsLimit) {
+    		throw new MaxSessionsLimitExceededException("Maximum inbound sessions limit exceeded");
+    	}
+    	
         InboundGroupSessionBackup backup = new InboundGroupSessionBackup();
         
         int ratchetIndex = request.getRatchetIndex() == null ? 0 : request.getRatchetIndex();
@@ -109,6 +128,10 @@ public class GroupSessionBackupService {
      */
     @Transactional
     public GroupSessionBackupResponse saveOutboundBackup(UUID userKey, GroupSessionBackupRequest request) {
+    	if (outboundRepo.countById_UserKey(userKey) > maxOutboundSessionsLimit) {
+    		throw new MaxSessionsLimitExceededException("Maximum outbound sessions limit exceeded");
+    	}
+    	
         OutboundGroupSessionBackup backup = new OutboundGroupSessionBackup();
         backup.setId(new OutboundGroupSessionBackupId(userKey, request.getSessionId()));
         backup.setPeerUserKey(request.getPeerUserKey());

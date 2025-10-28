@@ -12,4 +12,8 @@ import com.algomeet.signalingservice.entity.OutboundGroupSessionBackupId;
 public interface OutboundGroupSessionBackupRepository extends JpaRepository<OutboundGroupSessionBackup, OutboundGroupSessionBackupId> {
 	@Transactional(readOnly = true)
 	List<OutboundGroupSessionBackup> findById_UserKey(UUID userKey);
+	
+	/** Count all outbound group session backups for a specific user key */
+    @Transactional(readOnly = true)
+    long countById_UserKey(UUID userKey);
 }
