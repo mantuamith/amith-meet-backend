@@ -35,6 +35,9 @@ public class LoginVerifyRequest {
     private Boolean overrideExisting;
     
     private String deviceToken;
+    
+    /** User preferred language */
+    private String lang;
 
     // --- Conditional validation ---
     @AssertTrue(message = "Code is required for EMAIL/PHONE/TOTP verification")

@@ -20,6 +20,8 @@ import com.algomeet.authservice.policy.LoginPolicyResolver;
 import com.algomeet.authservice.policy.SingleDeviceEnforcer;
 import com.algomeet.authservice.token.RefreshTokenStore;
 import com.algomeet.authservice.util.JwtUtil;
+import com.algomeet.authservice.util.MessageUtil;
+import static com.algomeet.authservice.util.MessageUtil.wrapWithBraces;
 import com.algomeet.multitenancy.context.TenantContext;
 import com.algomeet.notificationservice.dto.Notification;
 import com.algomeet.notificationservice.enums.NotificationType;
@@ -34,6 +36,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -58,6 +61,7 @@ public class AuthController implements AuthControllerDoc{
     private final NotificationService notificationService;
 
     private final UserClient userClient;
+    private final UserProfileService userProfileService;    
 
     // ---------- Helpers (masking, safe logs) ----------
     private String mLogin(String v){
@@ -187,8 +191,8 @@ public class AuthController implements AuthControllerDoc{
             		.type(NotificationType.USER_OFFLINE)
             		.receiverGroup(ReceiverGroup.USER_FRIENDS)
             		.receiverGroupRefId(user.getUserKey().toString())
-            		.title(user.getUsername() + " is offline")
-            		.body(user.getUsername() + " is offline")
+            		.title(wrapWithBraces(user.getUsername()) + " is offline")
+            		.body(wrapWithBraces(user.getUsername()) + " is offline")
             		.tenantId(TenantContext.getCurrentTenant())
             		.build();
             notificationService.sendPush(notif);
@@ -249,8 +253,8 @@ public class AuthController implements AuthControllerDoc{
                 Notification notif = Notification.builder()
                 		.type(NotificationType.LOCKED_SINGLE_DEVICE)
                 		.receiverIds(Set.of(user.getUserKey() != null ? user.getUserKey().toString() : user.getUsername()))
-                        .title("Account locked " + user.getActiveDeviceId() + " device")
-                		.body("Account locked " + user.getActiveDeviceId() + " device")
+                        .title("Account locked " + wrapWithBraces(user.getActiveDeviceId()) + " device")
+                		.body("Account locked " + wrapWithBraces(user.getActiveDeviceId()) + " device")
                 		.tenantId(TenantContext.getCurrentTenant())
                 		.build();
                 notificationService.sendPush(notif);
@@ -275,6 +279,14 @@ public class AuthController implements AuthControllerDoc{
                 
                 // Update user used to login device token
                	userClient.updateDeviceTypeAndToken(user.getId(), request.getDeviceType().name(), request.getDeviceToken());
+               	               	
+               	if (StringUtils.hasLength(request.getLang())) {
+               		// Update to user preferred language
+               		UserProfileUpdateRequest userProfileUpdateRequest = new UserProfileUpdateRequest();
+               		userProfileUpdateRequest.setLang(request.getLang());
+               		userProfileService.updateProfile(user.getUserKey(), userProfileUpdateRequest);
+               	}
+               	
                 String refId = (user.getUserKey() != null)
                         ? user.getUserKey().toString()
                         : String.valueOf(user.getUsername());
@@ -283,8 +295,8 @@ public class AuthController implements AuthControllerDoc{
                 		.type(NotificationType.USER_ONLINE)
                 		.receiverGroup(ReceiverGroup.USER_FRIENDS)
                 		.receiverGroupRefId(refId)
-                		.title(user.getUsername() + " is online")
-                		.body(user.getUsername() + " is online")
+                		.title(wrapWithBraces(user.getUsername()) + " is online")
+                		.body(wrapWithBraces(user.getUsername()) + " is online")
                 		.tenantId(TenantContext.getCurrentTenant())
                 		.build();
                 notificationService.sendPush(notif);
@@ -372,14 +384,21 @@ public class AuthController implements AuthControllerDoc{
 
         // Update user used to login device token
         userClient.updateDeviceTypeAndToken(user.getId(), request.getDeviceType().name(), request.getDeviceToken());
+        
+        if (StringUtils.hasLength(request.getLang())) {
+       		// Update to user preferred language
+       		UserProfileUpdateRequest userProfileUpdateRequest = new UserProfileUpdateRequest();
+       		userProfileUpdateRequest.setLang(request.getLang());
+       		userProfileService.updateProfile(user.getUserKey(), userProfileUpdateRequest);
+       	}
 
         // Add push notification
         Notification notif = Notification.builder()
         		.type(NotificationType.USER_ONLINE)
         		.receiverGroup(ReceiverGroup.USER_FRIENDS)
         		.receiverGroupRefId(user.getUserKey().toString())
-        		.title(user.getUsername() + " is online")
-        		.body(user.getUsername() + " is online")
+        		.title(wrapWithBraces(user.getUsername()) + " is online")
+        		.body(wrapWithBraces(user.getUsername()) + " is online")
         		.tenantId(TenantContext.getCurrentTenant())
         		.build();
         notificationService.sendPush(notif);    
