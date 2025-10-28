@@ -12,6 +12,7 @@ import com.algomeet.signalingservice.dto.UserAccountBackupRequest;
 import com.algomeet.signalingservice.dto.UserAccountBackupResponse;
 import com.algomeet.signalingservice.enums.ResponseCode;
 import com.algomeet.signalingservice.exceptions.RecordNotFoundException;
+import com.algomeet.signalingservice.exceptions.UserAccountBackupAlreadyExistsException;
 import com.algomeet.signalingservice.service.UserAccountBackupService;
 import com.algomeet.signalingservice.util.SecurityUtil;
 
@@ -26,8 +27,24 @@ public class UserAccountBackupController {
 
     @PostMapping
     public ResponseEntity<CommonResponse<UserAccountBackupResponse>> saveBackup(@Validated @RequestBody UserAccountBackupRequest request) {
-    	UserAccountBackupResponse saved = service.saveBackup(UUID.fromString(SecurityUtil.getUserKey()), request);
-        return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, saved));
+    	try {
+    		UserAccountBackupResponse saved = service.saveBackup(UUID.fromString(SecurityUtil.getUserKey()), request);
+            return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, saved));
+    	} catch(UserAccountBackupAlreadyExistsException ex) {
+    		return ResponseEntity.status(HttpStatus.FOUND)
+            		.body(CommonResponse.from(ResponseCode.USER_ACCOUNT_BACKUP_ALREADY_EXIST));
+    	}        
+    }
+    
+    @PutMapping
+    public ResponseEntity<CommonResponse<UserAccountBackupResponse>> updateBackup(@Validated @RequestBody UserAccountBackupRequest request) {
+    	try {
+    		UserAccountBackupResponse saved = service.updateBackup(UUID.fromString(SecurityUtil.getUserKey()), request);
+    		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, saved));
+    	} catch(UserAccountBackupAlreadyExistsException ex) {
+    		return ResponseEntity.status(HttpStatus.NOT_FOUND)
+    				.body(CommonResponse.from(ResponseCode.USER_ACCOUNT_BACKUP_NOT_FOUND));
+    	}        
     }
 
     @GetMapping

@@ -12,6 +12,7 @@ import com.algomeet.signalingservice.dto.UserSessionBackupRequest;
 import com.algomeet.signalingservice.dto.UserSessionBackupResponse;
 import com.algomeet.signalingservice.entity.UserSessionBackup;
 import com.algomeet.signalingservice.entity.UserSessionBackupId;
+import com.algomeet.signalingservice.exceptions.RecordNotFoundException;
 import com.algomeet.signalingservice.repository.UserSessionBackupRepository;
 
 @Service
@@ -92,7 +93,13 @@ public class UserSessionBackupService {
     			.toList();
     }
 
-    public void deleteBySessionId(UUID userkey, String sessionId) {
-        repository.findById(new UserSessionBackupId(userkey, sessionId)).ifPresent(repository::delete);
+    public void deleteBySessionId(UUID userKey, String sessionId) {
+    	Optional<UserSessionBackup> sessionOpt = repository.findById(new UserSessionBackupId(userKey, sessionId));
+
+    	if (sessionOpt.isPresent()) {
+    		sessionOpt.ifPresent(repository::delete);
+    	} else {
+    		throw new RecordNotFoundException(String.format("Inbound group session not found %s, %s, %d", userKey, sessionId));
+    	}
     }
 }

@@ -22,9 +22,13 @@ public enum ResponseCode {
 	USER_KEYS_BACKUP_SUCCESS("USER_KEYS_BACKUP_SUCCESS", "user-keys-backup.success"),
 	USER_KEYS_BACKUP_NOT_FOUND("USER_KEYS_BACKUP_NOT_FOUND", "user-keys-backup.not-found"),
 	
-	SESSION_BACKUP_NOT_FOUND("SESSION_BACKUP_NOT_FOUND", "session-backup.not-found"),
+	USER_ACCOUNT_BACKUP_NOT_FOUND("USER_ACCOUNT_BACKUP_NOT_FOUND", "user-account-backup.not-found"),
+	USER_ACCOUNT_BACKUP_ALREADY_EXIST("USER_ACCOUNT_BACKUP_ALREADY_EXIST", "user-account-backup.already-exist"),
+	USER_SESSION_BACKUP_NOT_FOUND("USER_SESSION_BACKUP_NOT_FOUND", "user-session-backup.not-found"),
+	USER_SESSION_BACKUP_DELETE_SUCCESS("USER_SESSION_BACKUP_DELETE_SUCCESS", "user-session-backup.delete.success"),
 	GROUP_SESSION_BACKUP_NOT_FOUND("GROUP_SESSION_BACKUP_NOT_FOUND", "group-session-backup.not-found"),
-	USER_ACCOUNT_BACKUP_NOT_FOUND("USER_ACCOUNT_BACKUP_NOT_FOUND", "user-account-backup.not-found");
+	GROUP_SESSION_BACKUP_DELETE_SUCCESS("GROUP_SESSION_BACKUP_DELETE_SUCCESS", "group-session-backup.delete.success")
+	;
 	
     private final String code;
     private final String message;

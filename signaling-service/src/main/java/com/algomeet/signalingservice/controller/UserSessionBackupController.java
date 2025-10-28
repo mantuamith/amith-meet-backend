@@ -46,7 +46,7 @@ public class UserSessionBackupController {
 		if (result.isPresent()) {
 			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, result.get()));
 		} else{
-			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.SESSION_BACKUP_NOT_FOUND));
+			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.USER_SESSION_BACKUP_NOT_FOUND));
 		}        
 	}
 
@@ -68,9 +68,9 @@ public class UserSessionBackupController {
 			@PathVariable String sessionId) {		
 		try {
 			service.deleteBySessionId(UUID.fromString(SecurityUtil.getUserKey()), sessionId);
-			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
+			return ResponseEntity.ok(CommonResponse.from(ResponseCode.USER_SESSION_BACKUP_DELETE_SUCCESS));
 		} catch (RecordNotFoundException ex) {
-			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.SESSION_BACKUP_NOT_FOUND));
+			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.USER_SESSION_BACKUP_NOT_FOUND));
 		}
 	}
 }

@@ -5,6 +5,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.algomeet.signalingservice.entity.OutboundGroupSessionBackup;
 import com.algomeet.signalingservice.entity.OutboundGroupSessionBackupId;
+import com.algomeet.signalingservice.exceptions.RecordNotFoundException;
 import com.algomeet.signalingservice.dto.GroupSessionBackupRequest;
 import com.algomeet.signalingservice.dto.GroupSessionBackupResponse;
 import com.algomeet.signalingservice.entity.InboundGroupSessionBackupId;
@@ -120,7 +121,13 @@ public class GroupSessionBackupService {
      */
     @Transactional
     public void deleteInboundSession(UUID userKey, String sessionId, int ratchetIndex) {
-    	inboundRepo.findById(new InboundGroupSessionBackupId(userKey, sessionId, ratchetIndex)).ifPresent(inboundRepo::delete);
+    	Optional<InboundGroupSessionBackup> sessionOpt = inboundRepo.findById(new InboundGroupSessionBackupId(userKey, sessionId, ratchetIndex));
+    	
+    	if (sessionOpt.isPresent()) {
+    		sessionOpt.ifPresent(inboundRepo::delete);
+    	} else {
+    		throw new RecordNotFoundException(String.format("Inbound group session not found %s, %s, %d", userKey, sessionId, ratchetIndex));
+    	}
     }
 
     // -------------------------
@@ -197,12 +204,18 @@ public class GroupSessionBackupService {
                 })
                 .toList();
     }
-    
+
     /**
      * Delete stale outbound sessions (e.g., rotated or expired).
      */
     @Transactional
     public void deleteOutboundSession(UUID userKey, String sessionId) {
-    	outboundRepo.findById(new OutboundGroupSessionBackupId(userKey, sessionId)).ifPresent(outboundRepo::delete);
+    	Optional<OutboundGroupSessionBackup> sessionOpt = outboundRepo.findById(new OutboundGroupSessionBackupId(userKey, sessionId));
+
+    	if (sessionOpt.isPresent()) {
+    		sessionOpt.ifPresent(outboundRepo::delete);
+    	} else {
+    		throw new RecordNotFoundException(String.format("Inbound group session not found %s, %s", userKey, sessionId));
+    	}
     }
 }
