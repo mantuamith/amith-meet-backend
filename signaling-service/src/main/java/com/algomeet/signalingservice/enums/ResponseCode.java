@@ -19,8 +19,6 @@ public enum ResponseCode {
 	ONE_TIME_KEY_IS_NOT_AVAILABLE("ONE_TIME_KEY_IS_NOT_AVAILABLE", "one-time-key.not-available"),
 	ONE_TIME_KEY_ALREADY_EXISTS("ONE_TIME_KEY_ALREADY_EXISTS", "one-time-key.key-already-exists"),
 	ONE_TIME_KEY_RESERVED_MAX_LIMIT_EXCEEDED("ONE_TIME_KEY_RESERVED_MAX_LIMIT_EXCEEDED", "one-time-key.reserved-max-limit-exceeded"),
-	USER_KEYS_BACKUP_SUCCESS("USER_KEYS_BACKUP_SUCCESS", "user-keys-backup.success"),
-	USER_KEYS_BACKUP_NOT_FOUND("USER_KEYS_BACKUP_NOT_FOUND", "user-keys-backup.not-found"),
 	
 	USER_ACCOUNT_BACKUP_NOT_FOUND("USER_ACCOUNT_BACKUP_NOT_FOUND", "user-account-backup.not-found"),
 	USER_ACCOUNT_BACKUP_ALREADY_EXIST("USER_ACCOUNT_BACKUP_ALREADY_EXIST", "user-account-backup.already-exist"),

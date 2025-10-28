@@ -23,9 +23,6 @@ public class UserSessionBackupResponse {
 	
     /** true = inbound, false = outbound */
     private boolean inbound;
-	
-	/** The current ratchet index for synchronization or verification */
-    private Long ratchetIndex;
     
     /** The encryption algorithm, e.g. "OLM" */
     private String algorithm;	

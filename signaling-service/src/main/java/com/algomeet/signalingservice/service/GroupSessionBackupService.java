@@ -34,29 +34,21 @@ public class GroupSessionBackupService {
     @Transactional
     public GroupSessionBackupResponse saveInboundBackup(UUID userKey, GroupSessionBackupRequest request) {
         InboundGroupSessionBackup backup = new InboundGroupSessionBackup();
-        backup.getId().setUserKey(userKey);
-        backup.getId().setSessionId(request.getSessionId());
-        backup.getId().setRatchetIndex(request.getRatchetIndex());
+        
+        int ratchetIndex = request.getRatchetIndex() == null ? 0 : request.getRatchetIndex();
+        backup.setId(new InboundGroupSessionBackupId(userKey, request.getSessionId(), ratchetIndex));
+
         backup.setPeerUserKey(request.getPeerUserKey());
         backup.setGroupId(request.getGroupId());
         backup.setEncryptedSession(request.getEncryptedSession());
+        backup.setAlgorithm(request.getAlgorithm());
         backup.setAesAlg(request.getAesAlg());
         backup.setVersion(request.getVersion());
         backup.setSalt(request.getSalt());
         backup.setCreatedAt(Instant.now());
 
         InboundGroupSessionBackup saved = inboundRepo.save(backup);
-        return GroupSessionBackupResponse.builder()
-        		.userKey(saved.getId().getUserKey())
-        		.sessionId(saved.getId().getSessionId())
-        		.ratchetIndex(saved.getId().getRatchetIndex())
-        		.peerUserKey(saved.getPeerUserKey())
-        		.groupId(saved.getGroupId())
-        		.encryptedSession(saved.getEncryptedSession())
-        		.aesAlg(saved.getAesAlg())
-        		.salt(saved.getSalt())
-        		.version(saved.getVersion())
-        		.build();
+        return toResponse(saved);
     }
 
     /**
@@ -65,18 +57,7 @@ public class GroupSessionBackupService {
     public Optional<GroupSessionBackupResponse> restoreInboundSession(UUID userKey, Integer ratchetIndex, String sessionId) {
         return inboundRepo.findClosestBackup(userKey, sessionId, ratchetIndex)
                 .map(entity -> {
-                	GroupSessionBackupResponse dto = GroupSessionBackupResponse.builder()
-                    .userKey(entity.getId().getUserKey())
-                    .sessionId(entity.getId().getSessionId())
-                    .ratchetIndex(entity.getId().getRatchetIndex())
-                    .peerUserKey(entity.getPeerUserKey())
-                    .groupId(entity.getGroupId())
-                    .encryptedSession(entity.getEncryptedSession())
-                    .aesAlg(entity.getAesAlg())
-                    .salt(entity.getSalt())
-                    .version(entity.getVersion())
-                    .build();
-                    return dto;
+                	return toResponse(entity);
                 });
     }
     
@@ -87,25 +68,14 @@ public class GroupSessionBackupService {
         return inboundRepo.findHighestRatchetIndexByUserKeyGroupedBySessionId(userKey)
         		.stream()
                 .map(entity -> {
-                	GroupSessionBackupResponse dto = GroupSessionBackupResponse.builder()
-                    .userKey(entity.getId().getUserKey())
-                    .sessionId(entity.getId().getSessionId())
-                    .ratchetIndex(entity.getId().getRatchetIndex())
-                    .peerUserKey(entity.getPeerUserKey())
-                    .groupId(entity.getGroupId())
-                    .encryptedSession(entity.getEncryptedSession())
-                    .aesAlg(entity.getAesAlg())
-                    .salt(entity.getSalt())
-                    .version(entity.getVersion())
-                    .build();
-                    return dto;
+                	return toResponse(entity);
                 })
                 .toList();
     }
 
     @Transactional
     public void pruneInboundBackups(UUID userKey, String sessionId, int keepLastN) {
-        List<InboundGroupSessionBackup> backups = inboundRepo.findByUserKey(userKey)
+        List<InboundGroupSessionBackup> backups = inboundRepo.findById_UserKey(userKey)
                 .stream()
                 .filter(b -> b.getId().getSessionId().equals(sessionId))
                 .sorted((a, b) -> b.getId().getRatchetIndex() - a.getId().getRatchetIndex())
@@ -140,27 +110,19 @@ public class GroupSessionBackupService {
     @Transactional
     public GroupSessionBackupResponse saveOutboundBackup(UUID userKey, GroupSessionBackupRequest request) {
         OutboundGroupSessionBackup backup = new OutboundGroupSessionBackup();
-        backup.getId().setUserKey(userKey);
-        backup.getId().setSessionId(request.getSessionId());
+        backup.setId(new OutboundGroupSessionBackupId(userKey, request.getSessionId()));
         backup.setPeerUserKey(request.getPeerUserKey());
         backup.setGroupId(request.getGroupId());
+        backup.setRatchetIndex(request.getRatchetIndex());
         backup.setEncryptedSession(request.getEncryptedSession());
+        backup.setAlgorithm(request.getAlgorithm());
         backup.setAesAlg(request.getAesAlg());
         backup.setVersion(request.getVersion());
         backup.setSalt(request.getSalt());
         backup.setCreatedAt(Instant.now());
 
         OutboundGroupSessionBackup saved = outboundRepo.save(backup);
-        return GroupSessionBackupResponse.builder()
-                .userKey(saved.getId().getUserKey())
-                .sessionId(saved.getId().getSessionId())
-                .groupId(saved.getGroupId())
-                .peerUserKey(saved.getPeerUserKey())
-                .encryptedSession(saved.getEncryptedSession())
-                .aesAlg(saved.getAesAlg())
-                .salt(saved.getSalt())
-                .version(saved.getVersion())
-                .build();
+        return toResponse(saved);
     }
 
     /**
@@ -168,18 +130,8 @@ public class GroupSessionBackupService {
      */
     public Optional<GroupSessionBackupResponse> restoreOutboundSession(UUID userKey, String sessionId) {
         return outboundRepo.findById(new OutboundGroupSessionBackupId(userKey, sessionId))
-                .map(entity -> {
-                	GroupSessionBackupResponse dto = GroupSessionBackupResponse.builder()
-                    .userKey(entity.getId().getUserKey())
-                    .sessionId(entity.getId().getSessionId())
-                    .groupId(entity.getGroupId())
-                    .peerUserKey(entity.getPeerUserKey())
-                    .encryptedSession(entity.getEncryptedSession())
-                    .aesAlg(entity.getAesAlg())
-                    .salt(entity.getSalt())
-                    .version(entity.getVersion())
-                    .build();
-                    return dto;
+                .map(entity -> {                	
+                    return toResponse(entity);
                 });
     }
     
@@ -187,20 +139,10 @@ public class GroupSessionBackupService {
      * Restore all outbound sessions by sessionId (for resuming encryption).
      */
     public List<GroupSessionBackupResponse> restoreOutboundSessions(UUID userKey) {
-    	return outboundRepo.findByUserKey(userKey)
+    	return outboundRepo.findById_UserKey(userKey)
         		.stream()
                 .map(entity -> {
-                	GroupSessionBackupResponse dto = GroupSessionBackupResponse.builder()
-                    .userKey(entity.getId().getUserKey())
-                    .sessionId(entity.getId().getSessionId())
-                    .groupId(entity.getGroupId())
-                    .peerUserKey(entity.getPeerUserKey())
-                    .encryptedSession(entity.getEncryptedSession())
-                    .aesAlg(entity.getAesAlg())
-                    .salt(entity.getSalt())
-                    .version(entity.getVersion())
-                    .build();
-                    return dto;
+                	return toResponse(entity);
                 })
                 .toList();
     }
@@ -217,5 +159,45 @@ public class GroupSessionBackupService {
     	} else {
     		throw new RecordNotFoundException(String.format("Inbound group session not found %s, %s", userKey, sessionId));
     	}
+    }
+    
+    private static GroupSessionBackupResponse toResponse(InboundGroupSessionBackup entity) {
+        if (entity == null) {
+            return null;
+        }
+
+        return GroupSessionBackupResponse.builder()
+                .userKey(entity.getId().getUserKey())
+                .sessionId(entity.getId().getSessionId())
+                .ratchetIndex(entity.getId().getRatchetIndex())
+                .groupId(entity.getGroupId())
+                .peerUserKey(entity.getPeerUserKey())
+                .encryptedSession(entity.getEncryptedSession())
+                .algorithm(entity.getAlgorithm())
+                .aesAlg(entity.getAesAlg())
+                .salt(entity.getSalt())
+                .version(entity.getVersion())
+                .createdAt(entity.getCreatedAt())
+                .build();
+    }
+    
+    private static GroupSessionBackupResponse toResponse(OutboundGroupSessionBackup entity) {
+        if (entity == null) {
+            return null;
+        }
+
+        return GroupSessionBackupResponse.builder()
+                .userKey(entity.getId().getUserKey())
+                .sessionId(entity.getId().getSessionId())
+                .groupId(entity.getGroupId())
+                .peerUserKey(entity.getPeerUserKey())
+                .encryptedSession(entity.getEncryptedSession())
+                .ratchetIndex(entity.getRatchetIndex())
+                .algorithm(entity.getAlgorithm())
+                .aesAlg(entity.getAesAlg())
+                .salt(entity.getSalt())
+                .version(entity.getVersion())
+                .createdAt(entity.getCreatedAt())
+                .build();
     }
 }

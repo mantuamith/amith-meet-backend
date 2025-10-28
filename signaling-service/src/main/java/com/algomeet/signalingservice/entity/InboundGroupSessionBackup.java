@@ -21,7 +21,7 @@ public class InboundGroupSessionBackup {
     
     /** Base64-encoded AES-encrypted session/pickle */
     @Lob
-    @Column(nullable = false)
+    @Column(columnDefinition = "TEXT", nullable = false)
     private String encryptedSession;
     
     /** Algorithm name, e.g. "MEGOLM" */

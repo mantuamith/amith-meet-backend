@@ -31,6 +31,7 @@ public class UserSessionBackupService {
         backup.setPeerUserKey(request.getPeerUserKey());
         backup.setInbound(request.isInbound());
         backup.setEncryptedSession(request.getEncryptedSession());
+        backup.setAlgorithm(request.getAlgorithm());
         backup.setAesAlg(request.getAesAlg());
         backup.setVersion(request.getVersion());
         backup.setSalt(request.getSalt());

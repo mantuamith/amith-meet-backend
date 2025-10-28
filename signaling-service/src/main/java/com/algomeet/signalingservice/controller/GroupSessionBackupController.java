@@ -45,7 +45,7 @@ public class GroupSessionBackupController {
         return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, sessions));
     }
 
-    @GetMapping("/inbound/{sessionId}/{ratchetIndex}/restore")
+    @GetMapping("/{sessionId}/{ratchetIndex}/inbound/restore")
     public ResponseEntity<CommonResponse<GroupSessionBackupResponse>> getInboundSession(
             @PathVariable String sessionId,
             @PathVariable Integer ratchetIndex) {
@@ -58,7 +58,7 @@ public class GroupSessionBackupController {
                 		.body(CommonResponse.from(ResponseCode.GROUP_SESSION_BACKUP_NOT_FOUND)));
     }
 
-    @DeleteMapping("/inbound/{sessionId}/{ratchetIndex}")
+    @DeleteMapping("/{sessionId}/{ratchetIndex}/inbound")
     public ResponseEntity<CommonResponse<?>> deleteInboundSession(
     		@PathVariable String sessionId,
     		@PathVariable int ratchetIndex) {
@@ -70,7 +70,7 @@ public class GroupSessionBackupController {
     	}  
     }
     
-    @DeleteMapping("/inbound/{sessionId}/prune")
+    @DeleteMapping("/{sessionId}/inbound/prune")
     public ResponseEntity<CommonResponse<?>> pruneInboundBackups(
     		@PathVariable String sessionId,
     		@RequestParam(defaultValue = "100") int keepLastN) {
@@ -101,7 +101,7 @@ public class GroupSessionBackupController {
         return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, sessions));
     }
 
-    @GetMapping("/outbound/{sessionId}/restore")
+    @GetMapping("/{sessionId}/outbound/restore")
     public ResponseEntity<CommonResponse<GroupSessionBackupResponse>> getOutboundSession(
             @PathVariable String sessionId) {
 
@@ -113,7 +113,7 @@ public class GroupSessionBackupController {
                 		.body(CommonResponse.from(ResponseCode.GROUP_SESSION_BACKUP_NOT_FOUND)));
     }
 
-    @DeleteMapping("/outbound/{sessionId}")
+    @DeleteMapping("/{sessionId}/outbound")
     public ResponseEntity<CommonResponse<?>> deleteOutboundSession(
     		@PathVariable String sessionId) {
     	try {

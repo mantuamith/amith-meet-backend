@@ -27,8 +27,10 @@ public class OutboundGroupSessionBackup {
         
     /** Base64-encoded AES-encrypted session/ pickle */
     @Lob
-    @Column(nullable = false)
+    @Column(columnDefinition = "TEXT", nullable = false)
     private String encryptedSession;
+    
+    private int ratchetIndex;
     
     /** Algorithm name, e.g. "MEGOLM" */
     @Column(length = 32)

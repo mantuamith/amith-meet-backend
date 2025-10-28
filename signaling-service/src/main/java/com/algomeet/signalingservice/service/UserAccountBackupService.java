@@ -30,7 +30,7 @@ public class UserAccountBackupService {
     	}
     	
         UserAccountBackup backup = new UserAccountBackup();
-
+        backup.setEncryptedAccount(request.getEncryptedAccount());
         backup.setUserKey(userKey);
         backup.setAesAlg(request.getAesAlg());
         backup.setVersion(request.getVersion());
@@ -43,6 +43,7 @@ public class UserAccountBackupService {
         UserAccountBackup saved = repository.save(backup);
         return UserAccountBackupResponse.builder()
         		.userKey(saved.getUserKey())
+        		.encryptedAccount(saved.getEncryptedAccount())
         		.aesAlg(saved.getAesAlg())
         		.version(saved.getVersion())
         		.salt(saved.getSalt())
@@ -59,7 +60,7 @@ public class UserAccountBackupService {
     	}
     	
         UserAccountBackup backup = backupOpt.get();
-
+        backup.setEncryptedAccount(request.getEncryptedAccount());
         backup.setUserKey(userKey);
         backup.setAesAlg(request.getAesAlg());
         backup.setVersion(request.getVersion());
@@ -72,6 +73,7 @@ public class UserAccountBackupService {
         UserAccountBackup saved = repository.save(backup);
         return UserAccountBackupResponse.builder()
         		.userKey(saved.getUserKey())
+        		.encryptedAccount(saved.getEncryptedAccount())
         		.aesAlg(saved.getAesAlg())
         		.version(saved.getVersion())
         		.salt(saved.getSalt())
@@ -84,6 +86,7 @@ public class UserAccountBackupService {
         return repository.findById(userKey)
                 .map(entity -> UserAccountBackupResponse.builder()
                         .userKey(entity.getUserKey())
+                        .encryptedAccount(entity.getEncryptedAccount())
                         .aesAlg(entity.getAesAlg())
                         .version(entity.getVersion())
                         .salt(entity.getSalt())

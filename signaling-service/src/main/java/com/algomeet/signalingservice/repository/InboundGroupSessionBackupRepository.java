@@ -6,23 +6,23 @@ import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.algomeet.signalingservice.entity.InboundGroupSessionBackupId;
 import com.algomeet.signalingservice.entity.InboundGroupSessionBackup;
 
 public interface InboundGroupSessionBackupRepository extends JpaRepository<InboundGroupSessionBackup, InboundGroupSessionBackupId> {
-    @Query("""
-        SELECT m FROM MegolmSessionBackup m 
-        WHERE m.userKey = :userKey
-        m.sessionId = :sessionId AND m.ratchetIndex <= :targetIndex
-        ORDER BY m.ratchetIndex DESC
+	@Transactional(readOnly = true)
+	@Query("""
+        SELECT m FROM InboundGroupSessionBackup m 
+        WHERE m.id.userKey = :userKey AND 
+        m.id.sessionId = :sessionId AND m.id.ratchetIndex <= :targetIndex
+        ORDER BY m.id.ratchetIndex DESC
         LIMIT 1
     """)
     Optional<InboundGroupSessionBackup> findClosestBackup(UUID userKey, String sessionId, int targetIndex);
     
-    /**  Find all backups for user ordered by ratchetIndex ASC */
-    List<InboundGroupSessionBackup> findByUserKeyOrderByRatchetIndexAsc(UUID userKey);
-    
+	@Transactional(readOnly = true)
     @Query("""
     	    SELECT b FROM InboundGroupSessionBackup b
     	    WHERE b.id.userKey = :userKey
@@ -36,5 +36,6 @@ public interface InboundGroupSessionBackupRepository extends JpaRepository<Inbou
     	""")
     List<InboundGroupSessionBackup> findHighestRatchetIndexByUserKeyGroupedBySessionId(UUID userKey);
     
-    List<InboundGroupSessionBackup> findByUserKey(UUID userKey);
+	@Transactional(readOnly = true)
+    List<InboundGroupSessionBackup> findById_UserKey(UUID userKey);
 }

@@ -24,10 +24,7 @@ public class GroupSessionBackupResponse implements Serializable{
     
     /** User key of remote user **/
     private UUID peerUserKey;
-    
-    /** Session ID of remote user **/
-	private String peerSessionId;
- 
+     
     /**
 	 * Inbound/Outbound group session.
 	 * The pickled (encrypted serialized) session data
