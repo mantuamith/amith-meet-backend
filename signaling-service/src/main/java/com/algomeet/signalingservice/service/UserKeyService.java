@@ -1,6 +1,5 @@
 package com.algomeet.signalingservice.service;
 
-import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -15,12 +14,9 @@ import org.springframework.util.CollectionUtils;
 import com.algomeet.signalingservice.dto.UserIdentityAndOneTimeKeyResponse;
 import com.algomeet.signalingservice.dto.UserIdentityKeyRequest;
 import com.algomeet.signalingservice.dto.UserIdentityKeyResponse;
-import com.algomeet.signalingservice.dto.UserKeysBackupRequest;
-import com.algomeet.signalingservice.dto.UserKeysBackupResponse;
 import com.algomeet.signalingservice.dto.UserOneTimeKeyRequest;
 import com.algomeet.signalingservice.dto.UserOneTimeKeyResponse;
 import com.algomeet.signalingservice.entity.UserIdentityKey;
-import com.algomeet.signalingservice.entity.UserKeysBackup;
 import com.algomeet.signalingservice.entity.UserOneTimeKey;
 import com.algomeet.signalingservice.exceptions.IdentityKeyAlreadyExistsException;
 import com.algomeet.signalingservice.exceptions.NoUserOneTimeKeyIsAvailableException;
@@ -29,11 +25,7 @@ import com.algomeet.signalingservice.exceptions.OneTimeKeysReservedMaxLimitExcee
 import com.algomeet.signalingservice.exceptions.RecordNotFoundException;
 import com.algomeet.signalingservice.exceptions.UserKeyAlreadyExistsException;
 import com.algomeet.signalingservice.repository.UserIdentityKeyRepository;
-import com.algomeet.signalingservice.repository.UserKeysBackupRepository;
 import com.algomeet.signalingservice.repository.UserOneTimeKeyRepository;
-import com.algomeet.signalingservice.util.GroupSessionUtil;
-import com.algomeet.signalingservice.util.SessionUtil;
-import com.fasterxml.jackson.core.JsonProcessingException;
 
 import lombok.RequiredArgsConstructor;
 
@@ -44,7 +36,6 @@ public class UserKeyService {
 
     private final UserIdentityKeyRepository userIdentityRepo;
     private final UserOneTimeKeyRepository oneTimeRepo;
-    private final UserKeysBackupRepository keyBackupRepo;
     
     @Value("${one-time-keys.reserved-max-limit:5000}")
     private int reservedOneTimeKeysMaxLimit;
@@ -216,51 +207,5 @@ public class UserKeyService {
     public void deleteOneTimeKey(Long id, UUID userKey) {
     	oneTimeRepo.findById(id).orElseThrow(() -> new RecordNotFoundException("One time key ID is not found"));
     	oneTimeRepo.deleteByIdAndUserKeyOrUsed(id, userKey, true);
-    }
-    
-    public UserKeysBackupResponse createPrivateKeyBackup(UUID userKey, UserKeysBackupRequest request) throws JsonProcessingException, UnsupportedEncodingException {
-    	UserKeysBackup keyBackup = new UserKeysBackup(userKey, 
-    			request.getEncryptedAccount(),
-    			SessionUtil.converToJson(request.getInboundSessions()),
-    			SessionUtil.converToJson(request.getOutboundSessions()),
-    			GroupSessionUtil.converToJson(request.getInboundGroupSessions()),
-    			GroupSessionUtil.converToJson(request.getOutboundGroupSessions()));
-    	keyBackup.setVersion(request.getVersion());
-    	keyBackup.setAlg(request.getAlg());
-    	keyBackup.setSalt(request.getSalt());
-    	
-    	UserKeysBackup savedBackup = keyBackupRepo.save(keyBackup);
-    	
-    	return UserKeysBackupResponse.builder()
-    			.userKey(savedBackup.getUserKey())
-    			.encryptedAccount(savedBackup.getEncryptedAccount())
-    			.inboundSessions(SessionUtil.converToObject(savedBackup.getInboundSessions()))
-    			.outboundSessions(SessionUtil.converToObject(savedBackup.getOutboundSessions()))
-    			.inboundGroupSessions(GroupSessionUtil.converToObject(savedBackup.getInboundGroupSessions()))
-    		    .outboundGroupSessions(GroupSessionUtil.converToObject(savedBackup.getOutboundGroupSessions()))
-    		    .version(savedBackup.getVersion())
-    		    .salt(savedBackup.getSalt())
-    		    .alg(savedBackup.getAlg())
-    			.createdAt(savedBackup.getCreatedAt())
-    			.updatedAt(savedBackup.getUpdatedAt())
-    			.build();  
-    }
-    
-    public UserKeysBackupResponse getPrivateKeyBackup(UUID userKey) throws JsonProcessingException, UnsupportedEncodingException {
-    	UserKeysBackup userKeyBackup = keyBackupRepo.findById(userKey).orElseThrow(() -> new RecordNotFoundException("User key/ backup not found"));
-    	
-    	return UserKeysBackupResponse.builder()
-    			.userKey(userKeyBackup.getUserKey())
-    			.encryptedAccount(userKeyBackup.getEncryptedAccount())
-    			.inboundSessions(SessionUtil.converToObject(userKeyBackup.getInboundSessions()))
-    			.outboundSessions(SessionUtil.converToObject(userKeyBackup.getOutboundSessions()))
-    			.inboundGroupSessions(GroupSessionUtil.converToObject(userKeyBackup.getInboundGroupSessions()))
-    		    .outboundGroupSessions(GroupSessionUtil.converToObject(userKeyBackup.getOutboundGroupSessions()))
-    		    .version(userKeyBackup.getVersion())
-    		    .salt(userKeyBackup.getSalt())
-    		    .alg(userKeyBackup.getAlg())
-    			.createdAt(userKeyBackup.getCreatedAt())
-    			.updatedAt(userKeyBackup.getUpdatedAt())
-    			.build();  	
-    }
+    }   
 }
