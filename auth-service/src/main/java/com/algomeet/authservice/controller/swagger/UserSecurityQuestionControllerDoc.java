@@ -48,6 +48,7 @@ public interface UserSecurityQuestionControllerDoc {
     public ResponseEntity<CommonResponse<List<UserSecurityQuestionResponse>>> create(
             @RequestBody List<UserSecurityQuestionRequest> requests);
 
+    @Deprecated
     @Operation(
         summary = "Get all security questions for a user",
         description = "Retrieve all security questions linked to a specific user profile.",
@@ -60,6 +61,16 @@ public interface UserSecurityQuestionControllerDoc {
             @PathVariable UUID userProfileId);
     
     @Operation(
+            summary = "Get all security questions for a user",
+            description = "Retrieve all security questions linked to a specific user profile.",
+            responses = {
+                @ApiResponse(responseCode = "200", description = "Questions retrieved successfully")
+            }
+        )
+    public ResponseEntity<CommonResponse<List<UserSecurityQuestionResponse>>> getByUserProfileId();
+
+    @Deprecated
+    @Operation(
         summary = "Delete all security questions for a user",
         description = "Remove all stored security questions for a given user profile ID.",
         responses = {
@@ -68,7 +79,17 @@ public interface UserSecurityQuestionControllerDoc {
     )
     public ResponseEntity<CommonResponse<UserSecurityQuestionResponse>> deleteByUserProfileId(
             @PathVariable UUID userProfileId);
-       
+    
+    @Operation(
+            summary = "Delete all security questions for a user",
+            description = "Remove all stored security questions for a given user profile ID.",
+            responses = {
+                @ApiResponse(responseCode = "200", description = "Security questions deleted successfully")
+            }
+        )
+    public ResponseEntity<CommonResponse<UserSecurityQuestionResponse>> deleteByUserProfileId();
+    
+    @Deprecated
     @Operation(
         summary = "Get a specific user security question",
         description = "Retrieve a security question for a user by profile ID and question ID.",
@@ -81,6 +102,7 @@ public interface UserSecurityQuestionControllerDoc {
             @PathVariable UUID userProfileId,
             @PathVariable String securityQuestionId);
         
+    @Deprecated
     @Operation(
         summary = "Verify a security question answer",
         description = "Check if the provided answer to a security question is correct for a given user profile.",
@@ -93,4 +115,16 @@ public interface UserSecurityQuestionControllerDoc {
             @PathVariable UUID userProfileId,
             @PathVariable String securityQuestionId,
             @Valid @RequestBody VerifySecurityQuestionRequest request);
+    
+    @Operation(
+            summary = "Verify a security question answer",
+            description = "Check if the provided answer to a security question is correct for a given user profile.",
+            responses = {
+                @ApiResponse(responseCode = "200", description = "Verification successful"),
+                @ApiResponse(responseCode = "404", description = "Security question not found")
+            }
+        )
+    public ResponseEntity<?> verifyAnswer(
+                @PathVariable String securityQuestionId,
+                @Valid @RequestBody VerifySecurityQuestionRequest request);
 }

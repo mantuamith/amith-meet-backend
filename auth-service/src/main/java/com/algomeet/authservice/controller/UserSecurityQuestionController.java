@@ -88,9 +88,17 @@ public class UserSecurityQuestionController implements UserSecurityQuestionContr
         return ResponseEntity.ok(CommonResponse.from(ResponseCode.ADD_USER_SECURITY_QUESTION_SUCCESS, respList));
     }
 
+    @Deprecated
     @GetMapping("/{userProfileId}")
     public ResponseEntity<CommonResponse<List<UserSecurityQuestionResponse>>> getByUserProfileId(@PathVariable UUID userProfileId) {
-		List<UserSecurityQuestionResponse> respList = userSecurityQuestionService.getByUserProfileId(userProfileId);
+		return getByUserProfileId();
+    }
+    
+    @GetMapping
+    public ResponseEntity<CommonResponse<List<UserSecurityQuestionResponse>>> getByUserProfileId() {
+    	UUID userKey = SecurityUtil.getUserKey();
+    	
+		List<UserSecurityQuestionResponse> respList = userSecurityQuestionService.getByUserProfileId(userKey);
 		if (!CollectionUtils.isEmpty(respList)) {
 			respList.forEach(UserSecurityQuestionController::maskAnswer);
 		}
@@ -98,19 +106,28 @@ public class UserSecurityQuestionController implements UserSecurityQuestionContr
 		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, respList));
     }
 
+    @Deprecated
     @DeleteMapping("/{userProfileId}")
     public ResponseEntity<CommonResponse<UserSecurityQuestionResponse>> deleteByUserProfileId(@PathVariable UUID userProfileId) {
-    	userSecurityQuestionService.deleteByUserProfileId(userProfileId);    	
+        return deleteByUserProfileId();
+    }
+    
+    @DeleteMapping
+    public ResponseEntity<CommonResponse<UserSecurityQuestionResponse>> deleteByUserProfileId() {
+    	UUID userKey = SecurityUtil.getUserKey();
+    	userSecurityQuestionService.deleteByUserProfileId(userKey);    	
         return ResponseEntity.ok(CommonResponse.from(ResponseCode.DELETE_USER_SECURITY_QUESTION_SUCCESS));
     }
-        
+    
+    @Deprecated
     @GetMapping("/{userProfileId}/{securityQuestionId}")
     public ResponseEntity<CommonResponse<UserSecurityQuestionResponse>> getByUserProfileIdAndQuestionId(
     		@PathVariable UUID userProfileId,
     		@PathVariable String securityQuestionId) {
+    	UUID userKey = SecurityUtil.getUserKey();
 
     	UserSecurityQuestionResponse resp =
-    			userSecurityQuestionService.getByUserProfileIdAndQuestionId(userProfileId, securityQuestionId);
+    			userSecurityQuestionService.getByUserProfileIdAndQuestionId(userKey, securityQuestionId);
 
     	if (resp == null) {
     		return ResponseEntity.status(HttpStatus.NOT_FOUND)
@@ -121,14 +138,25 @@ public class UserSecurityQuestionController implements UserSecurityQuestionContr
     	return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, resp));
     }       
     
+    @Deprecated
     @PostMapping("/{userProfileId}/{securityQuestionId}/verify-answer")
     public ResponseEntity<?> verifyAnswer(
     		@PathVariable UUID userProfileId,
             @PathVariable String securityQuestionId,
     		@Valid @RequestBody VerifySecurityQuestionRequest request) {
 
-    	UserSecurityQuestionResponse saved =
-				userSecurityQuestionService.getByUserProfileIdAndQuestionId(userProfileId, securityQuestionId);
+		return verifyAnswer(
+	            securityQuestionId, request);
+    }
+    
+    @PostMapping("/{securityQuestionId}/verify-answer")
+    public ResponseEntity<CommonResponse<VerifySecurityQuestionResponse>> verifyAnswer(
+            @PathVariable String securityQuestionId,
+    		@Valid @RequestBody VerifySecurityQuestionRequest request) {
+    	UUID userKey = SecurityUtil.getUserKey();
+    	
+		UserSecurityQuestionResponse saved =
+				userSecurityQuestionService.getByUserProfileIdAndQuestionId(userKey, securityQuestionId);
 
 		if (saved == null) {
 			return ResponseEntity.status(HttpStatus.NOT_FOUND)
