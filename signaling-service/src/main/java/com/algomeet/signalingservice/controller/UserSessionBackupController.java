@@ -23,6 +23,10 @@ import com.algomeet.signalingservice.exceptions.RecordNotFoundException;
 import com.algomeet.signalingservice.service.UserSessionBackupService;
 import com.algomeet.signalingservice.util.SecurityUtil;
 
+/**
+ * REST controller that handles user session backup operations such as
+ * saving, restoring, and deleting session backups.
+ */
 @RestController
 @RequestMapping("/signaling/backup/sessions")
 public class UserSessionBackupController {
@@ -34,7 +38,10 @@ public class UserSessionBackupController {
 	}
 
 	/**
-	 * Save or update a session backup.
+	 * Saves or updates a user session backup for the currently authenticated user.
+	 *
+	 * @param request the request payload containing session backup details
+	 * @return a {@link ResponseEntity} containing a {@link CommonResponse} with the saved session data
 	 */
 	@PostMapping
 	public ResponseEntity<CommonResponse<UserSessionBackupResponse>> saveBackup(@Validated @RequestBody UserSessionBackupRequest request) {
@@ -43,7 +50,11 @@ public class UserSessionBackupController {
 	}
 
 	/**
-	 * Restore a specific session by userKey and sessionId.
+	 * Restores a specific session backup for the currently authenticated user.
+	 *
+	 * @param sessionId the ID of the session to restore
+	 * @return a {@link ResponseEntity} containing a {@link CommonResponse} with the restored session data,
+	 *         or a NOT_FOUND response if the session does not exist
 	 */
 	@GetMapping("/{sessionId}/restore")
 	public ResponseEntity<CommonResponse<UserSessionBackupResponse>> restoreSession(
@@ -58,7 +69,9 @@ public class UserSessionBackupController {
 	}
 
 	/**
-	 * Restore all sessions for a given userKey.
+	 * Restores all session backups for the currently authenticated user.
+	 *
+	 * @return a {@link ResponseEntity} containing a {@link CommonResponse} with a list of restored sessions
 	 */
 	@GetMapping("/restore")
 	public ResponseEntity<CommonResponse<List<UserSessionBackupResponse>>> restoreSessions() {
@@ -68,7 +81,10 @@ public class UserSessionBackupController {
 	}
 
 	/**
-	 * Delete a specific session backup.
+	 * Deletes a specific session backup for the currently authenticated user.
+	 *
+	 * @param sessionId the ID of the session to delete
+	 * @return a {@link ResponseEntity} containing a {@link CommonResponse} indicating success or failure
 	 */
 	@DeleteMapping("/{sessionId}")
 	public ResponseEntity<CommonResponse<?>> deleteSession(

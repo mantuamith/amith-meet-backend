@@ -26,4 +26,8 @@ public interface UserOneTimeKeyRepository extends JpaRepository<UserOneTimeKey, 
     void deleteByIdAndUserKeyOrUsed(@Param("id") Long id,
                                     @Param("userKey") UUID userKey,
                                     @Param("used") boolean used);
+    
+    @Modifying
+    @Transactional
+    void deleteByUserKey(UUID userKey);
 }

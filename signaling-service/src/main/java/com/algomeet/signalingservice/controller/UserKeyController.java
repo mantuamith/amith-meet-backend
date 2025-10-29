@@ -36,6 +36,12 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+/**
+ * REST controller responsible for managing user identity keys and one-time keys
+ * in the signaling service. Provides endpoints for registering, updating,
+ * retrieving, and deleting identity and one-time keys.
+ */
+
 @Slf4j
 @RestController
 @RequestMapping("/signaling/keys")
@@ -43,7 +49,14 @@ import lombok.extern.slf4j.Slf4j;
 public class UserKeyController {
 	private final UserKeyService keyService;
 
-	// Register a new user identity key
+	/**
+	 * Registers a new user identity key for the authenticated user.
+	 *
+	 * @param request the {@link UserIdentityKeyRequest} containing the identity key details
+	 * @return a {@link ResponseEntity} containing {@link CommonResponse} with the created identity key information
+	 * @throws UserKeyAlreadyExistsException if the user key already exists
+	 * @throws IdentityKeyAlreadyExistsException if the identity key is already registered
+	 */
 	@PostMapping("/identity")
 	public ResponseEntity<CommonResponse<UserIdentityKeyResponse>> registerUserIdentity(@Valid @RequestBody UserIdentityKeyRequest request) {
 		try {
@@ -57,7 +70,13 @@ public class UserKeyController {
 		}		
 	}
 	
-	// Update user identity key
+	/**
+	 * Updates the existing user identity key for the authenticated user.
+	 *
+	 * @param request the {@link UserIdentityKeyRequest} containing updated identity key details
+	 * @return a {@link ResponseEntity} containing {@link CommonResponse} with the updated identity key information
+	 * @throws RecordNotFoundException if the user identity key record is not found
+	 */
 	@PutMapping("/identity")
 	public ResponseEntity<CommonResponse<UserIdentityKeyResponse>> updateUserIdentity(@Valid @RequestBody UserIdentityKeyRequest request) {
 		try {
@@ -69,7 +88,13 @@ public class UserKeyController {
 		}	
 	}
 	
-	// Get identity key 
+	/**
+	 * Retrieves the identity key of the specified user or the currently authenticated user if no parameter is provided.
+	 *
+	 * @param userKeyOpt optional UUID of the user whose identity key is being requested
+	 * @return a {@link ResponseEntity} containing {@link CommonResponse} with the user's identity key information
+	 * @throws RecordNotFoundException if the identity key record is not found
+	 */
 	@GetMapping("/identity")
 	public ResponseEntity<CommonResponse<UserIdentityKeyResponse>> getUserIdentityKey(@RequestParam("userKey") Optional<UUID> userKeyOpt) {
 		try {
@@ -80,7 +105,30 @@ public class UserKeyController {
 		}
 	}
 	
-	// Get identity key and one-time key of a user
+	/**
+	 * Deletes the identity key of the currently authenticated user.
+	 *
+	 * @return a {@link ResponseEntity} containing {@link CommonResponse} confirming the deletion status
+	 * @throws RecordNotFoundException if no identity key is found for the current user
+	 */
+	@DeleteMapping("/identity")
+	public ResponseEntity<CommonResponse<?>> deleteIndentity() {
+		try {
+			keyService.deleteIdentityKey(UUID.fromString(SecurityUtil.getUserKey()));
+			return ResponseEntity.ok(CommonResponse.from(ResponseCode.IDENTITY_KEY_DELETE_SUCCESS));
+		} catch(RecordNotFoundException ex) {
+			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.IDENTITY_KEY_NOT_FOUND));
+		}
+	}
+	
+	/**
+	 * Retrieves both the identity key and one-time key of a specified user.
+	 *
+	 * @param userKey the UUID of the user whose keys are being requested
+	 * @return a {@link ResponseEntity} containing {@link CommonResponse} with identity and one-time key information
+	 * @throws RecordNotFoundException if the user record is not found
+	 * @throws NoUserOneTimeKeyIsAvailableException if no one-time key is available for the user
+	 */
 	@GetMapping("/identity-and-one-time")
 	public ResponseEntity<CommonResponse<UserIdentityAndOneTimeKeyResponse>> getUserIdentityAndOneTimeKey(@RequestParam UUID userKey) {
 		try {
@@ -93,7 +141,15 @@ public class UserKeyController {
 
 	}
 
-	// Add one-time key for existing user identity key
+	/**
+	 * Adds new one-time keys for the authenticated user's identity key.
+	 *
+	 * @param request the {@link UserOneTimeKeyRequest} containing one-time key data
+	 * @return a {@link ResponseEntity} containing {@link CommonResponse} with the list of added one-time keys
+	 * @throws RecordNotFoundException if the user identity key is not found
+	 * @throws OneTimeKeyAlreadyExistsException if any provided one-time key already exists
+	 * @throws OneTimeKeysReservedMaxLimitExceededException if the user exceeds the maximum reserved one-time keys limit
+	 */
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	@PostMapping("/one-time")
 	public ResponseEntity<CommonResponse<List<UserOneTimeKeyResponse>>> addOneTimeKeys(@Valid @RequestBody UserOneTimeKeyRequest request) {
@@ -114,7 +170,12 @@ public class UserKeyController {
 		}
 	}
 
-	// Get one-time keys for existing user identity key
+	/**
+	 * Retrieves all one-time keys associated with the authenticated user's identity key.
+	 *
+	 * @return a {@link ResponseEntity} containing {@link CommonResponse} with the list of one-time keys
+	 * @throws RecordNotFoundException if the identity key is not found for the user
+	 */
 	@GetMapping("/one-time")
 	public ResponseEntity<CommonResponse<List<UserOneTimeKeyResponse>>> getOneTimeKeys() {
 		try {
@@ -123,9 +184,15 @@ public class UserKeyController {
 		} catch(RecordNotFoundException ex) {
 			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.IDENTITY_KEY_NOT_FOUND));
 		}
-	}
+	}	
 
-	// Delete one-time key for existing user
+	/**
+	 * Deletes a specific one-time key for the authenticated user.
+	 *
+	 * @param id the ID of the one-time key to be deleted
+	 * @return a {@link ResponseEntity} containing {@link CommonResponse} confirming the deletion result
+	 * @throws RecordNotFoundException if the one-time key record is not found
+	 */
 	@DeleteMapping("/one-time/{id}")
 	public ResponseEntity<CommonResponse<?>> deleteOneTimeKey(@PathVariable Long id) {
 		try {

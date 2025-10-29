@@ -9,6 +9,7 @@ public enum ResponseCode {
 	IDENTITY_KEY_ALREADY_EXISTS("IDENTITY_KEY_ALREADY_EXISTS", "identity-key.register.already-exists"),	
 	IDENTITY_KEY_REGISTER_FAILED("IDENTITY_KEY_REGISTER_FAILED", "identity-key.register.failed"),
 	IDENTITY_KEY_UPDATE_SUCCESS("IDENTITY_KEY_UPDATE_SUCCESS", "identity-key.update.sucess"),
+	IDENTITY_KEY_DELETE_SUCCESS("IDENTITY_KEY_DELETE_SUCCESS", "success"),
 	IDENTITY_KEY_NOT_FOUND("IDENTITY_KEY_NOT_FOUND", "identity-key.not-found"),
 	ONE_TIME_KEY_ADD_SUCCESS("ONE_TIME_KEY_ADD_SUCCESS", "one-time-key.add.sucess"),
 	ONE_TIME_KEY_ADD_FAILED("ONE_TIME_KEY_ADD_FAILED", "one-time-key.add.failed"),
