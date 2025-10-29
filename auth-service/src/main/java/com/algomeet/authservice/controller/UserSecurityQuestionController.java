@@ -106,6 +106,7 @@ public class UserSecurityQuestionController implements UserSecurityQuestionContr
 		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, respList));
     }
 
+    @Deprecated
     @DeleteMapping("/{userProfileId}")
     public ResponseEntity<CommonResponse<UserSecurityQuestionResponse>> deleteByUserProfileId(@PathVariable UUID userProfileId) {
         return deleteByUserProfileId();
