@@ -59,7 +59,6 @@ public interface UserSecurityQuestionControllerDoc {
             @Parameter(description = "User Profile UUID", example = "550e8400-e29b-41d4-a716-446655440000")
             @PathVariable UUID userProfileId);
     
-    @Deprecated
     @Operation(
         summary = "Delete all security questions for a user",
         description = "Remove all stored security questions for a given user profile ID.",
@@ -69,17 +68,7 @@ public interface UserSecurityQuestionControllerDoc {
     )
     public ResponseEntity<CommonResponse<UserSecurityQuestionResponse>> deleteByUserProfileId(
             @PathVariable UUID userProfileId);
-    
-    @Operation(
-            summary = "Delete all security questions for a user",
-            description = "Remove all stored security questions for a given user profile ID.",
-            responses = {
-                @ApiResponse(responseCode = "200", description = "Security questions deleted successfully")
-            }
-        )
-    public ResponseEntity<CommonResponse<UserSecurityQuestionResponse>> deleteByUserProfileId();
-    
-    @Deprecated
+       
     @Operation(
         summary = "Get a specific user security question",
         description = "Retrieve a security question for a user by profile ID and question ID.",
