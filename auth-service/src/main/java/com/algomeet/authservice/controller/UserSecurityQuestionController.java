@@ -88,17 +88,9 @@ public class UserSecurityQuestionController implements UserSecurityQuestionContr
         return ResponseEntity.ok(CommonResponse.from(ResponseCode.ADD_USER_SECURITY_QUESTION_SUCCESS, respList));
     }
 
-    @Deprecated
     @GetMapping("/{userProfileId}")
     public ResponseEntity<CommonResponse<List<UserSecurityQuestionResponse>>> getByUserProfileId(@PathVariable UUID userProfileId) {
-		return getByUserProfileId();
-    }
-    
-    @GetMapping
-    public ResponseEntity<CommonResponse<List<UserSecurityQuestionResponse>>> getByUserProfileId() {
-    	UUID userKey = SecurityUtil.getUserKey();
-    	
-		List<UserSecurityQuestionResponse> respList = userSecurityQuestionService.getByUserProfileId(userKey);
+		List<UserSecurityQuestionResponse> respList = userSecurityQuestionService.getByUserProfileId(userProfileId);
 		if (!CollectionUtils.isEmpty(respList)) {
 			respList.forEach(UserSecurityQuestionController::maskAnswer);
 		}
@@ -138,25 +130,14 @@ public class UserSecurityQuestionController implements UserSecurityQuestionContr
     	return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, resp));
     }       
     
-    @Deprecated
     @PostMapping("/{userProfileId}/{securityQuestionId}/verify-answer")
     public ResponseEntity<?> verifyAnswer(
     		@PathVariable UUID userProfileId,
             @PathVariable String securityQuestionId,
     		@Valid @RequestBody VerifySecurityQuestionRequest request) {
 
-		return verifyAnswer(
-	            securityQuestionId, request);
-    }
-    
-    @PostMapping("/{securityQuestionId}/verify-answer")
-    public ResponseEntity<CommonResponse<VerifySecurityQuestionResponse>> verifyAnswer(
-            @PathVariable String securityQuestionId,
-    		@Valid @RequestBody VerifySecurityQuestionRequest request) {
-    	UUID userKey = SecurityUtil.getUserKey();
-    	
-		UserSecurityQuestionResponse saved =
-				userSecurityQuestionService.getByUserProfileIdAndQuestionId(userKey, securityQuestionId);
+    	UserSecurityQuestionResponse saved =
+				userSecurityQuestionService.getByUserProfileIdAndQuestionId(userProfileId, securityQuestionId);
 
 		if (saved == null) {
 			return ResponseEntity.status(HttpStatus.NOT_FOUND)
