@@ -70,7 +70,7 @@ public interface UserSecurityQuestionControllerDoc {
     public ResponseEntity<CommonResponse<List<UserSecurityQuestionResponse>>> getByUserProfileId();
 
     @Operation(
-        summary = "Delete all security questions for a user",
+        summary = "Delete all security questions for a user. Allowed for SA and ADMIN roles only.",
         description = "Remove all stored security questions for a given user profile ID.",
         responses = {
             @ApiResponse(responseCode = "200", description = "Security questions deleted successfully")
