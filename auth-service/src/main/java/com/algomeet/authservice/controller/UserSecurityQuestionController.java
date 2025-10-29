@@ -9,6 +9,7 @@ import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.util.CollectionUtils;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -106,9 +107,9 @@ public class UserSecurityQuestionController implements UserSecurityQuestionContr
 		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, respList));
     }
 
+	@PreAuthorize("hasAnyRole('SA','ADMIN')")
     @DeleteMapping("/{userProfileId}")
-    public ResponseEntity<CommonResponse<UserSecurityQuestionResponse>> deleteByUserProfileId(@PathVariable UUID userProfileId) {    	
-    	
+    public ResponseEntity<CommonResponse<UserSecurityQuestionResponse>> deleteByUserProfileId(@PathVariable UUID userProfileId) {      	
     	userSecurityQuestionService.deleteByUserProfileId(userProfileId);    	
         return ResponseEntity.ok(CommonResponse.from(ResponseCode.DELETE_USER_SECURITY_QUESTION_SUCCESS));
     }
