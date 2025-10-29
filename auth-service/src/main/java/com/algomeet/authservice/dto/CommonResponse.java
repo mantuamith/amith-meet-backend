@@ -19,4 +19,8 @@ public class CommonResponse<T> {
     public static <T> CommonResponse<T> from(ResponseCode responseCode, T data) {
         return new CommonResponse<T>(responseCode.getCode(), responseCode.getDefaultMessage(), data);
     }
+    
+    public static <T> CommonResponse<T> from(ResponseCode responseCode) {
+        return new CommonResponse<T>(responseCode.getCode(), responseCode.getDefaultMessage(), null);
+    }
 }
