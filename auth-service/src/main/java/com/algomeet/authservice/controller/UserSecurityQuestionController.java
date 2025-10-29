@@ -106,16 +106,10 @@ public class UserSecurityQuestionController implements UserSecurityQuestionContr
 		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, respList));
     }
 
-    @Deprecated
     @DeleteMapping("/{userProfileId}")
-    public ResponseEntity<CommonResponse<UserSecurityQuestionResponse>> deleteByUserProfileId(@PathVariable UUID userProfileId) {
-        return deleteByUserProfileId();
-    }
-    
-    @DeleteMapping
-    public ResponseEntity<CommonResponse<UserSecurityQuestionResponse>> deleteByUserProfileId() {
-    	UUID userKey = SecurityUtil.getUserKey();
-    	userSecurityQuestionService.deleteByUserProfileId(userKey);    	
+    public ResponseEntity<CommonResponse<UserSecurityQuestionResponse>> deleteByUserProfileId(@PathVariable UUID userProfileId) {    	
+    	
+    	userSecurityQuestionService.deleteByUserProfileId(userProfileId);    	
         return ResponseEntity.ok(CommonResponse.from(ResponseCode.DELETE_USER_SECURITY_QUESTION_SUCCESS));
     }
     
