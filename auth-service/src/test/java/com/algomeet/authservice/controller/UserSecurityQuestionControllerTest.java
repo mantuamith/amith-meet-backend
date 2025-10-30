@@ -80,8 +80,8 @@ class UserSecurityQuestionControllerTest {
 
 	@BeforeEach
 	void init() {
-		// Inject messageSource into the private static field of MessageUtil
-		ReflectionTestUtils.setField(MessageUtil.class, "messageSource", messageSource);
+		// Initialize messageSource into the MessageUtil constructor
+		new MessageUtil(messageSource);
 	}
 
 	@Test
