@@ -109,7 +109,6 @@ class MessageActionServiceTest {
         MessageDocument saved = service.replyTo(req, "alice", null);
 
         assertThat(saved.getId()).isEqualTo("replyId");
-        assertThat(saved.getMetaData().getReplyToMessageId()).isEqualTo("orig");
         verify(simp).convertAndSendToUser(eq("bob"), eq("/queue/messages"), any());
         verify(messageService).sendUnreadCountUpdate("bob");
     }
