@@ -28,7 +28,7 @@ public class SecurityQuestionSha256Util {
 
 	public static String hashAnswer(String answer) throws NoSuchAlgorithmException, UnsupportedEncodingException {
 		if (!StringUtils.hasLength(answer)) {
-			throw new RuntimeException("Invalid input answer has not value");
+			throw new RuntimeException("Invalid input answer has empty or null value");
 		}
 
 		return generateSha256Hash(answer.trim().toLowerCase());	 
@@ -36,7 +36,7 @@ public class SecurityQuestionSha256Util {
 	
 	public static boolean verifyAnswer(String answer, String expectedAnswer) throws NoSuchAlgorithmException, UnsupportedEncodingException {
 		if (!StringUtils.hasLength(answer)) {
-			throw new RuntimeException("Invalid input answer has not value");
+			throw new RuntimeException("Invalid input answer has empty or null value");
 		}
 
 		return verifySha256Hash(answer.trim().toLowerCase(), expectedAnswer);	 
