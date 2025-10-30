@@ -26,4 +26,7 @@ public class LoginInitRequest {
     private Boolean overrideExisting;
     
     private String deviceToken;
+    
+    /** User preferred language */
+    private String lang;
 }

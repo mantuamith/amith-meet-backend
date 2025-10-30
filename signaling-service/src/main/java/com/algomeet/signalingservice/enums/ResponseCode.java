@@ -19,8 +19,16 @@ public enum ResponseCode {
 	ONE_TIME_KEY_IS_NOT_AVAILABLE("ONE_TIME_KEY_IS_NOT_AVAILABLE", "one-time-key.not-available"),
 	ONE_TIME_KEY_ALREADY_EXISTS("ONE_TIME_KEY_ALREADY_EXISTS", "one-time-key.key-already-exists"),
 	ONE_TIME_KEY_RESERVED_MAX_LIMIT_EXCEEDED("ONE_TIME_KEY_RESERVED_MAX_LIMIT_EXCEEDED", "one-time-key.reserved-max-limit-exceeded"),
-	USER_KEYS_BACKUP_SUCCESS("USER_KEYS_BACKUP_SUCCESS", "user-keys-backup.success"),
-	USER_KEYS_BACKUP_NOT_FOUND("USER_KEYS_BACKUP_NOT_FOUND", "user-keys-backup.not-found");
+	
+	USER_ACCOUNT_BACKUP_NOT_FOUND("USER_ACCOUNT_BACKUP_NOT_FOUND", "user-account-backup.not-found"),
+	USER_ACCOUNT_BACKUP_ALREADY_EXIST("USER_ACCOUNT_BACKUP_ALREADY_EXIST", "user-account-backup.already-exist"),
+	USER_SESSION_BACKUP_NOT_FOUND("USER_SESSION_BACKUP_NOT_FOUND", "user-session-backup.not-found"),
+	USER_SESSION_BACKUP_DELETE_SUCCESS("USER_SESSION_BACKUP_DELETE_SUCCESS", "user-session-backup.delete.success"),
+	GROUP_SESSION_BACKUP_NOT_FOUND("GROUP_SESSION_BACKUP_NOT_FOUND", "group-session-backup.not-found"),
+	GROUP_SESSION_BACKUP_DELETE_SUCCESS("GROUP_SESSION_BACKUP_DELETE_SUCCESS", "group-session-backup.delete.success"),
+	GROUP_SESSION_BACKUP_MAX_INBOUND_SESSIONS_LIMIT_EXCEEDED("GROUP_SESSION_BACKUP_MAX_INBOUND_SESSIONS_LIMIT_EXCEEDED", "group-session-backup.max-inbound-sessions-limit-exceeded"),
+	GROUP_SESSION_BACKUP_MAX_OUTBOUND_SESSIONS_LIMIT_EXCEEDED("GROUP_SESSION_BACKUP_MAX_OUTBOUND_SESSIONS_LIMIT_EXCEEDED", "group-session-backup.max-outbound-sessions-limit-exceeded");
+	;
 	
     private final String code;
     private final String message;

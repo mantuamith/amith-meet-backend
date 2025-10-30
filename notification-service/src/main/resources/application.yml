@@ -50,4 +50,9 @@ apple-apns:
   team-id: HY6KJCKU38
   p8-auth-key-file-path: /Users/dev/APNs-acc/AuthKey_V6NCLR5L5W.p8
   p8-auth-key-file-key-id: V6NCLR5L5W  
+
+#Enable only in FAT  
+push-notification:
+  endpoint:
+    enabled: true
   

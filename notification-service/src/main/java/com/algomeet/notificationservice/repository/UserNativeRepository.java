@@ -21,7 +21,7 @@ public class UserNativeRepository {
     @UsePublicSchema
     public List<UserDto> getUsersByUserKeyList(List<String> userKeys) {
         String placeholders = String.join(",", java.util.Collections.nCopies(userKeys.size(), "CAST(? AS uuid)"));
-        String sql = String.format("SELECT id, CAST(user_key AS TEXT), username, email, device_type, device_token FROM users WHERE user_key IN (%s)", placeholders);
+        String sql = String.format("SELECT id, CAST(user_key AS TEXT), username, email, device_type, device_token, lang FROM users WHERE user_key IN (%s)", placeholders);
 
         Query query = entityManager.createNativeQuery(sql);
 
@@ -38,7 +38,8 @@ public class UserNativeRepository {
                         (String) row[2],
                         (String) row[3],
                         (String) row[4],
-                        (String) row[5]
+                        (String) row[5],
+                        (String) row[6]
                 ))
                 .toList();
     }
@@ -47,7 +48,7 @@ public class UserNativeRepository {
     @UsePublicSchema
     public List<UserDto> getUsersByUsernameList(List<String> usernames) {
         String placeholders = String.join(",", java.util.Collections.nCopies(usernames.size(), "?"));
-        String sql = String.format("SELECT id, CAST(user_key AS TEXT), username, email, device_type, device_token FROM users WHERE username IN (%s)", placeholders);
+        String sql = String.format("SELECT id, CAST(user_key AS TEXT), username, email, device_type, device_token, lang FROM users WHERE username IN (%s)", placeholders);
 
         Query query = entityManager.createNativeQuery(sql);
 
@@ -64,7 +65,8 @@ public class UserNativeRepository {
                         (String) row[2],
                         (String) row[3],
                         (String) row[4],
-                        (String) row[5]
+                        (String) row[5],
+                        (String) row[6]
                 ))
                 .toList();
     }
@@ -74,7 +76,7 @@ public class UserNativeRepository {
     public List<UserDto> getUsersByEmailList(List<String> emails) {
         String placeholders = String.join(",", java.util.Collections.nCopies(emails.size(), "?"));
         String sql = String.format("SELECT id, CAST(user_key AS TEXT), username, email, device_type, " + 
-        		                   "device_token FROM users WHERE email IN (%s)", placeholders);
+        		                   "device_token, lang FROM users WHERE email IN (%s)", placeholders);
 
         Query query = entityManager.createNativeQuery(sql);
 
@@ -91,7 +93,8 @@ public class UserNativeRepository {
                         (String) row[2],
                         (String) row[3],
                         (String) row[4],
-                        (String) row[5]
+                        (String) row[5],
+                        (String) row[6]
                 ))
                 .toList();
     }
