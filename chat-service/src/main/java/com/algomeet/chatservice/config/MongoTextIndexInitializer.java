@@ -3,17 +3,18 @@ package com.algomeet.chatservice.config;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.bson.Document;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
 import org.springframework.data.mongodb.core.MongoTemplate;
-import org.springframework.data.mongodb.core.index.IndexInfo;
-import org.springframework.data.mongodb.core.index.IndexOperations;
-import org.springframework.data.mongodb.core.index.TextIndexDefinition;
 import org.springframework.stereotype.Component;
 
 import com.algomeet.chatservice.document.MessageDocument;
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoDatabase;
 
-import java.util.List;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Component
@@ -34,21 +35,118 @@ public class MongoTextIndexInitializer {
             log.info("[IDX] Auto-create disabled via chat.index.auto-create=false");
             return;
         }
-        IndexOperations ops = mongoTemplate.indexOps(MessageDocument.class);
-        List<IndexInfo> infos = ops.getIndexInfo();
-        boolean exists = infos.stream().anyMatch(ii -> INDEX_NAME.equals(ii.getName()));
-        if (exists) {
-            log.info("[IDX] {} already exists", INDEX_NAME);
+
+        // Define the desired text index
+        Map<String, String> desiredKeys = Map.of(
+                "content", "text"
+                // ,"text", "text"
+        );
+        Map<String, Integer> desiredWeights = Map.of(
+                // "content", 10
+        );
+        String defaultLanguage = "english";
+
+        MongoDatabase db = mongoTemplate.getDb();
+        String collName = mongoTemplate.getCollectionName(MessageDocument.class);
+        MongoCollection<Document> coll = db.getCollection(collName);
+
+        // Read raw index specs
+        List<Document> indexes = coll.listIndexes(Document.class).into(new ArrayList<>());
+
+        // Find existing text index (there can be only one)
+        Document existingTextIdx = indexes.stream()
+                .filter(this::isTextIndex)
+                .findFirst()
+                .orElse(null);
+
+        if (existingTextIdx == null) {
+            log.info("[IDX] No text index found on '{}'. Creating '{}'.", collName, INDEX_NAME);
+            createTextIndex(db, collName, desiredKeys, desiredWeights, defaultLanguage, INDEX_NAME);
             return;
         }
 
-        TextIndexDefinition def = new TextIndexDefinition.TextIndexDefinitionBuilder()
-                .onField("content")
-                .withDefaultLanguage("english")
-                .named(INDEX_NAME)
-                .build();
+        Document existingKeysDoc = (Document) existingTextIdx.get("key"); // e.g. {content:"text"}
+        Map<String, String> existingKeys = docToStringMap(existingKeysDoc);
+        Map<String, Integer> existingWeights = docToIntMap((Document) existingTextIdx.get("weights"));
 
-        ops.ensureIndex(def);
-        log.info("[IDX] Created {}", INDEX_NAME);
+        boolean keysMatch = normalizeMap(existingKeys).equals(normalizeMap(desiredKeys));
+        boolean weightsMatch = normalizeMap(existingWeights).equals(normalizeMap(desiredWeights));
+
+        String existingName = existingTextIdx.getString("name");
+
+        if (keysMatch && weightsMatch) {
+            if (!INDEX_NAME.equals(existingName)) {
+                log.info("[IDX] Compatible text index already present as '{}'; keeping it.", existingName);
+            } else {
+                log.info("[IDX] Text index '{}' already present with matching definition.", INDEX_NAME);
+            }
+            return;
+        }
+
+        log.warn("[IDX] Existing text index '{}' differs from desired '{}'. Dropping and recreating.",
+                existingName, INDEX_NAME);
+        coll.dropIndex(existingName);
+        createTextIndex(db, collName, desiredKeys, desiredWeights, defaultLanguage, INDEX_NAME);
+        log.info("[IDX] Recreated {}", INDEX_NAME);
+    }
+
+    private boolean isTextIndex(Document indexDoc) {
+        Document key = (Document) indexDoc.get("key");
+        if (key == null) return false;
+        for (Object v : key.values()) {
+            if (v != null && "text".equalsIgnoreCase(String.valueOf(v))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void createTextIndex(MongoDatabase db,
+                                 String collName,
+                                 Map<String, String> keys,
+                                 Map<String, Integer> weights,
+                                 String defaultLanguage,
+                                 String name) {
+
+        Document index = new Document();
+        index.put("key", new Document(keys));
+        index.put("name", name);
+        if (!weights.isEmpty()) index.put("weights", new Document(weights));
+        if (defaultLanguage != null) index.put("default_language", defaultLanguage);
+
+        Document cmd = new Document("createIndexes", collName)
+                .append("indexes", List.of(index));
+
+        // Use the MongoDatabase we already have
+        db.runCommand(cmd);
+    }
+
+    private Map<String, String> docToStringMap(Document d) {
+        if (d == null) return Collections.emptyMap();
+        return d.entrySet().stream()
+                .collect(Collectors.toMap(
+                        Map.Entry::getKey,
+                        e -> e.getValue() == null ? null : String.valueOf(e.getValue())
+                ));
+    }
+
+    private Map<String, Integer> docToIntMap(Document d) {
+        if (d == null) return Collections.emptyMap();
+        Map<String, Integer> m = new HashMap<>();
+        for (Map.Entry<String, Object> e : d.entrySet()) {
+            Object v = e.getValue();
+            if (v instanceof Number n) {
+                m.put(e.getKey(), n.intValue());
+            } else if (v != null) {
+                try { m.put(e.getKey(), Integer.parseInt(String.valueOf(v))); }
+                catch (NumberFormatException ignore) {}
+            }
+        }
+        return m;
+    }
+
+    private <K, V> Map<K, V> normalizeMap(Map<K, V> in) {
+        if (in == null) return Collections.emptyMap();
+        return new TreeMap<>(in); // sort by key for stable equals()
     }
 }
