@@ -138,4 +138,11 @@
         </plugins>
     </build>
 
+    <repositories>
+        <repository>
+            <id>github-mtc</id>
+            <url>https://maven.pkg.github.com/Algoframe-Private-Limited/multi-tenancy-core</url>
+        </repository>
+    </repositories>
+
 </project>
