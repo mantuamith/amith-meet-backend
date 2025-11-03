@@ -1,5 +1,6 @@
 package com.algomeet.signalingservice.controller;
 
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
@@ -83,8 +84,8 @@ public class UserAccountBackupController {
      *         or {@code 404 NOT FOUND} if no backup exists
      */
     @GetMapping
-    public ResponseEntity<CommonResponse<UserAccountBackupResponse>> getBackup() {
-        return service.restoreBackup(UUID.fromString(SecurityUtil.getUserKey()))
+    public ResponseEntity<CommonResponse<UserAccountBackupResponse>> getBackup(@RequestParam("deviceId") String deviceId) {
+        return service.restoreBackup(UUID.fromString(SecurityUtil.getUserKey()), deviceId)
                 .map(account -> ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, account)))
                 .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND)
                 		.body(CommonResponse.from(ResponseCode.USER_ACCOUNT_BACKUP_NOT_FOUND)));
@@ -99,9 +100,9 @@ public class UserAccountBackupController {
      *         or {@code 404 NOT FOUND} if the backup does not exist
      */
     @DeleteMapping
-    public ResponseEntity<CommonResponse<?>> deleteBackup() {
+    public ResponseEntity<CommonResponse<?>> deleteBackup(@RequestParam("deviceId") String deviceId) {
     	try {
-    		service.deleteBackup(UUID.fromString(SecurityUtil.getUserKey()));
+    		service.deleteBackup(UUID.fromString(SecurityUtil.getUserKey()), deviceId);
     		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
     	} catch (RecordNotFoundException ex) {
     		return ResponseEntity.status(HttpStatus.NOT_FOUND)

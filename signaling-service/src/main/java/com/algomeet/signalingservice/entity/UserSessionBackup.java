@@ -15,6 +15,9 @@ public class UserSessionBackup {
     @Id
     @Column(name = "user_key", nullable = false)
     private UUID userKey;
+    
+	@Column(name = "device_id", nullable = false, length = 88)
+	private String deviceId;
 
     @Id
     @Column(name = "session_id", nullable = false, length = 88)

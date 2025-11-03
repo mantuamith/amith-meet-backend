@@ -20,7 +20,7 @@ public class UserIdentityKeyId implements Serializable {
     @Column(name = "user_key", nullable = false, updatable = false)
 	private UUID userKey;
 
-	@Column(name = "identity_key", nullable = false, unique = true, length = 88)
+	@Column(name = "identity_key", nullable = false, length = 88)
     private String identityKey;
 
     @Override

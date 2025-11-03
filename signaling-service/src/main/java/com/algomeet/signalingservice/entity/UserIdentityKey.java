@@ -21,7 +21,10 @@ import lombok.Data;
 @Table(name = "user_identity_keys")
 public class UserIdentityKey {
 	@EmbeddedId
-	UserIdentityKeyId id;
+	private UserIdentityKeyId id;
+	
+	@Column(name = "device_id", nullable = false, length = 88)
+	private String deviceId;
 	
 	// Join via the identity_key string column
     @OneToMany(

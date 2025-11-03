@@ -29,6 +29,7 @@ public class UserSessionBackupService {
         backup.setUserKey(userKey);
         backup.setSessionId(request.getSessionId());
         backup.setPeerUserKey(request.getPeerUserKey());
+        backup.setDeviceId(request.getDeviceId());
         backup.setInbound(request.isInbound());
         backup.setEncryptedSession(request.getEncryptedSession());
         backup.setAlgorithm(request.getAlgorithm());
@@ -42,6 +43,7 @@ public class UserSessionBackupService {
 				.userKey(saved.getUserKey())
 				.sessionId(saved.getSessionId())
 				.peerUserKey(saved.getPeerUserKey())
+				.deviceId(saved.getDeviceId())
 				.encryptedSession(saved.getEncryptedSession())
 				.inbound(saved.isInbound())    						
 				.algorithm(saved.getAlgorithm())
@@ -60,6 +62,7 @@ public class UserSessionBackupService {
     						.userKey(entity.getUserKey())
     						.sessionId(entity.getSessionId())
     						.peerUserKey(entity.getPeerUserKey())
+    						.deviceId(entity.getDeviceId())
     						.encryptedSession(entity.getEncryptedSession())
     						.inbound(entity.isInbound())    						
     						.algorithm(entity.getAlgorithm())
@@ -73,13 +76,14 @@ public class UserSessionBackupService {
     			});
     }
     
-    public List<UserSessionBackupResponse> restoreSessions(UUID userkey) {
-    	return repository.findByUserKey(userkey).stream()
+    public List<UserSessionBackupResponse> restoreSessions(UUID userkey, String deviceId) {
+    	return repository.findByUserKeyAndDeviceId(userkey, deviceId).stream()
     			.map(entity -> {
     				UserSessionBackupResponse dto = UserSessionBackupResponse.builder()
     						.userKey(entity.getUserKey())
     						.sessionId(entity.getSessionId())
     						.peerUserKey(entity.getPeerUserKey())
+    						.deviceId(entity.getDeviceId())
     						.encryptedSession(entity.getEncryptedSession())
     						.inbound(entity.isInbound())    						
     						.algorithm(entity.getAlgorithm())

@@ -18,6 +18,10 @@ public class UserIdentityKeyRequest {
 	@Size(max = 88, message = "{identity-keyidentity-key-exceeded-max-size}") // adjust based on expected length
     private String identityKey;
 	
+	@NotEmpty
+	@Size(max = 88)
+	private String deviceId;
+	
 	@Size(max = 500, message = "{identity-key.one-time-key-list-exceeded-max-size}")	
 	@Valid
 	private List<@Size(max = 88, message = "{identity-key.one-time-key-exceeded-max-size}") String> oneTimeKeys;

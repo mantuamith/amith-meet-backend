@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.EmbeddedId;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Lob;
@@ -18,9 +19,8 @@ import lombok.NoArgsConstructor;
 @Entity
 @Table(name = "user_account_backup")
 public class UserAccountBackup {
-	@Id
-	@Column(name = "user_key", nullable = false, updatable = false)
-	private UUID userKey;
+	@EmbeddedId
+	private UserAccountBackupId id;
 	
     /** Base64-encoded AES-encrypted session/pickle */
     @Lob

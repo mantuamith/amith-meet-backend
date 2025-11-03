@@ -12,5 +12,5 @@ import com.algomeet.signalingservice.entity.UserSessionBackupId;
 
 public interface UserSessionBackupRepository extends JpaRepository<UserSessionBackup, UserSessionBackupId> {
 	@Transactional(readOnly = true)
-    List<UserSessionBackup> findByUserKey(UUID userKey);
+    List<UserSessionBackup> findByUserKeyAndDeviceId(UUID userKey, String deviceId);
 }
