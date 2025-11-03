@@ -17,5 +17,5 @@ public interface UserSessionBackupRepository extends JpaRepository<UserSessionBa
 	
     @Modifying
     @Transactional
-	void deleteByIdUserKey(UUID userKey);
+	void deleteByUserKey(UUID userKey);
 }

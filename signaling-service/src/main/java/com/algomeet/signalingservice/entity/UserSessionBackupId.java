@@ -11,6 +11,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @Data
 public class UserSessionBackupId implements Serializable {
-    private UUID userKey;
+    private static final long serialVersionUID = 1L;
+	private UUID userKey;
     private String sessionId;
 }

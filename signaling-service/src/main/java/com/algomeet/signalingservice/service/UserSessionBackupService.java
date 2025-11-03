@@ -68,7 +68,7 @@ public class UserSessionBackupService {
     }
     
     public void deleteByUserKey(UUID userKey) {
-    	repository.deleteByIdUserKey(userKey);
+    	repository.deleteByUserKey(userKey);
     }
     
     private UserSessionBackupResponse toResponse(UserSessionBackup entity) {
