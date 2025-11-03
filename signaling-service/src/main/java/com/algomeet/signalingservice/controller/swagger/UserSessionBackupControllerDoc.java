@@ -20,7 +20,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
-@Tag(name = "User Session Backup", description = "Endpoints for saving, restoring, and deleting encrypted Matrix session backups (OLM/MEGOLM).")
+@Tag(name = "User Session Backup", description = "Endpoints for saving, restoring, and deleting encrypted Matrix session backups (OLM).")
 public interface UserSessionBackupControllerDoc {
 
 	@Operation(
