@@ -21,7 +21,6 @@ import com.algomeet.signalingservice.entity.UserIdentityKey;
 import com.algomeet.signalingservice.entity.UserIdentityKeyId;
 import com.algomeet.signalingservice.entity.UserOneTimeKey;
 import com.algomeet.signalingservice.exceptions.IdentityKeyAlreadyExistsException;
-import com.algomeet.signalingservice.exceptions.NoUserOneTimeKeyIsAvailableException;
 import com.algomeet.signalingservice.exceptions.OneTimeKeyAlreadyExistsException;
 import com.algomeet.signalingservice.exceptions.OneTimeKeysReservedMaxLimitExceededException;
 import com.algomeet.signalingservice.exceptions.RecordNotFoundException;
@@ -53,12 +52,14 @@ public class UserKeyService {
         		.map(otk -> new UserOneTimeKey(userKey, request.getIdentityKey(), otk))
         		.collect(Collectors.toList());
         userIdentityKey.setOneTimeKeys(oneTimeKeys);
+        userIdentityKey.setDeviceId(request.getDeviceId());
         
         userIdentityKey = userIdentityRepo.save(userIdentityKey);
 
         return UserIdentityKeyResponse.builder()
                 .userKey(userIdentityKey.getId().getUserKey())
                 .identityKey(userIdentityKey.getId().getIdentityKey())
+                .deviceId(userIdentityKey.getDeviceId())
                 .oneTimeKeys(Optional.ofNullable(userIdentityKey.getOneTimeKeys()).orElse(List.of())
                 		.stream()
                 		.map(otk -> UserOneTimeKeyResponse.builder()
@@ -150,6 +151,7 @@ public class UserKeyService {
     			oneTimeRepo.save(usedOneTimeKey);
 
     			response.getKeys().add(UserIdentityAndOneTimeKeyResponse.builder()
+    					.deviceId(userIdentityKey.getDeviceId())
     					.identityKey(userIdentityKey.getId().getIdentityKey())
     					.oneTimeKey(oneTimeKey)
     					.build());

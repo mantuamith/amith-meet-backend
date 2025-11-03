@@ -11,6 +11,7 @@ import lombok.Data;
 @Builder
 public class UserIdentityKeyResponse {
     private UUID userKey;
+    private String deviceId;
     private String identityKey;
     private Instant createdAt;
     private Instant updatedAt;

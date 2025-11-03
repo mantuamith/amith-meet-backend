@@ -6,6 +6,7 @@ import lombok.Data;
 @Data
 @Builder
 public class UserIdentityAndOneTimeKeyResponse {
+    private String deviceId;
     private String identityKey;
     private UserOneTimeKeyResponse oneTimeKey;
 }
