@@ -109,6 +109,7 @@ public class UserKeyService {
     			.stream()
     			.map(k -> UserIdentityKeyResponse.builder()
     					.userKey(k.getId().getUserKey())
+    					.deviceId(k.getDeviceId())
     					.identityKey(k.getId().getIdentityKey())    					
     					.createdAt(k.getCreatedAt())
     					.updatedAt(k.getUpdatedAt())

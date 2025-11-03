@@ -55,7 +55,8 @@ public class UserAccountBackupService {
     public UserAccountBackupResponse updateBackup(UUID userKey, UserAccountBackupRequest request) {
     	Optional<UserAccountBackup> backupOpt = repository.findById(new UserAccountBackupId(userKey, request.getDeviceId()));
     	if (backupOpt.isEmpty()) {
-    		throw new RecordNotFoundException("User account backup not found for user ID " + userKey);
+    		throw new RecordNotFoundException(String.format("User account backup not found for user ID %s, and device Id %s ", 
+    				userKey, request.getDeviceId()));
     	}
     	
         UserAccountBackup backup = backupOpt.get();
@@ -98,7 +99,7 @@ public class UserAccountBackupService {
     
     public void deleteBackup(UUID userKey, String deviceId) {
     	if(repository.findById(new UserAccountBackupId(userKey, deviceId)).isEmpty()) {
-    		throw new RecordNotFoundException("User account backup not found");
+    		throw new RecordNotFoundException(String.format("User account backup for device Id %s is not found", deviceId));
     	}
     	
         repository.findById(new UserAccountBackupId(userKey, deviceId)).ifPresent(repository::delete);
