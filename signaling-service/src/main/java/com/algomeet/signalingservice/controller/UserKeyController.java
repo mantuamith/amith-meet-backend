@@ -142,4 +142,10 @@ public class UserKeyController {
 			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.ONE_TIME_KEY_ID_NOT_FOUND));
 		}
 	}
+	
+	@DeleteMapping("/all")
+	public ResponseEntity<CommonResponse<?>> deleteAllUserKeys() {
+		keyService.deleteAll(UUID.fromString(SecurityUtil.getUserKey()));
+		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
+	}
 }

@@ -107,4 +107,8 @@ public class UserSessionBackupService {
     		throw new RecordNotFoundException(String.format("Inbound group session not found %s, %s, %d", userKey, sessionId));
     	}
     }
+    
+    public void deleteByUserKey(UUID userKey) {
+    	repository.deleteByIdUserKey(userKey);
+    }
 }

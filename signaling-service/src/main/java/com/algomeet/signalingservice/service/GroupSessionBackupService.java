@@ -184,6 +184,12 @@ public class GroupSessionBackupService {
     	}
     }
     
+    @Transactional
+    public void deleteAllUserSessions(UUID userKey) {
+    	inboundRepo.deleteByIdUserKey(userKey);
+    	outboundRepo.deleteByIdUserKey(userKey);
+    }
+    
     private static GroupSessionBackupResponse toResponse(InboundGroupSessionBackup entity) {
         if (entity == null) {
             return null;

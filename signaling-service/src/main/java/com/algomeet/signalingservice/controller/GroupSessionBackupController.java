@@ -213,4 +213,11 @@ public class GroupSessionBackupController {
     		return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.GROUP_SESSION_BACKUP_NOT_FOUND));
     	}  
     }
+    
+    @DeleteMapping("/all")
+    public ResponseEntity<CommonResponse<?>> deleteAllUserSessions(
+    		@PathVariable String sessionId) {
+    	service.deleteAllUserSessions(UUID.fromString(SecurityUtil.getUserKey()));
+    	return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
+    }
 }

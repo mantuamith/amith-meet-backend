@@ -109,4 +109,11 @@ public class UserAccountBackupController {
     				.body(CommonResponse.from(ResponseCode.USER_ACCOUNT_BACKUP_NOT_FOUND));
     	}
     }
+    
+    @DeleteMapping("/all")
+    public ResponseEntity<CommonResponse<?>> deleteAllUserBackup() {
+    	service.deleteBackup(UUID.fromString(SecurityUtil.getUserKey()));
+    	return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
+    }
+    	
 }

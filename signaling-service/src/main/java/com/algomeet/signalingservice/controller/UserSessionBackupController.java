@@ -97,4 +97,11 @@ public class UserSessionBackupController {
 			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.USER_SESSION_BACKUP_NOT_FOUND));
 		}
 	}
+	
+	@DeleteMapping("/all")
+	public ResponseEntity<CommonResponse<?>> deleteSessions(
+			@PathVariable String sessionId) {		
+			service.deleteByUserKey(UUID.fromString(SecurityUtil.getUserKey()));
+			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
+	}
 }

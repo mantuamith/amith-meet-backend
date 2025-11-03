@@ -105,11 +105,7 @@ public class UserAccountBackupService {
         repository.findById(new UserAccountBackupId(userKey, deviceId)).ifPresent(repository::delete);
     }
     
-    public void deleteBackup(UUID userKey) {
-    	if(!CollectionUtils.isEmpty(repository.findByIdUserKey(userKey))) {
-    		throw new RecordNotFoundException("User accounts backup not found");
-    	}
-    	
+    public void deleteBackup(UUID userKey) {    	
         repository.deleteByIdUserKey(userKey);
     }
 }

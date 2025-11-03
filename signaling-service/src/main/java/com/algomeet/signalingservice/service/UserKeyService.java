@@ -192,5 +192,12 @@ public class UserKeyService {
     public void deleteOneTimeKey(Long id, UUID userKey) {
     	oneTimeRepo.findById(id).orElseThrow(() -> new RecordNotFoundException("One time key ID not found"));
     	oneTimeRepo.deleteByIdAndUserKeyOrUsed(id, userKey, true);
-    }   
+    }  
+    
+    public void deleteAll(UUID userKey) {
+    	// Delete user's all one-time keys
+    	oneTimeRepo.deleteByUserKey(userKey);
+    	// Delete user's all identity keys
+    	userIdentityRepo.deleteByIdUserKey(userKey);
+    }  
 }
