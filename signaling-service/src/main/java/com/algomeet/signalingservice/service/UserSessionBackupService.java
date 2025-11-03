@@ -39,61 +39,20 @@ public class UserSessionBackupService {
         backup.setCreatedAt(Instant.now());
 
         UserSessionBackup saved = repository.save(backup);        
-        return UserSessionBackupResponse.builder()
-				.userKey(saved.getUserKey())
-				.sessionId(saved.getSessionId())
-				.peerUserKey(saved.getPeerUserKey())
-				.deviceId(saved.getDeviceId())
-				.encryptedSession(saved.getEncryptedSession())
-				.inbound(saved.isInbound())    						
-				.algorithm(saved.getAlgorithm())
-				.aesAlg(saved.getAesAlg())
-				.salt(saved.getSalt())
-				.version(saved.getVersion())
-        		.createdAt(saved.getCreatedAt())
-        		.updatedAt(saved.getUpdatedAt())
-				.build();
+        return toResponse(saved);
     }
 
     public Optional<UserSessionBackupResponse> restoreSession(UUID userkey, String sessionId) {
     	return repository.findById(new UserSessionBackupId(userkey, sessionId))
     			.map(entity -> {
-    				UserSessionBackupResponse dto = UserSessionBackupResponse.builder()
-    						.userKey(entity.getUserKey())
-    						.sessionId(entity.getSessionId())
-    						.peerUserKey(entity.getPeerUserKey())
-    						.deviceId(entity.getDeviceId())
-    						.encryptedSession(entity.getEncryptedSession())
-    						.inbound(entity.isInbound())    						
-    						.algorithm(entity.getAlgorithm())
-    						.aesAlg(entity.getAesAlg())
-    						.salt(entity.getSalt())
-    						.version(entity.getVersion())
-    		        		.createdAt(entity.getCreatedAt())
-    		        		.updatedAt(entity.getUpdatedAt())
-    						.build();
-    				return dto;
+    				return toResponse(entity);
     			});
     }
     
     public List<UserSessionBackupResponse> restoreSessions(UUID userkey, String deviceId) {
     	return repository.findByUserKeyAndDeviceId(userkey, deviceId).stream()
     			.map(entity -> {
-    				UserSessionBackupResponse dto = UserSessionBackupResponse.builder()
-    						.userKey(entity.getUserKey())
-    						.sessionId(entity.getSessionId())
-    						.peerUserKey(entity.getPeerUserKey())
-    						.deviceId(entity.getDeviceId())
-    						.encryptedSession(entity.getEncryptedSession())
-    						.inbound(entity.isInbound())    						
-    						.algorithm(entity.getAlgorithm())
-    						.aesAlg(entity.getAesAlg())
-    						.salt(entity.getSalt())
-    						.version(entity.getVersion())
-    		        		.createdAt(entity.getCreatedAt())
-    		        		.updatedAt(entity.getUpdatedAt())
-    						.build();
-    				return dto;
+    				return toResponse(entity);
     			})
     			.toList();
     }
@@ -110,5 +69,26 @@ public class UserSessionBackupService {
     
     public void deleteByUserKey(UUID userKey) {
     	repository.deleteByIdUserKey(userKey);
+    }
+    
+    private UserSessionBackupResponse toResponse(UserSessionBackup entity) {
+        if (entity == null) {
+            return null;
+        }
+
+        return UserSessionBackupResponse.builder()
+                .userKey(entity.getUserKey())
+                .sessionId(entity.getSessionId())
+                .peerUserKey(entity.getPeerUserKey())
+                .deviceId(entity.getDeviceId())
+                .encryptedSession(entity.getEncryptedSession())
+                .inbound(entity.isInbound())
+                .algorithm(entity.getAlgorithm())
+                .aesAlg(entity.getAesAlg())
+                .salt(entity.getSalt())
+                .version(entity.getVersion())
+                .createdAt(entity.getCreatedAt())
+                .updatedAt(entity.getUpdatedAt())
+                .build();
     }
 }

@@ -6,7 +6,6 @@ import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.CollectionUtils;
 
 import com.algomeet.signalingservice.dto.UserAccountBackupRequest;
 import com.algomeet.signalingservice.dto.UserAccountBackupResponse;
@@ -24,9 +23,7 @@ public class UserAccountBackupService {
     }
 
     @Transactional
-    public UserAccountBackupResponse saveBackup(UUID userKey, UserAccountBackupRequest request) {
-    	Optional<UserAccountBackup> backupOpt = repository.findById(new UserAccountBackupId(userKey, request.getDeviceId()));
-    	
+    public UserAccountBackupResponse saveBackup(UUID userKey, UserAccountBackupRequest request) {    	
         UserAccountBackup backup = new UserAccountBackup();
         backup.setEncryptedAccount(request.getEncryptedAccount());
         backup.setId(new UserAccountBackupId(userKey, request.getDeviceId()));
@@ -39,16 +36,7 @@ public class UserAccountBackupService {
         }
         backup.setUpdatedAt(Instant.now());
         UserAccountBackup saved = repository.save(backup);
-        return UserAccountBackupResponse.builder()
-        		.userKey(saved.getId().getUserKey())
-        		.deviceId(saved.getId().getDeviceId())
-        		.encryptedAccount(saved.getEncryptedAccount())
-        		.aesAlg(saved.getAesAlg())
-        		.version(saved.getVersion())
-        		.salt(saved.getSalt())
-        		.createdAt(saved.getCreatedAt())
-        		.updatedAt(saved.getUpdatedAt())
-        		.build();
+        return toResponse(saved);
     }
     
     @Transactional
@@ -71,30 +59,12 @@ public class UserAccountBackupService {
         }
         backup.setUpdatedAt(Instant.now());
         UserAccountBackup saved = repository.save(backup);
-        return UserAccountBackupResponse.builder()
-        		.userKey(saved.getId().getUserKey())
-        		.deviceId(saved.getId().getDeviceId())
-        		.encryptedAccount(saved.getEncryptedAccount())
-        		.aesAlg(saved.getAesAlg())
-        		.version(saved.getVersion())
-        		.salt(saved.getSalt())
-        		.createdAt(saved.getCreatedAt())
-        		.updatedAt(saved.getUpdatedAt())
-        		.build();
+        return toResponse(saved);
     }
 
     public Optional<UserAccountBackupResponse> restoreBackup(UUID userKey, String deviceId) {
         return repository.findById(new UserAccountBackupId(userKey, deviceId))
-                .map(entity -> UserAccountBackupResponse.builder()
-                        .userKey(entity.getId().getUserKey())
-                        .deviceId(entity.getId().getDeviceId())
-                        .encryptedAccount(entity.getEncryptedAccount())
-                        .aesAlg(entity.getAesAlg())
-                        .version(entity.getVersion())
-                        .salt(entity.getSalt())
-                        .createdAt(entity.getCreatedAt())
-                        .updatedAt(entity.getUpdatedAt())
-                        .build());
+                .map(entity -> toResponse(entity));
     }
     
     public void deleteBackup(UUID userKey, String deviceId) {
@@ -107,5 +77,23 @@ public class UserAccountBackupService {
     
     public void deleteBackup(UUID userKey) {    	
         repository.deleteByIdUserKey(userKey);
+    }
+    
+    
+    public UserAccountBackupResponse toResponse(UserAccountBackup entity) {
+        if (entity == null || entity.getId() == null) {
+            return null;
+        }
+
+        return UserAccountBackupResponse.builder()
+                .userKey(entity.getId().getUserKey())
+                .deviceId(entity.getId().getDeviceId())
+                .encryptedAccount(entity.getEncryptedAccount())
+                .aesAlg(entity.getAesAlg())
+                .version(entity.getVersion())
+                .salt(entity.getSalt())
+                .createdAt(entity.getCreatedAt())
+                .updatedAt(entity.getUpdatedAt())
+                .build();
     }
 }
