@@ -19,7 +19,11 @@ public class EncrytionMetadata {
     
     // Megolm session ID for group messages, or Olm session ID for 1:1
     @Field("sessionId")
-    private String sessionId;    
+    private String sessionId; 
+
+    // Receiver deviceId for Olm 1:1
+    @Field("deviceId")
+    private String deviceId; 
     
     // Optional: store actual ciphertext separately if you want plaintext 'content' to remain empty
     @Field("ciphertext")
