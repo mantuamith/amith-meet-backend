@@ -9,6 +9,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
+import com.algomeet.signalingservice.controller.swagger.GroupSessionBackupControllerDoc;
 import com.algomeet.signalingservice.dto.CommonResponse;
 import com.algomeet.signalingservice.dto.GroupSessionBackupRequest;
 import com.algomeet.signalingservice.dto.GroupSessionBackupResponse;
@@ -30,7 +31,7 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequestMapping("/signaling/backup/group-sessions")
 @RequiredArgsConstructor
-public class GroupSessionBackupController {
+public class GroupSessionBackupController implements GroupSessionBackupControllerDoc {
 
     private final GroupSessionBackupService service;
 
@@ -47,6 +48,7 @@ public class GroupSessionBackupController {
      * @return a {@link CommonResponse} containing the saved session details,
      *         or a service unavailable response if the maximum inbound session limit is exceeded
      */
+    @Override
     @PostMapping("/inbound")
     public ResponseEntity<CommonResponse<GroupSessionBackupResponse>> saveInboundBackup(
     		@Validated @RequestBody GroupSessionBackupRequest request) {
@@ -67,6 +69,7 @@ public class GroupSessionBackupController {
      *
      * @return a {@link CommonResponse} containing a list of inbound group sessions
      */
+    @Override
     @GetMapping("/inbound/restore")
     public ResponseEntity<CommonResponse<List<GroupSessionBackupResponse>>> getInboundSessions() {
 
@@ -84,6 +87,7 @@ public class GroupSessionBackupController {
      * @return a {@link CommonResponse} containing the matching session,
      *         or a not found response if no such record exists
      */
+    @Override
     @GetMapping("/{sessionId}/{ratchetIndex}/inbound/restore")
     public ResponseEntity<CommonResponse<GroupSessionBackupResponse>> getInboundSession(
             @PathVariable String sessionId,
@@ -104,6 +108,7 @@ public class GroupSessionBackupController {
      * @param ratchetIndex  the ratchet index of the session to delete
      * @return a {@link CommonResponse} indicating success or not found
      */
+    @Override
     @DeleteMapping("/{sessionId}/{ratchetIndex}/inbound")
     public ResponseEntity<CommonResponse<?>> deleteInboundSession(
     		@PathVariable String sessionId,
@@ -126,6 +131,7 @@ public class GroupSessionBackupController {
      * @return a {@link CommonResponse} indicating successful pruning
      * @throws RuntimeException if {@code keepLastN} is zero or invalid
      */
+    @Override
     @DeleteMapping("/{sessionId}/inbound/prune")
     public ResponseEntity<CommonResponse<?>> pruneInboundBackups(
     		@PathVariable String sessionId,
@@ -151,6 +157,7 @@ public class GroupSessionBackupController {
      * @return a {@link CommonResponse} containing the saved session details,
      *         or a service unavailable response if the maximum outbound session limit is exceeded
      */
+    @Override
     @PostMapping("/outbound")
     public ResponseEntity<CommonResponse<GroupSessionBackupResponse>> saveOutboundBackup(
     		@Validated @RequestBody GroupSessionBackupRequest request) {
@@ -171,6 +178,7 @@ public class GroupSessionBackupController {
      *
      * @return a {@link CommonResponse} containing a list of outbound group sessions
      */
+    @Override
     @GetMapping("/outbound/restore")
     public ResponseEntity<CommonResponse<List<GroupSessionBackupResponse>>> getOutboundSessions() {
 
@@ -185,6 +193,7 @@ public class GroupSessionBackupController {
      * @return a {@link CommonResponse} containing the session details,
      *         or a not found response if the session does not exist
      */
+    @Override
     @GetMapping("/{sessionId}/outbound/restore")
     public ResponseEntity<CommonResponse<GroupSessionBackupResponse>> getOutboundSession(
             @PathVariable String sessionId) {
@@ -203,7 +212,8 @@ public class GroupSessionBackupController {
      * @param sessionId  the group session ID
      * @return a {@link CommonResponse} indicating success or not found
      */
-    @DeleteMapping("/{sessionId}/outbound")
+    @Override
+    @DeleteMapping("/{sessionId}/outbound")    
     public ResponseEntity<CommonResponse<?>> deleteOutboundSession(
     		@PathVariable String sessionId) {
     	try {
@@ -214,9 +224,9 @@ public class GroupSessionBackupController {
     	}  
     }
     
+    @Override
     @DeleteMapping("/all")
-    public ResponseEntity<CommonResponse<?>> deleteAllUserSessions(
-    		@PathVariable String sessionId) {
+    public ResponseEntity<CommonResponse<?>> deleteAllUserSessions() {
     	service.deleteAllUserSessions(UUID.fromString(SecurityUtil.getUserKey()));
     	return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
     }

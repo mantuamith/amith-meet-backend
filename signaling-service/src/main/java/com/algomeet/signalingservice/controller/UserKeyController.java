@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.algomeet.signalingservice.controller.swagger.UserKeyControllerDoc;
 import com.algomeet.signalingservice.dto.CommonResponse;
 import com.algomeet.signalingservice.dto.UserIdentityAndOneTimeKeysResponse;
 import com.algomeet.signalingservice.dto.UserIdentityKeyRequest;
@@ -38,15 +39,32 @@ import lombok.extern.slf4j.Slf4j;
  * REST controller responsible for managing user identity keys and one-time keys
  * in the signaling service. Provides endpoints for registering, updating,
  * retrieving, and deleting identity and one-time keys.
+ *
+ * <p>This controller delegates business logic to {@link UserKeyService} and
+ * returns standardized {@link CommonResponse} payloads for API clients.
+ * </p>
+ *
+ * <p>All methods require user authentication. The {@link SecurityUtil#getUserKey()} utility
+ * is used to extract the current user's UUID from the security context.</p>
+ *
+ * @author 
+ * @since 1.0
  */
-
 @Slf4j
 @RestController
 @RequestMapping("/signaling/keys")
 @RequiredArgsConstructor
-public class UserKeyController {
+public class UserKeyController implements UserKeyControllerDoc{
 	private final UserKeyService keyService;
 
+	/**
+	 * Registers a new user identity key for the authenticated user.
+	 *
+	 * @param request the request payload containing the identity key information
+	 * @return a {@link CommonResponse} containing the saved {@link UserIdentityKeyResponse}
+	 *         if successful, or an error response if the key already exists
+	 */
+	@Override
 	@PostMapping("/identity")
 	public ResponseEntity<CommonResponse<UserIdentityKeyResponse>> registerUserIdentity(@Valid @RequestBody UserIdentityKeyRequest request) {
 		try {
@@ -57,7 +75,15 @@ public class UserKeyController {
 			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(CommonResponse.from(ResponseCode.IDENTITY_KEY_ALREADY_EXISTS));
 		}		
 	}
-		
+	
+	/**
+	 * Retrieves all identity keys associated with a user.
+	 *
+	 * @param userKeyOpt optional query parameter for specifying a user key.
+	 *                   If not provided, the key of the authenticated user is used.
+	 * @return a {@link CommonResponse} containing a list of {@link UserIdentityKeyResponse} objects
+	 */
+	@Override
 	@GetMapping("/identity")
 	public ResponseEntity<CommonResponse<List<UserIdentityKeyResponse>>> getUserIdentityKeys(@RequestParam("userKey") Optional<UUID> userKeyOpt) {
 		try {
@@ -68,6 +94,13 @@ public class UserKeyController {
 		}
 	}
 	
+	/**
+	 * Deletes a specific user identity key belonging to the authenticated user.
+	 *
+	 * @param identityKey the identity key string to delete
+	 * @return a {@link CommonResponse} indicating the result of the deletion operation
+	 */
+	@Override
 	@DeleteMapping("/identity/{identityKey}")
 	public ResponseEntity<CommonResponse<?>> deleteIndentity(@PathVariable String identityKey) {
 		try {
@@ -78,6 +111,13 @@ public class UserKeyController {
 		}
 	}
 	
+	/**
+	 * Retrieves a user’s identity key and available one-time keys.
+	 *
+	 * @param userKey the UUID of the user whose keys to fetch
+	 * @return a {@link CommonResponse} containing {@link UserIdentityAndOneTimeKeysResponse}
+	 */
+	@Override
 	@GetMapping("/identity-and-one-time")
 	public ResponseEntity<CommonResponse<UserIdentityAndOneTimeKeysResponse>> getUserIdentityAndOneTimeKeys(@RequestParam UUID userKey) {
 		try {
@@ -89,6 +129,14 @@ public class UserKeyController {
 		}
 	}
 
+	/**
+	 * Adds new one-time keys for a given identity key.
+	 *
+	 * @param identityKey the identity key associated with the one-time keys
+	 * @param request     the request payload containing one-time key data
+	 * @return a {@link CommonResponse} containing a list of created {@link UserOneTimeKeyResponse}
+	 */
+	@Override
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	@PostMapping("/identity/{identityKey}/one-time")
 	public ResponseEntity<CommonResponse<List<UserOneTimeKeyResponse>>> addOneTimeKeys(@PathVariable String identityKey, 
@@ -110,6 +158,13 @@ public class UserKeyController {
 		}
 	}
 
+	/**
+	 * Retrieves all one-time keys for a specific identity key.
+	 *
+	 * @param identityKey the identity key whose one-time keys are requested
+	 * @return a {@link CommonResponse} containing a list of {@link UserOneTimeKeyResponse}
+	 */
+	@Override
 	@GetMapping("/identity/{identityKey}/one-time")
 	public ResponseEntity<CommonResponse<List<UserOneTimeKeyResponse>>> getOneTimeKeys(@PathVariable String identityKey) {
 		try {
@@ -119,7 +174,14 @@ public class UserKeyController {
 			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.IDENTITY_KEY_NOT_FOUND));
 		}
 	}	
-
+	
+	/**
+	 * Deletes a single one-time key by its ID.
+	 *
+	 * @param id the ID of the one-time key to delete
+	 * @return a {@link CommonResponse} indicating the deletion result
+	 */
+	@Override
 	@DeleteMapping("/identity/one-time/{id}")
 	public ResponseEntity<CommonResponse<?>> deleteOneTimeKey(@PathVariable Long id) {
 		try {
@@ -130,6 +192,13 @@ public class UserKeyController {
 		}
 	}	
 	
+	/**
+	 * Deletes multiple one-time keys by their IDs.
+	 *
+	 * @param ids the list of one-time key IDs to delete
+	 * @return a {@link CommonResponse} indicating the deletion result
+	 */
+	@Override
 	@DeleteMapping("/identity/one-time")
 	public ResponseEntity<CommonResponse<?>> deleteOneTimeKeys(@RequestParam List<Long> ids) {
 		try {
@@ -143,6 +212,12 @@ public class UserKeyController {
 		}
 	}
 	
+	/**
+	 * Deletes all identity and one-time keys for the authenticated user.
+	 *
+	 * @return a {@link CommonResponse} indicating that all keys were deleted successfully
+	 */
+	@Override
 	@DeleteMapping("/all")
 	public ResponseEntity<CommonResponse<?>> deleteAllUserKeys() {
 		keyService.deleteAll(UUID.fromString(SecurityUtil.getUserKey()));
