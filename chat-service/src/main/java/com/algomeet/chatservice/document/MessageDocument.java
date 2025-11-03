@@ -7,6 +7,7 @@ import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.Transient;
 import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.index.Indexed;
@@ -38,6 +39,9 @@ public class MessageDocument {
 
     @Field("isGroupMessage")
     private boolean groupMessage;
+
+    @Transient
+    private Double score;
 
     private String clientMessageId;
     @Field("deletedForAll")
@@ -78,7 +82,14 @@ public class MessageDocument {
     private MessageMetaData metaData;      // reply, reactions, etc.
     private ForwardInfo forwarded;         // forward tracking
 
+    private ReplyContent replyContent;
+
     private CallMetaData callMetaData;
+
+    private Long msgReadTimeStamp;
+
+    private Long msgDeliveredTimeStamp;
+
 
     @Field("failedRecipients")
     private List<String> failedRecipients;

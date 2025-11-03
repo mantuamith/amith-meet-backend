@@ -33,15 +33,24 @@ public class Notification {
     @Column(nullable = false)
     private UUID id;
 
+    @Column(length = 24)
     private String type;
+    @Column(length = 255)
     private String title;
 
     @Column(length = 2000)
     private String body;
 
+    @Column(length = 32)
     private String senderId;
+    
+    @Column(length = 2000)
     private String receiverId;
+    
+    @Column(length = 32)
     private String receiverGroup;
+    
+    @Column(length = 32)
     private String receiverGroupRefId;
 
     private Instant createdAt;
@@ -50,7 +59,7 @@ public class Notification {
     private Instant updatedAt;
 
     @Convert(converter = JsonMapConverter.class)
-    @Column(columnDefinition = "TEXT")
+    @Column(columnDefinition = "TEXT", length = 4000)
     private Map<String, Object> data;
 
     @OneToMany(mappedBy = "notification", cascade = CascadeType.ALL, orphanRemoval = true)

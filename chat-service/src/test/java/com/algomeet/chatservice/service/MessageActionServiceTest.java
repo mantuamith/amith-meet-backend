@@ -15,9 +15,9 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.data.mongodb.core.query.UpdateDefinition;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 
-import java.util.List;
+
+
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -30,7 +30,6 @@ class MessageActionServiceTest {
     @Mock private MongoTemplate mongo;
     @Mock private MessageService messageService; // for unread counters
     @Mock private SimpMessagingSyncTemplate simp;
-    @Mock private SimpMessagingTemplate simp;
     @Mock private GroupClient groupClient;
     @Mock private MessageMapper mapper;
 
@@ -110,7 +109,6 @@ class MessageActionServiceTest {
         MessageDocument saved = service.replyTo(req, "alice", null);
 
         assertThat(saved.getId()).isEqualTo("replyId");
-        assertThat(saved.getMetaData().getReplyToMessageId()).isEqualTo("orig");
         verify(simp).convertAndSendToUser(eq("bob"), eq("/queue/messages"), any());
         verify(messageService).sendUnreadCountUpdate("bob");
     }

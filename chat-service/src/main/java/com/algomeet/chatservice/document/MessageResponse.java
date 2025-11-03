@@ -1,5 +1,6 @@
 package com.algomeet.chatservice.document;
 
+import com.algomeet.chatservice.dto.MessageStatusUpdate;
 import com.algomeet.chatservice.model.MessageStatus;
 import com.algomeet.chatservice.model.MessageType;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -22,6 +23,7 @@ public class MessageResponse {
     private String content;
     private String text;
     private List<MediaItem> mediaGroup;
+    private ReplyContent replyContent;
     private MessageMetaData meta;
     private ForwardInfo forwarded;
     private Integer nMessages;
@@ -32,4 +34,9 @@ public class MessageResponse {
     private String toKey;    // UUID string
     
     private EncrytionMetadata encryptionMetadata;
+
+    private Long msgReadTimeStamp;
+
+    private Long msgDeliveredTimeStamp;
+
 }
