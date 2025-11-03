@@ -1,18 +1,13 @@
 package com.algomeet.signalingservice.controller.swagger;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 
 import com.algomeet.signalingservice.dto.CommonResponse;
 import com.algomeet.signalingservice.dto.UserAccountBackupRequest;
 import com.algomeet.signalingservice.dto.UserAccountBackupResponse;
-import com.algomeet.signalingservice.enums.ResponseCode;
-import com.algomeet.signalingservice.exceptions.RecordNotFoundException;
-import com.algomeet.signalingservice.exceptions.UserAccountBackupAlreadyExistsException;
-import com.algomeet.signalingservice.service.UserAccountBackupService;
-import com.algomeet.signalingservice.util.SecurityUtil;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
