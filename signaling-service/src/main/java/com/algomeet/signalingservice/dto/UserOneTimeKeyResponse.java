@@ -12,6 +12,7 @@ import lombok.Data;
 @AllArgsConstructor
 public class UserOneTimeKeyResponse {	
     private UUID userKey;
+    private String identityKey;
     private Long id;
     private String key;
     private Instant createdAt;
