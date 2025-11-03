@@ -181,7 +181,7 @@ public class UserKeyService {
     
     public void deleteIdentityKey(UUID userKey, String identityKey) {
     	userIdentityRepo.findById(new UserIdentityKeyId(userKey, identityKey))
-    	.orElseThrow(() -> new RecordNotFoundException("User identity key is not found"));   
+    	.orElseThrow(() -> new RecordNotFoundException("User identity key not found"));   
     	
     	userIdentityRepo.deleteById(new UserIdentityKeyId(userKey, identityKey));
     	// Delete one time keys
@@ -189,7 +189,7 @@ public class UserKeyService {
     }  
     
     public void deleteOneTimeKey(Long id, UUID userKey) {
-    	oneTimeRepo.findById(id).orElseThrow(() -> new RecordNotFoundException("One time key ID is not found"));
+    	oneTimeRepo.findById(id).orElseThrow(() -> new RecordNotFoundException("One time key ID not found"));
     	oneTimeRepo.deleteByIdAndUserKeyOrUsed(id, userKey, true);
     }   
 }
