@@ -94,7 +94,7 @@ public class MessageDocument {
     @Field("failedRecipients")
     private List<String> failedRecipients;
     
-    private EncrytionMetadata encryptionMetadata;
+    private List<EncrytionMetadata> encryptionMetadata;
 
     public boolean isGroupMessage() {
         return groupId != null && !groupId.isEmpty();
