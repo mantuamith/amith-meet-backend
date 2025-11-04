@@ -25,7 +25,7 @@ public class Meeting {
     private String hostEmail;  // Added field
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "room", nullable = false)
+    @JoinColumn(name = "room_id", nullable = false)
     private Room room;
 
     /** BCrypt hash of the meeting password (if enabled). */
