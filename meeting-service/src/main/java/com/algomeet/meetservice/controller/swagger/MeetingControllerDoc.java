@@ -424,7 +424,7 @@ public interface MeetingControllerDoc {
                             content = @Content(schema = @Schema(implementation = Meeting.class)))
             }
     )
-    ResponseEntity<List<Meeting>> getMyMeetings();
+    ResponseEntity<MeetingResponse<List<MeetingDto>>> getMyMeetings();
 
     // ---------- COMPLETE ----------
     @SecurityRequirement(name = "bearerAuth")

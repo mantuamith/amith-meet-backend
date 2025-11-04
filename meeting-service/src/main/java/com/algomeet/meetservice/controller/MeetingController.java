@@ -6,7 +6,6 @@ import com.algomeet.meetservice.controller.swagger.MeetingControllerDoc;
 import com.algomeet.meetservice.mapper.MeetingMapper;
 import com.algomeet.meetservice.model.Meeting;
 import com.algomeet.meetservice.model.MeetingStatus;
-import com.algomeet.meetservice.repository.MeetingRepository;
 import com.algomeet.meetservice.security.AlgomeetMeetingTokenRegistry;
 import com.algomeet.meetservice.security.GuestIdentity;
 import com.algomeet.meetservice.service.AlgomeetJwtService;
@@ -28,6 +27,7 @@ import org.springframework.web.bind.annotation.*;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/meetings")
@@ -313,12 +313,13 @@ public class MeetingController implements MeetingControllerDoc  {
 
     // Get All Meetings for User (host or attendee)
     @GetMapping("/my")
-    public ResponseEntity<List<Meeting>> getMyMeetings() {
+    public ResponseEntity<MeetingResponse<List<MeetingDto>>> getMyMeetings() {
         String email = currentUser();
         log.info("GetMyMeetings request by user={}", maskEmail(email));
         List<Meeting> meetings = meetingService.getMeetingsForUser(email);
         log.info("GetMyMeetings: user={}, count={}", maskEmail(email), meetings.size());
-        return ResponseEntity.ok(meetings);
+        List<MeetingDto> dtos = meetings.stream().map(mapper::toDto).collect(Collectors.toList());
+        return ResponseEntity.ok(MeetingResponse.success("OK", "Fetched meetings", dtos));
     }
 
     @PutMapping("/{id}/complete")
