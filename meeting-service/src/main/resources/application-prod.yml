@@ -64,3 +64,5 @@ feign:
   client:
     control-service:
       url: http://control-service:8090
+    user-service:
+      url: http://user-service:8082

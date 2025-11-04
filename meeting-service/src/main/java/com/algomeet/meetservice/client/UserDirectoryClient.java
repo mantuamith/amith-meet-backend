@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import java.util.Optional;
 import java.util.UUID;
 
-@FeignClient(name = "user-directory", url = "${feign.user-service.url:http://127.0.0.1:65535}")
+@FeignClient(name = "user-service", url = "${feign.client.user-service.url:http://127.0.0.1:65535}")
 public interface UserDirectoryClient {
 
     @GetMapping("/internal/users/lookup/exact")
