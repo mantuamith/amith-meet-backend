@@ -5,6 +5,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -42,4 +43,9 @@ public interface InboundGroupSessionBackupRepository extends JpaRepository<Inbou
 	/** Count all inbound group session backups for a specific user key */
     @Transactional(readOnly = true)
     long countById_UserKey(UUID userKey);
+    
+    
+    @Modifying
+    @Transactional
+	void deleteByIdUserKey(UUID userKey);
 }

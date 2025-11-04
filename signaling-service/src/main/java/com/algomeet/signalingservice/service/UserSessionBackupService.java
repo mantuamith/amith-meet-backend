@@ -29,6 +29,7 @@ public class UserSessionBackupService {
         backup.setUserKey(userKey);
         backup.setSessionId(request.getSessionId());
         backup.setPeerUserKey(request.getPeerUserKey());
+        backup.setDeviceId(request.getDeviceId());
         backup.setInbound(request.isInbound());
         backup.setEncryptedSession(request.getEncryptedSession());
         backup.setAlgorithm(request.getAlgorithm());
@@ -38,58 +39,20 @@ public class UserSessionBackupService {
         backup.setCreatedAt(Instant.now());
 
         UserSessionBackup saved = repository.save(backup);        
-        return UserSessionBackupResponse.builder()
-				.userKey(saved.getUserKey())
-				.sessionId(saved.getSessionId())
-				.peerUserKey(saved.getPeerUserKey())
-				.encryptedSession(saved.getEncryptedSession())
-				.inbound(saved.isInbound())    						
-				.algorithm(saved.getAlgorithm())
-				.aesAlg(saved.getAesAlg())
-				.salt(saved.getSalt())
-				.version(saved.getVersion())
-        		.createdAt(saved.getCreatedAt())
-        		.updatedAt(saved.getUpdatedAt())
-				.build();
+        return toResponse(saved);
     }
 
     public Optional<UserSessionBackupResponse> restoreSession(UUID userkey, String sessionId) {
     	return repository.findById(new UserSessionBackupId(userkey, sessionId))
     			.map(entity -> {
-    				UserSessionBackupResponse dto = UserSessionBackupResponse.builder()
-    						.userKey(entity.getUserKey())
-    						.sessionId(entity.getSessionId())
-    						.peerUserKey(entity.getPeerUserKey())
-    						.encryptedSession(entity.getEncryptedSession())
-    						.inbound(entity.isInbound())    						
-    						.algorithm(entity.getAlgorithm())
-    						.aesAlg(entity.getAesAlg())
-    						.salt(entity.getSalt())
-    						.version(entity.getVersion())
-    		        		.createdAt(entity.getCreatedAt())
-    		        		.updatedAt(entity.getUpdatedAt())
-    						.build();
-    				return dto;
+    				return toResponse(entity);
     			});
     }
     
-    public List<UserSessionBackupResponse> restoreSessions(UUID userkey) {
-    	return repository.findByUserKey(userkey).stream()
+    public List<UserSessionBackupResponse> restoreSessions(UUID userkey, String deviceId) {
+    	return repository.findByUserKeyAndDeviceId(userkey, deviceId).stream()
     			.map(entity -> {
-    				UserSessionBackupResponse dto = UserSessionBackupResponse.builder()
-    						.userKey(entity.getUserKey())
-    						.sessionId(entity.getSessionId())
-    						.peerUserKey(entity.getPeerUserKey())
-    						.encryptedSession(entity.getEncryptedSession())
-    						.inbound(entity.isInbound())    						
-    						.algorithm(entity.getAlgorithm())
-    						.aesAlg(entity.getAesAlg())
-    						.salt(entity.getSalt())
-    						.version(entity.getVersion())
-    		        		.createdAt(entity.getCreatedAt())
-    		        		.updatedAt(entity.getUpdatedAt())
-    						.build();
-    				return dto;
+    				return toResponse(entity);
     			})
     			.toList();
     }
@@ -102,5 +65,30 @@ public class UserSessionBackupService {
     	} else {
     		throw new RecordNotFoundException(String.format("Inbound group session not found %s, %s, %d", userKey, sessionId));
     	}
+    }
+    
+    public void deleteByUserKey(UUID userKey) {
+    	repository.deleteByUserKey(userKey);
+    }
+    
+    private UserSessionBackupResponse toResponse(UserSessionBackup entity) {
+        if (entity == null) {
+            return null;
+        }
+
+        return UserSessionBackupResponse.builder()
+                .userKey(entity.getUserKey())
+                .sessionId(entity.getSessionId())
+                .peerUserKey(entity.getPeerUserKey())
+                .deviceId(entity.getDeviceId())
+                .encryptedSession(entity.getEncryptedSession())
+                .inbound(entity.isInbound())
+                .algorithm(entity.getAlgorithm())
+                .aesAlg(entity.getAesAlg())
+                .salt(entity.getSalt())
+                .version(entity.getVersion())
+                .createdAt(entity.getCreatedAt())
+                .updatedAt(entity.getUpdatedAt())
+                .build();
     }
 }

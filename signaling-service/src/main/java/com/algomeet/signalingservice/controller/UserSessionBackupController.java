@@ -13,8 +13,10 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.algomeet.signalingservice.controller.swagger.UserSessionBackupControllerDoc;
 import com.algomeet.signalingservice.dto.CommonResponse;
 import com.algomeet.signalingservice.dto.UserSessionBackupRequest;
 import com.algomeet.signalingservice.dto.UserSessionBackupResponse;
@@ -23,9 +25,13 @@ import com.algomeet.signalingservice.exceptions.RecordNotFoundException;
 import com.algomeet.signalingservice.service.UserSessionBackupService;
 import com.algomeet.signalingservice.util.SecurityUtil;
 
+/**
+ * REST controller that handles user session backup operations such as
+ * saving, restoring, and deleting session backups.
+ */
 @RestController
 @RequestMapping("/signaling/backup/sessions")
-public class UserSessionBackupController {
+public class UserSessionBackupController implements UserSessionBackupControllerDoc{
 
 	private final UserSessionBackupService service;
 
@@ -34,8 +40,12 @@ public class UserSessionBackupController {
 	}
 
 	/**
-	 * Save or update a session backup.
+	 * Saves or updates a user session backup for the currently authenticated user.
+	 *
+	 * @param request the request payload containing session backup details
+	 * @return a {@link ResponseEntity} containing a {@link CommonResponse} with the saved session data
 	 */
+	@Override
 	@PostMapping
 	public ResponseEntity<CommonResponse<UserSessionBackupResponse>> saveBackup(@Validated @RequestBody UserSessionBackupRequest request) {
 		UserSessionBackupResponse savedSession = service.saveBackup(UUID.fromString(SecurityUtil.getUserKey()), request);
@@ -43,8 +53,13 @@ public class UserSessionBackupController {
 	}
 
 	/**
-	 * Restore a specific session by userKey and sessionId.
+	 * Restores a specific session backup for the currently authenticated user.
+	 *
+	 * @param sessionId the ID of the session to restore
+	 * @return a {@link ResponseEntity} containing a {@link CommonResponse} with the restored session data,
+	 *         or a NOT_FOUND response if the session does not exist
 	 */
+	@Override
 	@GetMapping("/{sessionId}/restore")
 	public ResponseEntity<CommonResponse<UserSessionBackupResponse>> restoreSession(
 			@PathVariable String sessionId) {
@@ -57,19 +72,41 @@ public class UserSessionBackupController {
 		}        
 	}
 
-	/**
-	 * Restore all sessions for a given userKey.
-	 */
+	 /**
+     * Retrieves all encrypted user session backups associated with a specific device.
+     * <p>
+     * This endpoint allows a user to restore previously backed-up Matrix session data
+     * (e.g., OLM/MEGOLM sessions) for a given device ID. The device ID must correspond
+     * to the user's device that originally created the backup.
+     *
+     * @param deviceId the unique identifier of the user's device for which session backups are being restored
+     * @return a {@link ResponseEntity} containing a {@link CommonResponse} object that holds:
+     *         <ul>
+     *             <li>{@link ResponseCode#SUCCESS} if the sessions were successfully retrieved</li>
+     *             <li>A list of {@link UserSessionBackupResponse} objects representing the restored sessions</li>
+     *         </ul>
+     * 
+     * @apiNote The request must be authenticated; the user's key is resolved from the current security context.
+     * 
+     * @see com.algomeet.signalingservice.dto.UserSessionBackupResponse
+     * @see com.algomeet.signalingservice.enums.ResponseCode
+     * @see com.algomeet.signalingservice.util.SecurityUtil
+     */
+	@Override
 	@GetMapping("/restore")
-	public ResponseEntity<CommonResponse<List<UserSessionBackupResponse>>> restoreSessions() {
-		List<UserSessionBackupResponse> sessions = service.restoreSessions(UUID.fromString(SecurityUtil.getUserKey()));
+	public ResponseEntity<CommonResponse<List<UserSessionBackupResponse>>> restoreSessions(@RequestParam("deviceId") String deviceId) {
+		List<UserSessionBackupResponse> sessions = service.restoreSessions(UUID.fromString(SecurityUtil.getUserKey()), deviceId);
 
 		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, sessions));
 	}
 
 	/**
-	 * Delete a specific session backup.
+	 * Deletes a specific session backup for the currently authenticated user.
+	 *
+	 * @param sessionId the ID of the session to delete
+	 * @return a {@link ResponseEntity} containing a {@link CommonResponse} indicating success or failure
 	 */
+	@Override
 	@DeleteMapping("/{sessionId}")
 	public ResponseEntity<CommonResponse<?>> deleteSession(
 			@PathVariable String sessionId) {		
@@ -79,5 +116,12 @@ public class UserSessionBackupController {
 		} catch (RecordNotFoundException ex) {
 			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.USER_SESSION_BACKUP_NOT_FOUND));
 		}
+	}
+	
+	@Override
+	@DeleteMapping("/all")
+	public ResponseEntity<CommonResponse<?>> deleteSessions() {		
+			service.deleteByUserKey(UUID.fromString(SecurityUtil.getUserKey()));
+			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
 	}
 }

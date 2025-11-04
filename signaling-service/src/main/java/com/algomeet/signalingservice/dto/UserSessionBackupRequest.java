@@ -16,6 +16,10 @@ public class UserSessionBackupRequest {
 	
 	/** User key of remote user **/
 	private UUID peerUserKey;
+	
+	@NotEmpty
+	@Size(max = 88)
+	private String deviceId;
 		
 	/**
 	 * Inbound/Outbound session.

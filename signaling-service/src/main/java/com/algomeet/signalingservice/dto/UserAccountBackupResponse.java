@@ -13,6 +13,8 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @Data
 public class UserAccountBackupResponse {
+	private String deviceId;
+	
 	private UUID userKey;
     private String encryptedAccount;		
 	    

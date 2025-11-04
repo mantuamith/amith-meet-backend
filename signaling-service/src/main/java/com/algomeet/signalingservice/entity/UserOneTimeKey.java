@@ -25,6 +25,9 @@ public class UserOneTimeKey {
     @Column(name = "user_key", nullable = false, length = 88)
     private UUID userKey;
     
+    @Column(name = "identity_key", nullable = false, length = 88)
+    private String identityKey;
+    
     @Column(name = "one_time_key", nullable = false, length = 88)
     private String oneTimeKey;
     
@@ -38,8 +41,9 @@ public class UserOneTimeKey {
 	public UserOneTimeKey() {		
 	}
 	
-	public UserOneTimeKey(UUID userKey, String oneTimeKey) {
+	public UserOneTimeKey(UUID userKey, String identityKey, String oneTimeKey) {
 		this.userKey = userKey;
+		this.identityKey = identityKey;
 		this.oneTimeKey = oneTimeKey;
 	}
         

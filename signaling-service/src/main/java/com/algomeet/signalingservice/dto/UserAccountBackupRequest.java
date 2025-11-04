@@ -7,6 +7,10 @@ import lombok.Data;
 
 @Data
 public class UserAccountBackupRequest {	
+	@NotEmpty
+	@Size(max = 88)
+	private String deviceId;
+	
 	@NotEmpty(message = "{user-account-backup.empty-encrypted-account}")	
 	@Pattern(
 		    regexp = "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$",

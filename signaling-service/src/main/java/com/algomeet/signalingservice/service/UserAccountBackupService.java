@@ -10,8 +10,8 @@ import org.springframework.transaction.annotation.Transactional;
 import com.algomeet.signalingservice.dto.UserAccountBackupRequest;
 import com.algomeet.signalingservice.dto.UserAccountBackupResponse;
 import com.algomeet.signalingservice.entity.UserAccountBackup;
+import com.algomeet.signalingservice.entity.UserAccountBackupId;
 import com.algomeet.signalingservice.exceptions.RecordNotFoundException;
-import com.algomeet.signalingservice.exceptions.UserAccountBackupAlreadyExistsException;
 import com.algomeet.signalingservice.repository.UserAccountBackupRepository;
 
 @Service
@@ -23,15 +23,10 @@ public class UserAccountBackupService {
     }
 
     @Transactional
-    public UserAccountBackupResponse saveBackup(UUID userKey, UserAccountBackupRequest request) {
-    	Optional<UserAccountBackup> backupOpt = repository.findById(userKey);
-    	if (backupOpt.isPresent()) {
-    		throw new UserAccountBackupAlreadyExistsException("User account backup already exist for user ID " + userKey);
-    	}
-    	
+    public UserAccountBackupResponse saveBackup(UUID userKey, UserAccountBackupRequest request) {    	
         UserAccountBackup backup = new UserAccountBackup();
         backup.setEncryptedAccount(request.getEncryptedAccount());
-        backup.setUserKey(userKey);
+        backup.setId(new UserAccountBackupId(userKey, request.getDeviceId()));
         backup.setAesAlg(request.getAesAlg());
         backup.setVersion(request.getVersion());
         backup.setSalt(request.getSalt());
@@ -41,27 +36,20 @@ public class UserAccountBackupService {
         }
         backup.setUpdatedAt(Instant.now());
         UserAccountBackup saved = repository.save(backup);
-        return UserAccountBackupResponse.builder()
-        		.userKey(saved.getUserKey())
-        		.encryptedAccount(saved.getEncryptedAccount())
-        		.aesAlg(saved.getAesAlg())
-        		.version(saved.getVersion())
-        		.salt(saved.getSalt())
-        		.createdAt(saved.getCreatedAt())
-        		.updatedAt(saved.getUpdatedAt())
-        		.build();
+        return toResponse(saved);
     }
     
     @Transactional
     public UserAccountBackupResponse updateBackup(UUID userKey, UserAccountBackupRequest request) {
-    	Optional<UserAccountBackup> backupOpt = repository.findById(userKey);
+    	Optional<UserAccountBackup> backupOpt = repository.findById(new UserAccountBackupId(userKey, request.getDeviceId()));
     	if (backupOpt.isEmpty()) {
-    		throw new RecordNotFoundException("User account backup not found for user ID " + userKey);
+    		throw new RecordNotFoundException(String.format("User account backup not found for user ID %s, and device Id %s ", 
+    				userKey, request.getDeviceId()));
     	}
     	
         UserAccountBackup backup = backupOpt.get();
         backup.setEncryptedAccount(request.getEncryptedAccount());
-        backup.setUserKey(userKey);
+        backup.setId(new UserAccountBackupId(userKey, request.getDeviceId()));
         backup.setAesAlg(request.getAesAlg());
         backup.setVersion(request.getVersion());
         backup.setSalt(request.getSalt());
@@ -71,35 +59,41 @@ public class UserAccountBackupService {
         }
         backup.setUpdatedAt(Instant.now());
         UserAccountBackup saved = repository.save(backup);
-        return UserAccountBackupResponse.builder()
-        		.userKey(saved.getUserKey())
-        		.encryptedAccount(saved.getEncryptedAccount())
-        		.aesAlg(saved.getAesAlg())
-        		.version(saved.getVersion())
-        		.salt(saved.getSalt())
-        		.createdAt(saved.getCreatedAt())
-        		.updatedAt(saved.getUpdatedAt())
-        		.build();
+        return toResponse(saved);
     }
 
-    public Optional<UserAccountBackupResponse> restoreBackup(UUID userKey) {
-        return repository.findById(userKey)
-                .map(entity -> UserAccountBackupResponse.builder()
-                        .userKey(entity.getUserKey())
-                        .encryptedAccount(entity.getEncryptedAccount())
-                        .aesAlg(entity.getAesAlg())
-                        .version(entity.getVersion())
-                        .salt(entity.getSalt())
-                        .createdAt(entity.getCreatedAt())
-                        .updatedAt(entity.getUpdatedAt())
-                        .build());
+    public Optional<UserAccountBackupResponse> restoreBackup(UUID userKey, String deviceId) {
+        return repository.findById(new UserAccountBackupId(userKey, deviceId))
+                .map(entity -> toResponse(entity));
     }
-
-    public void deleteBackup(UUID userKey) {
-    	if(repository.findById(userKey).isEmpty()) {
-    		throw new RecordNotFoundException("User account backup not found");
+    
+    public void deleteBackup(UUID userKey, String deviceId) {
+    	if(repository.findById(new UserAccountBackupId(userKey, deviceId)).isEmpty()) {
+    		throw new RecordNotFoundException(String.format("User account backup for device Id %s is not found", deviceId));
     	}
     	
-        repository.findById(userKey).ifPresent(repository::delete);
+        repository.findById(new UserAccountBackupId(userKey, deviceId)).ifPresent(repository::delete);
+    }
+    
+    public void deleteBackup(UUID userKey) {    	
+        repository.deleteByIdUserKey(userKey);
+    }
+    
+    
+    public UserAccountBackupResponse toResponse(UserAccountBackup entity) {
+        if (entity == null || entity.getId() == null) {
+            return null;
+        }
+
+        return UserAccountBackupResponse.builder()
+                .userKey(entity.getId().getUserKey())
+                .deviceId(entity.getId().getDeviceId())
+                .encryptedAccount(entity.getEncryptedAccount())
+                .aesAlg(entity.getAesAlg())
+                .version(entity.getVersion())
+                .salt(entity.getSalt())
+                .createdAt(entity.getCreatedAt())
+                .updatedAt(entity.getUpdatedAt())
+                .build();
     }
 }

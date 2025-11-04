@@ -2,14 +2,14 @@ package com.algomeet.signalingservice.entity;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.UUID;
 
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
+import jakarta.persistence.EmbeddedId;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
-import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinColumns;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
@@ -20,19 +20,21 @@ import lombok.Data;
 @Entity
 @Table(name = "user_identity_keys")
 public class UserIdentityKey {
-	@Id
-	@Column(name = "user_key", nullable = false, updatable = false)
-	private UUID userKey;
-
-	@Column(name = "identity_key", nullable = false, unique = true, length = 88)
-    private String identityKey;
+	@EmbeddedId
+	private UserIdentityKeyId id;
+	
+	@Column(name = "device_id", nullable = false, length = 88)
+	private String deviceId;
 	
 	// Join via the identity_key string column
     @OneToMany(
         cascade = CascadeType.ALL,
         fetch = FetchType.LAZY
-    )
-    @JoinColumn(name = "user_key", referencedColumnName = "user_key", insertable = false, updatable = false)
+    )    
+    @JoinColumns({
+        @JoinColumn(name = "user_key", referencedColumnName = "user_key", insertable = false, updatable = false),
+        @JoinColumn(name = "identity_key", referencedColumnName = "identity_key", insertable = false, updatable = false)
+    })
     private List<UserOneTimeKey> oneTimeKeys;
 	
     @Column(name = "created_at", nullable = false, updatable = false)

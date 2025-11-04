@@ -10,14 +10,14 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.algomeet.signalingservice.controller.swagger.UserKeyControllerDoc;
 import com.algomeet.signalingservice.dto.CommonResponse;
-import com.algomeet.signalingservice.dto.UserIdentityAndOneTimeKeyResponse;
+import com.algomeet.signalingservice.dto.UserIdentityAndOneTimeKeysResponse;
 import com.algomeet.signalingservice.dto.UserIdentityKeyRequest;
 import com.algomeet.signalingservice.dto.UserIdentityKeyResponse;
 import com.algomeet.signalingservice.dto.UserOneTimeKeyRequest;
@@ -28,7 +28,6 @@ import com.algomeet.signalingservice.exceptions.NoUserOneTimeKeyIsAvailableExcep
 import com.algomeet.signalingservice.exceptions.OneTimeKeyAlreadyExistsException;
 import com.algomeet.signalingservice.exceptions.OneTimeKeysReservedMaxLimitExceededException;
 import com.algomeet.signalingservice.exceptions.RecordNotFoundException;
-import com.algomeet.signalingservice.exceptions.UserKeyAlreadyExistsException;
 import com.algomeet.signalingservice.service.UserKeyService;
 import com.algomeet.signalingservice.util.SecurityUtil;
 
@@ -36,69 +35,114 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+/**
+ * REST controller responsible for managing user identity keys and one-time keys
+ * in the signaling service. Provides endpoints for registering, updating,
+ * retrieving, and deleting identity and one-time keys.
+ *
+ * <p>This controller delegates business logic to {@link UserKeyService} and
+ * returns standardized {@link CommonResponse} payloads for API clients.
+ * </p>
+ *
+ * <p>All methods require user authentication. The {@link SecurityUtil#getUserKey()} utility
+ * is used to extract the current user's UUID from the security context.</p>
+ *
+ * @author 
+ * @since 1.0
+ */
 @Slf4j
 @RestController
 @RequestMapping("/signaling/keys")
 @RequiredArgsConstructor
-public class UserKeyController {
+public class UserKeyController implements UserKeyControllerDoc{
 	private final UserKeyService keyService;
 
-	// Register a new user identity key
+	/**
+	 * Registers a new user identity key for the authenticated user.
+	 *
+	 * @param request the request payload containing the identity key information
+	 * @return a {@link CommonResponse} containing the saved {@link UserIdentityKeyResponse}
+	 *         if successful, or an error response if the key already exists
+	 */
+	@Override
 	@PostMapping("/identity")
 	public ResponseEntity<CommonResponse<UserIdentityKeyResponse>> registerUserIdentity(@Valid @RequestBody UserIdentityKeyRequest request) {
 		try {
 			UserIdentityKeyResponse savedUserIdentityKey = keyService.registerUserIdentity(UUID.fromString(SecurityUtil.getUserKey()), request);
 			return ResponseEntity.ok(CommonResponse.from(ResponseCode.IDENTITY_KEY_REGISTER_SUCCESS, savedUserIdentityKey));
 
-		} catch(UserKeyAlreadyExistsException ex) {
-			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(CommonResponse.from(ResponseCode.USER_KEY_ALREADY_EXISTS));
 		} catch(IdentityKeyAlreadyExistsException ex) {
 			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(CommonResponse.from(ResponseCode.IDENTITY_KEY_ALREADY_EXISTS));
 		}		
 	}
 	
-	// Update user identity key
-	@PutMapping("/identity")
-	public ResponseEntity<CommonResponse<UserIdentityKeyResponse>> updateUserIdentity(@Valid @RequestBody UserIdentityKeyRequest request) {
-		try {
-			UserIdentityKeyResponse savedUserIdentityKey = keyService.updateUserIdentity(UUID.fromString(SecurityUtil.getUserKey()), request);
-			return ResponseEntity.ok(CommonResponse.from(ResponseCode.IDENTITY_KEY_UPDATE_SUCCESS, savedUserIdentityKey));
-
-		} catch(RecordNotFoundException ex) {
-			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.USER_KEY_NOT_FOUND));
-		}	
-	}
-	
-	// Get identity key 
+	/**
+	 * Retrieves all identity keys associated with a user.
+	 *
+	 * @param userKeyOpt optional query parameter for specifying a user key.
+	 *                   If not provided, the key of the authenticated user is used.
+	 * @return a {@link CommonResponse} containing a list of {@link UserIdentityKeyResponse} objects
+	 */
+	@Override
 	@GetMapping("/identity")
-	public ResponseEntity<CommonResponse<UserIdentityKeyResponse>> getUserIdentityKey(@RequestParam("userKey") Optional<UUID> userKeyOpt) {
+	public ResponseEntity<CommonResponse<List<UserIdentityKeyResponse>>> getUserIdentityKeys(@RequestParam("userKey") Optional<UUID> userKeyOpt) {
 		try {
 			UUID userKey = userKeyOpt.orElse(UUID.fromString(SecurityUtil.getUserKey()));
-			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, keyService.getUserIdentityKey(userKey)));
+			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, keyService.getUserIdentityKeys(userKey)));
 		} catch(RecordNotFoundException ex) {
 			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.USER_KEY_NOT_FOUND));
 		}
 	}
 	
-	// Get identity key and one-time key of a user
-	@GetMapping("/identity-and-one-time")
-	public ResponseEntity<CommonResponse<UserIdentityAndOneTimeKeyResponse>> getUserIdentityAndOneTimeKey(@RequestParam UUID userKey) {
+	/**
+	 * Deletes a specific user identity key belonging to the authenticated user.
+	 *
+	 * @param identityKey the identity key string to delete
+	 * @return a {@link CommonResponse} indicating the result of the deletion operation
+	 */
+	@Override
+	@DeleteMapping("/identity/{identityKey}")
+	public ResponseEntity<CommonResponse<?>> deleteIndentity(@PathVariable String identityKey) {
 		try {
-			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, keyService.getUserIdentityAndOneTimeKey(userKey)));
+			keyService.deleteIdentityKey(UUID.fromString(SecurityUtil.getUserKey()), identityKey);
+			return ResponseEntity.ok(CommonResponse.from(ResponseCode.IDENTITY_KEY_DELETE_SUCCESS));
+		} catch(RecordNotFoundException ex) {
+			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.IDENTITY_KEY_NOT_FOUND));
+		}
+	}
+	
+	/**
+	 * Retrieves a user’s identity key and available one-time keys.
+	 *
+	 * @param userKey the UUID of the user whose keys to fetch
+	 * @return a {@link CommonResponse} containing {@link UserIdentityAndOneTimeKeysResponse}
+	 */
+	@Override
+	@GetMapping("/identity-and-one-time")
+	public ResponseEntity<CommonResponse<UserIdentityAndOneTimeKeysResponse>> getUserIdentityAndOneTimeKeys(@RequestParam UUID userKey) {
+		try {
+			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, keyService.getUserIdentityAndOneTimeKeys(userKey)));
 		} catch(RecordNotFoundException ex) {
 			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.USER_KEY_NOT_FOUND));
 		} catch(NoUserOneTimeKeyIsAvailableException ex) {
 			return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(CommonResponse.from(ResponseCode.ONE_TIME_KEY_IS_NOT_AVAILABLE));
 		}
-
 	}
 
-	// Add one-time key for existing user identity key
+	/**
+	 * Adds new one-time keys for a given identity key.
+	 *
+	 * @param identityKey the identity key associated with the one-time keys
+	 * @param request     the request payload containing one-time key data
+	 * @return a {@link CommonResponse} containing a list of created {@link UserOneTimeKeyResponse}
+	 */
+	@Override
 	@SuppressWarnings({ "unchecked", "rawtypes" })
-	@PostMapping("/one-time")
-	public ResponseEntity<CommonResponse<List<UserOneTimeKeyResponse>>> addOneTimeKeys(@Valid @RequestBody UserOneTimeKeyRequest request) {
+	@PostMapping("/identity/{identityKey}/one-time")
+	public ResponseEntity<CommonResponse<List<UserOneTimeKeyResponse>>> addOneTimeKeys(@PathVariable String identityKey, 
+			@Valid @RequestBody UserOneTimeKeyRequest request) {
 		try {
-			List<UserOneTimeKeyResponse> savedKeys = keyService.addOneTimeKeys(UUID.fromString(SecurityUtil.getUserKey()), request);
+			List<UserOneTimeKeyResponse> savedKeys = keyService.addOneTimeKeys(UUID.fromString(SecurityUtil.getUserKey()), identityKey, request);
 			return ResponseEntity.ok(CommonResponse.from(ResponseCode.ONE_TIME_KEY_ADD_SUCCESS, savedKeys));
 		} catch (RecordNotFoundException ex) {
 			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.USER_KEY_NOT_FOUND));
@@ -114,19 +158,31 @@ public class UserKeyController {
 		}
 	}
 
-	// Get one-time keys for existing user identity key
-	@GetMapping("/one-time")
-	public ResponseEntity<CommonResponse<List<UserOneTimeKeyResponse>>> getOneTimeKeys() {
+	/**
+	 * Retrieves all one-time keys for a specific identity key.
+	 *
+	 * @param identityKey the identity key whose one-time keys are requested
+	 * @return a {@link CommonResponse} containing a list of {@link UserOneTimeKeyResponse}
+	 */
+	@Override
+	@GetMapping("/identity/{identityKey}/one-time")
+	public ResponseEntity<CommonResponse<List<UserOneTimeKeyResponse>>> getOneTimeKeys(@PathVariable String identityKey) {
 		try {
-			List<UserOneTimeKeyResponse> savedKeys = keyService.getOneTimeKeys(UUID.fromString(SecurityUtil.getUserKey()));
+			List<UserOneTimeKeyResponse> savedKeys = keyService.getOneTimeKeys(UUID.fromString(SecurityUtil.getUserKey()), identityKey);
 			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, savedKeys));
 		} catch(RecordNotFoundException ex) {
 			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.IDENTITY_KEY_NOT_FOUND));
 		}
-	}
-
-	// Delete one-time key for existing user
-	@DeleteMapping("/one-time/{id}")
+	}	
+	
+	/**
+	 * Deletes a single one-time key by its ID.
+	 *
+	 * @param id the ID of the one-time key to delete
+	 * @return a {@link CommonResponse} indicating the deletion result
+	 */
+	@Override
+	@DeleteMapping("/identity/one-time/{id}")
 	public ResponseEntity<CommonResponse<?>> deleteOneTimeKey(@PathVariable Long id) {
 		try {
 			keyService.deleteOneTimeKey(id, UUID.fromString(SecurityUtil.getUserKey()));
@@ -135,4 +191,36 @@ public class UserKeyController {
 			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.ONE_TIME_KEY_ID_NOT_FOUND));
 		}
 	}	
+	
+	/**
+	 * Deletes multiple one-time keys by their IDs.
+	 *
+	 * @param ids the list of one-time key IDs to delete
+	 * @return a {@link CommonResponse} indicating the deletion result
+	 */
+	@Override
+	@DeleteMapping("/identity/one-time")
+	public ResponseEntity<CommonResponse<?>> deleteOneTimeKeys(@RequestParam List<Long> ids) {
+		try {
+			for (Long id: ids) {
+				keyService.deleteOneTimeKey(id, UUID.fromString(SecurityUtil.getUserKey()));
+			}
+			
+			return ResponseEntity.ok(CommonResponse.from(ResponseCode.ONE_TIME_KEY_DELETE_SUCCESS));
+		} catch(RecordNotFoundException ex) {
+			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.ONE_TIME_KEY_ID_NOT_FOUND));
+		}
+	}
+	
+	/**
+	 * Deletes all identity and one-time keys for the authenticated user.
+	 *
+	 * @return a {@link CommonResponse} indicating that all keys were deleted successfully
+	 */
+	@Override
+	@DeleteMapping("/all")
+	public ResponseEntity<CommonResponse<?>> deleteAllUserKeys() {
+		keyService.deleteAll(UUID.fromString(SecurityUtil.getUserKey()));
+		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
+	}
 }

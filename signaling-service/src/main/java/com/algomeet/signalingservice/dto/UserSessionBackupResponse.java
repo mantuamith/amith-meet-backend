@@ -14,6 +14,8 @@ public class UserSessionBackupResponse {
 	
 	/** User key of remote user **/
 	private UUID peerUserKey;
+	
+	private String deviceId;
 		
 	/**
 	 * Inbound/Outbound session.
