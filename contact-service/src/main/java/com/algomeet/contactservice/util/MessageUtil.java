@@ -1,4 +1,4 @@
-package com.algomeet.meetservice.util;
+package com.algomeet.contactservice.util;
 
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;

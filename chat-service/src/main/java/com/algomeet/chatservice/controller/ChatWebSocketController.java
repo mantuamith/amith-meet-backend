@@ -38,6 +38,8 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.util.CollectionUtils;
 import org.springframework.web.bind.annotation.*;
 
+import static com.algomeet.chatservice.util.MessageUtil.wrapWithBraces;
+
 import java.security.Principal;
 import java.util.ArrayList;
 import java.util.List;
@@ -194,8 +196,8 @@ public class ChatWebSocketController {
             // Send calling event notification
             NotificationBuilder notifBuilder = Notification.builder()
                     .receiverIds(Set.of(message.getToKey())) // To must be using user_key UUID
-                    .title(principal.getName() + " is calling")
-                    .body(principal.getName() + " is calling")
+                    .title(wrapWithBraces(principal.getName()) + " is calling")
+                    .body(wrapWithBraces(principal.getName()) + " is calling")
                     .type(NotificationType.VIDEO_CALL.name().equalsIgnoreCase(message.getType())
                             ? NotificationType.VIDEO_CALL : NotificationType.AUDIO_CALL)
                     .tenantId(TenantContext.getCurrentTenant());

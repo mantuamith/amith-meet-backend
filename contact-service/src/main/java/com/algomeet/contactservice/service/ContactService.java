@@ -25,6 +25,7 @@ import java.util.stream.Collectors;
 import com.algomeet.notificationservice.dto.Notification;
 import com.algomeet.notificationservice.enums.NotificationType;
 import com.algomeet.notificationservice.service.NotificationService;
+import static com.algomeet.contactservice.util.MessageUtil.wrapWithBraces;
 
 @Service
 @RequiredArgsConstructor
@@ -104,8 +105,8 @@ public class ContactService {
         Notification notif = Notification.builder()  
         		.receiverIds(Set.of(other.toString()))
         		.type(NotificationType.FRIEND_REQUEST)
-        		.title(user.getUsername() + " sent you a friend request")
-        		.body(user.getUsername() + " sent you a friend request")
+        		.title(wrapWithBraces(user.getUsername()) + " sent you a friend request")
+        		.body(wrapWithBraces(user.getUsername()) + " sent you a friend request")
         		.deliveryAckRequired(true)
         		.tenantId(TenantContext.getCurrentTenant())
         		.build();
@@ -151,8 +152,8 @@ public class ContactService {
         		// Set receiver
         		.receiverIds(Set.of(other.toString()))                 
         		.type(NotificationType.FRIEND_REQUEST_ACCEPTED)        
-        		.title(user.getUsername() + " accepted your friend request")
-        		.body(user.getUsername() + " accepted your friend request")
+        		.title(wrapWithBraces(user.getUsername()) + " accepted your friend request")
+        		.body(wrapWithBraces(user.getUsername()) + " accepted your friend request")
         		.deliveryAckRequired(true)
         		.tenantId(TenantContext.getCurrentTenant())
         		.build();
@@ -202,8 +203,8 @@ public class ContactService {
         		// Set receiver
         		.receiverIds(Set.of(other.toString()))                 
         		.type(NotificationType.FRIEND_REQUEST_REJECTED)        
-        		.title(userLogin + " rejected your friend request")
-        		.body(userLogin + " rejected your friend request")
+        		.title(wrapWithBraces(userLogin) + " rejected your friend request")
+        		.body(wrapWithBraces(userLogin) + " rejected your friend request")
         		.deliveryAckRequired(true)
         		.tenantId(TenantContext.getCurrentTenant())
         		.build();
