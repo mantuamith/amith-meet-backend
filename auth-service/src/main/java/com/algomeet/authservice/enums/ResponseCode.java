@@ -46,6 +46,8 @@ public enum ResponseCode {
 	ADD_USER_SECURITY_QUESTION_SUCCESS("ADD_USER_SECURITY_QUESTION_SUCCESS", "user-security-question.add.success"),
 	USER_SECURITY_QUESTION_ID_EXISTS("USER_SECURITY_QUESTION_ID_EXISTS", "user-security-question.id-exists"),
 	USER_SECURITY_QUESTION_VERIFY_FAILED("USER_SECURITY_QUESTION_VERIFY_FAILED", "user-security-question.verify.failed"),
+	USER_SECURITY_QUESTION_ID_NOT_FOUND("USER_SECURITY_QUESTION_ID_NOT_FOUND", "user-security-question.id-not-found"),
+	USER_SECURITY_QUESTION_VERIFY_SUCCESS("USER_SECURITY_QUESTION_VERIFY_SUCCESS", "user-security-question.verify.success"),
 	DELETE_USER_SECURITY_QUESTION_SUCCESS("DELETE_USER_SECURITY_QUESTION_SUCCESS", "user-security-question.delete.success");
 
     private final String code;

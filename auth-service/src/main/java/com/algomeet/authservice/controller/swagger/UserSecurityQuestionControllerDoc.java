@@ -23,18 +23,18 @@ import jakarta.validation.Valid;
 
 @Tag(name = "User Security Questions", description = "APIs for managing user security questions and verifying answers")
 public interface UserSecurityQuestionControllerDoc {
-
+   
     @Operation(
-        summary = "Add a security question for a user",
-        description = "Create a new user security question entry linked to a user profile ID.",
-        responses = {
-            @ApiResponse(responseCode = "200", description = "Security question added successfully",
-                content = @Content(schema = @Schema(implementation = CommonResponse.class))),
-            @ApiResponse(responseCode = "409", description = "Security question already exists for this user")
-        }
-    )
+    		summary = "Add a security question for a user",
+    		description = "Create a new user security question entry linked to a user profile ID.",
+    		responses = {
+    				@ApiResponse(responseCode = "200", description = "Security question added successfully",
+    						content = @Content(schema = @Schema(implementation = CommonResponse.class))),
+    				@ApiResponse(responseCode = "409", description = "Security question already exists for this user")
+    		}
+    		)
     public ResponseEntity<CommonResponse<UserSecurityQuestionResponse>> create(
-            @Valid @RequestBody UserSecurityQuestionRequest request);
+    		@Valid @RequestBody UserSecurityQuestionRequest request);
 
     @Operation(
         summary = "Batch add user security questions",
@@ -48,6 +48,7 @@ public interface UserSecurityQuestionControllerDoc {
     public ResponseEntity<CommonResponse<List<UserSecurityQuestionResponse>>> create(
             @RequestBody List<UserSecurityQuestionRequest> requests);
 
+    @Deprecated
     @Operation(
         summary = "Get all security questions for a user",
         description = "Retrieve all security questions linked to a specific user profile.",
@@ -58,9 +59,18 @@ public interface UserSecurityQuestionControllerDoc {
     public ResponseEntity<CommonResponse<List<UserSecurityQuestionResponse>>> getByUserProfileId(
             @Parameter(description = "User Profile UUID", example = "550e8400-e29b-41d4-a716-446655440000")
             @PathVariable UUID userProfileId);
+    
+    @Operation(
+            summary = "Get all security questions for a user",
+            description = "Retrieve all security questions linked to a specific user profile.",
+            responses = {
+                @ApiResponse(responseCode = "200", description = "Questions retrieved successfully")
+            }
+        )
+    public ResponseEntity<CommonResponse<List<UserSecurityQuestionResponse>>> getByUserProfileId();
 
     @Operation(
-        summary = "Delete all security questions for a user",
+        summary = "Delete all security questions for a user. Allowed for SA and ADMIN roles only.",
         description = "Remove all stored security questions for a given user profile ID.",
         responses = {
             @ApiResponse(responseCode = "200", description = "Security questions deleted successfully")
@@ -68,7 +78,8 @@ public interface UserSecurityQuestionControllerDoc {
     )
     public ResponseEntity<CommonResponse<UserSecurityQuestionResponse>> deleteByUserProfileId(
             @PathVariable UUID userProfileId);
-    
+        
+    @Deprecated
     @Operation(
         summary = "Get a specific user security question",
         description = "Retrieve a security question for a user by profile ID and question ID.",
@@ -80,7 +91,8 @@ public interface UserSecurityQuestionControllerDoc {
     public ResponseEntity<CommonResponse<UserSecurityQuestionResponse>> getByUserProfileIdAndQuestionId(
             @PathVariable UUID userProfileId,
             @PathVariable String securityQuestionId);
-
+        
+    @Deprecated
     @Operation(
         summary = "Verify a security question answer",
         description = "Check if the provided answer to a security question is correct for a given user profile.",
@@ -93,4 +105,16 @@ public interface UserSecurityQuestionControllerDoc {
             @PathVariable UUID userProfileId,
             @PathVariable String securityQuestionId,
             @Valid @RequestBody VerifySecurityQuestionRequest request);
+    
+    @Operation(
+            summary = "Verify a security question answer",
+            description = "Check if the provided answer to a security question is correct for a given user profile.",
+            responses = {
+                @ApiResponse(responseCode = "200", description = "Verification successful"),
+                @ApiResponse(responseCode = "404", description = "Security question not found")
+            }
+        )
+    public ResponseEntity<?> verifyAnswer(
+                @PathVariable String securityQuestionId,
+                @Valid @RequestBody VerifySecurityQuestionRequest request);
 }
