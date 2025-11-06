@@ -299,7 +299,7 @@ public class ChatWebSocketController {
             messagingTemplate.convertAndSendToUser(
                     principal.getName(),
                     "/queue/errors",
-                    "WebRTC message failed to deliver to: " + message.getTo()
+                    "Group session key sharing message failed to deliver to: " + message.getTo()
             );
         }
     }

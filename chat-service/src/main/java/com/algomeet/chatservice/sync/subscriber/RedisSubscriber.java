@@ -31,7 +31,7 @@ public class RedisSubscriber {
     				messagingTemplate.convertAndSendToUser(
     						chatMessage.getFrom(),
     						"/queue/errors",
-    						"WebRTC signaling failed to deliver to: " + chatMessage.getTo()
+    						"Message delivery failed for: " + chatMessage.getTo()
     						);
     			}
     		}
