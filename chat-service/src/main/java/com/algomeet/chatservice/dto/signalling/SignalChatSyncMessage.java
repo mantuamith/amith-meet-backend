@@ -9,8 +9,7 @@ public class SignalChatSyncMessage {
     private String toKey;        // Target identity key or UUID
     private String toDeviceId;   // Receiver device ID   
     private String fromDeviceId; // sender device ID
-    private String otp;          // Used for verification
-    private String payload;      // WebRTC SDP, ICE candidate object
+    private String payload;      // OTP, WebRTC SDP, ICE candidate object
     private String status;       // "SUCCESS", "ERROR"
     private String errorCode;    // "INVALID_OTP"
 }
