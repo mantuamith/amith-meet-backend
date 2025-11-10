@@ -22,6 +22,7 @@ import com.algomeet.signalingservice.document.MessageBackupDocument;
 import com.algomeet.signalingservice.dto.CommonResponse;
 import com.algomeet.signalingservice.dto.MessageBackupResponse;
 import com.algomeet.signalingservice.enums.ResponseCode;
+import com.algomeet.signalingservice.exceptions.RecordNotFoundException;
 import com.algomeet.signalingservice.service.MessageBackupService;
 import com.algomeet.signalingservice.util.SecurityUtil;
 
@@ -34,7 +35,7 @@ public class ChatMessageBackupController {
 	private final MessageBackupService messageBackupService;
 
     @PostMapping
-    public ResponseEntity<CommonResponse<?>> saveBackup(@RequestBody MessageBackupDocument request) {
+    public ResponseEntity<CommonResponse<?>> saveMessage(@RequestBody MessageBackupDocument request) {
     	MessageBackupDocument saved = messageBackupService.insert(request);
     	if (saved == null) {
     		throw new RuntimeException("Error saving the message backup");
@@ -42,47 +43,68 @@ public class ChatMessageBackupController {
     	
         return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
     }
-
-    @GetMapping("/{senderKey}/by-sender-key")
-    public ResponseEntity<CommonResponse<Page<MessageBackupResponse>>> getBackupsByUserKeyAnSenderKey(
-            @PathVariable String senderKey,
+    
+    @GetMapping("/{peerKey}/conversation")
+    public ResponseEntity<CommonResponse<Page<MessageBackupResponse>>> getMessagesConversations(
+            @PathVariable String peerKey,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "50") int size) {
 
         Page<MessageBackupDocument> backupsPage =
-                messageBackupService.getBackupsByUserKeyAnSenderKey(SecurityUtil.getUserKey(), senderKey, page, size);
+                messageBackupService.getConversation(SecurityUtil.getUserKey(), peerKey, page, size);
 
         List<MessageBackupResponse> responseList = backupsPage.getContent()
-                .stream()
+                .stream() 
                 .map(MessageBackupResponse::from)
                 .collect(Collectors.toList());
 
         Page<MessageBackupResponse> responsePage =
                 new PageImpl<>(responseList, PageRequest.of(page, size), backupsPage.getTotalElements());
-
         return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, responsePage));
+    }
+    
+    @GetMapping
+    public ResponseEntity<CommonResponse<List<MessageBackupResponse>>> getMessages(@RequestParam List<String> messageIds) {
+    	List<MessageBackupDocument> messageList = messageBackupService.getMessages(messageIds);     
+        return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, 
+        		messageList.stream().map(mb -> MessageBackupResponse.from(mb)).toList()));
+    }
+    
+    @GetMapping("/{messageId}")
+    public ResponseEntity<CommonResponse<MessageBackupResponse>> getMessage(@PathVariable String messageId) {
+    	try {
+    		MessageBackupDocument saved = messageBackupService.getMessage(messageId);     
+    		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, MessageBackupResponse.from(saved)));
+
+    	} catch (RecordNotFoundException ex) {
+    		return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.MESSAGE_BACKUP_NOT_FOUND));
+    	}
     }
 
     @PutMapping("/{messageId}")
-    public ResponseEntity<MessageBackupResponse> updateBackup(@PathVariable String messageId, 
+    public ResponseEntity<CommonResponse<MessageBackupResponse>> updateMessage(@PathVariable String messageId, 
     		@RequestBody MessageBackupDocument request) {
-    	MessageBackupDocument saved = messageBackupService.update(messageId, request);
-        if (saved == null) {
-    		throw new RuntimeException("Error updating the message backup");
+    	try {
+    		MessageBackupDocument saved = messageBackupService.update(messageId, request);
+    		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, MessageBackupResponse.from(saved)));
+    	} catch (RecordNotFoundException ex) {
+    		return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.MESSAGE_BACKUP_NOT_FOUND));
     	}
-        
-        return ResponseEntity.ok(MessageBackupResponse.from(request));
     }
     
     @DeleteMapping("/{messageId}")
-    public ResponseEntity<CommonResponse<?>> deleteBackup(@PathVariable String messageId) {
-        messageBackupService.delete(messageId);        
-        return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
+    public ResponseEntity<CommonResponse<?>> deleteMessage(@PathVariable String messageId) {
+    	try {
+    		messageBackupService.delete(messageId);        
+    		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
+    	} catch (RecordNotFoundException ex) {
+    		return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.MESSAGE_BACKUP_NOT_FOUND));
+    	}
     }
     
-    @DeleteMapping("/{senderKey}/by-sender-key")
-    public ResponseEntity<CommonResponse<?>> deleteByUserKeyAndSenderKey(@PathVariable String senderKey) {
-        messageBackupService.deleteByUserKeyAnSenderKey(SecurityUtil.getUserKey(), senderKey);          
+    @DeleteMapping("/{peerKey}/conversation")
+    public ResponseEntity<CommonResponse<?>> deleteByConversation(@PathVariable String peerKey) {
+        messageBackupService.deleteConversation(SecurityUtil.getUserKey(), peerKey);          
         return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
     }
     
