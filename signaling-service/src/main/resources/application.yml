@@ -25,6 +25,10 @@ spring:
         dialect: org.hibernate.dialect.PostgreSQLDialect
 
   data:
+    mongodb:
+      uri: mongodb://chatadmin:securePass123@192.168.0.156:27017/chatdb?authSource=admin
+      auto-index-creation: true
+
     redis:
       host: localhost
       port: 6379
