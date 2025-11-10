@@ -53,6 +53,8 @@ public class ChatMessageBackupController implements ChatMessageBackupControllerD
      */
     @PostMapping
     public ResponseEntity<CommonResponse<?>> saveMessage(@RequestBody MessageBackupDocument request) {
+    	request.setUserKey(SecurityUtil.getUserKey());
+    	
     	MessageBackupDocument saved = messageBackupService.insert(request);
     	if (saved == null) {
     		throw new RuntimeException("Error saving the message backup");
