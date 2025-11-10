@@ -23,7 +23,7 @@ public class MessageBackupService {
 	private final MessageBackupRepository repository;
 	
 	public MessageBackupDocument insert(MessageBackupDocument backup) {
-		return repository.insert(backup);
+		return repository.save(backup);
 	}
 	
 	public Page<MessageBackupDocument> getConversation(String userKey, String peerKey, int page, int size) {
