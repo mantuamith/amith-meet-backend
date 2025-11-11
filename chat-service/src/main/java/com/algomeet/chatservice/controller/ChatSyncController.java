@@ -108,7 +108,7 @@ public class ChatSyncController {
             messagingTemplate.convertAndSendToUser(
                     principal.getName(),
                     "/queue/errors",
-                    "WebRTC message failed to deliver to: " + message.getTo()
+                    "WebRTC signaling message failed to deliver to: " + message.getTo()
             );
         }
     }
