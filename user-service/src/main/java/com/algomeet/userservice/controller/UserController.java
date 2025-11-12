@@ -84,6 +84,8 @@ public class UserController {
         UUID userKey = UUID.randomUUID();        
         user.setUserKey(userKey); 
         
+        user.setLang(request.getLang());
+        
         try {
             userRepository.save(user);
             

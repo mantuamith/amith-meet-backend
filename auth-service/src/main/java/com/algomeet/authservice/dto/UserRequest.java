@@ -38,6 +38,9 @@ public class UserRequest implements SecuredDto{
     private String role;
     private Integer tenantId;
     
+    /** User preferred language */
+    private String lang;
+    
 	@Override
 	public void secured() {		
 		// If user not admin

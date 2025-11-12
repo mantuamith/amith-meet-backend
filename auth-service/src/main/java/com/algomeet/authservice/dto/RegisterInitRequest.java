@@ -40,6 +40,9 @@ public class RegisterInitRequest implements SecuredDto{
     
     private String role;
     private Integer tenantId;
+    
+    /** User preferred language */
+    private String lang;
 
     @AssertTrue(message = "Either email or phone must be provided")
     public boolean isContactProvided() {

@@ -39,4 +39,7 @@ public class UserRequest {
 
     private String role;
     private Integer tenantId;
+    
+    /** User preferred language */
+    private String lang;
 }
