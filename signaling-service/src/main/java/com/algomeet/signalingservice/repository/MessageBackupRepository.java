@@ -24,5 +24,6 @@ public interface MessageBackupRepository extends MongoRepository<MessageBackupDo
            delete = true)
     void deleteConversation(String userA, String userB);
     
+    @Modifying
     void deleteByUserKey(String userKey);
 }
