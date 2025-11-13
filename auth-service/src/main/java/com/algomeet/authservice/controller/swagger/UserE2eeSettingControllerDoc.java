@@ -6,8 +6,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.algomeet.authservice.dto.CommonResponse;
-import com.algomeet.authservice.dto.E2eeUserSettingRequest;
-import com.algomeet.authservice.dto.E2eeUserSettingResponse;
+import com.algomeet.authservice.dto.UserE2eeSettingRequest;
+import com.algomeet.authservice.dto.UserE2eeSettingResponse;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -19,7 +19,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 @RestController
 @RequestMapping("/auth/e2ee-user-settings")
 @Tag(name = "E2EE User Settings", description = "Manage user-level End-to-End Encryption settings")
-public interface E2eeUserSettingControllerDoc {
+public interface UserE2eeSettingControllerDoc {
 
     /**
      * Get a single E2EE user setting by the authenticated user's key
@@ -31,7 +31,7 @@ public interface E2eeUserSettingControllerDoc {
             @ApiResponse(
                 responseCode = "200",
                 description = "E2EE user setting successfully retrieved",
-                content = @Content(schema = @Schema(implementation = E2eeUserSettingResponse.class))
+                content = @Content(schema = @Schema(implementation = UserE2eeSettingResponse.class))
             ),
             @ApiResponse(
                 responseCode = "404",
@@ -45,7 +45,7 @@ public interface E2eeUserSettingControllerDoc {
             )
         }
     )
-    public ResponseEntity<CommonResponse<E2eeUserSettingResponse>> getById();
+    public ResponseEntity<CommonResponse<UserE2eeSettingResponse>> getById();
     
     /**
      * Create or update an E2EE user setting
@@ -56,13 +56,13 @@ public interface E2eeUserSettingControllerDoc {
         requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(
             description = "E2EE setting request payload",
             required = true,
-            content = @Content(schema = @Schema(implementation = E2eeUserSettingRequest.class))
+            content = @Content(schema = @Schema(implementation = UserE2eeSettingRequest.class))
         ),
         responses = {
             @ApiResponse(
                 responseCode = "200",
                 description = "E2EE user setting successfully created or updated",
-                content = @Content(schema = @Schema(implementation = E2eeUserSettingResponse.class))
+                content = @Content(schema = @Schema(implementation = UserE2eeSettingResponse.class))
             ),
             @ApiResponse(
                 responseCode = "400",
@@ -76,8 +76,8 @@ public interface E2eeUserSettingControllerDoc {
             )
         }
     )
-    public ResponseEntity<CommonResponse<E2eeUserSettingResponse>> createOrUpdate(
-            @RequestBody E2eeUserSettingRequest request);
+    public ResponseEntity<CommonResponse<UserE2eeSettingResponse>> createOrUpdate(
+            @RequestBody UserE2eeSettingRequest request);
 
     /**
      * Delete an E2EE user setting

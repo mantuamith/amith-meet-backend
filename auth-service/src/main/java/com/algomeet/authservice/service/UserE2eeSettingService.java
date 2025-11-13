@@ -6,25 +6,25 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
-import com.algomeet.authservice.client.E2eeUserSettingClient;
-import com.algomeet.authservice.dto.E2eeUserSettingRequest;
-import com.algomeet.authservice.dto.E2eeUserSettingResponse;
+import com.algomeet.authservice.client.UserE2eeSettingClient;
+import com.algomeet.authservice.dto.UserE2eeSettingRequest;
+import com.algomeet.authservice.dto.UserE2eeSettingResponse;
 
 import feign.FeignException;
 
 @Service
-public class E2eeUserSettingService {
+public class UserE2eeSettingService {
 
-    private final E2eeUserSettingClient client;
+    private final UserE2eeSettingClient client;
 
-    public E2eeUserSettingService(E2eeUserSettingClient client) {
+    public UserE2eeSettingService(UserE2eeSettingClient client) {
         this.client = client;
     }
 
     /**
      * Get a single user setting by userKey
      */
-    public E2eeUserSettingResponse getUserSettingById(UUID userKey) {
+    public UserE2eeSettingResponse getUserSettingById(UUID userKey) {
     	try {
     		return client.getById(userKey); 
     	} catch (FeignException.NotFound e) {
@@ -39,7 +39,7 @@ public class E2eeUserSettingService {
     /**
      * Create or update a user setting
      */
-    public E2eeUserSettingResponse createOrUpdateUserSetting(UUID userKey, E2eeUserSettingRequest request) {
+    public UserE2eeSettingResponse createOrUpdateUserSetting(UUID userKey, UserE2eeSettingRequest request) {
     	try {
     		return client.createOrUpdate(userKey, request);
     	} catch (FeignException.NotFound e) {

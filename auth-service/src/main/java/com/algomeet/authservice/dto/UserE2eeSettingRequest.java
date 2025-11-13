@@ -7,13 +7,11 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class E2eeUserSettingRequest {
+public class UserE2eeSettingRequest {
     /**
      * Contains an encrypted key that used to decrypt the backup sessions, encrypted chat history, and etc.
      * This key can be decrypted using PIN, user password and etc.
-     * 
-     * Possible value structure: {"pinEncrypted" : "XXXXX", "passwordEncrypted" : "XXXX"}, then the entire JSON encoded into base64.
-     * 
+     *  
      */
     private String autoSyncKey;
     

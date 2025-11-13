@@ -12,24 +12,24 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.algomeet.userservice.dto.E2eeUserSettingRequest;
-import com.algomeet.userservice.dto.E2eeUserSettingResponse;
-import com.algomeet.userservice.model.E2eeUserSetting;
-import com.algomeet.userservice.repository.E2eeUserSettingRepository;
+import com.algomeet.userservice.dto.UserE2eeSettingRequest;
+import com.algomeet.userservice.dto.UserE2eeSettingResponse;
+import com.algomeet.userservice.model.UserE2eeSetting;
+import com.algomeet.userservice.repository.UserE2eeSettingRepository;
 
 @RestController
-@RequestMapping("/internal/e2ee-user-settings")
-public class E2eeUserSettingController {
+@RequestMapping("/internal/user-e2ee-settings")
+public class UserE2eeSettingController {
 
-    private final E2eeUserSettingRepository repository;
+    private final UserE2eeSettingRepository repository;
 
-    public E2eeUserSettingController(E2eeUserSettingRepository repository) {
+    public UserE2eeSettingController(UserE2eeSettingRepository repository) {
         this.repository = repository;
     }
 
     // Get a single user setting by userKey
     @GetMapping("/{userKey}")
-    public ResponseEntity<E2eeUserSettingResponse> getById(@PathVariable UUID userKey) {
+    public ResponseEntity<UserE2eeSettingResponse> getById(@PathVariable UUID userKey) {
         return repository.findById(userKey)
                 .map(setting -> ResponseEntity.ok(mapToResponse(setting)))
                 .orElse(ResponseEntity.notFound().build());
@@ -37,12 +37,12 @@ public class E2eeUserSettingController {
 
     // Create or update user setting
     @PostMapping("/{userKey}")
-    public ResponseEntity<E2eeUserSettingResponse> createOrUpdate(
+    public ResponseEntity<UserE2eeSettingResponse> createOrUpdate(
             @PathVariable UUID userKey,
-            @RequestBody E2eeUserSettingRequest request) {
+            @RequestBody UserE2eeSettingRequest request) {
 
-        E2eeUserSetting setting = repository.findById(userKey)
-                .orElse(new E2eeUserSetting());
+        UserE2eeSetting setting = repository.findById(userKey)
+                .orElse(new UserE2eeSetting());
         
         if (setting.getUserKey() != null) {
         	if (StringUtils.hasLength(request.getAutoSyncKey())) {
@@ -58,7 +58,7 @@ public class E2eeUserSettingController {
         	setting.setAutoSyncEnabled(request.getAutoSyncEnabled());
         }
 
-        E2eeUserSetting saved = repository.save(setting);
+        UserE2eeSetting saved = repository.save(setting);
         return ResponseEntity.ok(mapToResponse(saved));
     }
 
@@ -73,8 +73,8 @@ public class E2eeUserSettingController {
     }
 
     // Mapper
-    private E2eeUserSettingResponse mapToResponse(E2eeUserSetting entity) {
-        return new E2eeUserSettingResponse(
+    private UserE2eeSettingResponse mapToResponse(UserE2eeSetting entity) {
+        return new UserE2eeSettingResponse(
                 entity.getUserKey(),
                 entity.getAutoSyncKey(),
                 entity.getAutoSyncEnabled()

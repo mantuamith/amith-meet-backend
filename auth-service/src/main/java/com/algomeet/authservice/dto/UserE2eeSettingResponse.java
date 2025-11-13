@@ -1,4 +1,4 @@
-package com.algomeet.userservice.dto;
+package com.algomeet.authservice.dto;
 
 import java.util.UUID;
 import lombok.AllArgsConstructor;
@@ -8,7 +8,7 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class E2eeUserSettingResponse {
+public class UserE2eeSettingResponse {
     private UUID userKey;
     private String autoSyncKey;
     private Boolean autoSyncEnabled;

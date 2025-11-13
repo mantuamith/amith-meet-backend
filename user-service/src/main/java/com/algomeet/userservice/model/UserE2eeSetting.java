@@ -17,8 +17,8 @@ import lombok.Setter;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "ee2e_user_settings")
-public class E2eeUserSetting {
+@Table(name = "user_ee2e_settings")
+public class UserE2eeSetting {
 	/**
 	 * Used to link to users table
 	 */
@@ -29,7 +29,6 @@ public class E2eeUserSetting {
      * Contains an encrypted key that used to decrypt the backup sessions, encrypted chat history, and etc.
      * This key can be decrypted using PIN, user password and etc.
      * 
-     * Possible value structure: {"pinEncrypted" : "XXXXX", "passwordEncrypted" : "XXXX"}, then the entire JSON encoded into base64.
      * 
      */
     @Column(length = 512)
