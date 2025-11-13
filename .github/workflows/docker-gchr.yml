@@ -1,26 +1,58 @@
-name: Build and Push to GHCR
+name: Build and Push to GHCR and Deploy to FAT (on PR Merge)
 
 on:
-  push:
+  pull_request:
+    types: [closed]
     branches:
       - staging-main
+
 permissions:
   contents: read
   packages: write
 
 jobs:
-  build-and-push:
+  detect-changes:
+    if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 2
 
+      - id: set-matrix
+        run: |
+          SERVICES=("auth-service" "chat-service" "contact-service" "meeting-service" \
+                    "user-service" "notification-service" "control-service" "signaling-service")
+
+          CHANGED_SERVICES=()
+          for service in "${SERVICES[@]}"; do
+            if git diff --name-only HEAD~1 HEAD | grep "^$service/" > /dev/null; then
+              CHANGED_SERVICES+=("\"$service\"")
+            fi
+          done
+
+          if [ ${#CHANGED_SERVICES[@]} -eq 0 ]; then
+            echo "No services changed."
+            echo "matrix={\"service\":[]}" >> $GITHUB_OUTPUT
+          else
+            MATRIX_JSON="{\"service\":[${CHANGED_SERVICES[*]}]}"
+            echo "Changed services matrix: $MATRIX_JSON"
+            echo "matrix=$MATRIX_JSON" >> $GITHUB_OUTPUT
+          fi
+
+  build-and-push:
+    if: ${{ needs.detect-changes.outputs.matrix != '{"service":[]}' }}
+    runs-on: ubuntu-latest
+    needs: detect-changes
     strategy:
-      matrix:
-        service: ["auth-service", "chat-service", "contact-service", "meeting-service", "user-service", "notification-service", "control-service", "signaling-service"]
+      matrix: ${{ fromJSON(needs.detect-changes.outputs.matrix) }}
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
         with:
-          fetch-depth: 2  # or 2, depending on your needs
+          fetch-depth: 2
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -31,26 +63,16 @@ jobs:
           distribution: temurin
           java-version: '17'
           cache: maven
+          cache-dependency-path: '**/pom.xml'
 
-      - name: Log in to GitHub Container Registry
+      - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: sonaialgoframe
           password: ${{ secrets.SONAI_PACKAGE_REGISTRY_TOKEN }}
 
-      - name: Check if ${{ matrix.service }} has changes
-        id: check_changes
-        run: |
-          CHANGED=$(git diff --name-only HEAD~1 HEAD | grep "^${{ matrix.service }}/" || true)
-          if [ -n "$CHANGED" ]; then
-            echo "changed=true" >> $GITHUB_OUTPUT
-          else
-            echo "changed=false" >> $GITHUB_OUTPUT
-          fi
-
       - name: Create settings.xml
-        if: steps.check_changes.outputs.changed == 'true'
         run: |
           cat > ${{ github.workspace }}/settings.xml <<EOF
           <settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
@@ -77,52 +99,32 @@ jobs:
           EOF
 
       - name: Build ${{ matrix.service }} with Maven
-        if: steps.check_changes.outputs.changed == 'true'
-        env:
-          SPRING_PROFILES_ACTIVE: prod
         run: |
           cd ${{ matrix.service }}
           mvn clean package -DskipTests -s ${{ github.workspace }}/settings.xml
 
       - name: Build and push Docker image
-        if: steps.check_changes.outputs.changed == 'true'
         run: |
           IMAGE=ghcr.io/algoframe-private-limited/${{ matrix.service }}
           COMMIT_SHA=$(git rev-parse --short HEAD)
+          echo "▶ Building and pushing $IMAGE:$COMMIT_SHA"
 
           docker buildx build --platform linux/amd64,linux/arm64 -t $IMAGE:$COMMIT_SHA -t $IMAGE:latest ./${{ matrix.service }} --push
 
   trigger-deployment:
+    if: needs.detect-changes.outputs.matrix != '{"service":[]}'
     runs-on: ubuntu-latest
-    needs: build-and-push
-
+    needs: [detect-changes, build-and-push]
     steps:
-      - name: Checkout repo with full history
-        uses: actions/checkout@v3
-        with:
-          fetch-depth: 2  # needed to access HEAD~1
-
-      - name: Determine which services changed
-        id: detect
-        run: |
-            SERVICES=("auth-service" "chat-service" "contact-service" "meeting-service" "user-service" "notification-service" "control-service" "signaling-service")
-            
-            CHANGED_SERVICES=()
-            
-            for service in "${SERVICES[@]}"; do
-              if git diff --name-only HEAD~1 HEAD | grep "^$service/" > /dev/null; then
-                echo "$service changed"
-                CHANGED_SERVICES+=("$service")
-              fi
-            done
-            
-            echo "changed_services=${CHANGED_SERVICES[*]}" >> $GITHUB_OUTPUT
-            echo "Found changes in: ${CHANGED_SERVICES[*]}"
-
-      - name: Trigger deployment in FAT(k8-deployment-config)
-        if: steps.detect.outputs.changed_services != ''
+      - name: Trigger deployment in FAT
         uses: peter-evans/repository-dispatch@v2
         with:
           token: ${{ secrets.SONAI_PACKAGE_REGISTRY_TOKEN }}
           repository: Algoframe-Private-Limited/k8-deployment-config
           event-type: deploy-latest-image
+          client-payload: |
+            {
+              "environment": "FAT",
+              "commit_sha": "${{ github.sha }}",
+              "changed_services": ${{ toJson(fromJSON(needs.detect-changes.outputs.matrix).service) }}
+            }
