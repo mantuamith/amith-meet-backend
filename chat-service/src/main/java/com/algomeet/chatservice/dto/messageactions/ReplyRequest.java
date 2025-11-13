@@ -14,4 +14,8 @@ public class ReplyRequest {
 
     @NotBlank
     private String content;
+
+    private String clientMessageId;
+
+    private Long msgReplyTimeStamp;
 }

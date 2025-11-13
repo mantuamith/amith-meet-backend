@@ -17,6 +17,8 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
+
 @Service
 @RequiredArgsConstructor
 public class MessageActionService {
@@ -80,6 +82,8 @@ public class MessageActionService {
         reply.setSenderKey(senderKey);
         reply.setContent(req.getContent());
         reply.setStatus(MessageStatus.SENT);
+        reply.setClientMessageId(req.getClientMessageId());
+        reply.setTimestamp( Instant.ofEpochSecond(req.getMsgReplyTimeStamp()));
         if (req.getGroupId() != null && !req.getGroupId().isBlank()) {
             reply.setGroupId(req.getGroupId());
         } else {
