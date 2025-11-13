@@ -2,8 +2,6 @@ package com.algomeet.authservice.controller.swagger;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
 
 import com.algomeet.authservice.dto.CommonResponse;
 import com.algomeet.authservice.dto.UserE2eeSettingRequest;
@@ -16,26 +14,24 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 
-@RestController
-@RequestMapping("/auth/e2ee-user-settings")
-@Tag(name = "E2EE User Settings", description = "Manage user-level End-to-End Encryption settings")
+@Tag(name = "User E2EE Settings", description = "Manage user-level End-to-End Encryption settings")
 public interface UserE2eeSettingControllerDoc {
 
     /**
-     * Get a single E2EE user setting by the authenticated user's key
+     * Get a single User E2EE setting by the authenticated user's key
      */
     @Operation(
-        summary = "Get E2EE user setting",
+        summary = "Get user E2EE setting",
         description = "Retrieves the End-to-End Encryption (E2EE) settings for the currently authenticated user.",
         responses = {
             @ApiResponse(
                 responseCode = "200",
-                description = "E2EE user setting successfully retrieved",
+                description = "User E2EE setting successfully retrieved",
                 content = @Content(schema = @Schema(implementation = UserE2eeSettingResponse.class))
             ),
             @ApiResponse(
                 responseCode = "404",
-                description = "E2EE user setting not found",
+                description = "User E2EE setting not found",
                 content = @Content
             ),
             @ApiResponse(
@@ -48,10 +44,10 @@ public interface UserE2eeSettingControllerDoc {
     public ResponseEntity<CommonResponse<UserE2eeSettingResponse>> getById();
     
     /**
-     * Create or update an E2EE user setting
+     * Create or update an User E2EE setting
      */
     @Operation(
-        summary = "Create or update E2EE user setting",
+        summary = "Create or update User E2EE setting",
         description = "Creates or updates the End-to-End Encryption (E2EE) settings for the authenticated user.",
         requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(
             description = "E2EE setting request payload",
@@ -61,7 +57,7 @@ public interface UserE2eeSettingControllerDoc {
         responses = {
             @ApiResponse(
                 responseCode = "200",
-                description = "E2EE user setting successfully created or updated",
+                description = "User E2EE setting successfully created or updated",
                 content = @Content(schema = @Schema(implementation = UserE2eeSettingResponse.class))
             ),
             @ApiResponse(
@@ -80,20 +76,20 @@ public interface UserE2eeSettingControllerDoc {
             @RequestBody UserE2eeSettingRequest request);
 
     /**
-     * Delete an E2EE user setting
+     * Delete an User E2EE setting
      */
     @Operation(
-        summary = "Delete E2EE user setting",
+        summary = "Delete User E2EE setting",
         description = "Deletes the End-to-End Encryption (E2EE) setting for the authenticated user.",
         responses = {
             @ApiResponse(
                 responseCode = "200",
-                description = "E2EE user setting successfully deleted",
+                description = "User E2EE setting successfully deleted",
                 content = @Content(schema = @Schema(implementation = CommonResponse.class))
             ),
             @ApiResponse(
                 responseCode = "404",
-                description = "E2EE user setting not found",
+                description = "User E2EE setting not found",
                 content = @Content
             ),
             @ApiResponse(
