@@ -105,9 +105,11 @@ jobs:
           mvn clean package -DskipTests -s ${{ github.workspace }}/settings.xml
 
       - name: Build and push Docker image
+        id: docker_build
         run: |
           IMAGE=ghcr.io/algoframe-private-limited/${{ matrix.service }}
           COMMIT_SHA=$(git rev-parse --short HEAD)
+          echo "commit_sha=$COMMIT_SHA" >> $GITHUB_OUTPUT
           echo "▶ Building and pushing $IMAGE:$COMMIT_SHA"
 
           docker buildx build --platform linux/amd64,linux/arm64 -t $IMAGE:$COMMIT_SHA -t $IMAGE:latest ./${{ matrix.service }} --push
@@ -126,6 +128,6 @@ jobs:
           client-payload: |
             {
               "environment": "FAT",
-              "commit_sha": "${{ github.sha }}",
+              "commit_sha": "${{ needs.build-and-push.outputs.commit_sha }}",
               "changed_services": ${{ toJson(fromJSON(needs.detect-changes.outputs.matrix).service) }}
             }
