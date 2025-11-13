@@ -28,11 +28,11 @@ public class UserE2eeSettingService {
     	try {
     		return client.getById(userKey); 
     	} catch (FeignException.NotFound e) {
-    		throw new ResponseStatusException(HttpStatus.NOT_FOUND, "E2ee user setting not found", e);
+    		throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User E2EE setting not found", e);
     	} catch (FeignException e) {
     		throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Upstream error calling user service (" + e.status() + ")", e);
     	} catch (Exception e) {
-    		throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to retrieve e2ee user setting", e);
+    		throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to retrieve user E2EE setting", e);
     	}
     }
 
@@ -43,13 +43,13 @@ public class UserE2eeSettingService {
     	try {
     		return client.createOrUpdate(userKey, request);
     	} catch (FeignException.NotFound e) {
-    		throw new ResponseStatusException(HttpStatus.NOT_FOUND, "E2ee user setting not found", e);
+    		throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User E2EE setting not found", e);
     	} catch (FeignException.BadRequest e) {
     		throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid e2ee user setting update payload", e);
     	} catch (FeignException e) {
     		throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Upstream error calling user service (" + e.status() + ")", e);
     	} catch (Exception e) {
-    		throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to update e2ee user setting", e);
+    		throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to update user E2EE setting", e);
     	}
     }
 
@@ -60,11 +60,11 @@ public class UserE2eeSettingService {
     	try {
     		client.delete(userKey);
     	} catch (FeignException.NotFound e) {
-    		throw new ResponseStatusException(HttpStatus.NOT_FOUND, "E2ee user setting not found", e);
+    		throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User E2EE setting not found", e);
     	} catch (FeignException e) {
     		throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Upstream error calling user service (" + e.status() + ")", e);
     	} catch (Exception e) {
-    		throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to delete e2ee user setting", e);
+    		throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to delete user E2EE setting", e);
     	}
     }
 }
