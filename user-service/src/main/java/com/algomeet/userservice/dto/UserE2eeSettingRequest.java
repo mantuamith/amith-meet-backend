@@ -14,7 +14,7 @@ public class UserE2eeSettingRequest {
      * 
      * 
      */
-    private String autoSyncKey;
+    private String syncKey;
     
     /**
      * Used to enable or disable the sessions backup synchronization, and etc.

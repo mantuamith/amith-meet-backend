@@ -13,7 +13,7 @@ public class UserE2eeSettingRequest {
      * This key can be decrypted using PIN, user password and etc.
      *  
      */
-    private String autoSyncKey;
+    private String syncKey;
     
     /**
      * Used to enable or disable the sessions backup synchronization, and etc.

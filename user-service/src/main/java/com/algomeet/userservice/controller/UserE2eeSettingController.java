@@ -45,8 +45,8 @@ public class UserE2eeSettingController {
                 .orElse(new UserE2eeSetting());
         
         if (setting.getUserKey() != null) {
-        	if (StringUtils.hasLength(request.getAutoSyncKey())) {
-        		setting.setAutoSyncKey(request.getAutoSyncKey());
+        	if (StringUtils.hasLength(request.getSyncKey())) {
+        		setting.setSyncKey(request.getSyncKey());
         	}
 
         	if (request.getAutoSyncEnabled() != null) {
@@ -54,7 +54,7 @@ public class UserE2eeSettingController {
         	}
         } else {
         	setting.setUserKey(userKey);
-        	setting.setAutoSyncKey(request.getAutoSyncKey());
+        	setting.setSyncKey(request.getSyncKey());
         	setting.setAutoSyncEnabled(request.getAutoSyncEnabled());
         }
 
@@ -76,7 +76,7 @@ public class UserE2eeSettingController {
     private UserE2eeSettingResponse mapToResponse(UserE2eeSetting entity) {
         return new UserE2eeSettingResponse(
                 entity.getUserKey(),
-                entity.getAutoSyncKey(),
+                entity.getSyncKey(),
                 entity.getAutoSyncEnabled()
         );
     }

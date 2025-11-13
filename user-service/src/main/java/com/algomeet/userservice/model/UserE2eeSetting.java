@@ -32,7 +32,7 @@ public class UserE2eeSetting {
      * 
      */
     @Column(length = 512)
-    private String autoSyncKey; 
+    private String syncKey; 
     
     /**
      * Used to enable or disable the sessions backup synchronization, and etc.

@@ -10,6 +10,6 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class UserE2eeSettingResponse {
     private UUID userKey;
-    private String autoSyncKey;
+    private String syncKey;
     private Boolean autoSyncEnabled;
 }
