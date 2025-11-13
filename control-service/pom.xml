@@ -9,7 +9,7 @@
     <groupId>org.springframework.boot</groupId>
     <artifactId>spring-boot-starter-parent</artifactId>
     <version>3.2.5</version>
-    <relativePath/> <!-- or remove if you are using parent pom.xml -->
+    <relativePath/>  <!-- or remove if you are using parent pom.xml -->
   </parent>
 
   <properties>
