@@ -53,7 +53,10 @@ public class GroupSessionMessageDocument {
     private String to;             // target username
     
     @Field("toKey")
-    private String toKey;          // target identity key or UUID
+    private String toKey;          // target user key or UUID
+    
+    @Field("toDeviceId")
+    private String toDeviceId;     // target Device Id - used for payload decryption (OLM)
     
     @Field("groupId")
     private String groupId;        // group or room identifier
@@ -62,7 +65,10 @@ public class GroupSessionMessageDocument {
     private String from;           // sender username
     
     @Field("fromKey")
-    private String fromKey;        // sender identity key or UUID
+    private String fromKey;        // sender user key or UUID
+    
+    @Field("fromDeviceId")
+    private String fromDeviceId;   // From Device Id - used for payload decryption (OLM)
 
     private GroupSessionPayload payload; // message content (see below)
     

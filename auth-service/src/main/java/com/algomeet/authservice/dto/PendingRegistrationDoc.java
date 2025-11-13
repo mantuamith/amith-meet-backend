@@ -37,6 +37,9 @@ public class PendingRegistrationDoc {
     
     private String role;
     private Integer tenantId;
+    
+    /** User preferred language */
+    private String lang;
 
     // auto-expire (match otp.ttlSeconds in config; keep small slack if desired)
     @Indexed(expireAfterSeconds = 900)  // will be overridden at runtime if you want; or keep constant
