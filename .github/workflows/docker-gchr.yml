@@ -37,7 +37,7 @@ jobs:
             echo "No services changed."
             echo "matrix={\"service\":[]}" >> $GITHUB_OUTPUT
           else
-            MATRIX_JSON="{\"service\":[${CHANGED_SERVICES[*]}]}"
+            MATRIX_JSON="{\"service\":[${CHANGED_SERVICES[*]// /,}]}"
             echo "Changed services matrix: $MATRIX_JSON"
             echo "matrix=$MATRIX_JSON" >> $GITHUB_OUTPUT
           fi
