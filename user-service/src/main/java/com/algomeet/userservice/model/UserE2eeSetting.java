@@ -40,6 +40,10 @@ public class UserE2eeSetting {
     @Column(nullable = false)
     private Boolean autoSyncEnabled = true; // Java-level default
 
+    private String algorithm;
+    private String version;
+    private String salt;
+    
     /**
      * Ensure default is applied before saving if not explicitly set.
      */

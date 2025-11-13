@@ -11,5 +11,8 @@ import lombok.NoArgsConstructor;
 public class UserE2eeSettingResponse {
     private UUID userKey;
     private String syncKey;
-    private Boolean autoSyncEnabled;
+    private Boolean autoSyncEnabled;    
+    private String algorithm;
+    private String version;
+    private String salt;
 }

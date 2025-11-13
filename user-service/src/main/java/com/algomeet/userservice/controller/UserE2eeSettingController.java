@@ -52,10 +52,25 @@ public class UserE2eeSettingController {
         	if (request.getAutoSyncEnabled() != null) {
         		setting.setAutoSyncEnabled(request.getAutoSyncEnabled());
         	}
+        	
+        	if (request.getAlgorithm() != null) {
+        		setting.setAlgorithm(request.getAlgorithm());
+        	}
+        	
+        	if (request.getVersion() != null) {
+        		setting.setVersion(request.getVersion());
+        	}
+        	
+        	if (request.getSalt() != null) {
+        		setting.setSalt(request.getSalt());
+        	}
         } else {
         	setting.setUserKey(userKey);
         	setting.setSyncKey(request.getSyncKey());
         	setting.setAutoSyncEnabled(request.getAutoSyncEnabled());
+        	setting.setAlgorithm(request.getAlgorithm());
+        	setting.setVersion(request.getVersion());
+        	setting.setSalt(request.getSalt());
         }
 
         UserE2eeSetting saved = repository.save(setting);
@@ -77,7 +92,10 @@ public class UserE2eeSettingController {
         return new UserE2eeSettingResponse(
                 entity.getUserKey(),
                 entity.getSyncKey(),
-                entity.getAutoSyncEnabled()
+                entity.getAutoSyncEnabled(),
+                entity.getAlgorithm(),
+                entity.getVersion(),
+                entity.getSalt()
         );
     }
 }
