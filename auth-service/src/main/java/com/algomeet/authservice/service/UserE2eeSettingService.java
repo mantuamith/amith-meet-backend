@@ -45,7 +45,7 @@ public class UserE2eeSettingService {
     	} catch (FeignException.NotFound e) {
     		throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User E2EE setting not found", e);
     	} catch (FeignException.BadRequest e) {
-    		throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid e2ee user setting update payload", e);
+    		throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid user E2EE setting update payload", e);
     	} catch (FeignException e) {
     		throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Upstream error calling user service (" + e.status() + ")", e);
     	} catch (Exception e) {
