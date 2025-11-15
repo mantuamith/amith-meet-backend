@@ -24,7 +24,6 @@
     <module>contact-service</module>
     <module>meeting-service</module>
     <module>control-service</module>
-    <module>opaque-service</module>
   </modules>
 
   <properties>
