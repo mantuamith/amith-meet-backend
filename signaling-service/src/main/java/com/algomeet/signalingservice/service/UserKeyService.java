@@ -129,7 +129,7 @@ public class UserKeyService {
     	
     	UserIdentityAndOneTimeKeysResponse response = new UserIdentityAndOneTimeKeysResponse();
     	response.setUserKey(userKey);
-    	response.setKeys(new ArrayList<>());
+    	response.setDevices(new ArrayList<>());
     	for (UserIdentityKey userIdentityKey : userIdentityKeys) {
     		Optional<UserOneTimeKey> oneTimeKeyOpt = oneTimeRepo.findFirstByUserKeyAndIdentityKeyAndUsedFalse(userKey, userIdentityKey.getId().getIdentityKey());
 
@@ -151,7 +151,7 @@ public class UserKeyService {
     			usedOneTimeKey.setUsed(true);
     			oneTimeRepo.save(usedOneTimeKey);
 
-    			response.getKeys().add(UserIdentityAndOneTimeKeyResponse.builder()
+    			response.getDevices().add(UserIdentityAndOneTimeKeyResponse.builder()
     					.deviceId(userIdentityKey.getDeviceId())
     					.identityKey(userIdentityKey.getId().getIdentityKey())
     					.oneTimeKey(oneTimeKey)
