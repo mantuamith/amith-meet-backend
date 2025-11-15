@@ -10,7 +10,7 @@ extern "C" {
 #include <stdint.h>
 #include <stdlib.h>
 #include <sodium.h>
-#include <oprf/toprf.h>
+#include <toprf.h>
 
 /**
  * sk is a shared secret. In opaque.h, we do not report its byte size in functions
