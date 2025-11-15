@@ -17,5 +17,27 @@ Build Steps:
 	 
   2. Compile libopaque sources:
      
-	
+	 cd $LIBOPAQUE_DIR/java
+	 
+	 cc -I/opt/homebrew/include \
+	    -I$LIBOPAQUE_DIR/src \
+	    -I$LIBOPAQUE_DIR \
+	    -I$LIBOPRF_DIR/src \
+	    -I$LIBOPRF_DIR/src/noise_xk/include \
+	    -I$LIBOPRF_DIR/src/noise_xk/include/karmel \
+	    -I$LIBOPRF_DIR/src/noise_xk/include/karmel/minimal \
+	    -I$JAVA_HOME/include/darwin \
+	    -I$JAVA_HOME/include \
+	    -fPIC -c jni.c ../src/common.c ../src/opaque.c
+
+   3. Link everything into the shared library:
+
+      cd $LIBOPAQUE_DIR/java
+
+      cc -shared \
+         -o libopaque.dylib \
+         jni.o common.o opaque.o \
+         $LIBOPRF_DIR/src/*.o \
+         $LIBOPRF_DIR/src/noise_xk/src/*.o \
+         -L/opt/homebrew/lib -lsodium
 	
