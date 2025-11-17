@@ -34,4 +34,6 @@ public interface UserOneTimeKeyRepository extends JpaRepository<UserOneTimeKey, 
     @Modifying
     @Transactional
     void deleteByUserKeyAndIdentityKey(UUID userKey, String identityKey);
+    
+    Integer countByUserKeyAndIdentityKeyAndUsedFalse(UUID userKey, String identityKey);
 }

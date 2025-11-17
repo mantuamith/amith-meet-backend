@@ -183,6 +183,23 @@ public class UserKeyController implements UserKeyControllerDoc{
 	}	
 	
 	/**
+	 * Retrieves remaining count of identityKey's unused one-time keys.
+	 *
+	 * @param identityKey the identity key whose one-time keys are requested
+	 * @return a {@link CommonResponse} containing a list of {@link UserOneTimeKeyResponse}
+	 */
+	@Override
+	@GetMapping("/identity/{identityKey}/count-one-time-keys")
+	public ResponseEntity<CommonResponse<Integer>> getCountOneTimeKeys(@PathVariable String identityKey) {
+		try {
+			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, 
+					keyService.getCountOneTimeKeys(UUID.fromString(SecurityUtil.getUserKey()), identityKey)));
+		} catch(RecordNotFoundException ex) {
+			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.IDENTITY_KEY_NOT_FOUND));
+		}
+	}	
+	
+	/**
 	 * Deletes a single one-time key by its ID.
 	 *
 	 * @param id the ID of the one-time key to delete

@@ -180,6 +180,42 @@ public class UserKeyService {
                 .collect(Collectors.toList());
     }
     
+    public UserOneTimeKeyResponse getOneTimeKey(UUID userKey, String identityKey) {
+    	userIdentityRepo.findById(new UserIdentityKeyId(userKey, identityKey))
+    			.orElseThrow(() -> new RecordNotFoundException("User identity key not found"));
+    	
+    	Optional<UserOneTimeKey> oneTimeKeyOpt = oneTimeRepo.findFirstByUserKeyAndIdentityKeyAndUsedFalse(userKey, identityKey);    	
+    	UserOneTimeKeyResponse oneTimeKeyResp = null;
+    	
+    	if (oneTimeKeyOpt.isPresent()) {
+    		oneTimeKeyResp = oneTimeKeyOpt
+    				.map(k -> UserOneTimeKeyResponse.builder()
+    						.id(k.getId())
+    						.key(k.getOneTimeKey())                        
+    						.userKey(k.getUserKey()) 
+    						.identityKey(k.getIdentityKey())
+    						.used(k.isUsed())
+    						.createdAt(k.getCreatedAt())
+    						.updatedAt(k.getUpdatedAt())
+    						.build())
+    				.get();   
+
+    		// Update one time key "used" value to true
+    		UserOneTimeKey usedOneTimeKey = oneTimeKeyOpt.get();
+    		usedOneTimeKey.setUsed(true);
+    		oneTimeRepo.save(usedOneTimeKey);
+    	}
+		
+		return oneTimeKeyResp;
+    }
+    
+    public Integer getCountOneTimeKeys(UUID userKey, String identityKey) {
+    	userIdentityRepo.findById(new UserIdentityKeyId(userKey, identityKey))
+    			.orElseThrow(() -> new RecordNotFoundException("User identity key not found"));
+    	
+    	return oneTimeRepo.countByUserKeyAndIdentityKeyAndUsedFalse(userKey, identityKey);
+    }
+    
     public void deleteIdentityKey(UUID userKey, String identityKey) {
     	userIdentityRepo.findById(new UserIdentityKeyId(userKey, identityKey))
     	.orElseThrow(() -> new RecordNotFoundException("User identity key not found"));   
