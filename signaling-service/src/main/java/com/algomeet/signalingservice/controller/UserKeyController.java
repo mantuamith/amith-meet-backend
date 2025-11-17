@@ -1,5 +1,6 @@
 package com.algomeet.signalingservice.controller;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -117,6 +118,7 @@ public class UserKeyController implements UserKeyControllerDoc{
 	 * @param userKey the UUID of the user whose keys to fetch
 	 * @return a {@link CommonResponse} containing {@link UserIdentityAndOneTimeKeysResponse}
 	 */
+	@Deprecated
 	@Override
 	@GetMapping("/identity-and-one-time")
 	public ResponseEntity<CommonResponse<UserIdentityAndOneTimeKeysResponse>> getUserIdentityAndOneTimeKeys(@RequestParam UUID userKey) {
@@ -166,9 +168,14 @@ public class UserKeyController implements UserKeyControllerDoc{
 	 */
 	@Override
 	@GetMapping("/identity/{identityKey}/one-time")
-	public ResponseEntity<CommonResponse<List<UserOneTimeKeyResponse>>> getOneTimeKeys(@PathVariable String identityKey) {
+	public ResponseEntity<CommonResponse<List<UserOneTimeKeyResponse>>> getOneTimeKeys(@PathVariable String identityKey, @RequestParam Optional<UUID> userKey) {
 		try {
-			List<UserOneTimeKeyResponse> savedKeys = keyService.getOneTimeKeys(UUID.fromString(SecurityUtil.getUserKey()), identityKey);
+			List<UserOneTimeKeyResponse> savedKeys = new ArrayList<>();			
+			if (userKey.isPresent()) {
+				savedKeys.add(keyService.getOneTimeKey(userKey.get(), identityKey));
+			} else {
+				savedKeys = keyService.getOneTimeKeys(UUID.fromString(SecurityUtil.getUserKey()), identityKey);
+			}
 			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, savedKeys));
 		} catch(RecordNotFoundException ex) {
 			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.IDENTITY_KEY_NOT_FOUND));

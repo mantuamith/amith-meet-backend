@@ -89,7 +89,7 @@ public interface UserKeyControllerDoc {
 			@Valid @RequestBody UserOneTimeKeyRequest request);
 	
 	@Operation(
-		summary = "Get all one-time keys for identity key",
+		summary = "Get all one-time keys for identity key if userKey parameter is not present, else return only one onetime key.",
 		description = "Retrieves all one-time keys associated with a specific identity key.",
 		responses = {
 			@ApiResponse(responseCode = "200", description = "Successfully retrieved one-time keys"),
@@ -97,7 +97,7 @@ public interface UserKeyControllerDoc {
 		}
 	)
 	public ResponseEntity<CommonResponse<List<UserOneTimeKeyResponse>>> getOneTimeKeys(
-			@PathVariable String identityKey);
+			@PathVariable String identityKey, @RequestParam Optional<UUID> userKeyOpt);
 
 	@Operation(
 		summary = "Delete one-time key by ID",
