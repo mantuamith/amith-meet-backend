@@ -2,6 +2,8 @@ package com.algomeet.opaqueservice.jni;
 
 import java.io.IOException;
 
+import org.springframework.stereotype.Component;
+
 import com.algomeet.opaqueservice.jni.dto.OpaqueCredReq;
 import com.algomeet.opaqueservice.jni.dto.OpaqueCredResp;
 import com.algomeet.opaqueservice.jni.dto.OpaqueCreds;
@@ -11,16 +13,14 @@ import com.algomeet.opaqueservice.jni.dto.OpaqueRecExpKey;
 import com.algomeet.opaqueservice.jni.dto.OpaqueRegReq;
 import com.algomeet.opaqueservice.jni.dto.OpaqueRegResp;
 
+@Component
 public class Opaque {
 	static {
-		//System.loadLibrary("/Users/ariellepasana/Downloads/libopaque-1.0.1/src/libopaque.dylib");
-		//System.load("/Users/ariellepasana/git/algomeet-backend/opaque-service/libs/libopaque-1.0.1/java/libopaque.dylib");
 		try {
 			NativeLoader.loadLibrary("opaque"); 
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
-
 	}
 
     public OpaqueRecExpKey register(String pwd, byte[] skS, OpaqueIds ids) {

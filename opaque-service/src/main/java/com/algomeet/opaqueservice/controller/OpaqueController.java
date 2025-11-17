@@ -20,7 +20,7 @@ import com.algomeet.opaqueservice.service.UserStore;
 
 //---- Controller: registration & login ----
 @RestController
-@RequestMapping("/api/opaque")
+@RequestMapping("/opaque")
 class OpaqueController {
  private final UserStore store;
  private final byte[] serverSk; // server's OPAQUE long-term secret (persist securely)
