@@ -19,8 +19,6 @@ public class OpenApiConfig {
                                 .type(SecurityScheme.Type.HTTP)
                                 .scheme("bearer")
                                 .bearerFormat("JWT")
-                ))
-                // 2. Apply this auth to all endpoints
-                .addSecurityItem(new SecurityRequirement().addList("bearerAuth"));
+                ));
     }
 }

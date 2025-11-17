@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -36,6 +37,7 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequestMapping("/auth/user-security-questions")
 @RequiredArgsConstructor
+@SecurityRequirement(name = "bearerAuth")
 public class UserSecurityQuestionController implements UserSecurityQuestionControllerDoc {
 	
 	private final UserSecurityQuestionService userSecurityQuestionService;
