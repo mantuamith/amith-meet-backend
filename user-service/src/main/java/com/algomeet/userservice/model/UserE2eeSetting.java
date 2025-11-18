@@ -32,12 +32,22 @@ public class UserE2eeSetting {
     private Boolean autoSyncEnabled = true; // Java-level default
     
     /**
+     * Used as flag if PIN was configured by the user.
+     */
+    @Column(nullable = false)
+    private Boolean pinConfigured;   
+    
+    /**
      * Ensure default is applied before saving if not explicitly set.
      */
     @PrePersist
     public void prePersist() {
         if (autoSyncEnabled == null) {
             autoSyncEnabled = true;
+        }
+        
+        if (pinConfigured == null) {
+        	pinConfigured = false;
         }
     } 
 }

@@ -45,13 +45,17 @@ public class UserE2eeSettingController {
                 .orElse(new UserE2eeSetting());
         
         if (setting.getUserKey() != null) {
-
         	if (request.getAutoSyncEnabled() != null) {
         		setting.setAutoSyncEnabled(request.getAutoSyncEnabled());
+        	}
+        	
+        	if (request.getPinConfigured() != null) {
+        		setting.setPinConfigured(request.getPinConfigured());
         	}
         } else {
         	setting.setUserKey(userKey);
         	setting.setAutoSyncEnabled(request.getAutoSyncEnabled());
+        	setting.setPinConfigured(request.getPinConfigured());
         }
 
         UserE2eeSetting saved = repository.save(setting);
@@ -72,7 +76,8 @@ public class UserE2eeSettingController {
     private UserE2eeSettingResponse mapToResponse(UserE2eeSetting entity) {
         return new UserE2eeSettingResponse(
                 entity.getUserKey(),
-                entity.getAutoSyncEnabled()
+                entity.getAutoSyncEnabled(),
+                entity.getPinConfigured()
         );
     }
 }
