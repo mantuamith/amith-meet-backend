@@ -12,5 +12,8 @@ public class UserE2eeSettingRequest {
      * Used to enable or disable the sessions backup synchronization, and etc.
      */
     private Boolean autoSyncEnabled;
+    /**
+     * Used as indicator if PIN was configured.
+     */
     private Boolean pinConfigured;    
 }
