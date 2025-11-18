@@ -1,95 +1,128 @@
 package com.algomeet.opaqueservice.controller;
 
+import java.nio.charset.Charset;
 import java.util.Base64;
+import java.util.UUID;
 
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.algomeet.opaqueservice.dto.LoginFinalizeRequestDto;
-import com.algomeet.opaqueservice.dto.LoginFinalizeResponseDto;
-import com.algomeet.opaqueservice.dto.LoginStartRequestDto;
-import com.algomeet.opaqueservice.dto.LoginStartResponseDto;
-import com.algomeet.opaqueservice.dto.RegistrationRequestDto;
-import com.algomeet.opaqueservice.dto.RegistrationResponseDto;
-import com.algomeet.opaqueservice.dto.UserRecord;
-import com.algomeet.opaqueservice.service.OpaqueLib;
-import com.algomeet.opaqueservice.service.UserStore;
+import com.algomeet.opaqueservice.dto.CommonResponse;
+import com.algomeet.opaqueservice.dto.RegistrationRequest;
+import com.algomeet.opaqueservice.dto.RegistrationResponse;
+import com.algomeet.opaqueservice.dto.RetrieveUserSecretRequest;
+import com.algomeet.opaqueservice.dto.UserSecretRequest;
+import com.algomeet.opaqueservice.dto.UserSecretResponse;
+import com.algomeet.opaqueservice.entity.UserE2eeSecret;
+import com.algomeet.opaqueservice.entity.UserOpaqueCredential;
+import com.algomeet.opaqueservice.enums.ResponseCode;
+import com.algomeet.opaqueservice.jni.Opaque;
+import com.algomeet.opaqueservice.jni.dto.OpaqueCredResp;
+import com.algomeet.opaqueservice.jni.dto.OpaqueCreds;
+import com.algomeet.opaqueservice.jni.dto.OpaqueIds;
+import com.algomeet.opaqueservice.jni.dto.OpaquePreRecExpKey;
+import com.algomeet.opaqueservice.jni.dto.OpaqueRegResp;
+import com.algomeet.opaqueservice.service.UserE2eeSecretService;
+import com.algomeet.opaqueservice.service.UserOpaqueCredentialService;
+import com.algomeet.opaqueservice.util.SecurityUtil;
 
-//---- Controller: registration & login ----
+import lombok.RequiredArgsConstructor;
+
 @RestController
 @RequestMapping("/opaque")
+@RequiredArgsConstructor
 class OpaqueController {
- private final UserStore store;
- private final byte[] serverSk; // server's OPAQUE long-term secret (persist securely)
+	private final UserOpaqueCredentialService opaqueCredentialService;
+	private final UserE2eeSecretService userE2eeSecretService;
 
- public OpaqueController(UserStore store){
-     this.store = store;
-     this.serverSk = ServerKeyManager.getServerSk(); // load from secure storage
- }
+	@Value("${opaque.server.key}")
+	private String serverKey;
 
- // 1) Registration: client sends a registration message (derived from PIN locally)
- @PostMapping("/register")
- public ResponseEntity<RegistrationResponseDto> register(@RequestBody RegistrationRequestDto req) {
-     byte[] clientRegMsg = Base64.getDecoder().decode(req.clientRegistrationMessageBase64());
+	@Value("${opaque.server.id}")
+	private String serverId;
 
-     // Server processes the client's registration message and produces a registration record
-     byte[] serverRegMsg = OpaqueLib.serverProcessRegistration(serverSk, clientRegMsg);
+	@Autowired
+	private Opaque opaque;
 
-     // Create the registrationRecord we store for the user (opaque bytes)
-     byte[] registrationRecord = OpaqueLib.makeRegistrationRecord(serverSk, clientRegMsg);
+	/** 
+	 * Registration: client sends a registration message (derived from PIN/Device secret locally)
+	 * 
+	 * @param req
+	 * @return exportKey
+	 */
+	@PostMapping("/register")
+	public ResponseEntity<CommonResponse<RegistrationResponse>> register(@RequestBody RegistrationRequest req) {
+		String userKey = SecurityUtil.getUserKey();
 
-     // Persist only registrationRecord + server info. NOT the PIN.
-     UserRecord r = new UserRecord(req.username(), registrationRecord, serverSk /* or server's info reference */);
-     store.save(r);
+		byte[] clientRegMsg = Base64.getDecoder().decode(req.getClientRegistrationMessageBase64());
 
-     return ResponseEntity.ok(new RegistrationResponseDto(Base64.getEncoder().encodeToString(serverRegMsg)));
- }
+		OpaqueRegResp regResp = opaque.createRegResp(clientRegMsg, serverKey.getBytes(Charset.forName("UTF-8")));
 
- // 2a) Login start: client sends KE1 (derived locally from PIN) -> server responds KE2
- @PostMapping("/login/start")
- public ResponseEntity<LoginStartResponseDto> loginStart(@RequestBody LoginStartRequestDto req) {
-     UserRecord r = store.get(req.username());
-     if (r == null) {
-         // For privacy, consider returning a valid-looking response or delaying uniformly.
-         return ResponseEntity.status(401).build();
-     }
+		OpaqueIds ids = new OpaqueIds(userKey.getBytes(Charset.forName("UTF-8")),
+				serverId.getBytes(Charset.forName("UTF-8")));
 
-     byte[] clientKe1 = Base64.getDecoder().decode(req.clientKe1Base64());
-     byte[] serverKe2 = OpaqueLib.serverLoginStep2(serverSk, r.registrationRecord(), clientKe1);
+		OpaquePreRecExpKey preRec = opaque.finalizeReg(regResp.sec, regResp.pub, ids);
+		byte[] rec = opaque.storeRec(regResp.sec, preRec.rec); 
 
-     return ResponseEntity.ok(new LoginStartResponseDto(Base64.getEncoder().encodeToString(serverKe2)));
- }
+		opaqueCredentialService.saveOrUpdate(UUID.fromString(userKey), req.getType(), Base64.getEncoder().encodeToString(rec));
 
- // 2b) Login finalize: client sends KE3; server verifies and then may return the protected envelope
- @PostMapping("/login/finalize")
- public ResponseEntity<LoginFinalizeResponseDto> loginFinalize(@RequestBody LoginFinalizeRequestDto req) {
-     UserRecord r = store.get(req.username());
-     if (r == null) return ResponseEntity.status(401).body(new LoginFinalizeResponseDto(false, null));
+		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, 
+				new RegistrationResponse(Base64.getEncoder().encodeToString(preRec.export_key))));
+	}
 
-     byte[] clientKe3 = Base64.getDecoder().decode(req.clientKe3Base64());
-     boolean ok = OpaqueLib.serverFinalize(serverSk, r.registrationRecord(), clientKe3);
+	@PostMapping("/user/secret")
+	public ResponseEntity<CommonResponse<UserSecretResponse>> saveSecret(@RequestBody UserSecretRequest req) {
+		UUID userKey = UUID.fromString(SecurityUtil.getUserKey());
 
-     if (!ok) return ResponseEntity.ok(new LoginFinalizeResponseDto(false, null));
+		UserE2eeSecret userE2eeSecret = userE2eeSecretService.save(userKey, req.getType(), req.getSecretKey());
 
-     // authentication succeeded. Prepare/provide user's envelope (e.g. encrypted syncKey)
-     byte[] envelope = fetchUserEnvelopeFor(req.username()); // already encrypted and sealed server-side
-     return ResponseEntity.ok(new LoginFinalizeResponseDto(true, Base64.getEncoder().encodeToString(envelope)));
- }
+		if (userE2eeSecret == null) {
+			throw new RuntimeException("Error saving secret key");
+		}
 
- private byte[] fetchUserEnvelopeFor(String username){
-     // In practice, envelope contains an encrypted syncKey that client can decrypt with the OPAQUE-derived session key.
-     return "demo-envelope-bytes".getBytes();
- }
-}
+		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, UserSecretResponse.builder()
+				.secretKey(userE2eeSecret.getSecretKey())
+				.userKey(userE2eeSecret.getId().getUserKey())
+				.type(userE2eeSecret.getId().getType())
+				.build())); 
+	}	
+		
+	@PostMapping("/user/secret/retrieve")
+	public ResponseEntity<CommonResponse<UserSecretResponse>> retrieveSecret(@RequestBody RetrieveUserSecretRequest req) {
+		UUID userKey = UUID.fromString(SecurityUtil.getUserKey());
 
+		UserE2eeSecret userE2eeSecret = userE2eeSecretService.getSecret(userKey, req.getType());
+		if (userE2eeSecret == null) {
+			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+					CommonResponse.from(ResponseCode.SECRET_KEY_NOT_FOUND)); 
+		} 
+		
+		OpaqueIds ids = new OpaqueIds(userKey.toString().getBytes(Charset.forName("UTF-8")),
+				serverId.getBytes(Charset.forName("UTF-8")));
+		
+		UserOpaqueCredential opaqueCred = opaqueCredentialService.getCredential(userKey, req.getType());
+		
+		OpaqueCredResp credResp = opaque.createCredResp(Base64.getDecoder().decode(req.getPublicKey()), 
+				Base64.getDecoder().decode(opaqueCred.getRec()), ids, "context");
+        OpaqueCreds creds = opaque.recoverCreds(credResp.pub, credResp.sec, "context", ids);
+        
+        if (opaque.userAuth(credResp.sec, creds.authU)) {        	
+        	UserSecretResponse resp = UserSecretResponse.builder()
+        			.userKey(userKey)
+        			.secretKey(userE2eeSecret.getSecretKey())
+        			.exportKey(Base64.getEncoder().encodeToString(creds.export_key))
+        			.build();
 
-//---- ServerKeyManager: load/generate server secret (persist securely) ----
-class ServerKeyManager {
- public static byte[] getServerSk(){
-     // load from HSM/KMS or config; DO NOT hardcode in real apps.
-     return "server-secret-key-placeholder".getBytes();
- }
+        	return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, resp)); 
+        }				
+
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(
+        		CommonResponse.from(ResponseCode.SECRET_KEY_FORBIDDEN_ACCESS)); 	
+	}		
 }
