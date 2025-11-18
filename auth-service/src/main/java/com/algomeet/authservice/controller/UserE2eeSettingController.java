@@ -59,6 +59,7 @@ public class UserE2eeSettingController implements UserE2eeSettingControllerDoc{
      * @return a {@link ResponseEntity} containing a {@link CommonResponse}
      *         wrapping the {@link UserE2eeSettingResponse} with {@link ResponseCode#SUCCESS}
      */
+    @Override
     @GetMapping
     public ResponseEntity<CommonResponse<UserE2eeSettingResponse>> getById() {
         UserE2eeSettingResponse response = service.getUserSettingById(SecurityUtil.getUserKey());
@@ -76,25 +77,11 @@ public class UserE2eeSettingController implements UserE2eeSettingControllerDoc{
      * @return a {@link ResponseEntity} containing a {@link CommonResponse}
      *         wrapping the updated {@link UserE2eeSettingResponse}
      */
+    @Override
     @PostMapping
     public ResponseEntity<CommonResponse<UserE2eeSettingResponse>> createOrUpdate(
             @RequestBody UserE2eeSettingRequest request) {
         UserE2eeSettingResponse updated = service.createOrUpdateUserSetting(SecurityUtil.getUserKey(), request);
         return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, updated));
-    }
-
-    /**
-     * Deletes the current authenticated user's End-to-End Encryption (E2EE) settings.
-     * <p>
-     * This endpoint removes the user's encryption configuration from the system.
-     * Once deleted, any previous E2EE configuration must be recreated manually.
-     *
-     * @return a {@link ResponseEntity} indicating successful deletion,
-     *         wrapped in a {@link CommonResponse} with {@link ResponseCode#SUCCESS}
-     */
-    @DeleteMapping
-    public ResponseEntity<?> delete() {
-        service.deleteUserSetting(SecurityUtil.getUserKey());
-        return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
     }
 }

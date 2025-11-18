@@ -74,30 +74,5 @@ public interface UserE2eeSettingControllerDoc {
     )
     public ResponseEntity<CommonResponse<UserE2eeSettingResponse>> createOrUpdate(
             @RequestBody UserE2eeSettingRequest request);
-
-    /**
-     * Delete an User E2EE setting
-     */
-    @Operation(
-        summary = "Delete User E2EE setting",
-        description = "Deletes the End-to-End Encryption (E2EE) setting for the authenticated user.",
-        responses = {
-            @ApiResponse(
-                responseCode = "200",
-                description = "User E2EE setting successfully deleted",
-                content = @Content(schema = @Schema(implementation = CommonResponse.class))
-            ),
-            @ApiResponse(
-                responseCode = "404",
-                description = "User E2EE setting not found",
-                content = @Content
-            ),
-            @ApiResponse(
-                responseCode = "500",
-                description = "Internal server error",
-                content = @Content
-            )
-        }
-    )
-    public ResponseEntity<?> delete();
+    
 }
