@@ -66,7 +66,6 @@ public class Demo {
                 clientPubKeyBase64,
                 bearerToken
         );
-
         
         OpaqueCreds creds = opaqueRetriever.recoverCreds(Base64.getDecoder().decode(credResp.getPublicKey()), credReq.sec, "context", ids);
         System.out.println("export_key=====" + Base64.getEncoder().encodeToString(creds.export_key));
