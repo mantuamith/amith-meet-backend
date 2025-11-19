@@ -7,6 +7,7 @@ import lombok.Data;
 @Data
 public class UserSecretRequest {
 	private CredentialType type;
-	private String clientRecord;	
+	private String clientRecord;
+	private String serverSecretKey;
 	private String secretKey;
 }

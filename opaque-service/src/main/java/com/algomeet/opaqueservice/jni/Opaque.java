@@ -2,7 +2,9 @@ package com.algomeet.opaqueservice.jni;
 
 import java.io.IOException;
 
+import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Component;
+import org.springframework.web.context.WebApplicationContext;
 
 import com.algomeet.opaqueservice.jni.dto.OpaqueCredReq;
 import com.algomeet.opaqueservice.jni.dto.OpaqueCredResp;
@@ -14,6 +16,7 @@ import com.algomeet.opaqueservice.jni.dto.OpaqueRegReq;
 import com.algomeet.opaqueservice.jni.dto.OpaqueRegResp;
 
 @Component
+@Scope(value = WebApplicationContext.SCOPE_REQUEST)
 public class Opaque {
 	static {
 		try {

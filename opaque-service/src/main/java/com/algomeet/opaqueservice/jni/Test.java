@@ -127,8 +127,9 @@ public class Test {
         //OpaqueCreds creds = o.recoverCreds(cresp.pub, creq.sec, "context", ids);
         Opaque o2 = new Opaque();
 		OpaqueCredReq creq2 = o2.createCredReq("password");
-		OpaqueCredResp cresp2 = o2.createCredResp(creq2.pub, Base64.getDecoder().decode(rec2), ids, "context");
-        OpaqueCreds creds = o2.recoverCreds(cresp2.pub, creq2.sec, "context", ids);
+		OpaqueCredResp cresp2 = o2.createCredResp(Base64.getDecoder().decode(Base64.getEncoder().encodeToString(creq2.pub)), Base64.getDecoder().decode(rec2), ids, "context");
+        OpaqueCreds creds = o2.recoverCreds(Base64.getDecoder().decode(Base64.getEncoder().encodeToString(cresp2.pub)), 
+        		Base64.getDecoder().decode(Base64.getEncoder().encodeToString(creq2.sec)), "context", ids);
         
         //QMxdo6DxkSFTxGhAXEQapbD9nRn2vgrw4Ilp7tMQf+QKp0YKUra9NDUogGNPH2AnQl4KVGQA2zd5/wNJqi8Spw==
         //QMxdo6DxkSFTxGhAXEQapbD9nRn2vgrw4Ilp7tMQf+QKp0YKUra9NDUogGNPH2AnQl4KVGQA2zd5/wNJqi8Spw==

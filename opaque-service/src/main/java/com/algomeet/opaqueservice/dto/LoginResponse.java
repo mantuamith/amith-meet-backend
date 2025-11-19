@@ -8,10 +8,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @Data
 public class LoginResponse{
-	/**
-	 * Client public key
-	 */
-	private String publicKey;
-	
+	private String serverId;
+	private String publicKey;	
 	private String serverSecKey;
 }

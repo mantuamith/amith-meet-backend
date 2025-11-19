@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class RegistrationResponse {
-	String publicKey;
-	String serverId;
+	private String publicKey;
+	private String serverSecretKey;
+	private String serverId;
 }

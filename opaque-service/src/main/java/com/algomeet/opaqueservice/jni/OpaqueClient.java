@@ -72,6 +72,7 @@ public class OpaqueClient {
     public UserSecretResponse saveSecret(
             CredentialType type,
             String rec,
+            String serverSecretKey,
             String secretKey,
             String bearerToken) {
 
@@ -79,6 +80,7 @@ public class OpaqueClient {
         req.setType(type);
         req.setClientRecord(rec);
         req.setSecretKey(secretKey);
+        req.setServerSecretKey(serverSecretKey);
 
         HttpEntity<UserSecretRequest> entity = new HttpEntity<>(req, getHeaders(bearerToken));
 

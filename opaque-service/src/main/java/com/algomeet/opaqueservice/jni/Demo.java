@@ -9,6 +9,7 @@ import com.algomeet.opaqueservice.dto.RetrieveUserSecretResponse;
 import com.algomeet.opaqueservice.dto.UserSecretResponse;
 import com.algomeet.opaqueservice.enums.CredentialType;
 import com.algomeet.opaqueservice.jni.dto.OpaqueCredReq;
+import com.algomeet.opaqueservice.jni.dto.OpaqueCredResp;
 import com.algomeet.opaqueservice.jni.dto.OpaqueCreds;
 import com.algomeet.opaqueservice.jni.dto.OpaqueIds;
 import com.algomeet.opaqueservice.jni.dto.OpaquePreRecExpKey;
@@ -20,37 +21,40 @@ public class Demo {
         // Initialize
         OpaqueClient client = new OpaqueClient("http://localhost:8092/opaque");
         String bearerToken = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJtYWRkb3guYWxnb2ZyYW1lQGdtYWlsLmNvbSIsInVzZXJuYW1lIjoibWFkZG94Iiwicm9sZSI6IlJPTEVfU0EiLCJzaWQiOiJlMmEwNGFiYy0wNDc0LTQ0M2UtYWI2My00OTRhOWE0ODhlZWEiLCJ1c2VyX2tleSI6IjJmYzM1Y2FlLWUwYjctNDBhNS1iMmFhLWU4NjIwNjczMGU5OSIsInRlbmFudElkIjowLCJpYXQiOjE3NjM1MzEwNDIsImV4cCI6MTc2MzYyMTA0Mn0.23K5jN1tTXY7XM0dqfEC0UYGRH4B_4RrOF1_E873yOA";
-//
-//        // --- Step 1: Create OPAQUE clientRegistrationMessage ---       
-//        Opaque o = new Opaque();
-//        OpaqueRegReq regReq = o.createRegReq("password");
-//       
-//        System.out.println("regReq=====" + Base64.getEncoder().encodeToString(regReq.M));                
-//        String clientRegMsgBase64 = Base64.getEncoder().encodeToString(regReq.M);
-//        
-//        // --- Call server /register ---
-//        RegistrationResponse regResponse = client.register(clientRegMsgBase64, bearerToken);
-//
-//        System.out.println("Server PubKey = " + regResponse.getPublicKey());
-//        System.out.println("Server ID = " + regResponse.getServerId());
-//
-//        // --- Step 2: Create OPAQUE clientRecord ---
-//        OpaqueIds ids = new OpaqueIds("2fc35cae-e0b7-40a5-b2aa-e86206730e99".getBytes(Charset.forName("UTF-8")),
-//        		regResponse.getServerId().getBytes(Charset.forName("UTF-8")));
-//
-//        OpaquePreRecExpKey prerec = o.finalizeReg(regReq.sec, Base64.getDecoder().decode(regResponse.getPublicKey()), ids);   
-//        System.out.println("Export Key = " + prerec.export_key);
-//        String clientRecordBase64 = Base64.getEncoder().encodeToString(prerec.rec);
-//          
-//        // Save secret
-//        UserSecretResponse saveResp = client.saveSecret(
-//                CredentialType.PIN,
-//                clientRecordBase64,
-//                Base64.getEncoder().encodeToString("my-secret".getBytes()),
-//                bearerToken
-//        );
-//
-//        System.out.println("Saved Secret = " + saveResp.getSecretKey());        
+
+        // --- Step 1: Create OPAQUE clientRegistrationMessage ---       
+        Opaque o = new Opaque();
+        OpaqueRegReq regReq = o.createRegReq("password");
+       
+        System.out.println("regReq=====" + Base64.getEncoder().encodeToString(regReq.M));                
+        String clientRegMsgBase64 = Base64.getEncoder().encodeToString(regReq.M);
+        
+        // --- Call server /register ---
+        RegistrationResponse regResponse = client.register(clientRegMsgBase64, bearerToken);
+
+        System.out.println("Server PubKey = " + regResponse.getPublicKey());
+        System.out.println("Server ID = " + regResponse.getServerId());
+
+        // --- Step 2: Create OPAQUE clientRecord ---
+        OpaqueIds ids = new OpaqueIds("2fc35cae-e0b7-40a5-b2aa-e86206730e99".getBytes(Charset.forName("UTF-8")),
+        		regResponse.getServerId().getBytes(Charset.forName("UTF-8")));
+
+        OpaquePreRecExpKey prerec = o.finalizeReg(regReq.sec, Base64.getDecoder().decode(regResponse.getPublicKey()), ids);   
+        System.out.println("Export Key = " + prerec.export_key);
+                
+        String clientRecordBase64 = Base64.getEncoder().encodeToString(prerec.rec);
+        System.out.println("Record = " +  Base64.getEncoder().encodeToString(prerec.rec));
+          
+        // Save secret
+        UserSecretResponse saveResp = client.saveSecret(
+                CredentialType.PIN,
+                clientRecordBase64,
+                regResponse.getServerSecretKey(),
+                Base64.getEncoder().encodeToString("my-secret".getBytes()),
+                bearerToken
+        );
+
+        System.out.println("Saved Secret = " + saveResp.getSecretKey());        
        
         // Retrieve secret
         
@@ -61,23 +65,21 @@ public class Demo {
         OpaqueCredReq credReq = opaqueRetriever.createCredReq("password");
         System.out.println("pub=====" + Base64.getEncoder().encodeToString(credReq.pub));
         
-        String clientPubKeyBase64 = Base64.getEncoder().encodeToString(credReq.pub);
-
+        String clientPubKeyBase64 = Base64.getEncoder().encodeToString(credReq.pub);   
+        
         LoginResponse loginResp = client.login(
                 CredentialType.PIN,
                 clientPubKeyBase64,
                 bearerToken
         );
         
-        OpaqueIds ids = new OpaqueIds("2fc35cae-e0b7-40a5-b2aa-e86206730e99".getBytes(Charset.forName("UTF-8")),
-		"in.algoframe.algomeet".getBytes(Charset.forName("UTF-8")));
+        System.out.println("loginResp.getServerId() = " + loginResp.getServerId());
+//        OpaqueIds ids = new OpaqueIds("2fc35cae-e0b7-40a5-b2aa-e86206730e99".getBytes(Charset.forName("UTF-8")),
+//        		loginResp.getServerId().getBytes(Charset.forName("UTF-8")));
         
         OpaqueCreds creds = opaqueRetriever.recoverCreds(Base64.getDecoder().decode(loginResp.getPublicKey()), credReq.sec, "context", ids);
-        
-
         System.out.println("export_key=====" + Base64.getEncoder().encodeToString(creds.export_key));
-        System.out.println("sk=====" + Base64.getEncoder().encodeToString(creds.sk));
-
+        
         RetrieveUserSecretResponse retrieveResp = client.retrieveSecret(
                 CredentialType.PIN,
                 Base64.getEncoder().encodeToString(creds.authU),
@@ -86,5 +88,16 @@ public class Demo {
         );
 
         System.out.println("Retrieved Secret = " + retrieveResp.getSecretKey());
+        
+        
+        //QMxdo6DxkSFTxGhAXEQapbD9nRn2vgrw4Ilp7tMQf+QKp0YKUra9NDUogGNPH2AnQl4KVGQA2zd5/wNJqi8Spw==
+        //QMxdo6DxkSFTxGhAXEQapbD9nRn2vgrw4Ilp7tMQf+QKp0YKUra9NDUogGNPH2AnQl4KVGQA2zd5/wNJqi8Spw==
+        
+        // export_key=====6r1EmCwMbrZMHd1sC/dGucqyNMo6km9nMIiDgVM842ErD92cXEl3aaSFBLid7ukVjlrprTd/F5sP1TJgsvcmlA==
+        // sk=====SroW7d/zU3wD1eRgCF4zXscrUDzY4SGyKLO0aJIOyzxL7SAYxDJmzW5P2fv0kJFl/5hBODD9qrdU/1i4YpECPA==
+        System.out.println("export_key=====" + Base64.getEncoder().encodeToString(creds.export_key));
+        System.out.println("sk=====" + Base64.getEncoder().encodeToString(creds.sk));
+//        
+//        System.out.println(o2.userAuth(cresp2.sec, creds.authU));
     }
 }

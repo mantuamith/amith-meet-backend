@@ -38,3 +38,8 @@ server:
 
 jwt:
   secret: Y0h4TkFxWkd6Um9TTktOVlFobU9naFN3SzY5cWhVY08=
+
+opaque:
+  server:
+    id: in.algoframe.algomeet
+    key: OkNrLDxvSTYjWWdkOUwjY3VPNmhaISwpaEpMQEB2eDk=
