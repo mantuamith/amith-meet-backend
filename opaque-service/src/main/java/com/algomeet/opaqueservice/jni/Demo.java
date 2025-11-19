@@ -61,18 +61,17 @@ public class Demo {
         
         String clientPubKeyBase64 = Base64.getEncoder().encodeToString(credReq.pub);   
         
-        UserCredentialResponse loginResp = client.secretCredential(
+        UserCredentialResponse credResp = client.masterSecretCredential(
                 CredentialType.PIN,
                 clientPubKeyBase64,
                 bearerToken
         );
+
         
-        System.out.println("loginResp.getServerId() = " + loginResp.getServerId());
-        
-        OpaqueCreds creds = opaqueRetriever.recoverCreds(Base64.getDecoder().decode(loginResp.getPublicKey()), credReq.sec, "context", ids);
+        OpaqueCreds creds = opaqueRetriever.recoverCreds(Base64.getDecoder().decode(credResp.getPublicKey()), credReq.sec, "context", ids);
         System.out.println("export_key=====" + Base64.getEncoder().encodeToString(creds.export_key));
         
-        RetrieveUserMasterSecretResponse retrieveResp = client.retrieveSecret(
+        RetrieveUserMasterSecretResponse retrieveResp = client.retrieveMasterSecret(
                 CredentialType.PIN,
                 Base64.getEncoder().encodeToString(creds.authU),
                 bearerToken

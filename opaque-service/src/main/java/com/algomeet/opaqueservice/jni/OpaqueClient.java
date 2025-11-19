@@ -96,7 +96,7 @@ public class OpaqueClient {
     /**
      * Call /user/secret/credential endpoint
      */
-    public UserCredentialResponse secretCredential(
+    public UserCredentialResponse masterSecretCredential(
             CredentialType type,
             String clientPublicKeyBase64,
             String bearerToken) {
@@ -121,7 +121,7 @@ public class OpaqueClient {
     /**
      * Retrieve user E2EE secret (OPAQUE-based retrieval).
      */
-    public RetrieveUserMasterSecretResponse retrieveSecret(
+    public RetrieveUserMasterSecretResponse retrieveMasterSecret(
             CredentialType type,
             String clientAuthBase64,
             String bearerToken) {
