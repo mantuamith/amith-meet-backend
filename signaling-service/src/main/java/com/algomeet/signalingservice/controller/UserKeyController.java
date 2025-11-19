@@ -1,5 +1,6 @@
 package com.algomeet.signalingservice.controller;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -23,6 +24,7 @@ import com.algomeet.signalingservice.dto.UserIdentityKeyResponse;
 import com.algomeet.signalingservice.dto.UserOneTimeKeyRequest;
 import com.algomeet.signalingservice.dto.UserOneTimeKeyResponse;
 import com.algomeet.signalingservice.enums.ResponseCode;
+import com.algomeet.signalingservice.exceptions.DeviceIdAlreadyExistsException;
 import com.algomeet.signalingservice.exceptions.IdentityKeyAlreadyExistsException;
 import com.algomeet.signalingservice.exceptions.NoUserOneTimeKeyIsAvailableException;
 import com.algomeet.signalingservice.exceptions.OneTimeKeyAlreadyExistsException;
@@ -71,8 +73,8 @@ public class UserKeyController implements UserKeyControllerDoc{
 			UserIdentityKeyResponse savedUserIdentityKey = keyService.registerUserIdentity(UUID.fromString(SecurityUtil.getUserKey()), request);
 			return ResponseEntity.ok(CommonResponse.from(ResponseCode.IDENTITY_KEY_REGISTER_SUCCESS, savedUserIdentityKey));
 
-		} catch(IdentityKeyAlreadyExistsException ex) {
-			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(CommonResponse.from(ResponseCode.IDENTITY_KEY_ALREADY_EXISTS));
+		} catch(DeviceIdAlreadyExistsException ex) {
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(CommonResponse.from(ResponseCode.DEVICE_ID_ALREADY_EXISTS));
 		}		
 	}
 	
@@ -90,7 +92,7 @@ public class UserKeyController implements UserKeyControllerDoc{
 			UUID userKey = userKeyOpt.orElse(UUID.fromString(SecurityUtil.getUserKey()));
 			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, keyService.getUserIdentityKeys(userKey)));
 		} catch(RecordNotFoundException ex) {
-			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.USER_KEY_NOT_FOUND));
+			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.IDENTITY_KEY_NOT_FOUND));
 		}
 	}
 	
@@ -117,13 +119,14 @@ public class UserKeyController implements UserKeyControllerDoc{
 	 * @param userKey the UUID of the user whose keys to fetch
 	 * @return a {@link CommonResponse} containing {@link UserIdentityAndOneTimeKeysResponse}
 	 */
+	@Deprecated
 	@Override
 	@GetMapping("/identity-and-one-time")
 	public ResponseEntity<CommonResponse<UserIdentityAndOneTimeKeysResponse>> getUserIdentityAndOneTimeKeys(@RequestParam UUID userKey) {
 		try {
 			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, keyService.getUserIdentityAndOneTimeKeys(userKey)));
 		} catch(RecordNotFoundException ex) {
-			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.USER_KEY_NOT_FOUND));
+			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.IDENTITY_KEY_NOT_FOUND));
 		} catch(NoUserOneTimeKeyIsAvailableException ex) {
 			return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(CommonResponse.from(ResponseCode.ONE_TIME_KEY_IS_NOT_AVAILABLE));
 		}
@@ -145,7 +148,7 @@ public class UserKeyController implements UserKeyControllerDoc{
 			List<UserOneTimeKeyResponse> savedKeys = keyService.addOneTimeKeys(UUID.fromString(SecurityUtil.getUserKey()), identityKey, request);
 			return ResponseEntity.ok(CommonResponse.from(ResponseCode.ONE_TIME_KEY_ADD_SUCCESS, savedKeys));
 		} catch (RecordNotFoundException ex) {
-			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.USER_KEY_NOT_FOUND));
+			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.IDENTITY_KEY_NOT_FOUND));
 		} catch (OneTimeKeyAlreadyExistsException ex) {
 			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
 					new CommonResponse(ResponseCode.ONE_TIME_KEY_ALREADY_EXISTS.getCode(), 
@@ -166,10 +169,32 @@ public class UserKeyController implements UserKeyControllerDoc{
 	 */
 	@Override
 	@GetMapping("/identity/{identityKey}/one-time")
-	public ResponseEntity<CommonResponse<List<UserOneTimeKeyResponse>>> getOneTimeKeys(@PathVariable String identityKey) {
+	public ResponseEntity<CommonResponse<List<UserOneTimeKeyResponse>>> getOneTimeKeys(@PathVariable String identityKey, @RequestParam Optional<UUID> userKey) {
 		try {
-			List<UserOneTimeKeyResponse> savedKeys = keyService.getOneTimeKeys(UUID.fromString(SecurityUtil.getUserKey()), identityKey);
+			List<UserOneTimeKeyResponse> savedKeys = new ArrayList<>();			
+			if (userKey.isPresent()) {
+				savedKeys.add(keyService.getOneTimeKey(userKey.get(), identityKey));
+			} else {
+				savedKeys = keyService.getOneTimeKeys(UUID.fromString(SecurityUtil.getUserKey()), identityKey);
+			}
 			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, savedKeys));
+		} catch(RecordNotFoundException ex) {
+			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.IDENTITY_KEY_NOT_FOUND));
+		}
+	}	
+	
+	/**
+	 * Retrieves remaining count of identityKey's unused one-time keys.
+	 *
+	 * @param identityKey the identity key whose one-time keys are requested
+	 * @return a {@link CommonResponse} containing a list of {@link UserOneTimeKeyResponse}
+	 */
+	@Override
+	@GetMapping("/identity/{identityKey}/count-one-time-keys")
+	public ResponseEntity<CommonResponse<Integer>> getCountOneTimeKeys(@PathVariable String identityKey) {
+		try {
+			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, 
+					keyService.getCountOneTimeKeys(UUID.fromString(SecurityUtil.getUserKey()), identityKey)));
 		} catch(RecordNotFoundException ex) {
 			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.IDENTITY_KEY_NOT_FOUND));
 		}

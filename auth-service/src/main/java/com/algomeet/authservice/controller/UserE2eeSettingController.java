@@ -8,12 +8,12 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.algomeet.authservice.controller.swagger.E2eeUserSettingControllerDoc;
+import com.algomeet.authservice.controller.swagger.UserE2eeSettingControllerDoc;
 import com.algomeet.authservice.dto.CommonResponse;
-import com.algomeet.authservice.dto.E2eeUserSettingRequest;
-import com.algomeet.authservice.dto.E2eeUserSettingResponse;
+import com.algomeet.authservice.dto.UserE2eeSettingRequest;
+import com.algomeet.authservice.dto.UserE2eeSettingResponse;
 import com.algomeet.authservice.enums.ResponseCode;
-import com.algomeet.authservice.service.E2eeUserSettingService;
+import com.algomeet.authservice.service.UserE2eeSettingService;
 import com.algomeet.authservice.util.SecurityUtil;
 
 /**
@@ -36,17 +36,17 @@ import com.algomeet.authservice.util.SecurityUtil;
  * @since 1.0
  */
 @RestController
-@RequestMapping("/auth/e2ee-user-settings")
-public class E2eeUserSettingController implements E2eeUserSettingControllerDoc{
+@RequestMapping("/auth/user-e2ee-settings")
+public class UserE2eeSettingController implements UserE2eeSettingControllerDoc{
 
-    private final E2eeUserSettingService service;
+    private final UserE2eeSettingService service;
 
     /**
      * Constructs a new {@code E2eeUserSettingController} with the provided service.
      *
-     * @param service the {@link E2eeUserSettingService} used to manage E2EE user settings
+     * @param service the {@link UserE2eeSettingService} used to manage E2EE user settings
      */
-    public E2eeUserSettingController(E2eeUserSettingService service) {
+    public UserE2eeSettingController(UserE2eeSettingService service) {
         this.service = service;
     }
 
@@ -57,11 +57,12 @@ public class E2eeUserSettingController implements E2eeUserSettingControllerDoc{
      * their auto-sync status and associated keys.
      *
      * @return a {@link ResponseEntity} containing a {@link CommonResponse}
-     *         wrapping the {@link E2eeUserSettingResponse} with {@link ResponseCode#SUCCESS}
+     *         wrapping the {@link UserE2eeSettingResponse} with {@link ResponseCode#SUCCESS}
      */
+    @Override
     @GetMapping
-    public ResponseEntity<CommonResponse<E2eeUserSettingResponse>> getById() {
-        E2eeUserSettingResponse response = service.getUserSettingById(SecurityUtil.getUserKey());
+    public ResponseEntity<CommonResponse<UserE2eeSettingResponse>> getById() {
+        UserE2eeSettingResponse response = service.getUserSettingById(SecurityUtil.getUserKey());
         return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, response));
     }
 
@@ -72,29 +73,15 @@ public class E2eeUserSettingController implements E2eeUserSettingControllerDoc{
      * such as the auto-sync key or enabling/disabling sync. If the record does not exist,
      * it will be created automatically.
      *
-     * @param request the {@link E2eeUserSettingRequest} containing new or updated values
+     * @param request the {@link UserE2eeSettingRequest} containing new or updated values
      * @return a {@link ResponseEntity} containing a {@link CommonResponse}
-     *         wrapping the updated {@link E2eeUserSettingResponse}
+     *         wrapping the updated {@link UserE2eeSettingResponse}
      */
+    @Override
     @PostMapping
-    public ResponseEntity<CommonResponse<E2eeUserSettingResponse>> createOrUpdate(
-            @RequestBody E2eeUserSettingRequest request) {
-        E2eeUserSettingResponse updated = service.createOrUpdateUserSetting(SecurityUtil.getUserKey(), request);
+    public ResponseEntity<CommonResponse<UserE2eeSettingResponse>> createOrUpdate(
+            @RequestBody UserE2eeSettingRequest request) {
+        UserE2eeSettingResponse updated = service.createOrUpdateUserSetting(SecurityUtil.getUserKey(), request);
         return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, updated));
-    }
-
-    /**
-     * Deletes the current authenticated user's End-to-End Encryption (E2EE) settings.
-     * <p>
-     * This endpoint removes the user's encryption configuration from the system.
-     * Once deleted, any previous E2EE configuration must be recreated manually.
-     *
-     * @return a {@link ResponseEntity} indicating successful deletion,
-     *         wrapped in a {@link CommonResponse} with {@link ResponseCode#SUCCESS}
-     */
-    @DeleteMapping
-    public ResponseEntity<?> delete() {
-        service.deleteUserSetting(SecurityUtil.getUserKey());
-        return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
     }
 }

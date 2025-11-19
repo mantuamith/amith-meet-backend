@@ -17,7 +17,9 @@ import jakarta.transaction.Transactional;
 @Repository
 public interface UserOneTimeKeyRepository extends JpaRepository<UserOneTimeKey, Long> {
     List<UserOneTimeKey> findByUserKey(UUID userKey);
+    
     Optional<UserOneTimeKey> findFirstByUserKeyAndIdentityKeyAndUsedFalse(UUID userKey, String identityKey);
+    
     List<UserOneTimeKey> findByUserKeyAndOneTimeKeyIn(UUID userKey, List<String> oneTimeKeys);
     
     @Modifying
@@ -34,4 +36,6 @@ public interface UserOneTimeKeyRepository extends JpaRepository<UserOneTimeKey, 
     @Modifying
     @Transactional
     void deleteByUserKeyAndIdentityKey(UUID userKey, String identityKey);
+    
+    Integer countByUserKeyAndIdentityKeyAndUsedFalse(UUID userKey, String identityKey);
 }
