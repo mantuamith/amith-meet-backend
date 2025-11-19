@@ -13,5 +13,4 @@ public class UserSecretResponse {
 	private UUID userKey;
 	private CredentialType type;
 	private String secretKey;
-	private String exportKey;
 }

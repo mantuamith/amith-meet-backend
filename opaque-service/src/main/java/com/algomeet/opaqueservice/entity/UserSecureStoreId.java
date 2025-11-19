@@ -9,9 +9,11 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Embeddable;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import lombok.Data;
 
+@Data
 @Embeddable
-public class UserE2eeSecretId implements Serializable {
+public class UserSecureStoreId implements Serializable {
 
 	private static final long serialVersionUID = 1L;
 
@@ -22,26 +24,18 @@ public class UserE2eeSecretId implements Serializable {
 	@Column(name = "credential_type", nullable = false)
 	private CredentialType type;
 
-	public UserE2eeSecretId() {}
+	public UserSecureStoreId() {}
 
-	public UserE2eeSecretId(UUID userKey, CredentialType type) {
+	public UserSecureStoreId(UUID userKey, CredentialType type) {
 		this.userKey = userKey;
 		this.type = type;
-	}
-
-	public UUID getUserKey() {
-		return userKey;
-	}
-
-	public CredentialType getType() {
-		return type;
 	}
 
 	@Override
 	public boolean equals(Object o) {
 		if (this == o) return true;
-		if (!(o instanceof UserE2eeSecretId)) return false;
-		UserE2eeSecretId that = (UserE2eeSecretId) o;
+		if (!(o instanceof UserSecureStoreId)) return false;
+		UserSecureStoreId that = (UserSecureStoreId) o;
 		return Objects.equals(userKey, that.userKey) &&
 				type == that.type;
 	}

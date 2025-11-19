@@ -4,10 +4,14 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-@Data
-@NoArgsConstructor
 @AllArgsConstructor
-public class RegistrationResponse {
-	String publicKey;
-	String serverId;
+@NoArgsConstructor
+@Data
+public class LoginResponse{
+	/**
+	 * Client public key
+	 */
+	private String publicKey;
+	
+	private String serverSecKey;
 }

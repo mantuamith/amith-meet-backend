@@ -9,7 +9,9 @@ public class RetrieveUserSecretRequest {
 	private CredentialType type;
 	
 	/**
-	 * Client public key
+	 * Client auth key
 	 */
-	private String publicKey;
+	private String clientAuth;
+	
+	private String serverSecKey;
 }

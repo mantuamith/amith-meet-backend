@@ -4,14 +4,16 @@ import java.util.List;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.transaction.annotation.Transactional;
 
-import com.algomeet.opaqueservice.entity.UserE2eeSecret;
-import com.algomeet.opaqueservice.entity.UserE2eeSecretId;
+import com.algomeet.opaqueservice.entity.UserSecureStore;
+import com.algomeet.opaqueservice.entity.UserSecureStoreId;
 import com.algomeet.opaqueservice.enums.CredentialType;
 
-public interface UserE2eeSecretRepository extends JpaRepository<UserE2eeSecret, UserE2eeSecretId> {
+public interface UserE2eeSecretRepository extends JpaRepository<UserSecureStore, UserSecureStoreId> {
+	@Transactional(readOnly = true)
+    List<UserSecureStore> findByIdUserKey(UUID userKey);
 
-    List<UserE2eeSecret> findByUserKey(UUID userKey);
-
-    UserE2eeSecret findByUserKeyAndType(UUID userKey, CredentialType type);
+	@Transactional(readOnly = true)
+    UserSecureStore findByIdUserKeyAndIdType(UUID userKey, CredentialType type);
 }

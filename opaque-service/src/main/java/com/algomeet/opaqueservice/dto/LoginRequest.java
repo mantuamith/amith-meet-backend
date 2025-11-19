@@ -5,8 +5,10 @@ import com.algomeet.opaqueservice.enums.CredentialType;
 import lombok.Data;
 
 @Data
-public class UserSecretRequest {
+public class LoginRequest {
 	private CredentialType type;
-	private String clientRecord;	
-	private String secretKey;
+	/**
+	 * Client public key
+	 */
+	private String clientPublicKey;
 }

@@ -10,7 +10,9 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Embeddable;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import lombok.Data;
 
+@Data
 @Embeddable
 public class UserOpaqueCredentialId implements Serializable {
 
@@ -28,14 +30,6 @@ public class UserOpaqueCredentialId implements Serializable {
     public UserOpaqueCredentialId(UUID userKey, CredentialType type) {
         this.userKey = userKey;
         this.type = type;
-    }
-
-    public UUID getUserKey() {
-        return userKey;
-    }
-
-    public CredentialType getType() {
-        return type;
     }
 
     @Override

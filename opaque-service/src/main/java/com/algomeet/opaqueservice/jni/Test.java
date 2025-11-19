@@ -123,7 +123,7 @@ public class Test {
         System.out.println("rec=====" + Base64.getEncoder().encodeToString(rec));
         System.out.println("sec=====" + Base64.getEncoder().encodeToString(cresp.sec));
         
-        String rec2 = "5G7NzEnqC4CkFiK6yKalTqFaXymuLtNDhTjm8ypoWggAAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eH4g5TXQNDlZqwcOW+gHbC2987nsE/3yMufZcSXKY8EsPwAyxkHj00k8/gq3ZKTJbNJY0LEUVeQz3I66bJmycooSrLvd+Np7H2+i0FPHmfEKzv6zDp/Aaa016Sg6ScTjcr3FUJO8bKG5kZpt9hecWJ8ARoaW6ty9C0aQ5/e3hW4aY1XajCfTjA/nkeUMy1NF4pifacjqOT0eIO91nXPMFhPNFUH3MrSxoQwHfNHrC1Fo827xOsZrqc5Jlv3GxYpiXig==";
+        String rec2 = "XCBKw4IAC0NtIfOyZPPIjFhHiq8TC9iz0dJb/spC+AAAAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eH2rT2hM9ZIwOSAVvdsTj0Ood1/O0eswlrAQ5MaE7CaNk3OlrXhlE3PQSWH+mB3Bu9vXrS5bCccjuM0ouWJtVW+rChmm+Io4599RFnnxuFzrTTpkF9R9A0PMMwgaPZx/IUs5ha7aV2DhgoVYKOtl0Na4R55mBEgF7C3lKi2xRA4lYyiTVHLgwXbozAkP8mGZ3nFonM17ldJvx0M649kmeOI6HaiocuW/DYoDEPNFYhr57uwfyzOsQEcnwweaDZfa8GQ==";
         //OpaqueCreds creds = o.recoverCreds(cresp.pub, creq.sec, "context", ids);
         Opaque o2 = new Opaque();
 		OpaqueCredReq creq2 = o2.createCredReq("password");

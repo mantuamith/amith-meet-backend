@@ -15,7 +15,7 @@ public class UserOpaqueCredential {
     private UserOpaqueCredentialId id;
 
     @Lob
-    @Column(name = "rec", nullable = false, length = 255)
+    @Column(name = "rec", nullable = false, length = 512)
     private String rec;
 
     public UserOpaqueCredential() {}
