@@ -20,6 +20,7 @@ import com.algomeet.signalingservice.dto.UserOneTimeKeyResponse;
 import com.algomeet.signalingservice.entity.UserIdentityKey;
 import com.algomeet.signalingservice.entity.UserIdentityKeyId;
 import com.algomeet.signalingservice.entity.UserOneTimeKey;
+import com.algomeet.signalingservice.exceptions.DeviceIdAlreadyExistsException;
 import com.algomeet.signalingservice.exceptions.IdentityKeyAlreadyExistsException;
 import com.algomeet.signalingservice.exceptions.OneTimeKeyAlreadyExistsException;
 import com.algomeet.signalingservice.exceptions.OneTimeKeysReservedMaxLimitExceededException;
@@ -41,8 +42,8 @@ public class UserKeyService {
     private int reservedOneTimeKeysMaxLimit;
 
     public UserIdentityKeyResponse registerUserIdentity(UUID userKey, UserIdentityKeyRequest request) {
-    	if (userIdentityRepo.findById(new UserIdentityKeyId(userKey, request.getIdentityKey())).isPresent()) {    		
-    		throw new IdentityKeyAlreadyExistsException("User key and Identity key already exists");
+    	if (userIdentityRepo.findByIdUserKeyAndDeviceId(userKey, request.getDeviceId()).isPresent()) {    		
+    		throw new DeviceIdAlreadyExistsException("User key and device ID already exists");
     	}	    	
     	
         UserIdentityKey userIdentityKey = new UserIdentityKey();
@@ -77,9 +78,9 @@ public class UserKeyService {
                 .orElseThrow(() -> new RecordNotFoundException("User key not found"));
         
         // Check if reserved keys max limit did not exceed
-        List<UserOneTimeKey> allUserOnetimeKeys = oneTimeRepo.findByUserKey(userKey);         
-        if (allUserOnetimeKeys != null && allUserOnetimeKeys.size() > reservedOneTimeKeysMaxLimit) {
-        	throw new OneTimeKeysReservedMaxLimitExceededException("Number of user reserved one time keys max limit exceeded");
+        Integer count = oneTimeRepo.countByUserKeyAndIdentityKeyAndUsedFalse(userKey, identityKey);        
+        if (count != null && count > reservedOneTimeKeysMaxLimit) {
+        	throw new OneTimeKeysReservedMaxLimitExceededException("Number of user's reserved one time keys per device exceeded the max limit");
         }        
         
         List<UserOneTimeKey> onetimeKeys = new ArrayList<>();

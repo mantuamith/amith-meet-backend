@@ -24,6 +24,7 @@ import com.algomeet.signalingservice.dto.UserIdentityKeyResponse;
 import com.algomeet.signalingservice.dto.UserOneTimeKeyRequest;
 import com.algomeet.signalingservice.dto.UserOneTimeKeyResponse;
 import com.algomeet.signalingservice.enums.ResponseCode;
+import com.algomeet.signalingservice.exceptions.DeviceIdAlreadyExistsException;
 import com.algomeet.signalingservice.exceptions.IdentityKeyAlreadyExistsException;
 import com.algomeet.signalingservice.exceptions.NoUserOneTimeKeyIsAvailableException;
 import com.algomeet.signalingservice.exceptions.OneTimeKeyAlreadyExistsException;
@@ -72,8 +73,8 @@ public class UserKeyController implements UserKeyControllerDoc{
 			UserIdentityKeyResponse savedUserIdentityKey = keyService.registerUserIdentity(UUID.fromString(SecurityUtil.getUserKey()), request);
 			return ResponseEntity.ok(CommonResponse.from(ResponseCode.IDENTITY_KEY_REGISTER_SUCCESS, savedUserIdentityKey));
 
-		} catch(IdentityKeyAlreadyExistsException ex) {
-			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(CommonResponse.from(ResponseCode.IDENTITY_KEY_ALREADY_EXISTS));
+		} catch(DeviceIdAlreadyExistsException ex) {
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(CommonResponse.from(ResponseCode.DEVICE_ID_ALREADY_EXISTS));
 		}		
 	}
 	
