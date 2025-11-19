@@ -23,6 +23,6 @@ public class UserSecureStore {
     private String rec;
     
     @Lob
-    @Column(name = "secret_key", nullable = false, length = 512)
-    private String secretKey;    
+    @Column(name = "master_secret_key", nullable = false, length = 512)
+    private String masterSecretKey;    
 }

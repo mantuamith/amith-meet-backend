@@ -3,13 +3,12 @@ package com.algomeet.opaqueservice.jni;
 import java.nio.charset.Charset;
 import java.util.Base64;
 
-import com.algomeet.opaqueservice.dto.LoginResponse;
+import com.algomeet.opaqueservice.dto.UserCredentialResponse;
 import com.algomeet.opaqueservice.dto.RegistrationResponse;
-import com.algomeet.opaqueservice.dto.RetrieveUserSecretResponse;
-import com.algomeet.opaqueservice.dto.UserSecretResponse;
+import com.algomeet.opaqueservice.dto.RetrieveUserMasterSecretResponse;
+import com.algomeet.opaqueservice.dto.UserMasterSecretResponse;
 import com.algomeet.opaqueservice.enums.CredentialType;
 import com.algomeet.opaqueservice.jni.dto.OpaqueCredReq;
-import com.algomeet.opaqueservice.jni.dto.OpaqueCredResp;
 import com.algomeet.opaqueservice.jni.dto.OpaqueCreds;
 import com.algomeet.opaqueservice.jni.dto.OpaqueIds;
 import com.algomeet.opaqueservice.jni.dto.OpaquePreRecExpKey;
@@ -30,7 +29,7 @@ public class Demo {
         String clientRegMsgBase64 = Base64.getEncoder().encodeToString(regReq.M);
         
         // --- Call server /register ---
-        RegistrationResponse regResponse = client.register(clientRegMsgBase64, bearerToken);
+        RegistrationResponse regResponse = client.register(CredentialType.PIN, clientRegMsgBase64, bearerToken);
 
         System.out.println("Server PubKey = " + regResponse.getPublicKey());
         System.out.println("Server ID = " + regResponse.getServerId());
@@ -46,58 +45,42 @@ public class Demo {
         System.out.println("Record = " +  Base64.getEncoder().encodeToString(prerec.rec));
           
         // Save secret
-        UserSecretResponse saveResp = client.saveSecret(
+        UserMasterSecretResponse saveResp = client.saveSecret(
                 CredentialType.PIN,
                 clientRecordBase64,
-                regResponse.getServerSecretKey(),
                 Base64.getEncoder().encodeToString("my-secret".getBytes()),
                 bearerToken
         );
 
         System.out.println("Saved Secret = " + saveResp.getSecretKey());        
        
-        // Retrieve secret
-        
-     // Replace with your actual client public key in Base64
-       // export_key=====7UhrG7YmTbTyFiMehI+hDnNd2PP6G9KprYe+TTcyMT7glSw4pGzIwF+fs9pfe8e20dMhMQVTbf53/g8G0561Ug== 
-                
+        // Retrieve secret                
         Opaque opaqueRetriever = new Opaque();
         OpaqueCredReq credReq = opaqueRetriever.createCredReq("password");
         System.out.println("pub=====" + Base64.getEncoder().encodeToString(credReq.pub));
         
         String clientPubKeyBase64 = Base64.getEncoder().encodeToString(credReq.pub);   
         
-        LoginResponse loginResp = client.login(
+        UserCredentialResponse loginResp = client.secretCredential(
                 CredentialType.PIN,
                 clientPubKeyBase64,
                 bearerToken
         );
         
         System.out.println("loginResp.getServerId() = " + loginResp.getServerId());
-//        OpaqueIds ids = new OpaqueIds("2fc35cae-e0b7-40a5-b2aa-e86206730e99".getBytes(Charset.forName("UTF-8")),
-//        		loginResp.getServerId().getBytes(Charset.forName("UTF-8")));
         
         OpaqueCreds creds = opaqueRetriever.recoverCreds(Base64.getDecoder().decode(loginResp.getPublicKey()), credReq.sec, "context", ids);
         System.out.println("export_key=====" + Base64.getEncoder().encodeToString(creds.export_key));
         
-        RetrieveUserSecretResponse retrieveResp = client.retrieveSecret(
+        RetrieveUserMasterSecretResponse retrieveResp = client.retrieveSecret(
                 CredentialType.PIN,
                 Base64.getEncoder().encodeToString(creds.authU),
-                loginResp.getServerSecKey(),
                 bearerToken
         );
 
-        System.out.println("Retrieved Secret = " + retrieveResp.getSecretKey());
-        
-        
-        //QMxdo6DxkSFTxGhAXEQapbD9nRn2vgrw4Ilp7tMQf+QKp0YKUra9NDUogGNPH2AnQl4KVGQA2zd5/wNJqi8Spw==
-        //QMxdo6DxkSFTxGhAXEQapbD9nRn2vgrw4Ilp7tMQf+QKp0YKUra9NDUogGNPH2AnQl4KVGQA2zd5/wNJqi8Spw==
-        
-        // export_key=====6r1EmCwMbrZMHd1sC/dGucqyNMo6km9nMIiDgVM842ErD92cXEl3aaSFBLid7ukVjlrprTd/F5sP1TJgsvcmlA==
-        // sk=====SroW7d/zU3wD1eRgCF4zXscrUDzY4SGyKLO0aJIOyzxL7SAYxDJmzW5P2fv0kJFl/5hBODD9qrdU/1i4YpECPA==
+        System.out.println("Retrieved Secret = " + new String(Base64.getDecoder().decode(retrieveResp.getMasterSecretKey())));
+
         System.out.println("export_key=====" + Base64.getEncoder().encodeToString(creds.export_key));
         System.out.println("sk=====" + Base64.getEncoder().encodeToString(creds.sk));
-//        
-//        System.out.println(o2.userAuth(cresp2.sec, creds.authU));
     }
 }

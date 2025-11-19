@@ -10,7 +10,7 @@ import com.algomeet.opaqueservice.entity.UserSecureStore;
 import com.algomeet.opaqueservice.entity.UserSecureStoreId;
 import com.algomeet.opaqueservice.enums.CredentialType;
 
-public interface UserE2eeSecretRepository extends JpaRepository<UserSecureStore, UserSecureStoreId> {
+public interface UserSecureStoreRepository extends JpaRepository<UserSecureStore, UserSecureStoreId> {
 	@Transactional(readOnly = true)
     List<UserSecureStore> findByIdUserKey(UUID userKey);
 

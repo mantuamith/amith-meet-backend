@@ -10,14 +10,14 @@ import org.springframework.util.StringUtils;
 import com.algomeet.opaqueservice.entity.UserSecureStore;
 import com.algomeet.opaqueservice.entity.UserSecureStoreId;
 import com.algomeet.opaqueservice.enums.CredentialType;
-import com.algomeet.opaqueservice.repository.UserE2eeSecretRepository;
+import com.algomeet.opaqueservice.repository.UserSecureStoreRepository;
 
 @Service
 @Transactional
 public class UserSecureStoreService {
-	private final UserE2eeSecretRepository repository;
+	private final UserSecureStoreRepository repository;
 
-	public UserSecureStoreService(UserE2eeSecretRepository repository) {
+	public UserSecureStoreService(UserSecureStoreRepository repository) {
 		this.repository = repository;
 	}
 
@@ -38,15 +38,15 @@ public class UserSecureStoreService {
 	/**
 	 * Create or update secret
 	 */
-	public UserSecureStore save(UUID userKey, CredentialType type, String rec, String secretKey) {
+	public UserSecureStore save(UUID userKey, CredentialType type, String rec, String masterSecretKey) {
 		UserSecureStore existing =
 				repository.findByIdUserKeyAndIdType(userKey, type);
 
 		if (existing == null) {
-			existing = new UserSecureStore(new UserSecureStoreId(userKey, type), rec, secretKey);
+			existing = new UserSecureStore(new UserSecureStoreId(userKey, type), rec, masterSecretKey);
 		} else {
-			if(StringUtils.hasLength(secretKey)) {
-				existing.setSecretKey(secretKey);
+			if(StringUtils.hasLength(masterSecretKey)) {
+				existing.setMasterSecretKey(masterSecretKey);
 			}
 
 			if(StringUtils.hasLength(rec)) {
@@ -61,11 +61,11 @@ public class UserSecureStoreService {
 	 * Delete a single secret
 	 */
 	public void delete(UUID userKey, CredentialType type) {
-		UserSecureStore secret =
+		UserSecureStore masterSecret =
 				repository.findByIdUserKeyAndIdType(userKey, type);
 
-		if (secret != null) {
-			repository.delete(secret);
+		if (masterSecret != null) {
+			repository.delete(masterSecret);
 		}
 	}
 
@@ -73,7 +73,7 @@ public class UserSecureStoreService {
 	 * Delete all secrets for a user
 	 */
 	public void deleteAll(UUID userKey) {
-		List<UserSecureStore> secrets = repository.findByIdUserKey(userKey);
-		repository.deleteAll(secrets);
+		List<UserSecureStore> massterSecrets = repository.findByIdUserKey(userKey);
+		repository.deleteAll(massterSecrets);
 	}
 }

@@ -9,6 +9,5 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class RegistrationResponse {
 	private String publicKey;
-	private String serverSecretKey;
 	private String serverId;
 }

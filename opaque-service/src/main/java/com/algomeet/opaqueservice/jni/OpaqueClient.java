@@ -9,16 +9,14 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.RestTemplate;
 
 import com.algomeet.opaqueservice.dto.CommonResponse;
-import com.algomeet.opaqueservice.dto.FinalizeRegistrationRequest;
-import com.algomeet.opaqueservice.dto.FinalizeRegistrationResponse;
-import com.algomeet.opaqueservice.dto.LoginRequest;
-import com.algomeet.opaqueservice.dto.LoginResponse;
 import com.algomeet.opaqueservice.dto.RegistrationRequest;
 import com.algomeet.opaqueservice.dto.RegistrationResponse;
-import com.algomeet.opaqueservice.dto.RetrieveUserSecretRequest;
-import com.algomeet.opaqueservice.dto.RetrieveUserSecretResponse;
-import com.algomeet.opaqueservice.dto.UserSecretRequest;
-import com.algomeet.opaqueservice.dto.UserSecretResponse;
+import com.algomeet.opaqueservice.dto.RetrieveUserMasterSecretRequest;
+import com.algomeet.opaqueservice.dto.RetrieveUserMasterSecretResponse;
+import com.algomeet.opaqueservice.dto.UserCredentialRequest;
+import com.algomeet.opaqueservice.dto.UserCredentialResponse;
+import com.algomeet.opaqueservice.dto.UserMasterSecretRequest;
+import com.algomeet.opaqueservice.dto.UserMasterSecretResponse;
 import com.algomeet.opaqueservice.enums.CredentialType;
 
 public class OpaqueClient {
@@ -35,10 +33,12 @@ public class OpaqueClient {
      * Step 1: Send OPAQUE client registration message
      */
     public RegistrationResponse register(
+    		CredentialType type,
             String clientRegMsgBase64,
             String bearerToken) {
 
         RegistrationRequest req = new RegistrationRequest();
+        req.setType(type);
         req.setClientRegistrationMessage(clientRegMsgBase64);
 
         HttpHeaders headers = new HttpHeaders();
@@ -69,52 +69,50 @@ public class OpaqueClient {
     /**
      * Save user E2EE secret.
      */
-    public UserSecretResponse saveSecret(
+    public UserMasterSecretResponse saveSecret(
             CredentialType type,
             String rec,
-            String serverSecretKey,
             String secretKey,
             String bearerToken) {
 
-        UserSecretRequest req = new UserSecretRequest();
+        UserMasterSecretRequest req = new UserMasterSecretRequest();
         req.setType(type);
         req.setClientRecord(rec);
-        req.setSecretKey(secretKey);
-        req.setServerSecretKey(serverSecretKey);
+        req.setMasterSecretKey(secretKey);
 
-        HttpEntity<UserSecretRequest> entity = new HttpEntity<>(req, getHeaders(bearerToken));
+        HttpEntity<UserMasterSecretRequest> entity = new HttpEntity<>(req, getHeaders(bearerToken));
 
-        ResponseEntity<CommonResponse<UserSecretResponse>> resp =
+        ResponseEntity<CommonResponse<UserMasterSecretResponse>> resp =
                 rest.exchange(
-                        baseUrl + "/user/secret/store",
+                        baseUrl + "/user/master-secret/store",
                         HttpMethod.POST,
                         entity,
-                        new ParameterizedTypeReference<CommonResponse<UserSecretResponse>>() {}
+                        new ParameterizedTypeReference<CommonResponse<UserMasterSecretResponse>>() {}
                 );
 
         return resp.getBody().getData();
     }
     
     /**
-     * Call /login endpoint
+     * Call /user/secret/credential endpoint
      */
-    public LoginResponse login(
+    public UserCredentialResponse secretCredential(
             CredentialType type,
             String clientPublicKeyBase64,
             String bearerToken) {
 
-        LoginRequest req = new LoginRequest();
+        UserCredentialRequest req = new UserCredentialRequest();
         req.setType(type);
         req.setClientPublicKey(clientPublicKeyBase64);
 
-        HttpEntity<LoginRequest> entity = new HttpEntity<>(req, getHeaders(bearerToken));
+        HttpEntity<UserCredentialRequest> entity = new HttpEntity<>(req, getHeaders(bearerToken));
 
-        ResponseEntity<CommonResponse<LoginResponse>> resp =
+        ResponseEntity<CommonResponse<UserCredentialResponse>> resp =
                 rest.exchange(
-                        baseUrl + "/login",
+                        baseUrl + "/user/master-secret/credential",
                         HttpMethod.POST,
                         entity,
-                        new ParameterizedTypeReference<CommonResponse<LoginResponse>>() {}
+                        new ParameterizedTypeReference<CommonResponse<UserCredentialResponse>>() {}
                 );
 
         return resp.getBody().getData();
@@ -123,26 +121,24 @@ public class OpaqueClient {
     /**
      * Retrieve user E2EE secret (OPAQUE-based retrieval).
      */
-    public RetrieveUserSecretResponse retrieveSecret(
+    public RetrieveUserMasterSecretResponse retrieveSecret(
             CredentialType type,
             String clientAuthBase64,
-            String serverSecretKeyBase64,
             String bearerToken) {
 
-        RetrieveUserSecretRequest req = new RetrieveUserSecretRequest();
+        RetrieveUserMasterSecretRequest req = new RetrieveUserMasterSecretRequest();
         req.setType(type);
         req.setClientAuth(clientAuthBase64);
-        req.setServerSecKey(serverSecretKeyBase64);
 
-        HttpEntity<RetrieveUserSecretRequest> entity =
+        HttpEntity<RetrieveUserMasterSecretRequest> entity =
                 new HttpEntity<>(req, getHeaders(bearerToken));
 
-        ResponseEntity<CommonResponse<RetrieveUserSecretResponse>> resp =
+        ResponseEntity<CommonResponse<RetrieveUserMasterSecretResponse>> resp =
                 rest.exchange(
-                        baseUrl + "/user/secret/retrieve",
+                        baseUrl + "/user/master-secret/retrieve",
                         HttpMethod.POST,
                         entity,
-                        new ParameterizedTypeReference<CommonResponse<RetrieveUserSecretResponse>>() {}
+                        new ParameterizedTypeReference<CommonResponse<RetrieveUserMasterSecretResponse>>() {}
                 );
 
         return resp.getBody().getData();

@@ -16,7 +16,6 @@ import com.algomeet.opaqueservice.jni.dto.OpaqueRegReq;
 import com.algomeet.opaqueservice.jni.dto.OpaqueRegResp;
 
 @Component
-@Scope(value = WebApplicationContext.SCOPE_REQUEST)
 public class Opaque {
 	static {
 		try {

@@ -7,11 +7,13 @@ import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 @Data
-public class RegistrationRequest { 
+public class UserMasterSecretRequest {
 	@NotNull
 	private CredentialType type;
 	
 	@NotEmpty
-	private String clientRegistrationMessage;	
-}
+	private String clientRecord;
 
+	@NotEmpty
+	private String masterSecretKey;
+}
