@@ -53,6 +53,7 @@ public class UserProfile {
 
     private Instant registrationDate;
     
+    @Column(length = 8)
     private String passcode;
     
     private Boolean securityQuestionsEnabled;

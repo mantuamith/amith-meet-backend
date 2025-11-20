@@ -7,7 +7,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
 
 import com.algomeet.notificationservice.consumer.processor.PushNotificationProcessor;
-import com.algomeet.notificationservice.dto.PublishPushMessage;
+import com.algomeet.notificationservice.dto.PublishPushMessageDto;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import lombok.extern.slf4j.Slf4j;
@@ -20,7 +20,7 @@ public class PushMessageSubscriber {
 	
     public void onMessage(String message, String channel) {
     	log.info("Received: {}", message);
-    	PublishPushMessage PublishPushMessage = convertToObject(message, PublishPushMessage.class);
+    	PublishPushMessageDto PublishPushMessage = convertToObject(message, PublishPushMessageDto.class);
     	if(Objects.isNull(PublishPushMessage)) {
     		return;
     	}

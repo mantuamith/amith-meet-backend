@@ -5,22 +5,27 @@ import org.springframework.web.socket.config.annotation.EnableWebSocket;
 import org.springframework.web.socket.config.annotation.WebSocketConfigurer;
 import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry;
 
-import com.algomeet.notificationservice.websocket.NotificationWebSocketHandler;
+import com.algomeet.notificationservice.websocket.handler.AuthHandshakeInterceptor;
+import com.algomeet.notificationservice.websocket.handler.AuthInfoHandshakeHandler;
+import com.algomeet.notificationservice.websocket.handler.TextWebsocketHandler;
 
+import lombok.AllArgsConstructor;
+
+@AllArgsConstructor
 @Configuration
 @EnableWebSocket
 public class WebSocketConfig implements WebSocketConfigurer {
 
-    private final NotificationWebSocketHandler notificationWebSocketHandler;
-
-    public WebSocketConfig(NotificationWebSocketHandler notificationWebSocketHandler) {
-        this.notificationWebSocketHandler = notificationWebSocketHandler;
-    }
+    private final TextWebsocketHandler textWebsocketHandler;    
+    private final AuthInfoHandshakeHandler handshakeHandler;
+    private final AuthHandshakeInterceptor authHandshakeInterceptor;
     
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
     	registry
-    	.addHandler(notificationWebSocketHandler, "/notifications/subscribe")    	
-    	.setAllowedOriginPatterns("*"); 	
-    }
+    	.addHandler(textWebsocketHandler, "/notifications/subscribe")  
+    	.addInterceptors(authHandshakeInterceptor)
+    	.setHandshakeHandler(handshakeHandler)    	
+    	.setAllowedOriginPatterns("*"); 	    	
+    }   
 }

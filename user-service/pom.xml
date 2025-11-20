@@ -21,6 +21,7 @@
     <java.version>17</java.version>
     <maven.compiler.source>${java.version}</maven.compiler.source>
     <maven.compiler.target>${java.version}</maven.compiler.target>
+    <skywalking.version>8.12.0</skywalking.version>
   </properties>
   <repositories>
     <repository>
@@ -110,11 +111,31 @@
       <scope>provided</scope>
     </dependency>
     
+    <dependency>
+	  <groupId>net.logstash.logback</groupId>
+	  <artifactId>logstash-logback-encoder</artifactId>
+	  <version>7.4</version> <!-- or latest stable -->
+    </dependency>
+    <dependency>
+	  <groupId>org.apache.skywalking</groupId>
+	  <artifactId>apm-toolkit-trace</artifactId>
+	  <version>${skywalking.version}</version>
+    </dependency>
+    <dependency>
+	  <groupId>org.apache.skywalking</groupId>
+	  <artifactId>apm-toolkit-logback-1.x</artifactId>
+      <version>${skywalking.version}</version>
+    </dependency>
+    
     <!-- Add Multi-tenancy library -->
     <dependency>
 	   <groupId>com.algomeet</groupId>
 	   <artifactId>multi-tenancy-core</artifactId>
-	   <version>0.1.3</version>
+	   <version>0.1.4</version>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-data-redis</artifactId>
     </dependency>
   </dependencies>
 

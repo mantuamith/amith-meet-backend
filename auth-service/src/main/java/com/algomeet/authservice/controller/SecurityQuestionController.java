@@ -3,8 +3,10 @@ package com.algomeet.authservice.controller;
 import java.util.List;
 import java.util.Objects;
 
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -14,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.algomeet.authservice.controller.swagger.SecurityQuestionControllerDoc;
 import com.algomeet.authservice.dto.CommonResponse;
 import com.algomeet.authservice.dto.SecurityQuestionRequest;
 import com.algomeet.authservice.dto.SecurityQuestionResponse;
@@ -28,12 +31,14 @@ import lombok.RequiredArgsConstructor;
 @Data
 @RestController
 @RequestMapping("/auth/security-questions")
-public class SecurityQuestionController {
+@SecurityRequirement(name = "bearerAuth")
+public class SecurityQuestionController implements SecurityQuestionControllerDoc{
 
 	private final SecurityQuestionService securityQuestionService;
 	
     // Create
     @PostMapping
+    @PreAuthorize("hasAnyRole('SA','ADMIN')")
     public ResponseEntity<CommonResponse<SecurityQuestionResponse>> create(@Valid @RequestBody SecurityQuestionRequest request) {
     	if(Objects.nonNull(securityQuestionService.getById(request.getId()))) {
     		// Id exist
@@ -61,6 +66,7 @@ public class SecurityQuestionController {
 
 
     // Update (PUT = full replace)
+    @PreAuthorize("hasAnyRole('SA','ADMIN')")
     @PutMapping("/{id}")
     public ResponseEntity<CommonResponse<SecurityQuestionResponse>> update(
             @PathVariable String id,

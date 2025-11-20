@@ -11,23 +11,23 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.socket.messaging.*;
 
 import com.algomeet.chatservice.service.UserSessionService;
+import com.algomeet.chatservice.constant.Constants;
+import com.algomeet.chatservice.service.GroupSessionMessageService;
 import com.algomeet.chatservice.service.MessageService;
 
+import lombok.AllArgsConstructor;
 import lombok.RequiredArgsConstructor;
 
 
 @Component
 @Slf4j
+@AllArgsConstructor
 public class WebSocketEventListener {
 
-    private  final UserSessionService userSessionService;
-    private  final MessageService messageService;
-
-    public WebSocketEventListener(UserSessionService userSessionService, MessageService messageService) {
-               this.userSessionService = userSessionService;
-                this.messageService = messageService;
-    }
-
+    private final UserSessionService userSessionService;
+    private final MessageService messageService;
+    private final GroupSessionMessageService groupSessionMessageService;
+    
     @EventListener
     public void handleWebSocketConnectListener(SessionConnectEvent event) {
         StompHeaderAccessor accessor = StompHeaderAccessor.wrap(event.getMessage());
@@ -70,6 +70,15 @@ public class WebSocketEventListener {
     public void handleWebSocketSubscribeListener(SessionSubscribeEvent event) {
         StompHeaderAccessor accessor = StompHeaderAccessor.wrap(event.getMessage());
         log.info("[WS SUBSCRIBE] Session ID: {}, Destination: {}", accessor.getSessionId(), accessor.getDestination());
+        
+        if (Constants.DESTINATION_KEYS_GROUP_SHARE.equalsIgnoreCase(accessor.getDestination())) {
+			try {
+				// Deliver all pending group session messages
+				groupSessionMessageService.deliverAllPendingTo(event.getUser().getName());
+			} catch (Exception ex) {
+				log.warn("[WS CONNECTED] group message session auto-deliver failed for user={}: {}", event.getUser().getName(), ex.getMessage());
+			}
+		}
     }
 
     @EventListener

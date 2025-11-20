@@ -1,14 +1,10 @@
 package com.algomeet.notificationservice.constant;
 
-public class Constants {
-	
-	public final static String SESSION_ATTR_TIME_CONNECTED = "time-connected";
-	public final static String SESSION_ATTR_USER_KEY = "user-key";
-	public final static String SESSION_ATTR_TENANT_ID = "tenant-id";
-	public final static String SESSION_ATTR_DEVICE_TOKEN = "device-token";
+public class Constants {	
 	
 	public static final String TOKEN_PREFIX = "Bearer";
-	public static final String AUTHORIZATION_TOKEN = "Authorization";
+	public static final String AUTHORIZATION = "Authorization";
+	public static final String SEC_WEBSOCKET_PROTOCOL = "Sec-WebSocket-Protocol";
 	
 	public static final String MULTIPLE_RECEIVER_ID_DELIMITER = ";";	
 	

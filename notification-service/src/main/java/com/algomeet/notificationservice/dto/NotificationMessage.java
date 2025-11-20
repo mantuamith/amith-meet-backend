@@ -2,6 +2,8 @@ package com.algomeet.notificationservice.dto;
 
 import java.util.Map;
 
+import com.algomeet.notificationservice.enums.MessageType;
+
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -9,7 +11,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 @Data
-public class NotificationMessage {
+public class NotificationMessage extends ExchangeMessage{
     private String title;
     private String body;
 
@@ -23,4 +25,9 @@ public class NotificationMessage {
     	
     	return notif;
     }
+
+    @Override
+	public MessageType getType() {
+		return MessageType.NOTIFICATION;
+	}
 }

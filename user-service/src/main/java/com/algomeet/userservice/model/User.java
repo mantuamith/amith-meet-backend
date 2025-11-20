@@ -27,6 +27,9 @@ public class User {
     @Column(unique = true, nullable = false)
     private String username;
 
+    @Column(name = "personal_room_id", length = 32)
+    private String personalRoomId;
+
     @Column(nullable = false)
     private String password;
 
@@ -90,6 +93,12 @@ public class User {
     
     @Column(name = "tenant_id", nullable = false, columnDefinition = "int default 0")
     private Integer tenantId = 0;
+    
+    /**
+     * User preferred language
+     */
+    @Column(name = "lang", length = 5, nullable = false, columnDefinition = "VARCHAR(5) DEFAULT 'en'")
+    private String lang;
 
     @PrePersist @PreUpdate
     void normalize() {

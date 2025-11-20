@@ -51,3 +51,18 @@ logging:
     root: INFO
     com.algomeet.meetservice.controller: ${MEETING_LOG_LEVEL}
     com.algomeet.meetservice.service: ${MEETING_LOG_LEVEL}
+
+algomeet:
+  jwt:
+    app-id: algomeet               # -> aud
+    issuer: algomeet               # -> iss
+    sub: meet.algoframe.in         # -> sub (your Algomeet)
+    secret-base64: ${ALGOMEET_JWT_SECRET_BASE64}
+    ttl-seconds: 300
+
+feign:
+  client:
+    control-service:
+      url: http://control-service:8090
+    user-service:
+      url: http://user-service:8082

@@ -17,6 +17,8 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
+
 @Service
 @RequiredArgsConstructor
 public class MessageActionService {
@@ -80,6 +82,8 @@ public class MessageActionService {
         reply.setSenderKey(senderKey);
         reply.setContent(req.getContent());
         reply.setStatus(MessageStatus.SENT);
+        reply.setClientMessageId(req.getClientMessageId());
+        reply.setTimestamp( Instant.ofEpochSecond(req.getMsgReplyTimeStamp()));
         if (req.getGroupId() != null && !req.getGroupId().isBlank()) {
             reply.setGroupId(req.getGroupId());
         } else {
@@ -101,6 +105,8 @@ public class MessageActionService {
         if (original == null) return null;
 
         MessageDocument fwd = new MessageDocument();
+        fwd.setTimestamp(Instant.ofEpochSecond(req.getMsgForwardTimeStamp()));
+        fwd.setClientMessageId(req.getClientMessageId());
         fwd.setSender(sender);
         fwd.setSenderKey(senderKey);
         fwd.setContent(original.getContent());
@@ -118,7 +124,7 @@ public class MessageActionService {
         fi.setForwarded(true);
         fi.setOriginalFrom(original.getSender());
         fi.setOriginalMessageId(original.getId());
-        fi.setForwardedAt(System.currentTimeMillis());
+        fi.setForwardedAt(req.getMsgForwardTimeStamp());
         fwd.setForwarded(fi);
 
         MessageDocument saved = messageRepository.save(fwd);

@@ -1,8 +1,9 @@
 package com.algomeet.chatservice.mapper;
 
+import org.springframework.stereotype.Component;
+
 import com.algomeet.chatservice.document.MessageDocument;
 import com.algomeet.chatservice.document.MessageResponse;
-import org.springframework.stereotype.Component;
 
 @Component
 public class MessageMapper {
@@ -14,7 +15,7 @@ public class MessageMapper {
                 .to(document.getReceiver())
                 .fromKey(document.getSenderKey())          // NEW
                 .toKey(document.getReceiverKey())          // NEW
-                .timestamp(document.getTimestamp() != null ? document.getTimestamp().toEpochMilli() : null)
+                .timestamp(document.getTimestamp() != null ? document.getTimestamp().toEpochMilli()/1000 : null)
                 .type(document.getType())
                 .clientMessageId(document.getClientMessageId())
                 .status(document.getStatus())
@@ -24,6 +25,9 @@ public class MessageMapper {
                 .failedRecipients(document.getFailedRecipients())
                 .forwarded(document.getForwarded())
                 .replyContent(document.getReplyContent())
+                .encryptionMetadata(document.getEncryptionMetadata())
+                .msgReadTimeStamp(document.getMsgReadTimeStamp())
+                .msgDeliveredTimeStamp(document.getMsgDeliveredTimeStamp())
                 .build();
     }
 }

@@ -6,6 +6,7 @@ import com.algomeet.chatservice.dto.messageactions.ForwardRequest;
 import com.algomeet.chatservice.dto.messageactions.ReplyRequest;
 import com.algomeet.chatservice.mapper.MessageMapper;
 import com.algomeet.chatservice.repository.MessageRepository;
+import com.algomeet.chatservice.sync.messaging.SimpMessagingSyncTemplate;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.*;
@@ -14,9 +15,9 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.data.mongodb.core.query.UpdateDefinition;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 
-import java.util.List;
+
+
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -28,7 +29,7 @@ class MessageActionServiceTest {
     @Mock private MessageRepository repo;
     @Mock private MongoTemplate mongo;
     @Mock private MessageService messageService; // for unread counters
-    @Mock private SimpMessagingTemplate simp;
+    @Mock private SimpMessagingSyncTemplate simp;
     @Mock private GroupClient groupClient;
     @Mock private MessageMapper mapper;
 
