@@ -8,6 +8,6 @@ public class BaseController {
 
     @GetMapping("/health")
     public String healthCheck() {
-        return "signaling-service is running.";
+        return "Opaque-service is running.";
     }
 }

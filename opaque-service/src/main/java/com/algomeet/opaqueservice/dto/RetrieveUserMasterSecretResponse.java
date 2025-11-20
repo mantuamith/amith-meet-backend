@@ -13,4 +13,8 @@ public class RetrieveUserMasterSecretResponse {
 	private UUID userKey;
 	private CredentialType type;
 	private String masterSecretKey;
+	
+    private String algorithm;    
+    private String version;
+    private String salt;
 }

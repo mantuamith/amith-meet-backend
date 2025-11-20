@@ -5,8 +5,9 @@ import com.algomeet.opaqueservice.util.MessageUtil;
 public enum ResponseCode {
 	AUTH_SESSION_REVOKED("AUTH_SESSION_REVOKED", "auth.session.revoked"),
     SUCCESS("SUCCESS", "success"),
-    SECRET_KEY_NOT_FOUND("SECRET_KEY_NOT_FOUND", "secret.key.not-found"),
-    SECRET_KEY_FORBIDDEN_ACCESS("SECRET_KEY_FORBIDDEN_ACCESS", "secret.key.forbidden-access");
+    MASTER_SECRET_KEY_NOT_FOUND("MASTER_SECRET_KEY_NOT_FOUND", "master-secret-key.not-found"),
+    MASTER_SECRET_KEY_ALRREADY_EXISTS("MASTER_SECRET_KEY_ALRREADY_EXISTS", "master-secret-key.already-exists"),
+    MASTER_SECRET_KEY_FORBIDDEN_ACCESS("MASTER_SECRET_KEY_FORBIDDEN_ACCESS", "master-secret-key.forbidden-access");
 	
     private final String code;
     private final String message;

@@ -24,5 +24,17 @@ public class UserSecureStore {
     
     @Lob
     @Column(name = "master_secret_key", nullable = false, length = 512)
-    private String masterSecretKey;    
+    private String masterSecretKey;   
+    
+	/** Algorithm name, e.g. "AES/GCM/NoPadding" or "AES-CBC". */
+    @Column(length = 32)
+    private String algorithm;
+    
+    /** Encryption algorithm version (for compatibility, e.g. "v1", "v2"). */
+    @Column(length = 10)
+    private String version;
+
+    /** Base64-encoded salt value for key derivation (optional but recommended). */
+    @Column(length = 88)
+    private String salt;
 }

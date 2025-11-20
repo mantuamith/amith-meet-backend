@@ -11,6 +11,7 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -83,38 +84,56 @@ class OpaqueController {
 	}
 
 	@PostMapping("/user/master-secret/store")
-	public ResponseEntity<CommonResponse<UserMasterSecretResponse>> saveSecret(@RequestBody UserMasterSecretRequest req) {
+	public ResponseEntity<CommonResponse<UserMasterSecretResponse>> saveMasterSecret(@RequestBody UserMasterSecretRequest req) {
 		UUID userKey = UUID.fromString(SecurityUtil.getUserKey());	
 
+		// Validate if master secret with same type already exist
+		if (userSecureStoreService.getMasterSecret(userKey, req.getType()) != null){
+			return ResponseEntity.status(HttpStatus.CONFLICT).body(
+					CommonResponse.from(ResponseCode.MASTER_SECRET_KEY_ALRREADY_EXISTS)); 	
+		}
+		
 		String key = OpaqueRedisKeysUtil.getRegisterServerSecKey(userKey.toString(), req.getType());
 
 		byte[] rec = opaque.storeRec(
 				Base64.getDecoder().decode(redisTemplate.opsForValue().get(key)), 
-				Base64.getDecoder().decode(req.getClientRecord()));
+				Base64.getDecoder().decode(req.getRecord()));
 
-		UserSecureStore userSecureStore = userSecureStoreService.save(userKey, req.getType(), 
-				Base64.getEncoder().encodeToString(rec), 
-				req.getMasterSecretKey());
+		UserSecureStore userSecureStore = userSecureStoreService.save(userKey, Base64.getEncoder().encodeToString(rec), req);
 
 		if (userSecureStore == null) {
-			throw new RuntimeException("Error saving secret key");
+			throw new RuntimeException("Error saving master secret key");
 		}
 
-		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, UserMasterSecretResponse.builder()
-				.userKey(userSecureStore.getId().getUserKey())
-				.type(userSecureStore.getId().getType())
-				.secretKey(userSecureStore.getMasterSecretKey())			
-				.build())); 
+		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, mapTo(userSecureStore))); 
+	}	
+	
+	@PutMapping("/user/master-secret/store")
+	public ResponseEntity<CommonResponse<UserMasterSecretResponse>> updateMasterSecret(@RequestBody UserMasterSecretRequest req) {
+		UUID userKey = UUID.fromString(SecurityUtil.getUserKey());		
+		String key = OpaqueRedisKeysUtil.getRegisterServerSecKey(userKey.toString(), req.getType());
+
+		byte[] rec = opaque.storeRec(
+				Base64.getDecoder().decode(redisTemplate.opsForValue().get(key)), 
+				Base64.getDecoder().decode(req.getRecord()));
+
+		UserSecureStore userSecureStore = userSecureStoreService.save(userKey, Base64.getEncoder().encodeToString(rec), req);
+
+		if (userSecureStore == null) {
+			throw new RuntimeException("Error updating master secret key");
+		}
+
+		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, mapTo(userSecureStore))); 
 	}	
 
-	@PostMapping("/user/master-secret/credential")
-	public ResponseEntity<CommonResponse<UserCredentialResponse>> athen(@RequestBody UserCredentialRequest req) {
+	@PostMapping("/user/master-secret/credential/exchange")
+	public ResponseEntity<CommonResponse<UserCredentialResponse>> exchangeMasterSecCredential(@RequestBody UserCredentialRequest req) {
 		UUID userKey = UUID.fromString(SecurityUtil.getUserKey());
 
-		UserSecureStore userSecureStore = userSecureStoreService.getSecret(userKey, req.getType());
+		UserSecureStore userSecureStore = userSecureStoreService.getMasterSecret(userKey, req.getType());
 		if (userSecureStore == null) {
 			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
-					CommonResponse.from(ResponseCode.SECRET_KEY_NOT_FOUND)); 
+					CommonResponse.from(ResponseCode.MASTER_SECRET_KEY_NOT_FOUND)); 
 		} 
 
 		OpaqueIds ids = new OpaqueIds(userKey.toString().getBytes(Charset.forName("UTF-8")),
@@ -141,10 +160,10 @@ class OpaqueController {
 
 		String key = OpaqueRedisKeysUtil.getSecretCredentialServerSecKey(userKey.toString(), req.getType());
 
-		UserSecureStore userSecureStore = userSecureStoreService.getSecret(userKey, req.getType());
+		UserSecureStore userSecureStore = userSecureStoreService.getMasterSecret(userKey, req.getType());
 		if (userSecureStore == null) {
 			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
-					CommonResponse.from(ResponseCode.SECRET_KEY_NOT_FOUND)); 
+					CommonResponse.from(ResponseCode.MASTER_SECRET_KEY_NOT_FOUND)); 
 		} 
 
 		if (opaque.userAuth(Base64.getDecoder().decode(redisTemplate.opsForValue().get(key)), 
@@ -154,12 +173,27 @@ class OpaqueController {
 					.userKey(userSecureStore.getId().getUserKey())
 					.type(userSecureStore.getId().getType())
 					.masterSecretKey(userSecureStore.getMasterSecretKey())
+					.algorithm(userSecureStore.getAlgorithm())
+					.version(userSecureStore.getVersion())
+					.salt(userSecureStore.getSalt())
 					.build();
 
 			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, resp)); 
 		}				
 
 		return ResponseEntity.status(HttpStatus.FORBIDDEN).body(
-				CommonResponse.from(ResponseCode.SECRET_KEY_FORBIDDEN_ACCESS)); 	
-	}		
+				CommonResponse.from(ResponseCode.MASTER_SECRET_KEY_FORBIDDEN_ACCESS)); 	
+	}	
+	
+	
+	public UserMasterSecretResponse mapTo(UserSecureStore userSecureStore) {
+		return UserMasterSecretResponse.builder()
+		.userKey(userSecureStore.getId().getUserKey())
+		.type(userSecureStore.getId().getType())
+		.masterSecretKey(userSecureStore.getMasterSecretKey())	
+		.algorithm(userSecureStore.getAlgorithm())
+		.version(userSecureStore.getVersion())
+		.salt(userSecureStore.getSalt())
+		.build();
+	}
 }

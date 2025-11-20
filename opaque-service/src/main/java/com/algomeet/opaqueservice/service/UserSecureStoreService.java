@@ -1,5 +1,6 @@
 package com.algomeet.opaqueservice.service;
 
+import java.util.Base64;
 import java.util.List;
 import java.util.UUID;
 
@@ -7,6 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import com.algomeet.opaqueservice.dto.UserMasterSecretRequest;
 import com.algomeet.opaqueservice.entity.UserSecureStore;
 import com.algomeet.opaqueservice.entity.UserSecureStoreId;
 import com.algomeet.opaqueservice.enums.CredentialType;
@@ -24,7 +26,7 @@ public class UserSecureStoreService {
 	/**
 	 * Get one E2EE secret by userKey + type
 	 */
-	public UserSecureStore getSecret(UUID userKey, CredentialType type) {
+	public UserSecureStore getMasterSecret(UUID userKey, CredentialType type) {
 		return repository.findByIdUserKeyAndIdType(userKey, type);
 	}
 
@@ -38,19 +40,38 @@ public class UserSecureStoreService {
 	/**
 	 * Create or update secret
 	 */
-	public UserSecureStore save(UUID userKey, CredentialType type, String rec, String masterSecretKey) {
+	public UserSecureStore save(UUID userKey, String rec, UserMasterSecretRequest req) {
 		UserSecureStore existing =
-				repository.findByIdUserKeyAndIdType(userKey, type);
+				repository.findByIdUserKeyAndIdType(userKey, req.getType());
 
 		if (existing == null) {
-			existing = new UserSecureStore(new UserSecureStoreId(userKey, type), rec, masterSecretKey);
+			existing = new UserSecureStore(
+					new UserSecureStoreId(userKey, req.getType()), 
+					rec, 
+					req.getMasterSecretKey(),
+					req.getAlgorithm(),
+					req.getVersion(),
+					req.getSalt()
+					);
 		} else {
-			if(StringUtils.hasLength(masterSecretKey)) {
-				existing.setMasterSecretKey(masterSecretKey);
+			if(StringUtils.hasLength(req.getMasterSecretKey())) {
+				existing.setMasterSecretKey(req.getMasterSecretKey());
 			}
 
 			if(StringUtils.hasLength(rec)) {
 				existing.setRec(rec);
+			}
+			
+			if(StringUtils.hasLength(req.getAlgorithm())) {
+				existing.setAlgorithm(req.getAlgorithm());
+			}
+			
+			if(StringUtils.hasLength(req.getVersion())) {
+				existing.setVersion(req.getVersion());
+			}
+			
+			if(StringUtils.hasLength(req.getSalt())) {
+				existing.setSalt(req.getSalt());
 			}
 		}
 

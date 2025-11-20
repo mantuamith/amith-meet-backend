@@ -72,13 +72,19 @@ public class OpaqueClient {
     public UserMasterSecretResponse saveSecret(
             CredentialType type,
             String rec,
-            String secretKey,
+            String masterSecretKey,
+            String algorithm,
+            String version,
+            String salt,
             String bearerToken) {
 
         UserMasterSecretRequest req = new UserMasterSecretRequest();
         req.setType(type);
-        req.setClientRecord(rec);
-        req.setMasterSecretKey(secretKey);
+        req.setRecord(rec);
+        req.setMasterSecretKey(masterSecretKey);
+        req.setAlgorithm(algorithm);
+        req.setVersion(version);
+        req.setSalt(salt);
 
         HttpEntity<UserMasterSecretRequest> entity = new HttpEntity<>(req, getHeaders(bearerToken));
 
@@ -94,9 +100,9 @@ public class OpaqueClient {
     }
     
     /**
-     * Call /user/secret/credential endpoint
+     * Call /user/master-secret/credential/exchange endpoint
      */
-    public UserCredentialResponse masterSecretCredential(
+    public UserCredentialResponse exchangeMasterSecretCredential(
             CredentialType type,
             String clientPublicKeyBase64,
             String bearerToken) {
@@ -109,7 +115,7 @@ public class OpaqueClient {
 
         ResponseEntity<CommonResponse<UserCredentialResponse>> resp =
                 rest.exchange(
-                        baseUrl + "/user/master-secret/credential",
+                        baseUrl + "/user/master-secret/credential/exchange",
                         HttpMethod.POST,
                         entity,
                         new ParameterizedTypeReference<CommonResponse<UserCredentialResponse>>() {}
