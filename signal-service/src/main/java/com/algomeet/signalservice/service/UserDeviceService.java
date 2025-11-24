@@ -10,10 +10,16 @@ import org.springframework.util.StringUtils;
 
 import com.algomeet.signalservice.dto.UserDeviceRequest;
 import com.algomeet.signalservice.dto.UserDeviceResponse;
+import com.algomeet.signalservice.entity.KyberPreKey;
+import com.algomeet.signalservice.entity.SignedPreKey;
 import com.algomeet.signalservice.entity.UserDevice;
 import com.algomeet.signalservice.entity.UserDeviceId;
 import com.algomeet.signalservice.exceptions.RecordNotFoundException;
+import com.algomeet.signalservice.mapper.KyberPreKeyMapper;
+import com.algomeet.signalservice.mapper.SignedPreKeyMapper;
 import com.algomeet.signalservice.mapper.UserDeviceMapper;
+import com.algomeet.signalservice.repository.KyberPreKeyRepository;
+import com.algomeet.signalservice.repository.SignedPreKeyRepository;
 import com.algomeet.signalservice.repository.UserDeviceRepository;
 
 import lombok.RequiredArgsConstructor;
@@ -24,14 +30,33 @@ import lombok.RequiredArgsConstructor;
 public class UserDeviceService {
 
 	private final UserDeviceRepository repository;
+	private final SignedPreKeyRepository signedPreKeyServiceRepository;
+	private final KyberPreKeyRepository kyberPreKeyServiceRepository;
 
 	public UserDeviceResponse createDevice(UUID userKey, UserDeviceRequest request) {
 		// To generate new device ID, get maximum user device ID from table then increment it by 1.
 		int deviceId = (repository.findMaxDeviceIdByUserKey(userKey).orElse(0) + 1);
 		
+		// Save device
 		UserDevice device = UserDeviceMapper.toEntity(userKey, deviceId, request);		
-		repository.save(device);
-		return UserDeviceMapper.toResponse(device);
+		UserDevice savedDevice = repository.save(device);
+		
+		//Save prekeys
+		SignedPreKey signedPreKey = SignedPreKeyMapper.toEntity(userKey, deviceId, request.getSignedPreKey());		
+		SignedPreKey savedSignedPreKey= signedPreKeyServiceRepository.save(signedPreKey);
+		
+		// Save kyber		
+		KyberPreKey kybePreKey = KyberPreKeyMapper.toEntity(userKey, deviceId, request.getKyberPreKey());		
+		KyberPreKey savedKyberPreKey = kyberPreKeyServiceRepository.save(kybePreKey);
+		
+		// Construct response
+		UserDeviceResponse userDeviceResponse = UserDeviceMapper.toResponse(savedDevice);
+		userDeviceResponse.setSignedPreKey(SignedPreKeyMapper.toResponse(savedSignedPreKey));
+
+		userDeviceResponse.setSignedPreKey(SignedPreKeyMapper.toResponse(savedSignedPreKey));
+		userDeviceResponse.setKyberPreKey(KyberPreKeyMapper.toResponse(savedKyberPreKey));
+		
+		return userDeviceResponse;
 	}
 
 	public List<UserDeviceResponse> getDevicesByUser(UUID userKey) {

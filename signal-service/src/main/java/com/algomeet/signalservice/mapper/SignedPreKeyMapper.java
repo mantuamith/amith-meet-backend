@@ -26,6 +26,8 @@ public class SignedPreKeyMapper {
         response.setPublicKey(entity.getPublicKey());
         response.setSignature(entity.getSignature());
         response.setCreatedAt(entity.getCreatedAt());
+        response.setUpdatedAt(entity.getUpdatedAt());
+		
         return response;
     }
 }

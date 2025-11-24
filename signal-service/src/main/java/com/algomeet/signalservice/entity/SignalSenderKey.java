@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import lombok.Data;
 
@@ -11,6 +12,7 @@ import lombok.Data;
 @Entity
 @Table(name = "signal_sender_keys")
 public class SignalSenderKey {
+	@Id
 	private Long id;
     private UUID userKey;
     private Integer deviceId;

@@ -6,8 +6,10 @@ import java.util.UUID;
 import jakarta.persistence.Embeddable;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 @AllArgsConstructor
+@NoArgsConstructor
 @Embeddable
 @Data
 public class KyberPreKeyId implements Serializable {

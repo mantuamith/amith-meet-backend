@@ -13,4 +13,5 @@ public class SignedPreKeyResponse {
     private String publicKey;
     private String signature;
     private Instant createdAt;
+    private Instant updatedAt;
 }

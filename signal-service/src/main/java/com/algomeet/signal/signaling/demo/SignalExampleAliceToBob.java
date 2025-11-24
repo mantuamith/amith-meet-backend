@@ -58,7 +58,7 @@ public class SignalExampleAliceToBob {
 
 	private static final SignalProtocolAddress ALICE_ADDRESS = new SignalProtocolAddress("+14151111111", 1);
 	private static final SignalProtocolAddress BOB_ADDRESS   = new SignalProtocolAddress("+14152222222", 1);
-	
+
 	public static void test() throws InvalidKeyException, UntrustedIdentityException, NoSessionException, 
 	InvalidMessageException, InvalidVersionException, LegacyMessageException, 
 	DuplicateMessageException, InvalidKeyIdException {
@@ -75,19 +75,19 @@ public class SignalExampleAliceToBob {
 				.getIdentityKeyPair()
 				.getPrivateKey()
 				.calculateSignature(bobSignedPreKeyPair.getPublicKey().serialize());
-		
+
 
 		int bobRegistrationId = 10039;
 		int bobDeviceId = 1;
-		int bobPreKeyId = 2;
+		int bobPreKeyId = 3;
 
-//		ECPublicKey preKeyPublic = ECPublicKey.fromPublicKeyBytes(Base64.getDecoder().decode("BaZ7tjdq4wqIOHk0ktbNSNDKmZKxnlRsonHoazOTFWVT"));
+		//		ECPublicKey preKeyPublic = ECPublicKey.fromPublicKeyBytes(Base64.getDecoder().decode("BaZ7tjdq4wqIOHk0ktbNSNDKmZKxnlRsonHoazOTFWVT"));
 		int bobSignedPreKeyId = 2;
-//		ECPublicKey signedPreKeyPublic = ECPublicKey.fromPublicKeyBytes(Base64.getDecoder().decode("BQmBNExLLNZqQfcV+gn+5+p7Q1gcpQc3/5ZsdKVxa08k"));
-//		byte[] signedPreKeySignature = Base64.getDecoder().decode("s1HMJtNYfiVQvkfDj/eWyuj0JLj5a74x+oWrrSsVnvpiWuIle4JK5Mx///ljg/CDUxmsALRiNSQ9zMmZbG/FBw==");
-//		IdentityKey identityKey = new IdentityKey(Base64.getDecoder().decode("Bb6FndhNDd0I9F4ycGgVAtOaaJukpXki6udlebUkOL1b"), 0);
+		//		ECPublicKey signedPreKeyPublic = ECPublicKey.fromPublicKeyBytes(Base64.getDecoder().decode("BQmBNExLLNZqQfcV+gn+5+p7Q1gcpQc3/5ZsdKVxa08k"));
+		//		byte[] signedPreKeySignature = Base64.getDecoder().decode("s1HMJtNYfiVQvkfDj/eWyuj0JLj5a74x+oWrrSsVnvpiWuIle4JK5Mx///ljg/CDUxmsALRiNSQ9zMmZbG/FBw==");
+		//		IdentityKey identityKey = new IdentityKey(Base64.getDecoder().decode("Bb6FndhNDd0I9F4ycGgVAtOaaJukpXki6udlebUkOL1b"), 0);
 
-		
+
 		int bobKyberPreKeyId = 5;
 		KEMKeyPair bobKyberPreKeyPair = KEMKeyPair.generate(KEMKeyType.KYBER_1024);
 		byte[] bobKyberPreKeySignature =
@@ -95,7 +95,7 @@ public class SignalExampleAliceToBob {
 				.getIdentityKeyPair()
 				.getPrivateKey()
 				.calculateSignature(bobKyberPreKeyPair.getPublicKey().serialize());
-		
+
 		PreKeyBundle bobPreKeyBundle= new PreKeyBundle(bobRegistrationId, 
 				bobDeviceId,
 				bobPreKeyId, 
@@ -108,6 +108,19 @@ public class SignalExampleAliceToBob {
 				bobKyberPreKeyPair.getPublicKey(),
 				bobKyberPreKeySignature);
 
+		System.out.println("bobRegistrationId: " + bobRegistrationId);
+		System.out.println("bobDeviceId: " + bobDeviceId);
+		System.out.println("bobPreKeyId: " + bobPreKeyId);
+		System.out.println("bobPreKeyPair.getPublicKey(): " + Base64.getEncoder().encodeToString(bobPreKeyPair.getPublicKey().serialize()));
+		System.out.println("bobSignedPreKeyId: " + bobSignedPreKeyId);
+		System.out.println("bobSignedPreKeyPair.getPublicKey(): " + Base64.getEncoder().encodeToString(bobSignedPreKeyPair.getPublicKey().serialize()));
+		System.out.println("bobSignedPreKeySignature: " + Base64.getEncoder().encodeToString(bobSignedPreKeySignature));
+		System.out.println("bobStore.getIdentityKeyPair().getPublicKey(): " + Base64.getEncoder().encodeToString(bobStore.getIdentityKeyPair().getPublicKey().serialize()));
+		System.out.println("bobKyberPreKeyId: " + bobKyberPreKeyId);
+		System.out.println("bobKyberPreKeyPair.getPublicKey(): " + Base64.getEncoder().encodeToString(bobKyberPreKeyPair.getPublicKey().serialize()));
+		System.out.println("bobKyberPreKeyPair.getPublicKey(): " + Base64.getEncoder().encodeToString(bobKyberPreKeyPair.getPublicKey().serialize()).length());
+		System.out.println("bobKyberPreKeySignature------------>: " + Base64.getEncoder().encodeToString(bobKyberPreKeySignature));
+
 		aliceSessionBuilder.process(bobPreKeyBundle);
 
 		System.out.println(aliceStore.containsSession(BOB_ADDRESS));
@@ -119,13 +132,13 @@ public class SignalExampleAliceToBob {
 		System.out.println(Base64.getEncoder().encodeToString(outgoingMessage.serialize()));
 		System.out.println(outgoingMessage.getType() == CiphertextMessage.PREKEY_TYPE);
 
-		
+
 		PreKeySignalMessage incomingMessage = new PreKeySignalMessage(outgoingMessage.serialize());
 
 		bobStore.storePreKey(bobPreKeyId, new PreKeyRecord(bobPreKeyBundle.getPreKeyId(), bobPreKeyPair));
 		bobStore.storeSignedPreKey(bobSignedPreKeyId, new SignedPreKeyRecord(bobPreKeyBundle.getSignedPreKeyId(), 
 				System.currentTimeMillis(), bobSignedPreKeyPair, bobSignedPreKeySignature));
-		
+
 		bobStore.storeKyberPreKey(bobKyberPreKeyId, new KyberPreKeyRecord(bobPreKeyBundle.getKyberPreKeyId(), 
 				System.currentTimeMillis(), bobKyberPreKeyPair, bobKyberPreKeySignature));
 
@@ -133,20 +146,5 @@ public class SignalExampleAliceToBob {
 		byte[] plaintext = bobSessionCipher.decrypt(incomingMessage);
 
 		System.out.println("Decrypted message: " + new String(plaintext));
-		
-		byte[] serialized = outgoingMessage.serialize();
-		System.out.println("Java first bytes (dec):");
-		for (int i = 0; i < Math.min(20, serialized.length); i++) {
-			System.out.print(serialized[i] & 0xff);
-			System.out.print(" ");
-		}
-		System.out.println();
-		System.out.println("Java first bytes (hex):");
-		for (int i = 0; i < Math.min(20, serialized.length); i++) {
-			System.out.printf("%02X ", serialized[i] & 0xff);
-		}
-		System.out.println();
-		System.out.println("Java Base64: " + Base64.getEncoder().encodeToString(serialized));
-		System.out.println("Type: " + outgoingMessage.getType());
 	}	
 }

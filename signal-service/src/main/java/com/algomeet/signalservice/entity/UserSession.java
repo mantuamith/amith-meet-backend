@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import lombok.Data;
@@ -12,9 +13,10 @@ import lombok.Data;
 @Entity
 @Table(name = "signal_user_sessions",
 indexes = {
-		@Index(name = "idx_user_device", columnList = "userKey, deviceId")
+		@Index(name = "idx_user_session", columnList = "userKey, deviceId")
 })
 public class UserSession {
+	@Id
 	private Long sessionId;
 
 	private UUID userKey;

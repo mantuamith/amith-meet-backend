@@ -1,5 +1,7 @@
 package com.algomeet.signalservice.mapper;
 
+import java.util.UUID;
+
 import com.algomeet.signalservice.dto.KyberPreKeyRequest;
 import com.algomeet.signalservice.dto.KyberPreKeyResponse;
 import com.algomeet.signalservice.entity.KyberPreKey;
@@ -9,8 +11,10 @@ import com.algomeet.signalservice.entity.KyberPreKeyId;
 public class KyberPreKeyMapper {
 
 
-	public static KyberPreKey toEntity(KyberPreKeyId id, KyberPreKeyRequest request) {
+	public static KyberPreKey toEntity(UUID userKey, Integer deviceId, KyberPreKeyRequest request) {
 		KyberPreKey entity = new KyberPreKey();
+		
+		KyberPreKeyId id = new KyberPreKeyId(userKey, deviceId);
 		entity.setId(id);
 		entity.setKyberPreKeyId(request.getKyberPreKeyId());
 		entity.setPublicKey(request.getPublicKey());
@@ -27,7 +31,8 @@ public class KyberPreKeyMapper {
 				entity.getKyberPreKeyId(),
 				entity.getPublicKey(),
 				entity.getSignature(),
-				entity.getCreatedAt()
+				entity.getCreatedAt(),
+				entity.getUpdatedAt()
 				);
 	}
 }

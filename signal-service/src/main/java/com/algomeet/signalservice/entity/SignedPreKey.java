@@ -5,6 +5,11 @@ import java.time.Instant;
 import jakarta.persistence.Column;
 import jakarta.persistence.EmbeddedId;
 import jakarta.persistence.Entity;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinColumns;
+import jakarta.persistence.OneToOne;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import lombok.Data;
 
@@ -24,6 +29,25 @@ public class SignedPreKey {
     /** Signed prekey signature */
     @Column(nullable = false, length = 200)
 	private String signature;
-		
+    
+    @OneToOne
+    @JoinColumns({
+        @JoinColumn(name = "userKey", referencedColumnName = "userKey"),
+        @JoinColumn(name = "deviceId", referencedColumnName = "deviceId")
+    })
+    private UserDevice userDevice;
+    
 	private Instant createdAt;
+    private Instant updatedAt;
+	
+    @PrePersist
+    protected void onCreate() {
+        Instant now = Instant.now();
+        this.createdAt = now;
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        this.updatedAt = Instant.now();
+    }
 }

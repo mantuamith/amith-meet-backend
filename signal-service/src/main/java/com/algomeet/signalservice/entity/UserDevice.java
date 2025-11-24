@@ -2,13 +2,11 @@ package com.algomeet.signalservice.entity;
 
 import java.time.Instant;
 
-import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.EmbeddedId;
 import jakarta.persistence.Entity;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.JoinColumns;
-import jakarta.persistence.MapsId;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
@@ -29,16 +27,14 @@ public class UserDevice {
     @Column(nullable = false, length = 200)
     private String identityKey;
     
-    @OneToOne(cascade = CascadeType.ALL)
-    @MapsId
+    @OneToOne
     @JoinColumns({
         @JoinColumn(name = "userKey", referencedColumnName = "userKey"),
         @JoinColumn(name = "deviceId", referencedColumnName = "deviceId")
     })
     private SignedPreKey signedPreKey;
     
-    @OneToOne(cascade = CascadeType.ALL)
-    @MapsId
+    @OneToOne
     @JoinColumns({
         @JoinColumn(name = "userKey", referencedColumnName = "userKey"),
         @JoinColumn(name = "deviceId", referencedColumnName = "deviceId")
