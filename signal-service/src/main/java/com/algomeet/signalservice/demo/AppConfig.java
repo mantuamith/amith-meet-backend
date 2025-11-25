@@ -1,4 +1,4 @@
-package com.algomeet.signal.signaling.demo;
+package com.algomeet.signalservice.demo;
 
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;

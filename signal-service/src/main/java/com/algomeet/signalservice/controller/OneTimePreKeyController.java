@@ -54,9 +54,9 @@ public class OneTimePreKeyController {
 					CommonResponse.from(ResponseCode.SUCCESS, service.getAvailablePrekeysCount(userKey, deviceId)));		
 	}	
 	
-	@DeleteMapping
-	public ResponseEntity<CommonResponse<?>> deleteAll() {
-		service.delete(UUID.fromString(SecurityUtil.getUserKey()));
+	@DeleteMapping("/{deviceId}")
+	public ResponseEntity<CommonResponse<?>> deleteAll(@PathVariable Integer deviceId) {
+		service.delete(UUID.fromString(SecurityUtil.getUserKey()), deviceId);
 		return ResponseEntity.ok(
 				CommonResponse.from(ResponseCode.SUCCESS));
 	}

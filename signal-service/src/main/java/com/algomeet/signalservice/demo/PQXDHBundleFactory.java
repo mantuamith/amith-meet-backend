@@ -1,4 +1,4 @@
-package com.algomeet.signal.signaling.demo;
+package com.algomeet.signalservice.demo;
 //
 //Copyright 2023 Signal Messenger, LLC.
 //SPDX-License-Identifier: AGPL-3.0-only

@@ -35,11 +35,4 @@ public class KyberPreKeyService {
 		repository.save(entity);
 		return KyberPreKeyMapper.toResponse(entity);
 	}
-
-	public void deletePreKey(KyberPreKeyId id) {
-		if (!repository.existsById(id)) {
-			throw new RecordNotFoundException("Kyber PreKey not found");
-		}
-		repository.deleteById(id);
-	}
 }

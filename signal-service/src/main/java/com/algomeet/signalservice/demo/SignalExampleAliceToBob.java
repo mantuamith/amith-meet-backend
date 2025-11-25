@@ -1,4 +1,4 @@
-package com.algomeet.signal.signaling.demo;
+package com.algomeet.signalservice.demo;
 
 import java.util.ArrayList;
 import java.util.Base64;

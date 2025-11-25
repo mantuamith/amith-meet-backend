@@ -12,7 +12,7 @@ import com.algomeet.signalservice.entity.OneTimePreKey;
 public class OneTimePreKeyMapper {
 
 
-	public OneTimePreKey toEntity(UUID userKey, Integer deviceId, OneTimePreKeyRequest request) {
+	public static OneTimePreKey toEntity(UUID userKey, Integer deviceId, OneTimePreKeyRequest request) {
 		OneTimePreKey e = new OneTimePreKey();
 		e.setUserKey(userKey);
 		e.setDeviceId(deviceId);
@@ -23,7 +23,7 @@ public class OneTimePreKeyMapper {
 	}
 
 
-	public OneTimePreKeyResponse toResponse(OneTimePreKey e) {
+	public static OneTimePreKeyResponse toResponse(OneTimePreKey e) {
 		return new OneTimePreKeyResponse(
 				e.getId(),
 				e.getUserKey(),

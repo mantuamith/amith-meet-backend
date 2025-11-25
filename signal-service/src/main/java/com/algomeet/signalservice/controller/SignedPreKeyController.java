@@ -57,19 +57,4 @@ public class SignedPreKeyController {
 					CommonResponse.from(ResponseCode.SIGNED_PRE_KEY_NOT_FOUND));
 		}	
 	}
-
-	@DeleteMapping("/{deviceId}")
-	public ResponseEntity<CommonResponse<?>> delete(
-			@PathVariable Integer deviceId
-			) {
-		try {
-			service.delete(UUID.fromString(SecurityUtil.getUserKey()), deviceId);
-			return ResponseEntity.ok(
-					CommonResponse.from(ResponseCode.SUCCESS));
-
-		} catch(RecordNotFoundException ex) {
-			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
-					CommonResponse.from(ResponseCode.SIGNED_PRE_KEY_NOT_FOUND));
-		}
-	}
 }

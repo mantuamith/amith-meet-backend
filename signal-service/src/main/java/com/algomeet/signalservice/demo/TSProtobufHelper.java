@@ -1,4 +1,4 @@
-package com.algomeet.signal.signaling.demo;
+package com.algomeet.signalservice.demo;
 
 import org.signal.libsignal.protocol.message.PreKeySignalMessage;
 import org.signal.libsignal.protocol.ecc.ECPublicKey;

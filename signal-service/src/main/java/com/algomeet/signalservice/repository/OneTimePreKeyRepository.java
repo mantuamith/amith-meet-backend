@@ -17,4 +17,7 @@ public interface OneTimePreKeyRepository extends JpaRepository<OneTimePreKey, Lo
 	
 	@Modifying
 	void deleteByUserKey(UUID userKey);
+	
+	@Modifying
+	void deleteByUserKeyAndDeviceId(UUID userKey, Integer deviceId);
 }

@@ -9,6 +9,7 @@ public enum ResponseCode {
     SIGNED_PRE_KEY_NOT_FOUND("SIGNED_PRE_KEY_NOT_FOUND", "signed-pre-key.not-found"),
     KYBER_PRE_KEY_NOT_FOUND("KYBER_PRE_KEY_NOT_FOUND", "kyber-pre-key.not-found"),
     ONE_TIME_PRE_KEY_NOT_AVAILABLE("ONE_TIME_PRE_KEY_NOT_AVAILABLE", "one-time-pre-key.not-available"),
+    USER_DEVICE_GROUP_SENDER_KEY_NOT_FOUND("USER_DEVICE_GROUP_SENDER_KEY_NOT_FOUND", "user-device-group-sender-key.not-found"),
     
 	IDENTITY_KEY_REGISTER_SUCCESS("IDENTITY_KEY_REGISTER_SUCCESS", "identity-key.register.sucess"),
 	IDENTITY_KEY_ALREADY_EXISTS("IDENTITY_KEY_ALREADY_EXISTS", "identity-key.register.already-exists"),	

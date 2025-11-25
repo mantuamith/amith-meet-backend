@@ -15,9 +15,9 @@ import lombok.Data;
 @Data
 @Entity
 @Table(
-		name = "signal_one_time_pre_keys",
+		name = "signal_pre_keys",
 		indexes = {
-				@Index(name = "idx_user_device", columnList = "userKey, deviceId")
+				@Index(name = "idx_pre_key", columnList = "userKey, deviceId")
 		}
 		)
 public class OneTimePreKey {

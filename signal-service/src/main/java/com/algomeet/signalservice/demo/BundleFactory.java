@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-package com.algomeet.signal.signaling.demo;
+package com.algomeet.signalservice.demo;
 
 import org.signal.libsignal.protocol.InvalidKeyException;
 import org.signal.libsignal.protocol.state.PreKeyBundle;

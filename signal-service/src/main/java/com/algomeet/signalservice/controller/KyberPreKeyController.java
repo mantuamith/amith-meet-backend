@@ -53,19 +53,4 @@ public class KyberPreKeyController {
 					CommonResponse.from(ResponseCode.KYBER_PRE_KEY_NOT_FOUND));
 		}
 	}
-	
-	@DeleteMapping("/{deviceId}")
-	public ResponseEntity<CommonResponse<?>> delete(
-			@PathVariable Integer deviceId) {
-		KyberPreKeyId id = new KyberPreKeyId(UUID.fromString(SecurityUtil.getUserKey()), deviceId);
-
-		try {
-			service.deletePreKey(id);
-			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
-
-		} catch(RecordNotFoundException ex) {
-			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
-					CommonResponse.from(ResponseCode.KYBER_PRE_KEY_NOT_FOUND));
-		}
-	}
 }

@@ -50,7 +50,7 @@ public class OneTimePreKeyService {
 		return repository.countByUserKeyAndDeviceIdAndUsedFalse(userKey, deviceId);
 	}
 	
-	public void delete(UUID userKey) {
-		repository.deleteByUserKey(userKey);
+	public void delete(UUID userKey, Integer deviceId) {
+		repository.deleteByUserKeyAndDeviceId(userKey, deviceId);
 	}
 }

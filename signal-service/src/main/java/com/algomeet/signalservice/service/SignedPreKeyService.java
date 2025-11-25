@@ -42,12 +42,4 @@ public class SignedPreKeyService {
         repository.save(entity);
         return SignedPreKeyMapper.toResponse(entity);
     }
-
-    public void delete(UUID userKey, Integer deviceId) {
-    	SignedPreKeyId id = new SignedPreKeyId(userKey, deviceId);
-        repository.findById(id)
-                .orElseThrow(() -> new RecordNotFoundException("Signed Pre Key not found"));
-
-        repository.deleteById(id);
-    }
 }
