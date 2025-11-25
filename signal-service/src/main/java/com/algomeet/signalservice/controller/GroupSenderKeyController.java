@@ -68,7 +68,7 @@ public class GroupSenderKeyController {
 	public ResponseEntity<CommonResponse<List<GroupSenderKeyResponse>>> poll(
 			@PathVariable Integer receiverDeviceId,
 			@PathVariable String groupId,
-	        @RequestParam(defaultValue = "30000") long timeoutMs) {
+	        @RequestParam(defaultValue = "3000") long timeoutMs) {
 		try {
 			UUID receiverUserKey = UUID.fromString(SecurityUtil.getUserKey());
 			List<GroupSenderKeyResponse> list =
