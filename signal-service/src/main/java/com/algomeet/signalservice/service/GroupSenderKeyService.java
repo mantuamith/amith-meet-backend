@@ -10,9 +10,11 @@ import org.springframework.transaction.annotation.Transactional;
 import com.algomeet.signalservice.dto.GroupSenderKeyRequest;
 import com.algomeet.signalservice.dto.GroupSenderKeyResponse;
 import com.algomeet.signalservice.entity.GroupSenderKey;
+import com.algomeet.signalservice.entity.UserDeviceId;
 import com.algomeet.signalservice.exceptions.RecordNotFoundException;
 import com.algomeet.signalservice.mapper.GroupSenderKeyMapper;
 import com.algomeet.signalservice.repository.GroupSenderKeyRepository;
+import com.algomeet.signalservice.repository.UserDeviceRepository;
 
 import lombok.RequiredArgsConstructor;
 
@@ -20,47 +22,59 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 @Transactional
 public class GroupSenderKeyService {
-    private final GroupSenderKeyRepository repository;
+	private final GroupSenderKeyRepository repository;
+	private final UserDeviceRepository deviceRepository;
 
-    public GroupSenderKeyResponse create(UUID senderUserKey, Integer senderDeviceId, String groupId, GroupSenderKeyRequest request) {
-        GroupSenderKey entity = GroupSenderKeyMapper.toEntity(senderUserKey, senderDeviceId, groupId, request);
-        GroupSenderKey saved = repository.save(entity);
-        return GroupSenderKeyMapper.toDto(saved);
-    }
+	public GroupSenderKeyResponse create(UUID senderUserKey, Integer senderDeviceId, String groupId, GroupSenderKeyRequest request) {
+		deviceRepository.findById(new UserDeviceId(senderUserKey, senderDeviceId))
+		.orElseThrow(() -> new RecordNotFoundException("User device ID not found"));
 
-    @Transactional(readOnly = true)
-    public GroupSenderKeyResponse get(UUID senderUserKey, Integer senderDeviceId, String groupId) {
-        GroupSenderKey entity = repository.findBySenderUserKeyAndSenderDeviceIdAndGroupId(
-                senderUserKey, senderDeviceId, groupId);
+		GroupSenderKey entity = GroupSenderKeyMapper.toEntity(senderUserKey, senderDeviceId, groupId, request);
+		GroupSenderKey saved = repository.save(entity);
+		return GroupSenderKeyMapper.toDto(saved);
+	}
 
-        if (entity == null) {
-        	throw new RecordNotFoundException("Group sender keys not found");
-        }
+	@Transactional(readOnly = true)
+	public List<GroupSenderKeyResponse> getList(UUID senderUserKey, Integer senderDeviceId, String groupId) {
+		deviceRepository.findById(new UserDeviceId(senderUserKey, senderDeviceId))
+		.orElseThrow(() -> new RecordNotFoundException("User device ID not found"));
 
-        return GroupSenderKeyMapper.toDto(entity);
-    }
-        
-    public List<GroupSenderKeyResponse> longPoll(
-    		UUID receiverUserKey, Integer receiverDeviceId, String groupId, long timeoutMs) {
+		List<GroupSenderKey> list = repository.findByIdSenderUserKeyAndIdSenderDeviceIdAndIdGroupId(
+				senderUserKey, senderDeviceId, groupId);
 
-        long start = System.currentTimeMillis();        
-        while (System.currentTimeMillis() - start < timeoutMs) {
+		return list.stream().map(GroupSenderKeyMapper::toDto).toList();
+	}
 
-            List<GroupSenderKey> pending = repository.findByReceiverUserKeyAndReceiverDeviceIdAndGroupId(
-                    receiverUserKey, receiverDeviceId, groupId);
+	public List<GroupSenderKeyResponse> longPoll(
+			UUID receiverUserKey, Integer receiverDeviceId, String groupId, long timeoutMs) {
 
-            if (!pending.isEmpty()) {
-                return pending.stream()
-                        .map(GroupSenderKeyMapper::toDto)
-                        .collect(Collectors.toList());
-            }
+		deviceRepository.findById(new UserDeviceId(receiverUserKey, receiverDeviceId))
+		.orElseThrow(() -> new RecordNotFoundException("User device ID not found"));
 
-            try {
-                Thread.sleep(500); // small wait
-            } catch (InterruptedException ignored) {}
-        }
+		long start = System.currentTimeMillis();        
+		while (System.currentTimeMillis() - start < timeoutMs) {
 
-        return List.of(); // timeout
-    }
+			List<GroupSenderKey> pending = repository.findByIdReceiverUserKeyAndIdReceiverDeviceIdAndIdGroupId(
+					receiverUserKey, receiverDeviceId, groupId);
+
+			if (!pending.isEmpty()) {
+				return pending.stream()
+						.map(GroupSenderKeyMapper::toDto)
+						.collect(Collectors.toList());
+			}
+
+			try {
+				Thread.sleep(500); // small wait
+			} catch (InterruptedException ignored) {}
+		}
+
+		return List.of(); // timeout
+	}
+
+	@Transactional
+	public void delete(
+			UUID receiverUserKey, UUID senderUserKey, Integer senderDeviceId, String groupId) {
+		repository.deleteByIdSenderUserKeyAndIdSenderDeviceIdAndIdReceiverUserKeyAndIdGroupId(senderUserKey, senderDeviceId, receiverUserKey, groupId);
+	}
 }
 

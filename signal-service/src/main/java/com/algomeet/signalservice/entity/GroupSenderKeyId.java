@@ -15,7 +15,13 @@ import lombok.NoArgsConstructor;
 public class GroupSenderKeyId implements Serializable {
 
     private static final long serialVersionUID = 1L;
+	private UUID senderUserKey;	
+    
+	private Integer senderDeviceId;	
+	
 	private UUID receiverUserKey;
-    private Integer receiverDeviceId;
+    
+    private Integer receiverDeviceId;    	
+    
 	private String groupId;
 }
