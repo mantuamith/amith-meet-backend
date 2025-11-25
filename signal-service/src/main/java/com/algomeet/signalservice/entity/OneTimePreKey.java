@@ -9,6 +9,8 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import lombok.Data;
 
@@ -41,4 +43,10 @@ public class OneTimePreKey {
 	private Boolean used = false;
 
 	private Instant createdAt;
+
+	@PrePersist
+	protected void onCreate() {
+		Instant now = Instant.now();
+		this.createdAt = now;
+	}
 }

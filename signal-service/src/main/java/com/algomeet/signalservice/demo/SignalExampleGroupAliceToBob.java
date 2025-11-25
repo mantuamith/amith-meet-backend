@@ -60,6 +60,8 @@ public class SignalExampleGroupAliceToBob {
 		SenderKeyDistributionMessage sentAliceDistributionMessage =
 				aliceSessionBuilder.create(SENDER_ADDRESS, DISTRIBUTION_ID);
 
+		
+		System.out.println("skdm: " + Base64.getEncoder().encodeToString(sentAliceDistributionMessage.serialize()));
 		SenderKeyDistributionMessage receivedAliceDistributionMessage =
 				new SenderKeyDistributionMessage(sentAliceDistributionMessage.serialize());
 		System.out.println(Base64.getEncoder().encode(sentAliceDistributionMessage.serialize()).length);
@@ -78,6 +80,8 @@ public class SignalExampleGroupAliceToBob {
 
 		CiphertextMessage ciphertextFromAlice =
 				aliceGroupCipher.encrypt(DISTRIBUTION_ID, "smert ze smert".getBytes());
+		System.out.println("Encrypted: " + Base64.getEncoder().encodeToString(ciphertextFromAlice.serialize()));
+		
 		byte[] plaintextFromAlice = bobGroupCipher.decrypt(ciphertextFromAlice.serialize());
 
 		System.out.println(new String(plaintextFromAlice));

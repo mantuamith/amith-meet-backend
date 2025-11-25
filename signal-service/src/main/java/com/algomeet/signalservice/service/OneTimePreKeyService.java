@@ -1,16 +1,22 @@
 package com.algomeet.signalservice.service;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.algomeet.signalservice.dto.OneTimePreKeyRequest;
 import com.algomeet.signalservice.dto.OneTimePreKeyResponse;
 import com.algomeet.signalservice.dto.OneTimePreKeysRequest;
 import com.algomeet.signalservice.entity.OneTimePreKey;
+import com.algomeet.signalservice.entity.UserDeviceId;
 import com.algomeet.signalservice.exceptions.OneTimePreKeyIsNotAvailableException;
+import com.algomeet.signalservice.exceptions.RecordNotFoundException;
 import com.algomeet.signalservice.mapper.OneTimePreKeyMapper;
 import com.algomeet.signalservice.repository.OneTimePreKeyRepository;
+import com.algomeet.signalservice.repository.UserDeviceRepository;
 
 import lombok.RequiredArgsConstructor;
 
@@ -18,24 +24,35 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class OneTimePreKeyService {
 	private final OneTimePreKeyRepository repository;
-	private final OneTimePreKeyMapper mapper;
+	private final UserDeviceRepository deviceRepository;
 
 	public OneTimePreKeyResponse update(long id, OneTimePreKeyRequest request) {
 		OneTimePreKey entity = repository.findById(id)
-				.orElseThrow(() -> new RuntimeException("OneTimePreKey not found"));
+				.orElseThrow(() -> new RecordNotFoundException("OneTimePreKey not found"));
+
 		entity.setPreKeyId(request.getPreKeyId());
 		entity.setPublicKey(request.getPublicKey());
-		return mapper.toResponse(repository.save(entity));
+		return OneTimePreKeyMapper.toResponse(repository.save(entity));
 	}
-	
-	public void create(UUID userKey, Integer deviceId, OneTimePreKeysRequest request) {
-		for (OneTimePreKeyRequest preKey : request.getPreKeys()) {
-			OneTimePreKey entity = mapper.toEntity(userKey, deviceId, preKey);
-			entity.setCreatedAt(java.time.Instant.now());
+
+	public List<OneTimePreKeyResponse> create(UUID userKey, Integer deviceId, OneTimePreKeysRequest request) {
+		deviceRepository.findById(new UserDeviceId(userKey, deviceId))
+		.orElseThrow(() -> new RecordNotFoundException("User device ID not found"));
+
+		List<OneTimePreKey> preKeys = new ArrayList<>();
+
+		for (OneTimePreKeyRequest preKeyReq : request.getPreKeys()) {
+			OneTimePreKey entity = OneTimePreKeyMapper.toEntity(userKey, deviceId, preKeyReq);
+			preKeys.add(entity);
 		}
+
+		return repository.saveAll(preKeys).stream().map(OneTimePreKeyMapper::toResponse).toList();
 	}
 
 	public OneTimePreKeyResponse getAvailable(UUID userKey, Integer deviceId) {
+		deviceRepository.findById(new UserDeviceId(userKey, deviceId))
+		.orElseThrow(() -> new RecordNotFoundException("User device ID not found"));
+
 		OneTimePreKey preKey = repository.findFirstByUserKeyAndDeviceIdAndUsedFalseOrderByIdAsc(userKey, deviceId);
 		if (preKey == null) {
 			throw new OneTimePreKeyIsNotAvailableException("User device don't have available one time prekey");
@@ -43,14 +60,18 @@ public class OneTimePreKeyService {
 
 		// Remove to prevent re-used of one time key
 		repository.deleteById(preKey.getId());				
-		return mapper.toResponse(preKey);
+		return OneTimePreKeyMapper.toResponse(preKey);
 	}
-	
-	public Long getAvailablePrekeysCount(UUID userKey, Integer deviceId) {				
+
+	public Long getAvailablePrekeysCount(UUID userKey, Integer deviceId) {	
+		deviceRepository.findById(new UserDeviceId(userKey, deviceId))
+		.orElseThrow(() -> new RecordNotFoundException("User device ID not found"));
+
 		return repository.countByUserKeyAndDeviceIdAndUsedFalse(userKey, deviceId);
 	}
-	
-	public void delete(UUID userKey, Integer deviceId) {
+
+	@Transactional
+	public void delete(UUID userKey, Integer deviceId) {		
 		repository.deleteByUserKeyAndDeviceId(userKey, deviceId);
 	}
 }

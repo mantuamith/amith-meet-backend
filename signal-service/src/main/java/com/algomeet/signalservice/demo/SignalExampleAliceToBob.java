@@ -54,6 +54,7 @@ public class SignalExampleAliceToBob {
 		TestInMemorySignalProtocolStore aliceStore = new TestInMemorySignalProtocolStore();
 		SessionBuilder aliceSessionBuilder = new SessionBuilder(aliceStore, BOB_ADDRESS);
 
+		// Generate bob store and keys
 		final TestInMemorySignalProtocolStore bobStore = new TestInMemorySignalProtocolStore();
 		ECKeyPair    bobPreKeyPair            = ECKeyPair.generate();
 		ECKeyPair    bobSignedPreKeyPair      = ECKeyPair.generate();
@@ -106,10 +107,12 @@ public class SignalExampleAliceToBob {
 
 		System.out.println(aliceStore.containsSession(BOB_ADDRESS));
 
-		final String            originalMessage    = "L'homme est condamné à être libre";
+		//final String            originalMessage    = "L'homme est condamné à être libre";
+		final String            originalMessage    = "MwoQ0dHR0XAAEeuzKjO4qKSHphCqnLq/AhgAIiCAHYj1b4Rp89o9FoVgZHZcXoNOq3gekRg3b7SSdWRSCyohBcEQZZBKRps12qV71Bu2B5GK/Xb6DPQTDMVPUB2Q0YV8";
 		SessionCipher     aliceSessionCipher = new SessionCipher(aliceStore, BOB_ADDRESS);
 		CiphertextMessage outgoingMessage    = aliceSessionCipher.encrypt(originalMessage.getBytes());
 
+		System.out.println("length: " + Base64.getEncoder().encodeToString(outgoingMessage.serialize()).length());
 		System.out.println(Base64.getEncoder().encodeToString(outgoingMessage.serialize()));
 		System.out.println(outgoingMessage.getType() == CiphertextMessage.PREKEY_TYPE);
 

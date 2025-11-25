@@ -1,5 +1,6 @@
 package com.algomeet.signalservice.controller;
 
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
@@ -10,6 +11,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.algomeet.signalservice.dto.CommonResponse;
@@ -17,6 +19,7 @@ import com.algomeet.signalservice.dto.OneTimePreKeyResponse;
 import com.algomeet.signalservice.dto.OneTimePreKeysRequest;
 import com.algomeet.signalservice.enums.ResponseCode;
 import com.algomeet.signalservice.exceptions.OneTimePreKeyIsNotAvailableException;
+import com.algomeet.signalservice.exceptions.RecordNotFoundException;
 import com.algomeet.signalservice.service.OneTimePreKeyService;
 import com.algomeet.signalservice.util.SecurityUtil;
 
@@ -29,14 +32,19 @@ public class OneTimePreKeyController {
 	private final OneTimePreKeyService service;
 
 	@PostMapping("/{deviceId}")
-	public ResponseEntity<CommonResponse<OneTimePreKeyResponse>> create(@PathVariable Integer deviceId, @RequestBody OneTimePreKeysRequest request) {
-		service.create(UUID.fromString(SecurityUtil.getUserKey()), deviceId, request);
-		return ResponseEntity.ok(
-				CommonResponse.from(ResponseCode.SUCCESS));
+	public ResponseEntity<CommonResponse<List<OneTimePreKeyResponse>>> create(@PathVariable Integer deviceId, @RequestBody OneTimePreKeysRequest request) {
+		try {
+			List<OneTimePreKeyResponse> savedList = service.create(UUID.fromString(SecurityUtil.getUserKey()), deviceId, request);
+			return ResponseEntity.ok(
+					CommonResponse.from(ResponseCode.SUCCESS, savedList));
+		} catch(RecordNotFoundException ex) {
+			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+					CommonResponse.from(ResponseCode.USER_DEVICE_ID_NOT_FOUND));
+		}
 	}
 
 	@GetMapping("/{deviceId}")
-	public ResponseEntity<CommonResponse<OneTimePreKeyResponse>> getAvailable(@PathVariable UUID userKey,
+	public ResponseEntity<CommonResponse<OneTimePreKeyResponse>> getAvailable(@RequestParam UUID userKey,
 			@PathVariable Integer deviceId) {	
 		try {
 			return ResponseEntity.ok(
@@ -44,20 +52,32 @@ public class OneTimePreKeyController {
 		} catch(OneTimePreKeyIsNotAvailableException ex) {
 			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
 					CommonResponse.from(ResponseCode.ONE_TIME_PRE_KEY_NOT_AVAILABLE));
+		} catch(RecordNotFoundException ex) {
+			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+					CommonResponse.from(ResponseCode.USER_DEVICE_ID_NOT_FOUND));
 		}
 	}	
-	
+
 	@GetMapping("/{deviceId}/count")
-	public ResponseEntity<CommonResponse<Long>> getAvailablePrekeysCount(@PathVariable UUID userKey,
-			@PathVariable Integer deviceId) {	
+	public ResponseEntity<CommonResponse<Long>> getAvailablePrekeysCount(@PathVariable Integer deviceId) {	
+		try {
 			return ResponseEntity.ok(
-					CommonResponse.from(ResponseCode.SUCCESS, service.getAvailablePrekeysCount(userKey, deviceId)));		
+					CommonResponse.from(ResponseCode.SUCCESS, service.getAvailablePrekeysCount(UUID.fromString(SecurityUtil.getUserKey()), deviceId)));
+		} catch(RecordNotFoundException ex) {
+			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+					CommonResponse.from(ResponseCode.USER_DEVICE_ID_NOT_FOUND));
+		}
 	}	
-	
+
 	@DeleteMapping("/{deviceId}")
 	public ResponseEntity<CommonResponse<?>> deleteAll(@PathVariable Integer deviceId) {
-		service.delete(UUID.fromString(SecurityUtil.getUserKey()), deviceId);
-		return ResponseEntity.ok(
-				CommonResponse.from(ResponseCode.SUCCESS));
+		try {
+			service.delete(UUID.fromString(SecurityUtil.getUserKey()), deviceId);
+			return ResponseEntity.ok(
+					CommonResponse.from(ResponseCode.SUCCESS));
+		} catch(RecordNotFoundException ex) {
+			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+					CommonResponse.from(ResponseCode.USER_DEVICE_ID_NOT_FOUND));
+		}
 	}
 }
