@@ -1,5 +1,6 @@
 package com.algomeet.signalservice.dto;
 
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
@@ -7,11 +8,12 @@ import lombok.Data;
 @Data
 public class SignedPreKeyRequest {
 	@NotNull
-    private Integer signedPreKeyId;
-	
+	@Min(value = 0, message = "signedPreKeyId must be greater than equal to 0")
+	private Integer signedPreKeyId;
+
 	@NotEmpty
-    private String publicKey;
-	
+	private String publicKey;
+
 	@NotEmpty
-    private String signature;
+	private String signature;
 }

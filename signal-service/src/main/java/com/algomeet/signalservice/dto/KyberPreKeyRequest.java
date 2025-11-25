@@ -1,5 +1,6 @@
 package com.algomeet.signalservice.dto;
 
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -8,6 +9,7 @@ import lombok.Data;
 @Data
 public class KyberPreKeyRequest {	
 	@NotNull
+	@Min(value = 0, message = "kyberPreKeyId must be greater than equal to 0")
 	private Integer kyberPreKeyId;
 	
 	@NotEmpty
