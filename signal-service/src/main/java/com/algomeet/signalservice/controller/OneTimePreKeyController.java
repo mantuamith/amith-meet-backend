@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.algomeet.signalservice.controller.swagger.OneTimePreKeyControllerDoc;
 import com.algomeet.signalservice.dto.CommonResponse;
 import com.algomeet.signalservice.dto.OneTimePreKeyResponse;
 import com.algomeet.signalservice.dto.OneTimePreKeysRequest;
@@ -28,7 +29,7 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequestMapping("/signal/v2/prekeys/one-time")
 @RequiredArgsConstructor
-public class OneTimePreKeyController {
+public class OneTimePreKeyController implements OneTimePreKeyControllerDoc{
 	private final OneTimePreKeyService service;
 
 	@PostMapping("/{deviceId}")

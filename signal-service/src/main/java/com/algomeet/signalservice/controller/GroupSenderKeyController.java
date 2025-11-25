@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.algomeet.signalservice.controller.swagger.GroupSenderKeyControllerDoc;
 import com.algomeet.signalservice.dto.CommonResponse;
 import com.algomeet.signalservice.dto.GroupSenderKeyRequest;
 import com.algomeet.signalservice.dto.GroupSenderKeyResponse;
@@ -27,7 +28,7 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequestMapping("/signal/v2/devices")
 @RequiredArgsConstructor
-public class GroupSenderKeyController {
+public class GroupSenderKeyController implements GroupSenderKeyControllerDoc{
 
 	private final GroupSenderKeyService service;
 
@@ -67,6 +68,25 @@ public class GroupSenderKeyController {
 					CommonResponse.from(ResponseCode.USER_DEVICE_ID_NOT_FOUND));
 		}
 	}
+	
+	/** Receiver device polls for SKDM */
+	@GetMapping("/{receiverDeviceId}/groups/{groupId}/sender-keys/poll")
+	public ResponseEntity<CommonResponse<List<GroupSenderKeyResponse>>> poll(
+			@PathVariable Integer receiverDeviceId,
+			@PathVariable String groupId,
+	        @RequestParam(defaultValue = "3000") long timeoutMs) {
+		try {
+			UUID receiverUserKey = UUID.fromString(SecurityUtil.getUserKey());
+			List<GroupSenderKeyResponse> list =
+					service.longPoll(receiverUserKey, receiverDeviceId, groupId, timeoutMs);
+
+			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS,
+					list));
+		} catch (RecordNotFoundException ex) {
+			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+					CommonResponse.from(ResponseCode.USER_DEVICE_GROUP_SENDER_KEY_NOT_FOUND));
+		}
+	}	
 
 	@DeleteMapping("/{senderDeviceId}/groups/{groupId}/sender-keys")
 	public ResponseEntity<CommonResponse<List<GroupSenderKeyResponse>>> delete(
@@ -83,4 +103,6 @@ public class GroupSenderKeyController {
 					CommonResponse.from(ResponseCode.USER_DEVICE_ID_NOT_FOUND));
 		}
 	}	
+	
+	
 }

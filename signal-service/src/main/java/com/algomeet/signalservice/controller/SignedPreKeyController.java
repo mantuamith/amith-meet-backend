@@ -4,6 +4,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import com.algomeet.signalservice.controller.swagger.SignedPreKeyControllerDoc;
 import com.algomeet.signalservice.dto.CommonResponse;
 import com.algomeet.signalservice.dto.SignedPreKeyRequest;
 import com.algomeet.signalservice.dto.SignedPreKeyResponse;
@@ -17,7 +18,7 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/signal/v2/signed-prekeys")
-public class SignedPreKeyController {
+public class SignedPreKeyController implements SignedPreKeyControllerDoc{
 
 	private final SignedPreKeyService service;
 

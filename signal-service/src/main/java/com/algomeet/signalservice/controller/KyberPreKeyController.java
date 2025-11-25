@@ -4,6 +4,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import com.algomeet.signalservice.controller.swagger.KyberPreKeyControllerDoc;
 import com.algomeet.signalservice.dto.CommonResponse;
 import com.algomeet.signalservice.dto.KyberPreKeyRequest;
 import com.algomeet.signalservice.dto.KyberPreKeyResponse;
@@ -21,7 +22,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/signal/v2/kyber-prekeys")
 @RequiredArgsConstructor
-public class KyberPreKeyController {
+public class KyberPreKeyController implements KyberPreKeyControllerDoc{
 	private final KyberPreKeyService service;
 
 	@GetMapping("/{deviceId}")

@@ -8,6 +8,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import com.algomeet.signalservice.controller.swagger.UserDeviceControllerDoc;
 import com.algomeet.signalservice.dto.CommonResponse;
 import com.algomeet.signalservice.dto.UserDeviceRequest;
 import com.algomeet.signalservice.dto.UserDeviceResponse;
@@ -21,7 +22,7 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequestMapping("/signal/v2/devices")
 @RequiredArgsConstructor
-public class UserDeviceController {
+public class UserDeviceController implements UserDeviceControllerDoc{
 	private final UserDeviceService service;
 
 	@PostMapping
