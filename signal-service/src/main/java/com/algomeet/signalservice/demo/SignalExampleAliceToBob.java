@@ -1,13 +1,8 @@
 package com.algomeet.signalservice.demo;
 
-import java.util.ArrayList;
 import java.util.Base64;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Random;
 
 import org.signal.libsignal.protocol.DuplicateMessageException;
-import org.signal.libsignal.protocol.IdentityKey;
 import org.signal.libsignal.protocol.InvalidKeyException;
 import org.signal.libsignal.protocol.InvalidKeyIdException;
 import org.signal.libsignal.protocol.InvalidMessageException;
@@ -19,12 +14,10 @@ import org.signal.libsignal.protocol.SessionCipher;
 import org.signal.libsignal.protocol.SignalProtocolAddress;
 import org.signal.libsignal.protocol.UntrustedIdentityException;
 import org.signal.libsignal.protocol.ecc.ECKeyPair;
-import org.signal.libsignal.protocol.ecc.ECPrivateKey;
-import org.signal.libsignal.protocol.ecc.ECPublicKey;
 import org.signal.libsignal.protocol.kem.KEMKeyPair;
 import org.signal.libsignal.protocol.kem.KEMKeyType;
-import org.signal.libsignal.protocol.kem.KEMPublicKey;
 import org.signal.libsignal.protocol.message.CiphertextMessage;
+import org.signal.libsignal.protocol.message.PreKeySignalMessage;
 import org.signal.libsignal.protocol.state.KyberPreKeyRecord;
 import org.signal.libsignal.protocol.state.PreKeyBundle;
 import org.signal.libsignal.protocol.state.PreKeyRecord;
@@ -32,11 +25,6 @@ import org.signal.libsignal.protocol.state.SignedPreKeyRecord;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.WebApplicationType;
 import org.springframework.context.ApplicationContext;
-import org.signal.libsignal.protocol.message.PreKeySignalMessage;
-
-import java.security.PrivateKey;
-import java.security.PublicKey;
-import java.security.Signature;
 
 
 public class SignalExampleAliceToBob {		
@@ -76,19 +64,12 @@ public class SignalExampleAliceToBob {
 				.getPrivateKey()
 				.calculateSignature(bobSignedPreKeyPair.getPublicKey().serialize());
 
-
-		int bobRegistrationId = 10039;
+		int bobRegistrationId = bobStore.getLocalRegistrationId();
 		int bobDeviceId = 1;
 		int bobPreKeyId = 3;
-
-		//		ECPublicKey preKeyPublic = ECPublicKey.fromPublicKeyBytes(Base64.getDecoder().decode("BaZ7tjdq4wqIOHk0ktbNSNDKmZKxnlRsonHoazOTFWVT"));
 		int bobSignedPreKeyId = 2;
-		//		ECPublicKey signedPreKeyPublic = ECPublicKey.fromPublicKeyBytes(Base64.getDecoder().decode("BQmBNExLLNZqQfcV+gn+5+p7Q1gcpQc3/5ZsdKVxa08k"));
-		//		byte[] signedPreKeySignature = Base64.getDecoder().decode("s1HMJtNYfiVQvkfDj/eWyuj0JLj5a74x+oWrrSsVnvpiWuIle4JK5Mx///ljg/CDUxmsALRiNSQ9zMmZbG/FBw==");
-		//		IdentityKey identityKey = new IdentityKey(Base64.getDecoder().decode("Bb6FndhNDd0I9F4ycGgVAtOaaJukpXki6udlebUkOL1b"), 0);
-
-
 		int bobKyberPreKeyId = 5;
+		
 		KEMKeyPair bobKyberPreKeyPair = KEMKeyPair.generate(KEMKeyType.KYBER_1024);
 		byte[] bobKyberPreKeySignature =
 				bobStore
