@@ -15,10 +15,17 @@ import lombok.Data;
 @Table(
 	    name = "signal_group_sender_keys",
 	    indexes = {
-	        @Index(name = "idx_receiver_user_key", columnList = "receiverUserKey"),
-	        @Index(name = "idx_receiver_device_id", columnList = "receiverDeviceId"),
-	        @Index(name = "idx_group_id", columnList = "groupId")
-	    })
+	        @Index(
+	            name = "idx_receiver_user_device_group",
+	            columnList = "receiver_user_key, receiver_device_id, group_id"
+	        ),
+
+	        @Index(
+	            name = "idx_sender_receiver_group",
+	            columnList = "sender_user_key, sender_device_id, receiver_user_key, group_id"
+	        )
+	    }
+	)
 public class GroupSenderKey {
 	@EmbeddedId
 	private GroupSenderKeyId id;
