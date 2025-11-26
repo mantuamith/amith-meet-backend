@@ -9,12 +9,20 @@ import lombok.Data;
 @Data
 public class UserDeviceResponse {
     private UUID userKey;
+    
     private Integer deviceId;
+    
     private Integer registrationId;
+    
     private String identityKey;    
+    
     private SignedPreKeyResponse signedPreKey;
+    
     private KyberPreKeyResponse kyberPreKey;    
+    
     private List<OneTimePreKeyResponse> oneTimePreKeys;
+    
     private Instant createdAt;
+    
     private Instant updatedAt;
 }
