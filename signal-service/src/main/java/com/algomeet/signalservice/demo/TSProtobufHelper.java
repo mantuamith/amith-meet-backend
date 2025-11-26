@@ -1,10 +1,9 @@
 package com.algomeet.signalservice.demo;
 
-import org.signal.libsignal.protocol.message.PreKeySignalMessage;
-import org.signal.libsignal.protocol.ecc.ECPublicKey;
-import com.google.protobuf.CodedOutputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+
+import com.google.protobuf.CodedOutputStream;
 
 public class TSProtobufHelper {
 

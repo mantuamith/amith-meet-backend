@@ -15,6 +15,7 @@ import org.signal.libsignal.protocol.SignalProtocolAddress;
 import org.signal.libsignal.protocol.groups.GroupCipher;
 import org.signal.libsignal.protocol.groups.GroupSessionBuilder;
 import org.signal.libsignal.protocol.groups.state.InMemorySenderKeyStore;
+import org.signal.libsignal.protocol.groups.state.SenderKeyRecord;
 import org.signal.libsignal.protocol.message.CiphertextMessage;
 import org.signal.libsignal.protocol.message.SenderKeyDistributionMessage;
 import org.springframework.boot.SpringApplication;
@@ -59,7 +60,6 @@ public class SignalExampleGroupAliceToBob {
 
 		SenderKeyDistributionMessage sentAliceDistributionMessage =
 				aliceSessionBuilder.create(SENDER_ADDRESS, DISTRIBUTION_ID);
-
 		
 		System.out.println("skdm: " + Base64.getEncoder().encodeToString(sentAliceDistributionMessage.serialize()));
 		SenderKeyDistributionMessage receivedAliceDistributionMessage =
@@ -83,7 +83,35 @@ public class SignalExampleGroupAliceToBob {
 		System.out.println("Encrypted: " + Base64.getEncoder().encodeToString(ciphertextFromAlice.serialize()));
 		
 		byte[] plaintextFromAlice = bobGroupCipher.decrypt(ciphertextFromAlice.serialize());
-
+		
 		System.out.println(new String(plaintextFromAlice));
+		
+		
+		
+		/** Inbound Backup group sessions */		
+		SenderKeyRecord record = bobStore.loadSenderKey(SENDER_ADDRESS, DISTRIBUTION_ID);
+	    byte[] bytes = record.serialize();
+
+	    System.out.println("SenderKeyRecord " + Base64.getEncoder().encodeToString(bytes));
+	    
+	    // Restore
+	    byte[] bytesRestore = Base64.getDecoder().decode(Base64.getEncoder().encodeToString(bytes));
+	    SenderKeyRecord recordRestore = new SenderKeyRecord(bytes);
+
+	    bobStore.storeSenderKey(SENDER_ADDRESS, DISTRIBUTION_ID, recordRestore);
+	    
+	    
+	    
+	    /** outbound Backup group sessions */		
+		SenderKeyRecord recordOB = aliceStore.loadSenderKey(SENDER_ADDRESS, DISTRIBUTION_ID);
+	    byte[] bytesOB = recordOB.serialize();
+
+	    System.out.println("SenderKeyRecord OB " + Base64.getEncoder().encodeToString(bytesOB));
+	    
+	    // Restore
+	    byte[] bytesRestoreOB = Base64.getDecoder().decode(Base64.getEncoder().encodeToString(bytes));
+	    SenderKeyRecord recordRestoreOB = new SenderKeyRecord(bytesRestoreOB);
+
+	    aliceStore.storeSenderKey(SENDER_ADDRESS, DISTRIBUTION_ID, recordRestoreOB);
 	}	
 }
