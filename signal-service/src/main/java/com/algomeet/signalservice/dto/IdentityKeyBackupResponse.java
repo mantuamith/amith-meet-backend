@@ -14,7 +14,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @Data
 public class IdentityKeyBackupResponse {
-	private String deviceId;
+	private Integer deviceId;
 
 	private UUID userKey;
 	private Integer registrationId;

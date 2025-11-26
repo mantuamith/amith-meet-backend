@@ -17,11 +17,9 @@ import lombok.NoArgsConstructor;
 public class IdentityKeyBackupId implements Serializable {    
     private static final long serialVersionUID = 1L;
 
-    @Column(name = "user_key", nullable = false, updatable = false)
 	private UUID userKey;
 
-	@Column(name = "device_id", nullable = false, length = 88)
-    private String deviceId;
+    private Integer deviceId;
 
     @Override
     public boolean equals(Object o) {

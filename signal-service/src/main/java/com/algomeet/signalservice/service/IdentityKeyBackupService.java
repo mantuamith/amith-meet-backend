@@ -78,12 +78,12 @@ public class IdentityKeyBackupService {
         return toResponse(saved);
     }
 
-    public Optional<IdentityKeyBackupResponse> restoreBackup(UUID userKey, String deviceId) {
+    public Optional<IdentityKeyBackupResponse> restoreBackup(UUID userKey, Integer deviceId) {
         return repository.findById(new IdentityKeyBackupId(userKey, deviceId))
                 .map(entity -> toResponse(entity));
     }
     
-    public void deleteBackup(UUID userKey, String deviceId) {
+    public void deleteBackup(UUID userKey, Integer deviceId) {
     	if(repository.findById(new IdentityKeyBackupId(userKey, deviceId)).isEmpty()) {
     		throw new RecordNotFoundException(String.format("User device identity key backup for device Id %s is not found", deviceId));
     	}

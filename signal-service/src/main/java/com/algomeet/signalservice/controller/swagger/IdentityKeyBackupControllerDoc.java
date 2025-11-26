@@ -78,7 +78,7 @@ public interface IdentityKeyBackupControllerDoc {
     )
     public ResponseEntity<CommonResponse<IdentityKeyBackupResponse>> getBackup(
             @Parameter(description = "Device ID for which to retrieve the backup") 
-            @RequestParam("deviceId") String deviceId);
+            @RequestParam("deviceId") Integer deviceId);
     
     /**
      * Deletes a specific user account backup by device ID.
@@ -98,7 +98,7 @@ public interface IdentityKeyBackupControllerDoc {
     )
     public ResponseEntity<CommonResponse<?>> deleteBackup(
             @Parameter(description = "Device ID of the backup to delete")
-            @RequestParam("deviceId") String deviceId);
+            @RequestParam("deviceId") Integer deviceId);
 
     /**
      * Deletes all backups for the authenticated user.

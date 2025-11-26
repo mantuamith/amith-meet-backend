@@ -15,8 +15,7 @@ public class IdentityKeyBackupRequest {
 	 * Encrypted private key
 	 */
 	@NotEmpty
-	@Size(max = 88)
-	private String deviceId;
+	private Integer deviceId;
 	
 	@NotNull
 	@Min(value = 0, message = "registrationId must be greater than equal to 0")

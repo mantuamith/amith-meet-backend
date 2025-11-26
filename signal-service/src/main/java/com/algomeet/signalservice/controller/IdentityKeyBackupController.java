@@ -87,7 +87,7 @@ public class IdentityKeyBackupController implements IdentityKeyBackupControllerD
 	 */
 	@Override
 	@GetMapping
-	public ResponseEntity<CommonResponse<IdentityKeyBackupResponse>> getBackup(@RequestParam("deviceId") String deviceId) {
+	public ResponseEntity<CommonResponse<IdentityKeyBackupResponse>> getBackup(@RequestParam("deviceId") Integer deviceId) {
 		return service.restoreBackup(UUID.fromString(SecurityUtil.getUserKey()), deviceId)
 				.map(account -> ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, account)))
 				.orElse(ResponseEntity.status(HttpStatus.NOT_FOUND)
@@ -110,7 +110,7 @@ public class IdentityKeyBackupController implements IdentityKeyBackupControllerD
 	 */
 	@Override
 	@DeleteMapping
-	public ResponseEntity<CommonResponse<?>> deleteBackup(@RequestParam("deviceId") String deviceId) {
+	public ResponseEntity<CommonResponse<?>> deleteBackup(@RequestParam("deviceId") Integer deviceId) {
 		try {
 			service.deleteBackup(UUID.fromString(SecurityUtil.getUserKey()), deviceId);
 			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
