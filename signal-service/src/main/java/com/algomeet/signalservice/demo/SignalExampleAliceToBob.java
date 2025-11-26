@@ -1,8 +1,11 @@
 package com.algomeet.signalservice.demo;
 
 import java.util.Base64;
+import java.util.List;
 
 import org.signal.libsignal.protocol.DuplicateMessageException;
+import org.signal.libsignal.protocol.IdentityKey;
+import org.signal.libsignal.protocol.IdentityKeyPair;
 import org.signal.libsignal.protocol.InvalidKeyException;
 import org.signal.libsignal.protocol.InvalidKeyIdException;
 import org.signal.libsignal.protocol.InvalidMessageException;
@@ -21,10 +24,12 @@ import org.signal.libsignal.protocol.message.PreKeySignalMessage;
 import org.signal.libsignal.protocol.state.KyberPreKeyRecord;
 import org.signal.libsignal.protocol.state.PreKeyBundle;
 import org.signal.libsignal.protocol.state.PreKeyRecord;
+import org.signal.libsignal.protocol.state.SessionRecord;
 import org.signal.libsignal.protocol.state.SignedPreKeyRecord;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.WebApplicationType;
 import org.springframework.context.ApplicationContext;
+import org.signal.libsignal.protocol.state.impl.InMemorySignalProtocolStore;
 
 
 public class SignalExampleAliceToBob {		
@@ -51,11 +56,11 @@ public class SignalExampleAliceToBob {
 	InvalidMessageException, InvalidVersionException, LegacyMessageException, 
 	DuplicateMessageException, InvalidKeyIdException {
 
-		TestInMemorySignalProtocolStore aliceStore = new TestInMemorySignalProtocolStore();
+		InMemorySignalProtocolStore aliceStore = new TestInMemorySignalProtocolStore();
 		SessionBuilder aliceSessionBuilder = new SessionBuilder(aliceStore, BOB_ADDRESS);
 
 		// Generate bob store and keys
-		final TestInMemorySignalProtocolStore bobStore = new TestInMemorySignalProtocolStore();
+		final InMemorySignalProtocolStore bobStore = new TestInMemorySignalProtocolStore();
 		ECKeyPair    bobPreKeyPair            = ECKeyPair.generate();
 		ECKeyPair    bobSignedPreKeyPair      = ECKeyPair.generate();
 
@@ -67,7 +72,7 @@ public class SignalExampleAliceToBob {
 
 		int bobRegistrationId = bobStore.getLocalRegistrationId();
 		int bobDeviceId = 1;
-		int bobPreKeyId = 3;
+		int bobPreKeyId = 1;
 		int bobSignedPreKeyId = 2;
 		int bobKyberPreKeyId = 5;
 		
@@ -90,6 +95,7 @@ public class SignalExampleAliceToBob {
 				bobKyberPreKeyPair.getPublicKey(),
 				bobKyberPreKeySignature);
 
+		
 		System.out.println("bobRegistrationId: " + bobRegistrationId);
 		System.out.println("bobDeviceId: " + bobDeviceId);
 		System.out.println("bobPreKeyId: " + bobPreKeyId);
@@ -119,7 +125,9 @@ public class SignalExampleAliceToBob {
 
 		PreKeySignalMessage incomingMessage = new PreKeySignalMessage(outgoingMessage.serialize());
 
-		bobStore.storePreKey(bobPreKeyId, new PreKeyRecord(bobPreKeyBundle.getPreKeyId(), bobPreKeyPair));
+		bobStore.storePreKey(bobPreKeyId, new PreKeyRecord(bobPreKeyId, bobPreKeyPair));
+		bobStore.storePreKey(2, new PreKeyRecord(2, bobPreKeyPair));
+				
 		bobStore.storeSignedPreKey(bobSignedPreKeyId, new SignedPreKeyRecord(bobPreKeyBundle.getSignedPreKeyId(), 
 				System.currentTimeMillis(), bobSignedPreKeyPair, bobSignedPreKeySignature));
 
@@ -127,8 +135,38 @@ public class SignalExampleAliceToBob {
 				System.currentTimeMillis(), bobKyberPreKeyPair, bobKyberPreKeySignature));
 
 		SessionCipher bobSessionCipher = new SessionCipher(bobStore, ALICE_ADDRESS);
+		
+		System.out.println("loadPreKey        --->" +  bobStore.containsPreKey(bobPreKeyId));
 		byte[] plaintext = bobSessionCipher.decrypt(incomingMessage);
+		System.out.println("loadPreKey        --->" +  bobStore.containsPreKey(bobPreKeyId));
 
 		System.out.println("Decrypted message: " + new String(plaintext));
+		
+		
+		/** Backup identity keys */
+		IdentityKeyPair ik = bobStore.getIdentityKeyPair();
+		int registrationId = bobStore.getLocalRegistrationId();		
+		System.out.println("IdentityKeyPair   --->" +  Base64.getEncoder().encodeToString(ik.serialize()).length());
+		System.out.println("loadPreKey        --->" +  bobStore.containsPreKey(2));
+		System.out.println("loadPreKey        --->" +  Base64.getEncoder().encodeToString(bobStore.loadPreKey(2).serialize()).length());
+		System.out.println("loadSignedPreKeys --->" +  Base64.getEncoder().encodeToString(bobStore.loadSignedPreKeys().get(0).serialize()).length());
+		System.out.println("loadKyberPreKeys  --->" +  Base64.getEncoder().encodeToString(bobStore.loadKyberPreKeys().get(0).serialize()).length());
+		
+
+		// encrypt & save to disk
+		// restore
+		IdentityKeyPair identity = new IdentityKeyPair(ik.serialize());
+		
+		
+		/** Backup sessions */
+		// get list of all known sessions
+		SessionRecord aliceSession = bobStore.loadSession(ALICE_ADDRESS);
+
+		// Save into your backup structure
+		System.out.println("getLocalRegistrationId  --->" + aliceSession.getLocalRegistrationId());
+		System.out.println("bobRegistrationId  --->" + bobRegistrationId);
+		String sessionBackup = Base64.getEncoder().encodeToString(aliceSession.serialize());
+		System.out.println("sessionBackup  --->" +  sessionBackup.length());
+
 	}	
 }
