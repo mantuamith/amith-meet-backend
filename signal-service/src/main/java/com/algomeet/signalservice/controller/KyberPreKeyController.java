@@ -20,12 +20,12 @@ import java.util.Optional;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/signal/v2/kyber-prekeys")
+@RequestMapping("/signal/v2/devices")
 @RequiredArgsConstructor
 public class KyberPreKeyController implements KyberPreKeyControllerDoc{
 	private final KyberPreKeyService service;
 
-	@GetMapping("/{deviceId}")
+	@GetMapping("/{deviceId}/kyber-prekeys")
 	public ResponseEntity<CommonResponse<KyberPreKeyResponse>> retrieve(
 			@PathVariable Integer deviceId, Optional<UUID> userKey) {
 		KyberPreKeyId id = new KyberPreKeyId(userKey.orElse(UUID.fromString(SecurityUtil.getUserKey())), deviceId);		
@@ -39,7 +39,7 @@ public class KyberPreKeyController implements KyberPreKeyControllerDoc{
 		}
 	}
 
-	@PutMapping("/{deviceId}")
+	@PutMapping("/{deviceId}/kyber-prekeys")
 	public ResponseEntity<CommonResponse<KyberPreKeyResponse>> update(
 			@PathVariable Integer deviceId,
 			@RequestBody KyberPreKeyRequest request) {

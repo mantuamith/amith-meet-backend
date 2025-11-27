@@ -19,7 +19,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
-@Tag(name = "Group Sender Keys", description = "Sender key distribution for secure group messaging")
+@Tag(name = "Group Sender Keys API", description = "Sender key distribution for secure group messaging")
 public interface GroupSenderKeyControllerDoc {
 
     /**

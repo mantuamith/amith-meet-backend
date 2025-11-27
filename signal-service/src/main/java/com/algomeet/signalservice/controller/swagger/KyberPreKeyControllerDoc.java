@@ -18,7 +18,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
-@Tag(name = "Kyber PreKey API", description = "Operations for retrieving and updating Kyber pre-keys")
+@Tag(name = "Kyber PreKeys API", description = "Operations for retrieving and updating Kyber pre-keys")
 public interface KyberPreKeyControllerDoc {
 
     @Operation(

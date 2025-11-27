@@ -14,11 +14,17 @@ import com.algomeet.signalservice.entity.GroupSessionBackupId;
 public interface GroupSessionBackupRepository extends JpaRepository<GroupSessionBackup, GroupSessionBackupId> {
 	List<GroupSessionBackup> findByIdUserKey(UUID userKey);
 	
-	List<GroupSessionBackup> findByIdUserKeyAndIdDistributionId(UUID userKey, UUID distributionId);
+	List<GroupSessionBackup> findByIdUserKeyAndIdGroupIdAndIdDistributionId(UUID userKey, String groupId, UUID distributionId);
+	
+	List<GroupSessionBackup> findByIdUserKeyAndDeviceId(UUID userKey, Integer deviceId);
 	
 	@Modifying
     @Transactional
 	void deleteByIdUserKeyAndIdGroupIdAndIdDistributionId(UUID userKey, String groupId, UUID distributionId);
+	
+	@Modifying
+    @Transactional
+	void deleteByIdUserKeyAndDeviceId(UUID userKey, Integer deviceId);
 	
     @Modifying
     @Transactional

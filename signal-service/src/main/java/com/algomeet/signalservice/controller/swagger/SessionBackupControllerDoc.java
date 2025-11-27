@@ -22,7 +22,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
-@Tag(name = "Session Backup", description = "APIs for storing, restoring, and deleting Signal protocol session backups")
+@Tag(name = "Session Backups API", description = "APIs for storing, restoring, and deleting Signal protocol session backups")
 public interface SessionBackupControllerDoc {
 	// ---------------------------------------------------------
 	// POST /signal/backup/sessions

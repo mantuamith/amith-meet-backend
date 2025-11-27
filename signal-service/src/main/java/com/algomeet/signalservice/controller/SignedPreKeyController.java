@@ -17,7 +17,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/signal/v2/signed-prekeys")
+@RequestMapping("/signal/v2/devices")
 public class SignedPreKeyController implements SignedPreKeyControllerDoc{
 
 	private final SignedPreKeyService service;
@@ -26,7 +26,7 @@ public class SignedPreKeyController implements SignedPreKeyControllerDoc{
 		this.service = service;
 	}
 
-	@GetMapping("/{deviceId}")
+	@GetMapping("/{deviceId}/signed-prekeys")
 	public ResponseEntity<CommonResponse<SignedPreKeyResponse>> get(
 			@PathVariable Integer deviceId, 
 			@RequestParam Optional<UUID> userKey
@@ -42,7 +42,7 @@ public class SignedPreKeyController implements SignedPreKeyControllerDoc{
 		}
 	}
 
-	@PutMapping("/{deviceId}")
+	@PutMapping("/{deviceId}/signed-prekeys")
 	public ResponseEntity<CommonResponse<SignedPreKeyResponse>> update(
 			@PathVariable Integer deviceId,
 			@RequestBody SignedPreKeyRequest request

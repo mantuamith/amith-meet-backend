@@ -27,12 +27,12 @@ import com.algomeet.signalservice.util.SecurityUtil;
 import lombok.RequiredArgsConstructor;
 
 @RestController
-@RequestMapping("/signal/v2/prekeys/one-time")
+@RequestMapping("/signal/v2/devices")
 @RequiredArgsConstructor
 public class OneTimePreKeyController implements OneTimePreKeyControllerDoc{
 	private final OneTimePreKeyService service;
 
-	@PostMapping("/{deviceId}")
+	@PostMapping("/{deviceId}/prekeys/one-time")
 	public ResponseEntity<CommonResponse<List<OneTimePreKeyResponse>>> create(@PathVariable Integer deviceId, @RequestBody OneTimePreKeysRequest request) {
 		try {
 			List<OneTimePreKeyResponse> savedList = service.create(UUID.fromString(SecurityUtil.getUserKey()), deviceId, request);
@@ -44,7 +44,7 @@ public class OneTimePreKeyController implements OneTimePreKeyControllerDoc{
 		}
 	}
 
-	@GetMapping("/{deviceId}")
+	@GetMapping("/{deviceId}/prekeys/one-time")
 	public ResponseEntity<CommonResponse<OneTimePreKeyResponse>> getAvailable(@RequestParam UUID userKey,
 			@PathVariable Integer deviceId) {	
 		try {
@@ -59,7 +59,7 @@ public class OneTimePreKeyController implements OneTimePreKeyControllerDoc{
 		}
 	}	
 
-	@GetMapping("/{deviceId}/count")
+	@GetMapping("/{deviceId}/prekeys/one-time/count")
 	public ResponseEntity<CommonResponse<Long>> getAvailablePrekeysCount(@PathVariable Integer deviceId) {	
 		try {
 			return ResponseEntity.ok(
@@ -70,7 +70,7 @@ public class OneTimePreKeyController implements OneTimePreKeyControllerDoc{
 		}
 	}	
 
-	@DeleteMapping("/{deviceId}")
+	@DeleteMapping("/{deviceId}/prekeys/one-time")
 	public ResponseEntity<CommonResponse<?>> deleteAll(@PathVariable Integer deviceId) {
 		try {
 			service.delete(UUID.fromString(SecurityUtil.getUserKey()), deviceId);

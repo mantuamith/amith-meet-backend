@@ -19,7 +19,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
-@Tag(name = "One-Time PreKey API", description = "Operations for creating, retrieving, counting, and deleting one-time pre-keys")
+@Tag(name = "One-Time PreKeys API", description = "Operations for creating, retrieving, counting, and deleting one-time pre-keys")
 public interface OneTimePreKeyControllerDoc {
 
     @Operation(
