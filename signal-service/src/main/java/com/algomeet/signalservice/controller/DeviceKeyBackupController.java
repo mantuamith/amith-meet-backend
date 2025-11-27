@@ -120,20 +120,4 @@ public class DeviceKeyBackupController implements DeviceKeyBackupControllerDoc{
 					.body(CommonResponse.from(ResponseCode.DEVICE_KEY_BACKUP_NOT_FOUND));
 		}
 	}
-
-	/**
-	 * Deletes all user device identity key backups associated with the authenticated user.
-	 *
-	 * <p>This endpoint removes all stored encrypted account backups for the current user,
-	 * regardless of device. Once deleted, the backups cannot be recovered.</p>
-	 *
-	 * @return a {@link ResponseEntity} with {@link HttpStatus#OK} upon successful deletion
-	 */
-	@Override
-	@DeleteMapping("/all")
-	public ResponseEntity<CommonResponse<?>> deleteAllUserBackup() {
-		service.deleteBackup(UUID.fromString(SecurityUtil.getUserKey()));
-		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
-	}
-
 }

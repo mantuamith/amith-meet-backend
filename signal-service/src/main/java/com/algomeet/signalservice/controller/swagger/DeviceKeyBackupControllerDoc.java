@@ -100,19 +100,4 @@ public interface DeviceKeyBackupControllerDoc {
     public ResponseEntity<CommonResponse<?>> deleteBackup(
             @Parameter(description = "Device ID of the backup to delete")
             @PathVariable("deviceId") Integer deviceId);
-
-    /**
-     * Deletes all backups for the authenticated user.
-     *
-     * @return a success response upon deletion
-     */
-    @Operation(
-        summary = "Delete all user device key backups",
-        description = "Removes all encrypted Signal device key backups for the authenticated user.",
-        responses = {
-            @ApiResponse(responseCode = "200", description = "All backups successfully deleted",
-                    content = @Content(schema = @Schema(implementation = CommonResponse.class)))
-        }
-    )
-    public ResponseEntity<CommonResponse<?>> deleteAllUserBackup();
 }
