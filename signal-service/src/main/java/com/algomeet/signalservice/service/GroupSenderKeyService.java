@@ -52,8 +52,8 @@ public class GroupSenderKeyService {
 		.orElseThrow(() -> new RecordNotFoundException("User device ID not found"));
 
 		long start = System.currentTimeMillis();        
-		while (System.currentTimeMillis() - start < timeoutMs) {
-
+		
+		do {
 			List<GroupSenderKey> pending = repository.findByIdReceiverUserKeyAndIdReceiverDeviceIdAndIdGroupId(
 					receiverUserKey, receiverDeviceId, groupId);
 
@@ -68,7 +68,7 @@ public class GroupSenderKeyService {
 					Thread.sleep(500); // small wait
 				}
 			} catch (InterruptedException ignored) {}
-		}
+		} while (System.currentTimeMillis() - start < timeoutMs);
 
 		return List.of(); // timeout
 	}
