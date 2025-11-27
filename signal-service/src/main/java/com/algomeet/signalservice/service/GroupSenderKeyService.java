@@ -64,7 +64,9 @@ public class GroupSenderKeyService {
 			}
 
 			try {
-				Thread.sleep(500); // small wait
+				if (timeoutMs >= 500) {
+					Thread.sleep(500); // small wait
+				}
 			} catch (InterruptedException ignored) {}
 		}
 
