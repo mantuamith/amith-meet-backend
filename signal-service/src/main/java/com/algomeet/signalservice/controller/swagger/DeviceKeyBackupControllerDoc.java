@@ -18,8 +18,8 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 @Tag(
-    name = "User Device Key Backups API",
-    description = "Endpoints for managing Signal user device key backups."
+    name = "Device Key Backups API",
+    description = "Endpoints for managing Signal device key backups."
 )
 public interface DeviceKeyBackupControllerDoc {
 
