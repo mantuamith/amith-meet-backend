@@ -83,6 +83,7 @@ public class ExampleAliceToBob {
 		// This endoint will return the device ID save it in your device to be used in succeeding request.
 		
 		// Get/Retrieve recipient device identity key from backend using API endpoint: GET /signal/v2/devices?userKey=2fc35cae-e0b7-40a5-b2aa-e86206730e99
+		// Get/Retrieve one-time prekey using this endoint: GET /signal/v2/devices/{deviceId}/prekeys/one-time?userKey=XXX
 		PreKeyBundle bobPreKeyBundle= new PreKeyBundle(bobRegistrationId, 
 				bobDeviceId,
 				bobPreKeyId, 
