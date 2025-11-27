@@ -6,9 +6,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 
 import com.algomeet.signalservice.dto.CommonResponse;
-import com.algomeet.signalservice.dto.IdentityKeyBackupRequest;
-import com.algomeet.signalservice.dto.IdentityKeyBackupResponse;
-import com.algomeet.signalservice.dto.IdentityKeyBackupUpdateRequest;
+import com.algomeet.signalservice.dto.DeviceKeyBackupRequest;
+import com.algomeet.signalservice.dto.DeviceKeyBackupResponse;
+import com.algomeet.signalservice.dto.DeviceKeyBackupUpdateRequest;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -18,10 +18,10 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 @Tag(
-    name = "User Device Identity Key Backup API",
-    description = "Endpoints for managing Signal user device identity key backups."
+    name = "User Device Key Backups API",
+    description = "Endpoints for managing Signal user device key backups."
 )
-public interface IdentityKeyBackupControllerDoc {
+public interface DeviceKeyBackupControllerDoc {
 
     /**
      * Saves a new user account backup for the authenticated user.
@@ -30,35 +30,35 @@ public interface IdentityKeyBackupControllerDoc {
      * @return a success response if saved, or a conflict if it already exists
      */
     @Operation(
-        summary = "Save user device identity key backup",
-        description = "Stores a new encrypted Signal device identity key backup for the authenticated user and device.",
+        summary = "Save user device key backup",
+        description = "Stores a new encrypted Signal device key backup for the authenticated user and device.",
         responses = {
             @ApiResponse(responseCode = "200", description = "Backup successfully saved",
-                    content = @Content(schema = @Schema(implementation = IdentityKeyBackupResponse.class)))
+                    content = @Content(schema = @Schema(implementation = DeviceKeyBackupResponse.class)))
         }
     )
-    public ResponseEntity<CommonResponse<IdentityKeyBackupResponse>> saveBackup(
-            @Validated @RequestBody IdentityKeyBackupRequest request);  
+    public ResponseEntity<CommonResponse<DeviceKeyBackupResponse>> saveBackup(
+            @Validated @RequestBody DeviceKeyBackupRequest request);  
     
     
     /**
-     * Update a user device identity key  backup for the authenticated user.
+     * Update a user device key backup for the authenticated user.
      *
      * @param request contains the encrypted account data and backup metadata
      * @return a success response if saved, or a conflict if it already exists
      */
     @Operation(
-        summary = "Update user device identity key backup",
-        description = "Stores a new encrypted Signal device identity key backup for the authenticated user and device.",
+        summary = "Update user device key backup",
+        description = "Stores a new encrypted Signal device key backup for the authenticated user and device.",
         responses = {
             @ApiResponse(responseCode = "200", description = "Backup successfully updated",
-                    content = @Content(schema = @Schema(implementation = IdentityKeyBackupResponse.class))),
+                    content = @Content(schema = @Schema(implementation = DeviceKeyBackupResponse.class))),
             @ApiResponse(responseCode = "404", description = "Backup not found",
             content = @Content(schema = @Schema(implementation = CommonResponse.class)))
         }
     )
-    public ResponseEntity<CommonResponse<IdentityKeyBackupResponse>> updateBackup(
-            @Validated @RequestBody IdentityKeyBackupUpdateRequest request); 
+    public ResponseEntity<CommonResponse<DeviceKeyBackupResponse>> updateBackup(
+            @Validated @RequestBody DeviceKeyBackupUpdateRequest request); 
 
     /**
      * Retrieves a user account backup by device ID.
@@ -67,16 +67,16 @@ public interface IdentityKeyBackupControllerDoc {
      * @return a response containing the user backup if found, otherwise 404
      */
     @Operation(
-        summary = "Retrieve user device identity key backup",
-        description = "Fetches the encrypted user device identity key backup associated with a specific device ID.",
+        summary = "Retrieve user device key backup",
+        description = "Fetches the encrypted user device key backup associated with a specific device ID.",
         responses = {
             @ApiResponse(responseCode = "200", description = "Backup found",
-                    content = @Content(schema = @Schema(implementation = IdentityKeyBackupResponse.class))),
+                    content = @Content(schema = @Schema(implementation = DeviceKeyBackupResponse.class))),
             @ApiResponse(responseCode = "404", description = "Backup not found",
                     content = @Content(schema = @Schema(implementation = CommonResponse.class)))
         }
     )
-    public ResponseEntity<CommonResponse<IdentityKeyBackupResponse>> getBackup(
+    public ResponseEntity<CommonResponse<DeviceKeyBackupResponse>> getBackup(
             @Parameter(description = "Device ID for which to retrieve the backup") 
             @RequestParam("deviceId") Integer deviceId);
     
@@ -87,7 +87,7 @@ public interface IdentityKeyBackupControllerDoc {
      * @return a success response if deleted, or 404 if not found
      */
     @Operation(
-        summary = "Delete user device identity key backup",
+        summary = "Delete user device key backup",
         description = "Removes the encrypted user account backup associated with a given device ID.",
         responses = {
             @ApiResponse(responseCode = "200", description = "Backup successfully deleted",
@@ -106,8 +106,8 @@ public interface IdentityKeyBackupControllerDoc {
      * @return a success response upon deletion
      */
     @Operation(
-        summary = "Delete all user device identity key backups",
-        description = "Removes all encrypted Signal device identity key backups for the authenticated user.",
+        summary = "Delete all user device key backups",
+        description = "Removes all encrypted Signal device key backups for the authenticated user.",
         responses = {
             @ApiResponse(responseCode = "200", description = "All backups successfully deleted",
                     content = @Content(schema = @Schema(implementation = CommonResponse.class)))

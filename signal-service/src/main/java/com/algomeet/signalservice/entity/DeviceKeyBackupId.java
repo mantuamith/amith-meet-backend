@@ -14,7 +14,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 @Embeddable
-public class IdentityKeyBackupId implements Serializable {    
+public class DeviceKeyBackupId implements Serializable {    
     private static final long serialVersionUID = 1L;
 
 	private UUID userKey;
@@ -24,8 +24,8 @@ public class IdentityKeyBackupId implements Serializable {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (!(o instanceof IdentityKeyBackupId)) return false;
-        IdentityKeyBackupId that = (IdentityKeyBackupId) o;
+        if (!(o instanceof DeviceKeyBackupId)) return false;
+        DeviceKeyBackupId that = (DeviceKeyBackupId) o;
         return Objects.equals(userKey, that.userKey) &&
                Objects.equals(deviceId, that.deviceId);
     }

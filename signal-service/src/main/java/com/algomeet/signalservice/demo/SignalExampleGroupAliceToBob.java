@@ -92,7 +92,7 @@ public class SignalExampleGroupAliceToBob {
 		SenderKeyRecord record = bobStore.loadSenderKey(SENDER_ADDRESS, DISTRIBUTION_ID);
 	    byte[] bytes = record.serialize();
 
-	    System.out.println("SenderKeyRecord " + Base64.getEncoder().encodeToString(bytes));
+	    System.out.println("SenderKeyRecord " + Base64.getEncoder().encodeToString(bytes).length());
 	    
 	    // Restore
 	    byte[] bytesRestore = Base64.getDecoder().decode(Base64.getEncoder().encodeToString(bytes));
@@ -106,7 +106,7 @@ public class SignalExampleGroupAliceToBob {
 		SenderKeyRecord recordOB = aliceStore.loadSenderKey(SENDER_ADDRESS, DISTRIBUTION_ID);
 	    byte[] bytesOB = recordOB.serialize();
 
-	    System.out.println("SenderKeyRecord OB " + Base64.getEncoder().encodeToString(bytesOB));
+	    System.out.println("SenderKeyRecord OB " + Base64.getEncoder().encodeToString(bytesOB).length());
 	    
 	    // Restore
 	    byte[] bytesRestoreOB = Base64.getDecoder().decode(Base64.getEncoder().encodeToString(bytes));

@@ -14,14 +14,14 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.algomeet.signalservice.controller.swagger.IdentityKeyBackupControllerDoc;
+import com.algomeet.signalservice.controller.swagger.DeviceKeyBackupControllerDoc;
 import com.algomeet.signalservice.dto.CommonResponse;
-import com.algomeet.signalservice.dto.IdentityKeyBackupRequest;
-import com.algomeet.signalservice.dto.IdentityKeyBackupResponse;
-import com.algomeet.signalservice.dto.IdentityKeyBackupUpdateRequest;
+import com.algomeet.signalservice.dto.DeviceKeyBackupRequest;
+import com.algomeet.signalservice.dto.DeviceKeyBackupResponse;
+import com.algomeet.signalservice.dto.DeviceKeyBackupUpdateRequest;
 import com.algomeet.signalservice.enums.ResponseCode;
 import com.algomeet.signalservice.exceptions.RecordNotFoundException;
-import com.algomeet.signalservice.service.IdentityKeyBackupService;
+import com.algomeet.signalservice.service.DeviceKeyBackupService;
 import com.algomeet.signalservice.util.SecurityUtil;
 
 import lombok.AllArgsConstructor;
@@ -37,8 +37,8 @@ import lombok.AllArgsConstructor;
 @AllArgsConstructor
 @RestController
 @RequestMapping("/signal/backup/identity-keys")
-public class IdentityKeyBackupController implements IdentityKeyBackupControllerDoc{
-	private final IdentityKeyBackupService service;
+public class DeviceKeyBackupController implements DeviceKeyBackupControllerDoc{
+	private final DeviceKeyBackupService service;
 
 
 	/**
@@ -51,8 +51,8 @@ public class IdentityKeyBackupController implements IdentityKeyBackupControllerD
 	 */
 	@Override
 	@PostMapping
-	public ResponseEntity<CommonResponse<IdentityKeyBackupResponse>> saveBackup(@Validated @RequestBody IdentityKeyBackupRequest request) {
-		IdentityKeyBackupResponse saved = service.saveBackup(UUID.fromString(SecurityUtil.getUserKey()), request);
+	public ResponseEntity<CommonResponse<DeviceKeyBackupResponse>> saveBackup(@Validated @RequestBody DeviceKeyBackupRequest request) {
+		DeviceKeyBackupResponse saved = service.saveBackup(UUID.fromString(SecurityUtil.getUserKey()), request);
 		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, saved));     
 	}
 	
@@ -66,8 +66,8 @@ public class IdentityKeyBackupController implements IdentityKeyBackupControllerD
 	 */
 	@Override
 	@PutMapping
-	public ResponseEntity<CommonResponse<IdentityKeyBackupResponse>> updateBackup(@Validated @RequestBody IdentityKeyBackupUpdateRequest request) {
-		IdentityKeyBackupResponse saved = service.updateBackup(UUID.fromString(SecurityUtil.getUserKey()), request);
+	public ResponseEntity<CommonResponse<DeviceKeyBackupResponse>> updateBackup(@Validated @RequestBody DeviceKeyBackupUpdateRequest request) {
+		DeviceKeyBackupResponse saved = service.updateBackup(UUID.fromString(SecurityUtil.getUserKey()), request);
 		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, saved));     
 	}
 
@@ -81,13 +81,13 @@ public class IdentityKeyBackupController implements IdentityKeyBackupControllerD
 	 * @param deviceId the device identifier used to locate the user's account backup
 	 * @return a {@link ResponseEntity} containing:
 	 *         <ul>
-	 *           <li>{@link HttpStatus#OK} with the {@link IdentityKeyBackupResponse} if found</li>
+	 *           <li>{@link HttpStatus#OK} with the {@link DeviceKeyBackupResponse} if found</li>
 	 *           <li>{@link HttpStatus#NOT_FOUND} if no backup exists for the given device ID</li>
 	 *         </ul>
 	 */
 	@Override
 	@GetMapping
-	public ResponseEntity<CommonResponse<IdentityKeyBackupResponse>> getBackup(@RequestParam("deviceId") Integer deviceId) {
+	public ResponseEntity<CommonResponse<DeviceKeyBackupResponse>> getBackup(@RequestParam("deviceId") Integer deviceId) {
 		return service.restoreBackup(UUID.fromString(SecurityUtil.getUserKey()), deviceId)
 				.map(account -> ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, account)))
 				.orElse(ResponseEntity.status(HttpStatus.NOT_FOUND)

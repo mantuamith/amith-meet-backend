@@ -9,25 +9,25 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
-import com.algomeet.signalservice.dto.IdentityKeyBackupRequest;
-import com.algomeet.signalservice.dto.IdentityKeyBackupResponse;
-import com.algomeet.signalservice.dto.IdentityKeyBackupUpdateRequest;
-import com.algomeet.signalservice.entity.IdentityKeyBackup;
-import com.algomeet.signalservice.entity.IdentityKeyBackupId;
+import com.algomeet.signalservice.dto.DeviceKeyBackupRequest;
+import com.algomeet.signalservice.dto.DeviceKeyBackupResponse;
+import com.algomeet.signalservice.dto.DeviceKeyBackupUpdateRequest;
+import com.algomeet.signalservice.entity.DeviceKeyBackup;
+import com.algomeet.signalservice.entity.DeviceKeyBackupId;
 import com.algomeet.signalservice.exceptions.RecordNotFoundException;
-import com.algomeet.signalservice.repository.IdentityKeyBackupRepository;
+import com.algomeet.signalservice.repository.DeviceKeyBackupRepository;
 
 import lombok.AllArgsConstructor;
 
 @AllArgsConstructor
 @Service
-public class IdentityKeyBackupService {
-    private final IdentityKeyBackupRepository repository;
+public class DeviceKeyBackupService {
+    private final DeviceKeyBackupRepository repository;
 
     @Transactional
-    public IdentityKeyBackupResponse saveBackup(UUID userKey, IdentityKeyBackupRequest request) {    	
-        IdentityKeyBackup backup = new IdentityKeyBackup();        
-        backup.setId(new IdentityKeyBackupId(userKey, request.getDeviceId()));
+    public DeviceKeyBackupResponse saveBackup(UUID userKey, DeviceKeyBackupRequest request) {    	
+        DeviceKeyBackup backup = new DeviceKeyBackup();        
+        backup.setId(new DeviceKeyBackupId(userKey, request.getDeviceId()));
         
         backup.setSerializedIdentityKey(request.getSerializedIdentityKey());
         backup.setSerializedPreKeys(request.getSerializedPreKeys());
@@ -38,20 +38,20 @@ public class IdentityKeyBackupService {
         backup.setVersion(request.getVersion());
         backup.setSalt(request.getSalt());
 
-        IdentityKeyBackup saved = repository.save(backup);
+        DeviceKeyBackup saved = repository.save(backup);
         return toResponse(saved);
     }
     
     @Transactional
-    public IdentityKeyBackupResponse updateBackup(UUID userKey, IdentityKeyBackupUpdateRequest request) {
-    	Optional<IdentityKeyBackup> backupOpt = repository.findById(new IdentityKeyBackupId(userKey, request.getDeviceId()));
+    public DeviceKeyBackupResponse updateBackup(UUID userKey, DeviceKeyBackupUpdateRequest request) {
+    	Optional<DeviceKeyBackup> backupOpt = repository.findById(new DeviceKeyBackupId(userKey, request.getDeviceId()));
     	if (backupOpt.isEmpty()) {
     		throw new RecordNotFoundException(String.format("User device identity key backup not found for user ID %s, and device Id %s ", 
     				userKey, request.getDeviceId()));
     	}
     	
-        IdentityKeyBackup backup = backupOpt.get();
-        backup.setId(new IdentityKeyBackupId(userKey, request.getDeviceId()));
+        DeviceKeyBackup backup = backupOpt.get();
+        backup.setId(new DeviceKeyBackupId(userKey, request.getDeviceId()));
         
         if (StringUtils.hasLength(request.getSerializedIdentityKey())) {
         	backup.setSerializedIdentityKey(request.getSerializedIdentityKey());
@@ -74,33 +74,33 @@ public class IdentityKeyBackupService {
         backup.setSalt(request.getSalt());
 
         backup.setUpdatedAt(Instant.now());
-        IdentityKeyBackup saved = repository.save(backup);
+        DeviceKeyBackup saved = repository.save(backup);
         return toResponse(saved);
     }
 
-    public Optional<IdentityKeyBackupResponse> restoreBackup(UUID userKey, Integer deviceId) {
-        return repository.findById(new IdentityKeyBackupId(userKey, deviceId))
+    public Optional<DeviceKeyBackupResponse> restoreBackup(UUID userKey, Integer deviceId) {
+        return repository.findById(new DeviceKeyBackupId(userKey, deviceId))
                 .map(entity -> toResponse(entity));
     }
     
     public void deleteBackup(UUID userKey, Integer deviceId) {
-    	if(repository.findById(new IdentityKeyBackupId(userKey, deviceId)).isEmpty()) {
+    	if(repository.findById(new DeviceKeyBackupId(userKey, deviceId)).isEmpty()) {
     		throw new RecordNotFoundException(String.format("User device identity key backup for device Id %s is not found", deviceId));
     	}
     	
-        repository.findById(new IdentityKeyBackupId(userKey, deviceId)).ifPresent(repository::delete);
+        repository.findById(new DeviceKeyBackupId(userKey, deviceId)).ifPresent(repository::delete);
     }
     
     public void deleteBackup(UUID userKey) {    	
         repository.deleteByIdUserKey(userKey);
     }
         
-    public IdentityKeyBackupResponse toResponse(IdentityKeyBackup entity) {
+    public DeviceKeyBackupResponse toResponse(DeviceKeyBackup entity) {
         if (entity == null || entity.getId() == null) {
             return null;
         }
 
-        return IdentityKeyBackupResponse.builder()
+        return DeviceKeyBackupResponse.builder()
                 .userKey(entity.getId().getUserKey())
                 .deviceId(entity.getId().getDeviceId())
                 .serializedIdentityKey(entity.getSerializedIdentityKey())

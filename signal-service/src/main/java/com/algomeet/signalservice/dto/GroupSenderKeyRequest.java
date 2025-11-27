@@ -5,6 +5,7 @@ import java.util.UUID;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
@@ -20,5 +21,9 @@ public class GroupSenderKeyRequest {
     /** Base64 or hex encoded SKDM ciphertext */
     @NotEmpty
     @Size(max = 2800)
+	@Pattern(
+		    regexp = "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$",
+		    message = "{invalid-base64-format}"
+		)
     private String skdmCipher;
 }

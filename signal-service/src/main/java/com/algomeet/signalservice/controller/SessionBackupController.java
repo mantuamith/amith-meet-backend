@@ -90,7 +90,7 @@ public class SessionBackupController implements SessionBackupControllerDoc{
 			@PathVariable Integer deviceId) {		
 		try {
 			service.deleteByDeviceId(UUID.fromString(SecurityUtil.getUserKey()), deviceId);
-			return ResponseEntity.ok(CommonResponse.from(ResponseCode.USER_SESSION_BACKUP_DELETE_SUCCESS));
+			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
 		} catch (RecordNotFoundException ex) {
 			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.USER_SESSION_BACKUP_NOT_FOUND));
 		}
@@ -109,7 +109,7 @@ public class SessionBackupController implements SessionBackupControllerDoc{
 					registrationId, 
 					remoteUserKey, 
 					remoteDeviceId);
-			return ResponseEntity.ok(CommonResponse.from(ResponseCode.USER_SESSION_BACKUP_DELETE_SUCCESS));
+			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
 		} catch (RecordNotFoundException ex) {
 			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.USER_SESSION_BACKUP_NOT_FOUND));
 		}
