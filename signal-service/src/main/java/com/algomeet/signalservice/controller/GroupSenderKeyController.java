@@ -5,6 +5,7 @@ import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -37,7 +38,7 @@ public class GroupSenderKeyController implements GroupSenderKeyControllerDoc{
 	public ResponseEntity<CommonResponse<GroupSenderKeyResponse>> create(
 			@PathVariable Integer senderDeviceId,
 			@PathVariable String groupId,
-			@RequestBody GroupSenderKeyRequest request) {
+			@Validated @RequestBody GroupSenderKeyRequest request) {
 		try {
 			UUID senderUserKey = UUID.fromString(SecurityUtil.getUserKey());
 
@@ -74,7 +75,7 @@ public class GroupSenderKeyController implements GroupSenderKeyControllerDoc{
 	public ResponseEntity<CommonResponse<List<GroupSenderKeyResponse>>> poll(
 			@PathVariable Integer receiverDeviceId,
 			@PathVariable String groupId,
-	        @RequestParam(defaultValue = "3000") long timeoutMs) {
+	        @RequestParam(defaultValue = "100") long timeoutMs) {
 		try {
 			UUID receiverUserKey = UUID.fromString(SecurityUtil.getUserKey());
 			List<GroupSenderKeyResponse> list =
@@ -100,9 +101,7 @@ public class GroupSenderKeyController implements GroupSenderKeyControllerDoc{
 			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
 		} catch(RecordNotFoundException ex) {
 			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
-					CommonResponse.from(ResponseCode.USER_DEVICE_ID_NOT_FOUND));
+					CommonResponse.from(ResponseCode.USER_DEVICE_GROUP_SENDER_KEY_NOT_FOUND));
 		}
-	}	
-	
-	
+	}		
 }

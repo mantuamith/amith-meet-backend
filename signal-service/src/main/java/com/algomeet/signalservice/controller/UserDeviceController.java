@@ -6,7 +6,16 @@ import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 import com.algomeet.signalservice.controller.swagger.UserDeviceControllerDoc;
 import com.algomeet.signalservice.dto.CommonResponse;
@@ -26,7 +35,7 @@ public class UserDeviceController implements UserDeviceControllerDoc{
 	private final UserDeviceService service;
 
 	@PostMapping
-	public ResponseEntity<CommonResponse<UserDeviceResponse>> createDevice(@RequestBody UserDeviceRequest request) {
+	public ResponseEntity<CommonResponse<UserDeviceResponse>> createDevice(@Validated @RequestBody UserDeviceRequest request) {
 		return ResponseEntity.ok(
 				CommonResponse.from(ResponseCode.SUCCESS,
 						service.createDevice(UUID.fromString(SecurityUtil.getUserKey()), request)));
@@ -40,7 +49,7 @@ public class UserDeviceController implements UserDeviceControllerDoc{
 	}
 
 	@PutMapping("/{deviceId}")
-	public ResponseEntity<CommonResponse<UserDeviceResponse>> updateDevice(@PathVariable Integer deviceId, @RequestBody UserDeviceRequest request) {  
+	public ResponseEntity<CommonResponse<UserDeviceResponse>> updateDevice(@PathVariable Integer deviceId, @Validated @RequestBody UserDeviceRequest request) {  
 		try {
 			return ResponseEntity.ok(
 					CommonResponse.from(ResponseCode.SUCCESS,

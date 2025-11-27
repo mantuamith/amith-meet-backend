@@ -55,6 +55,7 @@ public interface SessionBackupControllerDoc {
 		)
 	})
 	public ResponseEntity<CommonResponse<SessionBackupResponse>> saveBackup(
+			@PathVariable Integer deviceId,
 			@Validated
 			@io.swagger.v3.oas.annotations.parameters.RequestBody(
 				description = "Encrypted session backup payload",
@@ -166,26 +167,4 @@ public interface SessionBackupControllerDoc {
 
 			@Parameter(description = "Remote device ID", required = true)
 			@RequestParam Integer remoteDeviceId);
-
-
-	// ---------------------------------------------------------
-	// DELETE /signal/backup/sessions/by-user-key
-	// ---------------------------------------------------------
-
-	@Operation(
-		summary = "Delete all session backups for the authenticated user",
-		description = """
-			Deletes every session backup associated with the authenticated user's UUID.
-			Useful when resetting or reinstalling all Signal devices.
-			""",
-		tags = { "Session Backup" }
-	)
-	@ApiResponses({
-		@ApiResponse(
-			responseCode = "200",
-			description = "All user session backups deleted",
-			content = @Content(schema = @Schema(implementation = CommonResponse.class))
-		)
-	})
-	public ResponseEntity<CommonResponse<?>> deleteByUserkeySessions();
 }

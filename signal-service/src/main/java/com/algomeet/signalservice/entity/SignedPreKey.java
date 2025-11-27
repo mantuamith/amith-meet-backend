@@ -2,6 +2,9 @@ package com.algomeet.signalservice.entity;
 
 import java.time.Instant;
 
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.EmbeddedId;
 import jakarta.persistence.Entity;
@@ -37,17 +40,9 @@ public class SignedPreKey {
     })
     private UserDevice userDevice;
     
-	private Instant createdAt;
-    private Instant updatedAt;
-	
-    @PrePersist
-    protected void onCreate() {
-        Instant now = Instant.now();
-        this.createdAt = now;
-    }
+    @CreationTimestamp
+    private Instant createdAt;
 
-    @PreUpdate
-    protected void onUpdate() {
-        this.updatedAt = Instant.now();
-    }
+    @UpdateTimestamp
+    private Instant updatedAt;
 }

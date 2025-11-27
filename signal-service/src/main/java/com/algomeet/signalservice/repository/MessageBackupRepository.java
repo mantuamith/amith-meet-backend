@@ -8,6 +8,8 @@ import org.springframework.data.mongodb.repository.Query;
 
 import com.algomeet.signalservice.document.MessageBackupDocument;
 
+import jakarta.transaction.Transactional;
+
 public interface MessageBackupRepository extends MongoRepository<MessageBackupDocument, String> {
     @Query("{ '$or': [ " +
             "{ 'userKey': ?0, 'senderKey': ?0, 'receiverKey': ?1 }, " +
@@ -22,8 +24,10 @@ public interface MessageBackupRepository extends MongoRepository<MessageBackupDo
             "{ 'userKey': ?0, 'senderKey': ?1, 'receiverKey': ?0 } " +
             "] }",
            delete = true)
+    @Transactional
     void deleteConversation(String userA, String userB);
     
     @Modifying
+    @Transactional
     void deleteByUserKey(String userKey);
 }

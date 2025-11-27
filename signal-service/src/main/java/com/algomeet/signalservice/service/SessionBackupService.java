@@ -11,8 +11,10 @@ import com.algomeet.signalservice.dto.SessionBackupRequest;
 import com.algomeet.signalservice.dto.SessionBackupResponse;
 import com.algomeet.signalservice.entity.SessionBackup;
 import com.algomeet.signalservice.entity.SessionBackupId;
+import com.algomeet.signalservice.entity.UserDeviceId;
 import com.algomeet.signalservice.exceptions.RecordNotFoundException;
 import com.algomeet.signalservice.repository.SessionBackupRepository;
+import com.algomeet.signalservice.repository.UserDeviceRepository;
 
 import lombok.AllArgsConstructor;
 
@@ -20,12 +22,17 @@ import lombok.AllArgsConstructor;
 @Service
 public class SessionBackupService {
     private final SessionBackupRepository repository;
+    private final UserDeviceRepository deviceRepository;
 
     @Transactional
-    public SessionBackupResponse saveBackup(UUID userKey, SessionBackupRequest request) { 
+    public SessionBackupResponse saveBackup(UUID userKey, Integer deviceId, SessionBackupRequest request) { 
+		if (deviceRepository.findById(new UserDeviceId(userKey, deviceId)).isEmpty()) {
+			throw new RecordNotFoundException("User device ID not found");
+		}
+		
         SessionBackup backup = new SessionBackup();
         backup.setId(new SessionBackupId(userKey, 
-        		request.getDeviceId(), 
+        		deviceId,
         		request.getRegistrationId(), 
         		request.getRemoteUserKey(), 
         		request.getRemoteDeviceId()));
@@ -39,7 +46,6 @@ public class SessionBackupService {
         SessionBackup saved = repository.save(backup);        
         return toResponse(saved);
     }
-
     
     public List<SessionBackupResponse> restoreSessions(UUID userkey, Integer deviceId) {
     	return repository.findByIdUserKeyAndIdDeviceId(userkey, deviceId).stream()
@@ -62,11 +68,7 @@ public class SessionBackupService {
     public void deleteByDeviceId(UUID userKey, Integer deviceId) {
     	repository.deleteByIdUserKeyAndIdDeviceId(userKey, deviceId);
     }
-    
-    public void deleteByUserKey(UUID userKey) {
-    	repository.deleteByIdUserKey(userKey);
-    }
-    
+        
     private SessionBackupResponse toResponse(SessionBackup entity) {
         if (entity == null) {
             return null;

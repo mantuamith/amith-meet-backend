@@ -10,9 +10,6 @@ import lombok.Data;
 @Data
 public class SessionBackupRequest {	
 	@NotNull
-	private Integer deviceId;
-
-	@NotNull
 	private Integer registrationId;
     
     /** remote user's user key **/

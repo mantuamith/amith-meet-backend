@@ -2,6 +2,7 @@ package com.algomeet.signalservice.controller;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import com.algomeet.signalservice.controller.swagger.KyberPreKeyControllerDoc;
@@ -42,7 +43,7 @@ public class KyberPreKeyController implements KyberPreKeyControllerDoc{
 	@PutMapping("/{deviceId}/kyber-prekeys")
 	public ResponseEntity<CommonResponse<KyberPreKeyResponse>> update(
 			@PathVariable Integer deviceId,
-			@RequestBody KyberPreKeyRequest request) {
+			@Validated @RequestBody KyberPreKeyRequest request) {
 
 		KyberPreKeyId id = new KyberPreKeyId(UUID.fromString(SecurityUtil.getUserKey()), deviceId);
 		try {

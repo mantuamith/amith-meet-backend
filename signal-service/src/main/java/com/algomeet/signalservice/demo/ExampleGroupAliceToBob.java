@@ -18,32 +18,17 @@ import org.signal.libsignal.protocol.groups.state.InMemorySenderKeyStore;
 import org.signal.libsignal.protocol.groups.state.SenderKeyRecord;
 import org.signal.libsignal.protocol.message.CiphertextMessage;
 import org.signal.libsignal.protocol.message.SenderKeyDistributionMessage;
-import org.springframework.boot.SpringApplication;
-import org.springframework.boot.WebApplicationType;
-import org.springframework.context.ApplicationContext;
 
-
-public class SignalExampleGroupAliceToBob {		
-
-	public static void main(String[] args) throws Exception {		
-		// Create Spring Boot application
-		SpringApplication app = new SpringApplication(SignalExampleGroupAliceToBob.class);
-
-		// Set as non-web application (CLI)
-		app.setWebApplicationType(WebApplicationType.NONE);
-
-		// Start context
-		ApplicationContext context = app.run(args);
-
-		// Retrieve beans
-		SignalExampleGroupAliceToBob sample = context.getBean(SignalExampleGroupAliceToBob.class);
-		sample.test();
-	}  
-
+public class ExampleGroupAliceToBob {		
 	private static final SignalProtocolAddress SENDER_ADDRESS =
 			filterExceptions(() -> new SignalProtocolAddress("+14150001111", 1));
 	private static final UUID DISTRIBUTION_ID =
 			UUID.fromString("d1d1d1d1-7000-11eb-b32a-33b8a8a487a6");
+
+
+	public static void main(String[] args) throws Exception {		
+		test();
+	}  
 
 	public static void test() throws InvalidKeyException, InvalidMessageException, InvalidVersionException, LegacyMessageException, NoSessionException, DuplicateMessageException {
 		InMemorySenderKeyStore aliceStore = new InMemorySenderKeyStore();
@@ -57,58 +42,53 @@ public class SignalExampleGroupAliceToBob {
 
 		SenderKeyDistributionMessage sentAliceDistributionMessage =
 				aliceSessionBuilder.create(SENDER_ADDRESS, DISTRIBUTION_ID);
-		
+
 		System.out.println("skdm: " + Base64.getEncoder().encodeToString(sentAliceDistributionMessage.serialize()));
+		// Encrypt SKDM using 1:1 session and upload to BE using API endpoint: POST /signal/v2/devices/{senderDeviceId}/groups/{groupId}/sender-keys		
+
+
+		// Retrieve recipient SKDM and decrypt using 1:1 session from BE using API endpoint: GET /signal/v2/devices/{receiverDeviceId}/groups/{groupId}/sender-keys/poll	
 		SenderKeyDistributionMessage receivedAliceDistributionMessage =
 				new SenderKeyDistributionMessage(sentAliceDistributionMessage.serialize());
-		System.out.println(Base64.getEncoder().encode(sentAliceDistributionMessage.serialize()).length);
-
-		System.out.println(DISTRIBUTION_ID == receivedAliceDistributionMessage.getDistributionId());
-		System.out.println(0 == receivedAliceDistributionMessage.getIteration());
-		System.out.println(
-				sentAliceDistributionMessage.getChainKey() == receivedAliceDistributionMessage.getChainKey());
-		System.out.println(
-				sentAliceDistributionMessage.getSignatureKey() ==
-				receivedAliceDistributionMessage.getSignatureKey());
-		System.out.println(
-				sentAliceDistributionMessage.getChainId() == receivedAliceDistributionMessage.getChainId());
 
 		bobSessionBuilder.process(SENDER_ADDRESS, receivedAliceDistributionMessage);
 
 		CiphertextMessage ciphertextFromAlice =
 				aliceGroupCipher.encrypt(DISTRIBUTION_ID, "smert ze smert".getBytes());
 		System.out.println("Encrypted: " + Base64.getEncoder().encodeToString(ciphertextFromAlice.serialize()));
-		
+
 		byte[] plaintextFromAlice = bobGroupCipher.decrypt(ciphertextFromAlice.serialize());
-		
-		System.out.println(new String(plaintextFromAlice));
-		
-		
-		
-		/** Inbound Backup group sessions */		
+		System.out.println("Decrypted: " + new String(plaintextFromAlice));
+
+
+
+		/** Backup Bob's inbounds group session */		
 		SenderKeyRecord record = bobStore.loadSenderKey(SENDER_ADDRESS, DISTRIBUTION_ID);
-	    byte[] bytes = record.serialize();
+		byte[] bytes = record.serialize();
 
-	    System.out.println("SenderKeyRecord " + Base64.getEncoder().encodeToString(bytes).length());
-	    
-	    // Restore
-	    byte[] bytesRestore = Base64.getDecoder().decode(Base64.getEncoder().encodeToString(bytes));
-	    SenderKeyRecord recordRestore = new SenderKeyRecord(bytes);
+		System.out.println("SenderKeyRecord inbound: " + Base64.getEncoder().encodeToString(bytes));
+		// Encrypt and upload group session backup to backend using API endpoint: POST /signal/backup/group-sessions
 
-	    bobStore.storeSenderKey(SENDER_ADDRESS, DISTRIBUTION_ID, recordRestore);
-	    
-	    
-	    
-	    /** outbound Backup group sessions */		
+		// Restore
+		// Retrive and restore group session backup from backend using API endpoint: GET /signal/backup/group-sessions
+		byte[] bytesRestore = Base64.getDecoder().decode(Base64.getEncoder().encodeToString(bytes));
+		SenderKeyRecord recordRestore = new SenderKeyRecord(bytesRestore);
+
+		bobStore.storeSenderKey(SENDER_ADDRESS, DISTRIBUTION_ID, recordRestore);
+
+
+		/** Backup Alice's outbounds group session */		
 		SenderKeyRecord recordOB = aliceStore.loadSenderKey(SENDER_ADDRESS, DISTRIBUTION_ID);
-	    byte[] bytesOB = recordOB.serialize();
+		byte[] bytesOB = recordOB.serialize();
 
-	    System.out.println("SenderKeyRecord OB " + Base64.getEncoder().encodeToString(bytesOB).length());
-	    
-	    // Restore
-	    byte[] bytesRestoreOB = Base64.getDecoder().decode(Base64.getEncoder().encodeToString(bytes));
-	    SenderKeyRecord recordRestoreOB = new SenderKeyRecord(bytesRestoreOB);
+		System.out.println("SenderKeyRecord outbound: " + Base64.getEncoder().encodeToString(bytesOB));
+		// Encrypt and upload group session backup to backend using API endpoint: POST /signal/backup/group-sessions
 
-	    aliceStore.storeSenderKey(SENDER_ADDRESS, DISTRIBUTION_ID, recordRestoreOB);
+		// Restore
+		// Retrive and restore group session backup from backend using API endpoint: GET /signal/backup/group-sessions
+		byte[] bytesRestoreOB = Base64.getDecoder().decode(Base64.getEncoder().encodeToString(bytes));
+		SenderKeyRecord recordRestoreOB = new SenderKeyRecord(bytesRestoreOB);
+
+		aliceStore.storeSenderKey(SENDER_ADDRESS, DISTRIBUTION_ID, recordRestoreOB);
 	}	
 }

@@ -6,6 +6,7 @@ import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.CollectionUtils;
 
 import com.algomeet.signalservice.dto.OneTimePreKeyRequest;
 import com.algomeet.signalservice.dto.OneTimePreKeyResponse;
@@ -72,6 +73,10 @@ public class OneTimePreKeyService {
 
 	@Transactional
 	public void delete(UUID userKey, Integer deviceId) {		
+		if (CollectionUtils.isEmpty(repository.findByUserKeyAndDeviceId(userKey, deviceId))) {
+			throw new RecordNotFoundException("User device one-time prekey(s) not found");
+		}
+		
 		repository.deleteByUserKeyAndDeviceId(userKey, deviceId);
 	}
 }

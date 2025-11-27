@@ -5,6 +5,7 @@ import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -33,7 +34,7 @@ public class OneTimePreKeyController implements OneTimePreKeyControllerDoc{
 	private final OneTimePreKeyService service;
 
 	@PostMapping("/{deviceId}/prekeys/one-time")
-	public ResponseEntity<CommonResponse<List<OneTimePreKeyResponse>>> create(@PathVariable Integer deviceId, @RequestBody OneTimePreKeysRequest request) {
+	public ResponseEntity<CommonResponse<List<OneTimePreKeyResponse>>> create(@PathVariable Integer deviceId, @Validated @RequestBody OneTimePreKeysRequest request) {
 		try {
 			List<OneTimePreKeyResponse> savedList = service.create(UUID.fromString(SecurityUtil.getUserKey()), deviceId, request);
 			return ResponseEntity.ok(
@@ -78,7 +79,7 @@ public class OneTimePreKeyController implements OneTimePreKeyControllerDoc{
 					CommonResponse.from(ResponseCode.SUCCESS));
 		} catch(RecordNotFoundException ex) {
 			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
-					CommonResponse.from(ResponseCode.USER_DEVICE_ID_NOT_FOUND));
+					CommonResponse.from(ResponseCode.ONE_TIME_PRE_KEY_NOT_FOUND));
 		}
 	}
 }

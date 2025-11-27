@@ -8,6 +8,7 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -52,7 +53,7 @@ public class MessageBackupController implements MessageBackupControllerDoc{
      * @return {@link CommonResponse} with success status
      */
     @PostMapping
-    public ResponseEntity<CommonResponse<?>> saveMessage(@RequestBody MessageBackupDocument request) {
+    public ResponseEntity<CommonResponse<?>> saveMessage(@Validated @RequestBody MessageBackupDocument request) {
     	request.setUserKey(SecurityUtil.getUserKey());
     	
     	MessageBackupDocument saved = messageBackupService.insert(request);

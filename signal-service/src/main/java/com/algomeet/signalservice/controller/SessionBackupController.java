@@ -32,7 +32,7 @@ import lombok.AllArgsConstructor;
  */
 @AllArgsConstructor
 @RestController
-@RequestMapping("/signal/backup/sessions")
+@RequestMapping("/signal/backup/devices/{deviceId}/sessions")
 public class SessionBackupController implements SessionBackupControllerDoc{
 	private final SessionBackupService service;
 
@@ -45,9 +45,15 @@ public class SessionBackupController implements SessionBackupControllerDoc{
 	 */
 	@Override
 	@PostMapping
-	public ResponseEntity<CommonResponse<SessionBackupResponse>> saveBackup(@Validated @RequestBody SessionBackupRequest request) {
-		SessionBackupResponse savedSession = service.saveBackup(UUID.fromString(SecurityUtil.getUserKey()), request);
-		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, savedSession));
+	public ResponseEntity<CommonResponse<SessionBackupResponse>> saveBackup(@PathVariable Integer deviceId, 
+			@Validated @RequestBody SessionBackupRequest request) {
+		try {
+			SessionBackupResponse savedSession = service.saveBackup(UUID.fromString(SecurityUtil.getUserKey()), deviceId, request);
+			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, savedSession));
+		} catch(RecordNotFoundException ex) {
+			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+					CommonResponse.from(ResponseCode.USER_DEVICE_ID_NOT_FOUND));
+		}
 	}
 
 	/**
@@ -71,7 +77,7 @@ public class SessionBackupController implements SessionBackupControllerDoc{
 	 * @see com.algomeet.signalingservice.util.SecurityUtil
 	 */
 	@Override
-	@GetMapping("/{deviceId}")
+	@GetMapping
 	public ResponseEntity<CommonResponse<List<SessionBackupResponse>>> restoreSessions(@PathVariable Integer deviceId) {
 		List<SessionBackupResponse> sessions = service.restoreSessions(UUID.fromString(SecurityUtil.getUserKey()), deviceId);
 
@@ -85,7 +91,7 @@ public class SessionBackupController implements SessionBackupControllerDoc{
 	 * @return a {@link ResponseEntity} containing a {@link CommonResponse} indicating success or failure
 	 */
 	@Override
-	@DeleteMapping("/{deviceId}")
+	@DeleteMapping
 	public ResponseEntity<CommonResponse<?>> deleteSessions(
 			@PathVariable Integer deviceId) {		
 		try {
@@ -97,12 +103,12 @@ public class SessionBackupController implements SessionBackupControllerDoc{
 	}
 
 	@Override
-	@DeleteMapping("/{deviceId}/registration-and-remote-user")
+	@DeleteMapping("/registration-and-remote-user")
 	public ResponseEntity<CommonResponse<?>> deleteByDeviceRegistrationAndRemoteUser(@PathVariable Integer deviceId, 
 			@RequestParam Integer registrationId, 
 			@RequestParam UUID remoteUserKey, 
 			@RequestParam Integer remoteDeviceId) {		
-		
+
 		try {
 			service.deleteByDeviceRegistrationAndRemoteUser(UUID.fromString(SecurityUtil.getUserKey()), 
 					deviceId,
@@ -113,12 +119,5 @@ public class SessionBackupController implements SessionBackupControllerDoc{
 		} catch (RecordNotFoundException ex) {
 			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.USER_SESSION_BACKUP_NOT_FOUND));
 		}
-	}
-
-	@Override
-	@DeleteMapping("/by-user-key")
-	public ResponseEntity<CommonResponse<?>> deleteByUserkeySessions() {		
-		service.deleteByUserKey(UUID.fromString(SecurityUtil.getUserKey()));
-		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
 	}
 }

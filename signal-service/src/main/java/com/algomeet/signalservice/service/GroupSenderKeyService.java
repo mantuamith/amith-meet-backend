@@ -66,6 +66,8 @@ public class GroupSenderKeyService {
 			try {
 				if (timeoutMs >= 500) {
 					Thread.sleep(500); // small wait
+				} else {
+					Thread.sleep(timeoutMs); 
 				}
 			} catch (InterruptedException ignored) {}
 		} while (System.currentTimeMillis() - start < timeoutMs);
@@ -76,6 +78,11 @@ public class GroupSenderKeyService {
 	@Transactional
 	public void delete(
 			UUID receiverUserKey, UUID senderUserKey, Integer senderDeviceId, String groupId) {
+
+		repository.findByIdSenderUserKeyAndIdSenderDeviceIdAndIdReceiverUserKeyAndIdGroupId(
+				senderUserKey, senderDeviceId, receiverUserKey, groupId)
+		.orElseThrow(() -> new RecordNotFoundException("Group sender key not found"));			
+		
 		repository.deleteByIdSenderUserKeyAndIdSenderDeviceIdAndIdReceiverUserKeyAndIdGroupId(senderUserKey, senderDeviceId, receiverUserKey, groupId);
 	}
 }
