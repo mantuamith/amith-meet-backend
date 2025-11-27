@@ -36,7 +36,7 @@ import lombok.AllArgsConstructor;
  */
 @AllArgsConstructor
 @RestController
-@RequestMapping("/signal/backup/identity-keys")
+@RequestMapping("/signal/backup/device-keys")
 public class DeviceKeyBackupController implements DeviceKeyBackupControllerDoc{
 	private final DeviceKeyBackupService service;
 
