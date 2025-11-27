@@ -1,11 +1,26 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration debug="false" scan="true" scanPeriod="1 seconds">
+
+    <!-- show logback startup status on console (useful during dev) -->
+    <statusListener class="ch.qos.logback.core.status.OnConsoleStatusListener" />
+
     <contextName>${hostname}</contextName>
-    <property name="LOG_PATH" value="/data/logs" />
-    <property name="CONSOLE_LOG_PATTERN" value="%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50}:%line - [%tid] - %msg%n"/>
+
+    <!-- LOG_PATH resolution order:
+         1) System property -DLOG_PATH
+         2) Spring property logging.file.path
+         3) fallback ./logs (inside project)
+    -->
+    <property name="LOG_PATH" value="${LOG_PATH:-${logging.file.path:-./logs}}"/>
+
+    <property name="CONSOLE_LOG_PATTERN"
+              value="%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50}:%line - [%tid] - %msg%n"/>
+
+    <!-- spring properties -->
     <springProperty scope="context" name="appName" source="spring.application.name" />
     <springProperty scope="context" name="ip" source="spring.cloud.client.ip-address" />
 
+    <!-- NOTE: each appender writes to ${LOG_PATH}/${appName}/... -->
     <appender name="FILE_ERROR" class="ch.qos.logback.core.rolling.RollingFileAppender">
         <file>${LOG_PATH}/${appName}/${appName}-error.log</file>
         <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
@@ -21,12 +36,12 @@
             </layout>
         </encoder>
         <filter class="ch.qos.logback.classic.filter.LevelFilter">
-            <level>error</level>
+            <level>ERROR</level>
             <onMatch>ACCEPT</onMatch>
             <onMismatch>DENY</onMismatch>
         </filter>
     </appender>
-    
+
     <appender name="FILE_WARN" class="ch.qos.logback.core.rolling.RollingFileAppender">
         <file>${LOG_PATH}/${appName}/${appName}-warn.log</file>
         <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
@@ -42,7 +57,7 @@
             </layout>
         </encoder>
         <filter class="ch.qos.logback.classic.filter.LevelFilter">
-            <level>warn</level>
+            <level>WARN</level>
             <onMatch>ACCEPT</onMatch>
             <onMismatch>DENY</onMismatch>
         </filter>
@@ -62,8 +77,8 @@
                 <pattern>${CONSOLE_LOG_PATTERN}</pattern>
             </layout>
         </encoder>
-               <filter class="ch.qos.logback.classic.filter.LevelFilter">
-            <level>info</level>
+        <filter class="ch.qos.logback.classic.filter.LevelFilter">
+            <level>INFO</level>
             <onMatch>ACCEPT</onMatch>
             <onMismatch>DENY</onMismatch>
         </filter>
@@ -100,7 +115,8 @@
             </providers>
         </encoder>
     </appender>
-       <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
         <encoder class="ch.qos.logback.core.encoder.LayoutWrappingEncoder">
             <layout class="org.apache.skywalking.apm.toolkit.log.logback.v1.x.TraceIdPatternLogbackLayout">
                 <pattern>${CONSOLE_LOG_PATTERN}</pattern>
@@ -113,15 +129,18 @@
 
     <logger name="org.springframework" level="ERROR" />
     <logger name="com.algomeet" level="INFO" />
-       <springProfile name="pro">
+
+    <!-- production profile (pro) - file only -->
+    <springProfile name="pro">
         <root level="INFO">
             <appender-ref ref="FILE_ERROR" />
             <appender-ref ref="FILE_WARN" />
             <appender-ref ref="FILE_INFO" />
             <appender-ref ref="LOGSTASH" />
-            <!-- <appender-ref ref="STDOUT" /> -->
         </root>
     </springProfile>
+
+    <!-- non-production - file + console (good for dev) -->
     <springProfile name="!pro">
         <root level="INFO">
             <appender-ref ref="FILE_ERROR" />
@@ -131,5 +150,5 @@
             <appender-ref ref="STDOUT" />
         </root>
     </springProfile>
-</configuration>    
-        
+
+</configuration>

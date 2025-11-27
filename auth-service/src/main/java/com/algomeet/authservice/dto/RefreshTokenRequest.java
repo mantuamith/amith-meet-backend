@@ -4,5 +4,5 @@ import lombok.Data;
 
 @Data
 public class RefreshTokenRequest {
-    private String refreshToken; //its access token
+    private String refreshToken;  //refresh token to identify right user to revoke.
 }
