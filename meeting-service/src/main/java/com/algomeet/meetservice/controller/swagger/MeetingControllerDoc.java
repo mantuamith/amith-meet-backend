@@ -23,6 +23,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.RequestParam;
 
 import java.util.List;
 
@@ -297,6 +298,8 @@ public interface MeetingControllerDoc {
     )
     ResponseEntity<?> joinAsUser(
             @Parameter(in = ParameterIn.PATH, description = "Meeting ID") String id,
+            @RequestParam(required = false) String token,
+            @RequestParam(required = false) String password,
             HttpServletRequest req,
             HttpServletResponse res
     );
@@ -400,6 +403,7 @@ public interface MeetingControllerDoc {
             @org.springframework.web.bind.annotation.RequestParam(required = false) String token,
             @Parameter(in = ParameterIn.QUERY, description = "Optional display name")
             @org.springframework.web.bind.annotation.RequestParam(required = false) String name,
+            @RequestParam(required = false) String password,
             HttpServletRequest request,
             HttpServletResponse response
     );

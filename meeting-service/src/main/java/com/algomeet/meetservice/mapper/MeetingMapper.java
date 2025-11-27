@@ -25,6 +25,7 @@ public  class MeetingMapper {
             m.getMeetingType() == null ? null : m.getMeetingType().name(),
             m.getHostEmail(),
             m.getStatus() == null ? null : m.getStatus().name(),
+            m.getToken(),
             m.getMeetingStartTime(),
             m.getMeetingEndTime(),
             roomToDto(m.getRoom()),
@@ -36,7 +37,8 @@ public  class MeetingMapper {
             m.getAttendees() == null ? null : new ArrayList<>(m.getAttendees()),
             m.getInvitedParticipants() == null ? null : new ArrayList<>(m.getInvitedParticipants()),
                 url,
-                m.isPasswordEnabled()
+                m.isPasswordEnabled(), m.getPasswordHash()
+
         );
     }
 
