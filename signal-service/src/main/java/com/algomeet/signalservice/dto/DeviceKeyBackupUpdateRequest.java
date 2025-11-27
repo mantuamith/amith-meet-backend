@@ -10,14 +10,7 @@ import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 @Data
-public class DeviceKeyBackupUpdateRequest {	
-	/**
-	 * Encrypted private key
-	 */
-	@NotEmpty
-	@Min(value = 0, message = "registrationId must be greater than equal to 0")
-	private Integer deviceId;
-	
+public class DeviceKeyBackupUpdateRequest {		
 	@NotNull
 	@Min(value = 0, message = "registrationId must be greater than equal to 0")
     private Integer registrationId;

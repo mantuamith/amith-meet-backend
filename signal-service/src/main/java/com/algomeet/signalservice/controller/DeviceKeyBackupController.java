@@ -7,6 +7,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -65,9 +66,10 @@ public class DeviceKeyBackupController implements DeviceKeyBackupControllerDoc{
 	 *         or {@code 302 FOUND} if the backup already exists
 	 */
 	@Override
-	@PutMapping
-	public ResponseEntity<CommonResponse<DeviceKeyBackupResponse>> updateBackup(@Validated @RequestBody DeviceKeyBackupUpdateRequest request) {
-		DeviceKeyBackupResponse saved = service.updateBackup(UUID.fromString(SecurityUtil.getUserKey()), request);
+	@PutMapping("/{deviceId}")
+	public ResponseEntity<CommonResponse<DeviceKeyBackupResponse>> updateBackup(@PathVariable("deviceId") Integer deviceId, 
+			@Validated @RequestBody DeviceKeyBackupUpdateRequest request) {
+		DeviceKeyBackupResponse saved = service.updateBackup(UUID.fromString(SecurityUtil.getUserKey()), deviceId, request);
 		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, saved));     
 	}
 
@@ -86,12 +88,12 @@ public class DeviceKeyBackupController implements DeviceKeyBackupControllerDoc{
 	 *         </ul>
 	 */
 	@Override
-	@GetMapping
-	public ResponseEntity<CommonResponse<DeviceKeyBackupResponse>> getBackup(@RequestParam("deviceId") Integer deviceId) {
+	@GetMapping("/{deviceId}")
+	public ResponseEntity<CommonResponse<DeviceKeyBackupResponse>> getBackup(@PathVariable("deviceId") Integer deviceId) {
 		return service.restoreBackup(UUID.fromString(SecurityUtil.getUserKey()), deviceId)
 				.map(account -> ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, account)))
 				.orElse(ResponseEntity.status(HttpStatus.NOT_FOUND)
-						.body(CommonResponse.from(ResponseCode.IDENTITY_KEY_BACKUP_NOT_FOUND)));
+						.body(CommonResponse.from(ResponseCode.DEVICE_KEY_BACKUP_NOT_FOUND)));
 	}
 
 	/**
@@ -109,14 +111,14 @@ public class DeviceKeyBackupController implements DeviceKeyBackupControllerDoc{
 	 *         </ul>
 	 */
 	@Override
-	@DeleteMapping
-	public ResponseEntity<CommonResponse<?>> deleteBackup(@RequestParam("deviceId") Integer deviceId) {
+	@DeleteMapping("/{deviceId}")
+	public ResponseEntity<CommonResponse<?>> deleteBackup(@PathVariable("deviceId") Integer deviceId) {
 		try {
 			service.deleteBackup(UUID.fromString(SecurityUtil.getUserKey()), deviceId);
 			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
 		} catch (RecordNotFoundException ex) {
 			return ResponseEntity.status(HttpStatus.NOT_FOUND)
-					.body(CommonResponse.from(ResponseCode.IDENTITY_KEY_BACKUP_NOT_FOUND));
+					.body(CommonResponse.from(ResponseCode.DEVICE_KEY_BACKUP_NOT_FOUND));
 		}
 	}
 

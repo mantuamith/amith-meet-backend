@@ -43,15 +43,15 @@ public class DeviceKeyBackupService {
     }
     
     @Transactional
-    public DeviceKeyBackupResponse updateBackup(UUID userKey, DeviceKeyBackupUpdateRequest request) {
-    	Optional<DeviceKeyBackup> backupOpt = repository.findById(new DeviceKeyBackupId(userKey, request.getDeviceId()));
+    public DeviceKeyBackupResponse updateBackup(UUID userKey, Integer deviceId, DeviceKeyBackupUpdateRequest request) {
+    	Optional<DeviceKeyBackup> backupOpt = repository.findById(new DeviceKeyBackupId(userKey, deviceId));
     	if (backupOpt.isEmpty()) {
-    		throw new RecordNotFoundException(String.format("User device identity key backup not found for user ID %s, and device Id %s ", 
-    				userKey, request.getDeviceId()));
+    		throw new RecordNotFoundException(String.format("User device key backup not found for user ID %s, and device Id %s ", 
+    				userKey, deviceId));
     	}
     	
         DeviceKeyBackup backup = backupOpt.get();
-        backup.setId(new DeviceKeyBackupId(userKey, request.getDeviceId()));
+        backup.setId(new DeviceKeyBackupId(userKey, deviceId));
         
         if (StringUtils.hasLength(request.getSerializedIdentityKey())) {
         	backup.setSerializedIdentityKey(request.getSerializedIdentityKey());
@@ -85,7 +85,7 @@ public class DeviceKeyBackupService {
     
     public void deleteBackup(UUID userKey, Integer deviceId) {
     	if(repository.findById(new DeviceKeyBackupId(userKey, deviceId)).isEmpty()) {
-    		throw new RecordNotFoundException(String.format("User device identity key backup for device Id %s is not found", deviceId));
+    		throw new RecordNotFoundException(String.format("User device key backup for device Id %s is not found", deviceId));
     	}
     	
         repository.findById(new DeviceKeyBackupId(userKey, deviceId)).ifPresent(repository::delete);

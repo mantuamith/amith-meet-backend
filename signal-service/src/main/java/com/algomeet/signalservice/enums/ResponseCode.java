@@ -12,7 +12,7 @@ public enum ResponseCode {
     USER_DEVICE_GROUP_SENDER_KEY_NOT_FOUND("USER_DEVICE_GROUP_SENDER_KEY_NOT_FOUND", "user-device-group-sender-key.not-found"),
     	
 	// Updated
-	IDENTITY_KEY_BACKUP_NOT_FOUND("IDENTITY_KEY_BACKUP_NOT_FOUND", "identity-key-backup.not-found"),	
+	DEVICE_KEY_BACKUP_NOT_FOUND("DEVICE_KEY_BACKUP_NOT_FOUND", "device-key-backup.not-found"),	
 	USER_SESSION_BACKUP_NOT_FOUND("USER_SESSION_BACKUP_NOT_FOUND", "user-session-backup.not-found"),
 	GROUP_SESSION_BACKUP_NOT_FOUND("GROUP_SESSION_BACKUP_NOT_FOUND", "group-session-backup.not-found"),	
 	MESSAGE_BACKUP_NOT_FOUND("MESSAGE_BACKUP_NOT_FOUND", "message-backup.not-found");

@@ -2,6 +2,7 @@ package com.algomeet.signalservice.controller.swagger;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 
@@ -58,6 +59,7 @@ public interface DeviceKeyBackupControllerDoc {
         }
     )
     public ResponseEntity<CommonResponse<DeviceKeyBackupResponse>> updateBackup(
+    		@PathVariable("deviceId") Integer deviceId,
             @Validated @RequestBody DeviceKeyBackupUpdateRequest request); 
 
     /**
@@ -78,7 +80,7 @@ public interface DeviceKeyBackupControllerDoc {
     )
     public ResponseEntity<CommonResponse<DeviceKeyBackupResponse>> getBackup(
             @Parameter(description = "Device ID for which to retrieve the backup") 
-            @RequestParam("deviceId") Integer deviceId);
+            @PathVariable("deviceId") Integer deviceId);
     
     /**
      * Deletes a specific user account backup by device ID.
@@ -98,7 +100,7 @@ public interface DeviceKeyBackupControllerDoc {
     )
     public ResponseEntity<CommonResponse<?>> deleteBackup(
             @Parameter(description = "Device ID of the backup to delete")
-            @RequestParam("deviceId") Integer deviceId);
+            @PathVariable("deviceId") Integer deviceId);
 
     /**
      * Deletes all backups for the authenticated user.
