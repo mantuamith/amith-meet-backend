@@ -40,9 +40,6 @@ public class SignalExampleGroupAliceToBob {
 		sample.test();
 	}  
 
-	private static final SignalProtocolAddress ALICE_ADDRESS = new SignalProtocolAddress("+14151111111", 1);
-	private static final SignalProtocolAddress BOB_ADDRESS   = new SignalProtocolAddress("+14152222222", 1);
-
 	private static final SignalProtocolAddress SENDER_ADDRESS =
 			filterExceptions(() -> new SignalProtocolAddress("+14150001111", 1));
 	private static final UUID DISTRIBUTION_ID =

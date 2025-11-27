@@ -20,7 +20,7 @@ public class GroupSenderKeyRequest {
 
     /** Base64 or hex encoded SKDM ciphertext */
     @NotEmpty
-    @Size(max = 2800)
+    @Size(max = 3000)
 	@Pattern(
 		    regexp = "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$",
 		    message = "{invalid-base64-format}"

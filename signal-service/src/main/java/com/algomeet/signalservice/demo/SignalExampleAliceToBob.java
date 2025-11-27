@@ -1,10 +1,8 @@
 package com.algomeet.signalservice.demo;
 
 import java.util.Base64;
-import java.util.List;
 
 import org.signal.libsignal.protocol.DuplicateMessageException;
-import org.signal.libsignal.protocol.IdentityKey;
 import org.signal.libsignal.protocol.IdentityKeyPair;
 import org.signal.libsignal.protocol.InvalidKeyException;
 import org.signal.libsignal.protocol.InvalidKeyIdException;
@@ -26,10 +24,10 @@ import org.signal.libsignal.protocol.state.PreKeyBundle;
 import org.signal.libsignal.protocol.state.PreKeyRecord;
 import org.signal.libsignal.protocol.state.SessionRecord;
 import org.signal.libsignal.protocol.state.SignedPreKeyRecord;
+import org.signal.libsignal.protocol.state.impl.InMemorySignalProtocolStore;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.WebApplicationType;
 import org.springframework.context.ApplicationContext;
-import org.signal.libsignal.protocol.state.impl.InMemorySignalProtocolStore;
 
 
 public class SignalExampleAliceToBob {		
@@ -94,27 +92,11 @@ public class SignalExampleAliceToBob {
 				bobKyberPreKeyId,
 				bobKyberPreKeyPair.getPublicKey(),
 				bobKyberPreKeySignature);
-
 		
-		System.out.println("bobRegistrationId: " + bobRegistrationId);
-		System.out.println("bobDeviceId: " + bobDeviceId);
-		System.out.println("bobPreKeyId: " + bobPreKeyId);
-		System.out.println("bobPreKeyPair.getPublicKey(): " + Base64.getEncoder().encodeToString(bobPreKeyPair.getPublicKey().serialize()));
-		System.out.println("bobSignedPreKeyId: " + bobSignedPreKeyId);
-		System.out.println("bobSignedPreKeyPair.getPublicKey(): " + Base64.getEncoder().encodeToString(bobSignedPreKeyPair.getPublicKey().serialize()));
-		System.out.println("bobSignedPreKeySignature: " + Base64.getEncoder().encodeToString(bobSignedPreKeySignature));
-		System.out.println("bobStore.getIdentityKeyPair().getPublicKey(): " + Base64.getEncoder().encodeToString(bobStore.getIdentityKeyPair().getPublicKey().serialize()));
-		System.out.println("bobKyberPreKeyId: " + bobKyberPreKeyId);
-		System.out.println("bobKyberPreKeyPair.getPublicKey(): " + Base64.getEncoder().encodeToString(bobKyberPreKeyPair.getPublicKey().serialize()));
-		System.out.println("bobKyberPreKeyPair.getPublicKey(): " + Base64.getEncoder().encodeToString(bobKyberPreKeyPair.getPublicKey().serialize()).length());
-		System.out.println("bobKyberPreKeySignature------------>: " + Base64.getEncoder().encodeToString(bobKyberPreKeySignature));
 
 		aliceSessionBuilder.process(bobPreKeyBundle);
 
-		System.out.println(aliceStore.containsSession(BOB_ADDRESS));
-
-		//final String            originalMessage    = "L'homme est condamné à être libre";
-		final String            originalMessage    = "MwoQ0dHR0XAAEeuzKjO4qKSHphCqnLq/AhgAIiCAHYj1b4Rp89o9FoVgZHZcXoNOq3gekRg3b7SSdWRSCyohBcEQZZBKRps12qV71Bu2B5GK/Xb6DPQTDMVPUB2Q0YV8";
+		final String            originalMessage    = "L'homme est condamné à être libre";
 		SessionCipher     aliceSessionCipher = new SessionCipher(aliceStore, BOB_ADDRESS);
 		CiphertextMessage outgoingMessage    = aliceSessionCipher.encrypt(originalMessage.getBytes());
 

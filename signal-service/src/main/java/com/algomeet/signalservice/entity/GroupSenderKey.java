@@ -31,7 +31,7 @@ public class GroupSenderKey {
 	private GroupSenderKeyId id;
 	
 	/** Sender key distribution message */
-    @Column(nullable = false, length = 2800)
+    @Column(nullable = false, length = 3000)
 	private String skdmCipher;
     		
 	private Instant createdAt;
