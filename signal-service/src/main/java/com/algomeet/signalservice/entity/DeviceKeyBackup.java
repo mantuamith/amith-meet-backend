@@ -19,7 +19,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @Data
 @Entity
-@Table(name = "signal_user_device_key_backups")
+@Table(name = "signal_device_key_backups")
 public class DeviceKeyBackup {
 	@EmbeddedId
 	private DeviceKeyBackupId id;
