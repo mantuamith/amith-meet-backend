@@ -14,8 +14,8 @@ public class EncrytionMetadata {
     private Boolean encrypted = false;  // true if message.content is ciphertext
 
     // e.g. "SIGNAL"
-    @Field("encryptionProtocol")
-    private String encryptionProtocol; 
+    @Field("protocol")
+    private String protocol; 
     
     // Distribution ID for group messages
     @Field("distributionId")
