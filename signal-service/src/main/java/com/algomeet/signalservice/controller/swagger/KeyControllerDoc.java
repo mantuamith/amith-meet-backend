@@ -20,7 +20,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
-@Tag(name = "Key Retrieval (X3DH)", description = "Endpoints for fetching public key bundles of a recipient to initiate an encrypted session.")
+@Tag(name = "Key Retrieval (X3DH) API", description = "Endpoints for fetching public key bundles of a recipient to initiate an encrypted session.")
 public interface KeyControllerDoc {
 
     @Operation(

@@ -34,8 +34,7 @@ public interface SessionBackupControllerDoc {
 			Stores a new encrypted session backup or updates an existing one for the
 			current authenticated user. The backup may contain inbound and outbound
 			sessions, ratchet states, and related Signal session metadata.
-			""",
-		tags = { "Session Backup" }
+			"""
 	)
 	@ApiResponses({
 		@ApiResponse(
@@ -74,8 +73,7 @@ public interface SessionBackupControllerDoc {
 			Retrieves all session backups associated with a specific device ID belonging
 			to the authenticated user. The returned data includes encrypted Signal
 			session records ready to be restored into the libsignal SessionStore.
-			""",
-		tags = { "Session Backup" }
+			"""
 	)
 	@ApiResponses({
 		@ApiResponse(
@@ -108,8 +106,7 @@ public interface SessionBackupControllerDoc {
 		description = """
 			Deletes all session backups created by a specific device ID for the
 			current authenticated user.
-			""",
-		tags = { "Session Backup" }
+			"""
 	)
 	@ApiResponses({
 		@ApiResponse(
@@ -140,8 +137,7 @@ public interface SessionBackupControllerDoc {
 			remote user's key, and remote device ID.
 			
 			Useful for deleting a single peer-to-peer Signal session.
-			""",
-		tags = { "Session Backup" }
+			"""
 	)
 	@ApiResponses({
 		@ApiResponse(
