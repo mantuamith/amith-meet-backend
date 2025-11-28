@@ -19,7 +19,13 @@ import lombok.Data;
 		name = "signal_pre_keys",
 		indexes = {
 				@Index(name = "idx_pre_key", columnList = "userKey, deviceId")
-		}
+		},
+	    uniqueConstraints = {
+	            @jakarta.persistence.UniqueConstraint(
+	                name = "uc_user_device_prekey",
+	                columnNames = { "userKey", "deviceId", "preKeyId" }
+	            )
+	        }
 		)
 public class OneTimePreKey {
 	@Id

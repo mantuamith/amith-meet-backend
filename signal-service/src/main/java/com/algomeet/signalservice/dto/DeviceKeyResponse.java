@@ -6,16 +6,22 @@ import java.util.UUID;
 import lombok.Data;
 
 @Data
-public class UserDeviceResponse {
+public class DeviceKeyResponse {  	
     private UUID userKey;
     
     private Integer deviceId;
     
     private Integer registrationId;
     
-    private String identityKey;    
+    private String identityKey;      
+	
+    private SignedPreKeyResponse signedPreKey;
+
+    private KyberPreKeyResponse kyberPreKey;
+    
+    private OneTimePreKeyResponse oneTimePreKey;	
     
     private Instant createdAt;
     
-    private Instant updatedAt;
+    private Instant updatedAt; 
 }

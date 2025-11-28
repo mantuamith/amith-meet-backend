@@ -24,6 +24,9 @@ public class OneTimePreKeyMapper {
 
 
 	public static OneTimePreKeyResponse toResponse(OneTimePreKey e) {
+		if (e == null) {
+    		return null;
+    	}
 		return new OneTimePreKeyResponse(
 				e.getId(),
 				e.getUserKey(),

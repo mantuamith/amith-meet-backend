@@ -19,6 +19,9 @@ public class SignedPreKeyMapper {
     }
 
     public static SignedPreKeyResponse toResponse(SignedPreKey entity) {
+    	if (entity == null) {
+    		return null;
+    	}
         SignedPreKeyResponse response = new SignedPreKeyResponse();
         response.setUserKey(entity.getId().getUserKey());
         response.setDeviceId(entity.getId().getDeviceId());

@@ -78,12 +78,12 @@ public class ExampleAliceToBob {
 				.getIdentityKeyPair()
 				.getPrivateKey()
 				.calculateSignature(bobKyberPreKeyPair.getPublicKey().serialize());
+		// Upload device keys to backend using API endpoint: 
+		// POST /signal/v2/devices - This endoint will return the device ID save it in your device to be used in succeeding request.
+		// POST /signal/v2/devices/{deviceId}/keys - Upload pre-keys bundle
 
-		// Upload device keys to backend using API endpoint: POST /signal/v2/devices
-		// This endoint will return the device ID save it in your device to be used in succeeding request.
 		
-		// Get/Retrieve recipient device identity key from backend using API endpoint: GET /signal/v2/devices?userKey=2fc35cae-e0b7-40a5-b2aa-e86206730e99
-		// Get/Retrieve one-time prekey using this endoint: GET /signal/v2/devices/{deviceId}/prekeys/one-time?userKey=XXX
+		// Get/Retrieve recipient device identity key and prekeys from backend using API endpoint: GET /signal/v2/keys/{userkKey}?deviceIds=
 		PreKeyBundle bobPreKeyBundle= new PreKeyBundle(bobRegistrationId, 
 				bobDeviceId,
 				bobPreKeyId, 

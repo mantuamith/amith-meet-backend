@@ -5,6 +5,7 @@ import java.time.Instant;
 import jakarta.persistence.Column;
 import jakarta.persistence.EmbeddedId;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.JoinColumns;
 import jakarta.persistence.OneToOne;
@@ -15,7 +16,15 @@ import lombok.Data;
 
 @Data
 @Entity
-@Table(name = "signal_user_devices")
+@Table(
+	    name = "signal_user_devices",
+	    uniqueConstraints = {
+	        @jakarta.persistence.UniqueConstraint(
+	            name = "uc_userKey_registrationId_identityKey",
+	            columnNames = { "userKey", "registrationId", "identityKey" }
+	        )
+	    }
+	)
 public class UserDevice {
     @EmbeddedId
     private UserDeviceId id;
@@ -27,14 +36,14 @@ public class UserDevice {
     @Column(nullable = false, length = 200)
     private String identityKey;
     
-    @OneToOne
+    @OneToOne(fetch = FetchType.LAZY)
     @JoinColumns({
         @JoinColumn(name = "userKey", referencedColumnName = "userKey"),
         @JoinColumn(name = "deviceId", referencedColumnName = "deviceId")
     })
     private SignedPreKey signedPreKey;
     
-    @OneToOne
+    @OneToOne(fetch = FetchType.LAZY)
     @JoinColumns({
         @JoinColumn(name = "userKey", referencedColumnName = "userKey"),
         @JoinColumn(name = "deviceId", referencedColumnName = "deviceId")

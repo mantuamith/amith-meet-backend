@@ -2,6 +2,7 @@ package com.algomeet.signalservice.mapper;
 
 import java.util.UUID;
 
+import com.algomeet.signalservice.dto.DeviceKeyResponse;
 import com.algomeet.signalservice.dto.UserDeviceRequest;
 import com.algomeet.signalservice.dto.UserDeviceResponse;
 import com.algomeet.signalservice.entity.UserDevice;
@@ -25,13 +26,17 @@ public class UserDeviceMapper {
         dto.setRegistrationId(device.getRegistrationId());
         dto.setIdentityKey(device.getIdentityKey());
         
-        if (device.getSignedPreKey() != null) {
-        	dto.setSignedPreKey(SignedPreKeyMapper.toResponse(device.getSignedPreKey()));
-        }
-        
-        if (device.getKyberPreKey() != null) {
-        	dto.setKyberPreKey(KyberPreKeyMapper.toResponse(device.getKyberPreKey()));
-        }
+        dto.setCreatedAt(device.getCreatedAt());
+        dto.setUpdatedAt(device.getUpdatedAt());
+        return dto;
+    }
+    
+    public static DeviceKeyResponse toDeviceKeyResponse(UserDevice device) {
+    	DeviceKeyResponse dto = new DeviceKeyResponse();
+        dto.setUserKey(device.getId().getUserKey());
+        dto.setDeviceId(device.getId().getDeviceId());
+        dto.setRegistrationId(device.getRegistrationId());
+        dto.setIdentityKey(device.getIdentityKey());
         
         dto.setCreatedAt(device.getCreatedAt());
         dto.setUpdatedAt(device.getUpdatedAt());

@@ -25,6 +25,10 @@ public class KyberPreKeyMapper {
 
 
 	public static KyberPreKeyResponse toResponse(KyberPreKey entity) {
+		if (entity == null) {
+    		return null;
+    	}
+		
 		return new KyberPreKeyResponse(
 				entity.getId().getUserKey().toString(),
 				entity.getId().getDeviceId(),

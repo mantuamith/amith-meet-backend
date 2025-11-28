@@ -19,6 +19,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.algomeet.signalservice.controller.swagger.UserDeviceControllerDoc;
 import com.algomeet.signalservice.dto.CommonResponse;
+import com.algomeet.signalservice.dto.DevicePreKeyBundleRequest;
+import com.algomeet.signalservice.dto.DevicePreKeyBundleResponse;
 import com.algomeet.signalservice.dto.UserDeviceRequest;
 import com.algomeet.signalservice.dto.UserDeviceResponse;
 import com.algomeet.signalservice.enums.ResponseCode;
@@ -34,6 +36,7 @@ import lombok.RequiredArgsConstructor;
 public class UserDeviceController implements UserDeviceControllerDoc{
 	private final UserDeviceService service;
 
+	@Override
 	@PostMapping
 	public ResponseEntity<CommonResponse<UserDeviceResponse>> createDevice(@Validated @RequestBody UserDeviceRequest request) {
 		return ResponseEntity.ok(
@@ -41,6 +44,7 @@ public class UserDeviceController implements UserDeviceControllerDoc{
 						service.createDevice(UUID.fromString(SecurityUtil.getUserKey()), request)));
 	}
 
+	@Override
 	@GetMapping
 	public ResponseEntity<CommonResponse<List<UserDeviceResponse>>> getDevices(@RequestParam Optional<UUID> userKey) {
 		return ResponseEntity.ok(
@@ -48,6 +52,7 @@ public class UserDeviceController implements UserDeviceControllerDoc{
 						service.getDevicesByUser(userKey.orElse(UUID.fromString(SecurityUtil.getUserKey())))));
 	}
 
+	@Override
 	@PutMapping("/{deviceId}")
 	public ResponseEntity<CommonResponse<UserDeviceResponse>> updateDevice(@PathVariable Integer deviceId, @Validated @RequestBody UserDeviceRequest request) {  
 		try {
@@ -60,11 +65,26 @@ public class UserDeviceController implements UserDeviceControllerDoc{
 		}
 	}
 
+	@Override
 	@DeleteMapping("/{deviceId}")
 	public ResponseEntity<CommonResponse<?>> deleteDevice(@PathVariable Integer deviceId) {
 		try {
 			service.deleteDevice(UUID.fromString(SecurityUtil.getUserKey()), deviceId);
 			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));			
+		} catch (RecordNotFoundException ex) {
+			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+					CommonResponse.from(ResponseCode.USER_DEVICE_ID_NOT_FOUND));
+		}
+	}
+
+	@Override
+	@PostMapping("/{deviceId}/keys")
+	public ResponseEntity<CommonResponse<DevicePreKeyBundleResponse>> createDevicePreKeyBundle(@PathVariable Integer deviceId, 
+			@Validated @RequestBody DevicePreKeyBundleRequest request) {
+		try {
+			return ResponseEntity.ok(
+					CommonResponse.from(ResponseCode.SUCCESS,
+							service.createDevicePreKeyBundle(UUID.fromString(SecurityUtil.getUserKey()), deviceId, request)));
 		} catch (RecordNotFoundException ex) {
 			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
 					CommonResponse.from(ResponseCode.USER_DEVICE_ID_NOT_FOUND));
