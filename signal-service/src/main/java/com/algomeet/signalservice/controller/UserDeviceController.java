@@ -24,6 +24,8 @@ import com.algomeet.signalservice.dto.DevicePreKeyBundleResponse;
 import com.algomeet.signalservice.dto.UserDeviceRequest;
 import com.algomeet.signalservice.dto.UserDeviceResponse;
 import com.algomeet.signalservice.enums.ResponseCode;
+import com.algomeet.signalservice.exceptions.DeviceAlreadyExistsException;
+import com.algomeet.signalservice.exceptions.OneTimePreKeyAlreadyExistsException;
 import com.algomeet.signalservice.exceptions.RecordNotFoundException;
 import com.algomeet.signalservice.service.UserDeviceService;
 import com.algomeet.signalservice.util.SecurityUtil;
@@ -39,9 +41,15 @@ public class UserDeviceController implements UserDeviceControllerDoc{
 	@Override
 	@PostMapping
 	public ResponseEntity<CommonResponse<UserDeviceResponse>> createDevice(@Validated @RequestBody UserDeviceRequest request) {
-		return ResponseEntity.ok(
-				CommonResponse.from(ResponseCode.SUCCESS,
-						service.createDevice(UUID.fromString(SecurityUtil.getUserKey()), request)));
+		try {
+			return ResponseEntity.ok(
+					CommonResponse.from(ResponseCode.SUCCESS,
+							service.registerDevice(UUID.fromString(SecurityUtil.getUserKey()), request)));
+			
+		} catch (DeviceAlreadyExistsException ex) {
+			return ResponseEntity.status(HttpStatus.CONFLICT).body(
+					CommonResponse.from(ResponseCode.USER_DEVICE_ALREADY_EXISTS));
+		}
 	}
 
 	@Override
@@ -88,6 +96,9 @@ public class UserDeviceController implements UserDeviceControllerDoc{
 		} catch (RecordNotFoundException ex) {
 			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
 					CommonResponse.from(ResponseCode.USER_DEVICE_ID_NOT_FOUND));
+		} catch (OneTimePreKeyAlreadyExistsException ex) {
+			return ResponseEntity.status(HttpStatus.CONFLICT).body(
+					CommonResponse.from(ResponseCode.ONE_TIME_PRE_KEY_ALREADY_EXISTS));
 		}
 	}
 }

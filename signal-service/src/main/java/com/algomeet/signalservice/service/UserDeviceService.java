@@ -8,6 +8,7 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -24,6 +25,8 @@ import com.algomeet.signalservice.entity.SignedPreKey;
 import com.algomeet.signalservice.entity.SignedPreKeyId;
 import com.algomeet.signalservice.entity.UserDevice;
 import com.algomeet.signalservice.entity.UserDeviceId;
+import com.algomeet.signalservice.exceptions.DeviceAlreadyExistsException;
+import com.algomeet.signalservice.exceptions.OneTimePreKeyAlreadyExistsException;
 import com.algomeet.signalservice.exceptions.RecordNotFoundException;
 import com.algomeet.signalservice.mapper.KyberPreKeyMapper;
 import com.algomeet.signalservice.mapper.OneTimePreKeyMapper;
@@ -38,20 +41,27 @@ import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
-@Transactional
 public class UserDeviceService {
 	private final UserDeviceRepository repository;
 	private final SignedPreKeyRepository signedPreKeyRepository;
 	private final KyberPreKeyRepository kyberPreKeyRepository;
 	private final OneTimePreKeyRepository oneTimePreKeyRepository;
 
-	public UserDeviceResponse createDevice(UUID userKey, UserDeviceRequest request) {
+	public UserDeviceResponse registerDevice(UUID userKey, UserDeviceRequest request) {
 		// To generate new device ID, get maximum user device ID from table then increment it by 1.
 		int deviceId = (repository.findMaxDeviceIdByUserKey(userKey).orElse(0) + 1);
 
 		// Save device
-		UserDevice device = UserDeviceMapper.toEntity(userKey, deviceId, request);		
-		UserDevice savedDevice = repository.save(device);
+		UserDevice device = UserDeviceMapper.toEntity(userKey, deviceId, request);	
+
+		UserDevice savedDevice =  null;
+		try {
+			savedDevice = repository.save(device);
+		} catch (DataIntegrityViolationException ex) {
+			throw new DeviceAlreadyExistsException(
+					String.format("User device already exist with registration ID %d and identity key %s", 
+							request.getRegistrationId(), request.getIdentityKey()));
+		}
 
 		// Construct response
 		UserDeviceResponse userDeviceResponse = UserDeviceMapper.toResponse(savedDevice);
@@ -113,7 +123,14 @@ public class UserDeviceService {
 
 		// Save ontime prekeys
 		List<OneTimePreKey> otPreKeys = request.getOneTimePreKeys().stream().map(otp -> OneTimePreKeyMapper.toEntity(userKey, deviceId, otp)).toList();
-		List<OneTimePreKey> savedOtPreKeys = oneTimePreKeyRepository.saveAll(otPreKeys);
+
+		List<OneTimePreKey> savedOtPreKeys = null;
+		try {
+			savedOtPreKeys = oneTimePreKeyRepository.saveAll(otPreKeys);
+		} catch (DataIntegrityViolationException ex) {
+			throw new OneTimePreKeyAlreadyExistsException(
+					String.format("Device one-time pre key already exist"));
+		}
 
 		// Construct response
 		DevicePreKeyBundleResponse preKeyBundleResp = new DevicePreKeyBundleResponse();
@@ -126,72 +143,72 @@ public class UserDeviceService {
 
 	@Transactional
 	public List<DeviceKeyResponse> getDeviceKeys(UUID userKey, Optional<List<Integer>> deviceIds) {
-	    
-	    // Fetch all UserDevices efficiently, avoiding N+1 for SignedPreKey and KyberPreKey
-	    List<UserDevice> devices = getDevicesOptimized(userKey, deviceIds);
 
-	    if (devices.isEmpty()) {
-	        throw new RecordNotFoundException("User device ID not found");
-	    }
+		// Fetch all UserDevices efficiently, avoiding N+1 for SignedPreKey and KyberPreKey
+		List<UserDevice> devices = getDevicesOptimized(userKey, deviceIds);
 
-	    // Batch-find all necessary OneTimePreKeys (OPKs)
-	    // Create a list of all UserDeviceId keys needed for OPKs
-	    List<Integer> allDeviceIds = devices.stream()
-	            .map(device -> device.getId().getDeviceId())
-	            .toList();
+		if (devices.isEmpty()) {
+			throw new RecordNotFoundException("User device ID not found");
+		}
 
-	    // Custom Repository method to find the first unused OPK for each device
-	    // This requires a custom query that groups by UserKey/DeviceId and orders/limits
-	    List<OneTimePreKey> preKeysToUse = oneTimePreKeyRepository.findFirstUnusedPreKeysByUserKeyAndDeviceIds(userKey, allDeviceIds);
-	    
-	    // Create a map for fast lookup: (UserKey + DeviceId) -> OneTimePreKey
-	    Map<UserDeviceId, OneTimePreKey> preKeyMap = preKeysToUse.stream()
-	            .collect(Collectors.toMap(
-	                opk -> new UserDeviceId(opk.getUserKey(), opk.getDeviceId()),
-	                opk -> opk
-	            ));
+		// Batch-find all necessary OneTimePreKeys (OPKs)
+		// Create a list of all UserDeviceId keys needed for OPKs
+		List<Integer> allDeviceIds = devices.stream()
+				.map(device -> device.getId().getDeviceId())
+				.toList();
 
-	    // Delete all consumed OPKs in a single batch operation
-	    if (!preKeysToUse.isEmpty()) {
-	        List<Long> preKeyIdsToDelete = preKeysToUse.stream()
-	            .map(OneTimePreKey::getId)
-	            .toList();
-	        
-	        oneTimePreKeyRepository.deleteByIdInBatch(preKeyIdsToDelete);
-	    }
+		// Custom Repository method to find the first unused OPK for each device
+		// This requires a custom query that groups by UserKey/DeviceId and orders/limits
+		List<OneTimePreKey> preKeysToUse = oneTimePreKeyRepository.findFirstUnusedPreKeysByUserKeyAndDeviceIds(userKey, allDeviceIds);
 
-	    // Construct response in a single, efficient loop (no DB access inside)
-	    List<DeviceKeyResponse> listDeviceKeyResp = new ArrayList<>();
+		// Create a map for fast lookup: (UserKey + DeviceId) -> OneTimePreKey
+		Map<UserDeviceId, OneTimePreKey> preKeyMap = preKeysToUse.stream()
+				.collect(Collectors.toMap(
+						opk -> new UserDeviceId(opk.getUserKey(), opk.getDeviceId()),
+						opk -> opk
+						));
 
-	    for (UserDevice device : devices) {
-	        DeviceKeyResponse deviceKeyResp = UserDeviceMapper.toDeviceKeyResponse(device); 
-	        
-	        // SignedPreKey and KyberPreKey are already initialized due to Eager/JOIN FETCH
-	        deviceKeyResp.setSignedPreKey(SignedPreKeyMapper.toResponse(device.getSignedPreKey()));            
-	        deviceKeyResp.setKyberPreKey(KyberPreKeyMapper.toResponse(device.getKyberPreKey()));
+		// Delete all consumed OPKs in a single batch operation
+		if (!preKeysToUse.isEmpty()) {
+			List<Long> preKeyIdsToDelete = preKeysToUse.stream()
+					.map(OneTimePreKey::getId)
+					.toList();
 
-	        // Look up the consumed OPK from the pre-fetched map
-	        OneTimePreKey consumedPreKey = preKeyMap.get(device.getId());
+			oneTimePreKeyRepository.deleteByIdInBatch(preKeyIdsToDelete);
+		}
 
-	        if (consumedPreKey != null) {
-	            deviceKeyResp.setOneTimePreKey(OneTimePreKeyMapper.toResponse(consumedPreKey));
-	        }
+		// Construct response in a single, efficient loop (no DB access inside)
+		List<DeviceKeyResponse> listDeviceKeyResp = new ArrayList<>();
 
-	        listDeviceKeyResp.add(deviceKeyResp);
-	    }
+		for (UserDevice device : devices) {
+			DeviceKeyResponse deviceKeyResp = UserDeviceMapper.toDeviceKeyResponse(device); 
 
-	    return listDeviceKeyResp;
+			// SignedPreKey and KyberPreKey are already initialized due to Eager/JOIN FETCH
+			deviceKeyResp.setSignedPreKey(SignedPreKeyMapper.toResponse(device.getSignedPreKey()));            
+			deviceKeyResp.setKyberPreKey(KyberPreKeyMapper.toResponse(device.getKyberPreKey()));
+
+			// Look up the consumed OPK from the pre-fetched map
+			OneTimePreKey consumedPreKey = preKeyMap.get(device.getId());
+
+			if (consumedPreKey != null) {
+				deviceKeyResp.setOneTimePreKey(OneTimePreKeyMapper.toResponse(consumedPreKey));
+			}
+
+			listDeviceKeyResp.add(deviceKeyResp);
+		}
+
+		return listDeviceKeyResp;
 	}
 
 	@Transactional(readOnly = true)
 	private List<UserDevice> getDevicesOptimized(UUID userKey, Optional<List<Integer>> deviceIds) {
-	    if (deviceIds.isPresent()) {
-	        return repository.findAllByUserKeyAndDeviceIdsWithKeys(userKey, deviceIds.get());
-	    } else {
-	        return repository.findAllByUserKeyWithKeys(userKey);
-	    }
+		if (deviceIds.isPresent()) {
+			return repository.findAllByUserKeyAndDeviceIdsWithKeys(userKey, deviceIds.get());
+		} else {
+			return repository.findAllByUserKeyWithKeys(userKey);
+		}
 	}
-	
+
 	/**
 	 * Used to change the modified date of user device when signed or kyber pre-key has been modified. 
 	 * This will be use as reference for the client to update their prekeys.

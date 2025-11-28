@@ -6,6 +6,9 @@ public enum ResponseCode {
 	AUTH_SESSION_REVOKED("AUTH_SESSION_REVOKED", "auth.session.revoked"),
     SUCCESS("SUCCESS", "success"),
     USER_DEVICE_ID_NOT_FOUND("USER_DEVICE_ID_NOT_FOUND", "user-device.id-not-found"),
+    USER_DEVICE_ALREADY_EXISTS("USER_DEVICE_ALREADY_EXISTS", "user-device.already-exists"),
+    ONE_TIME_PRE_KEY_ALREADY_EXISTS("ONE_TIME_PRE_KEY_ALREADY_EXISTS", "one-time-pre-key.already-exists"),
+    
     SIGNED_PRE_KEY_NOT_FOUND("SIGNED_PRE_KEY_NOT_FOUND", "signed-pre-key.not-found"),
     KYBER_PRE_KEY_NOT_FOUND("KYBER_PRE_KEY_NOT_FOUND", "kyber-pre-key.not-found"),
     ONE_TIME_PRE_KEY_NOT_AVAILABLE("ONE_TIME_PRE_KEY_NOT_AVAILABLE", "one-time-pre-key.not-available"),
