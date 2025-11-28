@@ -46,12 +46,12 @@ public interface OneTimePreKeyControllerDoc {
             @RequestBody OneTimePreKeysRequest request) ;
 
     @Operation(
-        summary = "Get available one-time pre-key",
-        description = "Fetches an available one-time pre-key for a device and user",
+        summary = "Get all one-time pre-keys",
+        description = "Fetches an all one-time pre-keys for a device and user",
         responses = {
             @ApiResponse(
                 responseCode = "200",
-                description = "Pre-key successfully retrieved",
+                description = "Pre-keys successfully retrieved",
                 content = @Content(schema = @Schema(implementation = OneTimePreKeyResponse.class))
             ),
             @ApiResponse(
@@ -61,10 +61,7 @@ public interface OneTimePreKeyControllerDoc {
             )
         }
     )
-    public ResponseEntity<CommonResponse<OneTimePreKeyResponse>> getAvailable(
-            @Parameter(description = "User key (UUID). Defaults to authenticated user", required = true)
-            @RequestParam UUID userKey,
-
+    public ResponseEntity<CommonResponse<List<OneTimePreKeyResponse>>> getPrekeys(
             @Parameter(description = "Device ID to fetch pre-key for", required = true)
             @PathVariable Integer deviceId);
     

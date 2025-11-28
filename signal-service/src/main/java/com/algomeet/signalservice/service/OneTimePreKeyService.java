@@ -3,6 +3,7 @@ package com.algomeet.signalservice.service;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -50,18 +51,17 @@ public class OneTimePreKeyService {
 		return repository.saveAll(preKeys).stream().map(OneTimePreKeyMapper::toResponse).toList();
 	}
 
-	public OneTimePreKeyResponse getAvailable(UUID userKey, Integer deviceId) {
+	public List<OneTimePreKeyResponse> getPrekeys(UUID userKey, Integer deviceId) {
 		deviceRepository.findById(new UserDeviceId(userKey, deviceId))
 		.orElseThrow(() -> new RecordNotFoundException("User device ID not found"));
 
-		OneTimePreKey preKey = repository.findFirstByUserKeyAndDeviceIdAndUsedFalseOrderByIdAsc(userKey, deviceId);
-		if (preKey == null) {
-			throw new OneTimePreKeyIsNotAvailableException("User device don't have available one time prekey");
+		List<OneTimePreKey> preKeys = repository.findByUserKeyAndDeviceId(userKey, deviceId);
+	
+		if (preKeys == null) {
+			return List.of();
 		}
-
-		// Remove to prevent re-used of one time key
-		repository.deleteById(preKey.getId());				
-		return OneTimePreKeyMapper.toResponse(preKey);
+		
+		return preKeys.stream().map(OneTimePreKeyMapper::toResponse).toList();
 	}
 
 	public Long getAvailablePrekeysCount(UUID userKey, Integer deviceId) {	

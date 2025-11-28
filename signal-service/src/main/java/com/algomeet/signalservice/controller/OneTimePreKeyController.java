@@ -33,6 +33,7 @@ import lombok.RequiredArgsConstructor;
 public class OneTimePreKeyController implements OneTimePreKeyControllerDoc{
 	private final OneTimePreKeyService service;
 
+	@Override
 	@PostMapping("/{deviceId}/prekeys/one-time")
 	public ResponseEntity<CommonResponse<List<OneTimePreKeyResponse>>> create(@PathVariable Integer deviceId, @Validated @RequestBody OneTimePreKeysRequest request) {
 		try {
@@ -45,21 +46,19 @@ public class OneTimePreKeyController implements OneTimePreKeyControllerDoc{
 		}
 	}
 
+	@Override
 	@GetMapping("/{deviceId}/prekeys/one-time")
-	public ResponseEntity<CommonResponse<OneTimePreKeyResponse>> getAvailable(@RequestParam UUID userKey,
-			@PathVariable Integer deviceId) {	
+	public ResponseEntity<CommonResponse<List<OneTimePreKeyResponse>>> getPrekeys(@PathVariable Integer deviceId) {	
 		try {
 			return ResponseEntity.ok(
-					CommonResponse.from(ResponseCode.SUCCESS, service.getAvailable(userKey, deviceId)));			
-		} catch(OneTimePreKeyIsNotAvailableException ex) {
-			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
-					CommonResponse.from(ResponseCode.ONE_TIME_PRE_KEY_NOT_AVAILABLE));
+					CommonResponse.from(ResponseCode.SUCCESS, service.getPrekeys(UUID.fromString(SecurityUtil.getUserKey()), deviceId)));			
 		} catch(RecordNotFoundException ex) {
 			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
 					CommonResponse.from(ResponseCode.USER_DEVICE_ID_NOT_FOUND));
 		}
 	}	
 
+	@Override
 	@GetMapping("/{deviceId}/prekeys/one-time/count")
 	public ResponseEntity<CommonResponse<Long>> getAvailablePrekeysCount(@PathVariable Integer deviceId) {	
 		try {
@@ -71,6 +70,7 @@ public class OneTimePreKeyController implements OneTimePreKeyControllerDoc{
 		}
 	}	
 
+	@Override
 	@DeleteMapping("/{deviceId}/prekeys/one-time")
 	public ResponseEntity<CommonResponse<?>> deleteAll(@PathVariable Integer deviceId) {
 		try {
