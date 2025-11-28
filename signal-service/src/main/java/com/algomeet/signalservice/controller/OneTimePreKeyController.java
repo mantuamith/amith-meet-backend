@@ -12,7 +12,6 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.algomeet.signalservice.controller.swagger.OneTimePreKeyControllerDoc;
@@ -20,7 +19,6 @@ import com.algomeet.signalservice.dto.CommonResponse;
 import com.algomeet.signalservice.dto.OneTimePreKeyResponse;
 import com.algomeet.signalservice.dto.OneTimePreKeysRequest;
 import com.algomeet.signalservice.enums.ResponseCode;
-import com.algomeet.signalservice.exceptions.OneTimePreKeyIsNotAvailableException;
 import com.algomeet.signalservice.exceptions.RecordNotFoundException;
 import com.algomeet.signalservice.service.OneTimePreKeyService;
 import com.algomeet.signalservice.util.SecurityUtil;

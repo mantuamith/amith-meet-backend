@@ -3,7 +3,6 @@ package com.algomeet.signalservice.service;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.Stream;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,7 +13,6 @@ import com.algomeet.signalservice.dto.OneTimePreKeyResponse;
 import com.algomeet.signalservice.dto.OneTimePreKeysRequest;
 import com.algomeet.signalservice.entity.OneTimePreKey;
 import com.algomeet.signalservice.entity.UserDeviceId;
-import com.algomeet.signalservice.exceptions.OneTimePreKeyIsNotAvailableException;
 import com.algomeet.signalservice.exceptions.RecordNotFoundException;
 import com.algomeet.signalservice.mapper.OneTimePreKeyMapper;
 import com.algomeet.signalservice.repository.OneTimePreKeyRepository;

@@ -17,6 +17,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class KyberPreKeyService {
 	private final KyberPreKeyRepository repository;
+    private final UserDeviceService userDeviceService;
 
 	public KyberPreKeyResponse getPreKey(KyberPreKeyId id) {
 		KyberPreKey entity = repository.findById(id)
@@ -33,6 +34,10 @@ public class KyberPreKeyService {
 		entity.setSignature(request.getSignature());
 
 		repository.save(entity);
+		
+		// Update user device modified date
+        userDeviceService.markDeviceAsUpdated(id.getUserKey(), id.getDeviceId());
+		
 		return KyberPreKeyMapper.toResponse(entity);
 	}
 }

@@ -1,5 +1,6 @@
 package com.algomeet.signalservice.service;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -102,11 +103,11 @@ public class UserDeviceService {
 			throw new RecordNotFoundException("User device ID not found");
 		}
 
-		//Save prekeys
+		//Save signed prekeys
 		SignedPreKey signedPreKey = SignedPreKeyMapper.toEntity(userKey, deviceId, request.getSignedPreKey());		
 		SignedPreKey savedSignedPreKey= signedPreKeyRepository.save(signedPreKey);
 
-		// Save kyber		
+		// Save kyber prekeys	
 		KyberPreKey kybePreKey = KyberPreKeyMapper.toEntity(userKey, deviceId, request.getKyberPreKey());		
 		KyberPreKey savedKyberPreKey = kyberPreKeyRepository.save(kybePreKey);
 
@@ -117,32 +118,8 @@ public class UserDeviceService {
 		// Construct response
 		DevicePreKeyBundleResponse preKeyBundleResp = new DevicePreKeyBundleResponse();
 		preKeyBundleResp.setSignedPreKey(SignedPreKeyMapper.toResponse(savedSignedPreKey));
-
 		preKeyBundleResp.setKyberPreKey(KyberPreKeyMapper.toResponse(savedKyberPreKey));
-
 		preKeyBundleResp.setOneTimePreKeys(savedOtPreKeys.stream().map(OneTimePreKeyMapper::toResponse).toList());
-
-		return preKeyBundleResp;
-	}
-
-	@Transactional
-	public DevicePreKeyBundleResponse getDevicePreKeyBundle(UUID userKey, Integer deviceId) {
-		UserDevice userDevice = repository.findById(new UserDeviceId(userKey, deviceId))
-				.orElseThrow(() -> new RecordNotFoundException("User device ID not found"));
-
-		// Construct response
-		DevicePreKeyBundleResponse preKeyBundleResp = new DevicePreKeyBundleResponse();
-		preKeyBundleResp.setSignedPreKey(SignedPreKeyMapper.toResponse(userDevice.getSignedPreKey()));
-
-		preKeyBundleResp.setKyberPreKey(KyberPreKeyMapper.toResponse(userDevice.getKyberPreKey()));
-
-		OneTimePreKey preKey = oneTimePreKeyRepository.findFirstByUserKeyAndDeviceIdAndUsedFalseOrderByIdAsc(userKey, deviceId);
-		if (preKey != null) {
-			// Remove to prevent re-used of one time key
-			oneTimePreKeyRepository.deleteById(preKey.getId());			
-
-			preKeyBundleResp.setOneTimePreKeys(List.of(OneTimePreKeyMapper.toResponse(preKey)));
-		}
 
 		return preKeyBundleResp;
 	}
@@ -213,5 +190,19 @@ public class UserDeviceService {
 	    } else {
 	        return repository.findAllByUserKeyWithKeys(userKey);
 	    }
+	}
+	
+	/**
+	 * Used to change the modified date of user device when signed or kyber pre-key has been modified. 
+	 * This will be use as reference for the client to update their prekeys.
+	 * 
+	 * @param userKey
+	 * @param deviceId
+	 */
+	public void markDeviceAsUpdated(UUID userKey, Integer deviceId) {
+		UserDevice userDevice = repository.findById(new UserDeviceId(userKey, deviceId))
+				.orElseThrow(() -> new RecordNotFoundException("User device ID not found"));
+		userDevice.setUpdatedAt(Instant.now());
+		repository.save(userDevice);
 	}
 }

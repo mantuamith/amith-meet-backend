@@ -13,14 +13,14 @@ import com.algomeet.signalservice.exceptions.RecordNotFoundException;
 import com.algomeet.signalservice.mapper.SignedPreKeyMapper;
 import com.algomeet.signalservice.repository.SignedPreKeyRepository;
 
+import lombok.AllArgsConstructor;
+
+@AllArgsConstructor
 @Service
 @Transactional
 public class SignedPreKeyService {
     private final SignedPreKeyRepository repository;
-
-    public SignedPreKeyService(SignedPreKeyRepository repository) {
-        this.repository = repository;
-    }
+    private final UserDeviceService userDeviceService;
 
     public SignedPreKeyResponse getById(UUID userKey, Integer deviceId) {
     	SignedPreKeyId id = new SignedPreKeyId(userKey, deviceId);
@@ -40,6 +40,9 @@ public class SignedPreKeyService {
         entity.setSignature(request.getSignature());
 
         repository.save(entity);
+        // Update user device modified date
+        userDeviceService.markDeviceAsUpdated(userKey, deviceId);
+        
         return SignedPreKeyMapper.toResponse(entity);
     }
 }
