@@ -27,12 +27,12 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 public interface UserDeviceControllerDoc {
 
 	@Operation(
-			summary = "Create a new user device",
+			summary = "Create/Register a new user device",
 			description = "Registers a new device for the authenticated user",
 			responses = {
 					@ApiResponse(
 							responseCode = "200",
-							description = "Device created successfully",
+							description = "Device created/registered successfully",
 							content = @Content(schema = @Schema(implementation = UserDeviceResponse.class))
 							)
 			}
@@ -101,7 +101,7 @@ public interface UserDeviceControllerDoc {
 
 
 	@Operation(
-			summary = "Create Device PreKey Bundle",
+			summary = "Create/Upload Device PreKey Bundle",
 			description = "Creates a new pre-key bundle for a specific device belonging to the authenticated user.",
 			responses = {
 					@ApiResponse(
