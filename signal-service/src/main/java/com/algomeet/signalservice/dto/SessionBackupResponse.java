@@ -23,9 +23,6 @@ public class SessionBackupResponse {
 
 	private String serializedSession;
 
-	/** The encryption algorithm, e.g. "OLM" */
-	private String algorithm;	
-
 	/** Algorithm name, e.g. "AES/GCM/NoPadding" or "AES-CBC". */
 	private String aesAlg;
 

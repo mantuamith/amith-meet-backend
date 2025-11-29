@@ -8,7 +8,7 @@ import lombok.Data;
 @Data
 public class UserDeviceRequest {  
 	@NotNull
-	@Min(value = 0, message = "registrationId must be greater than equal to 0")
+	@Min(value = 1, message = "registrationId must be greater than 0")
     private Integer registrationId;
 	
 	@NotEmpty

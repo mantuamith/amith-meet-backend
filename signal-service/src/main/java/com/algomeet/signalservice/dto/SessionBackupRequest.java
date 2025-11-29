@@ -2,6 +2,7 @@ package com.algomeet.signalservice.dto;
 
 import java.util.UUID;
 
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
@@ -10,6 +11,7 @@ import lombok.Data;
 @Data
 public class SessionBackupRequest {	
 	@NotNull
+	@Min(value = 1, message = "registrationId must be greater than 0")
 	private Integer registrationId;
     
     /** remote user's user key **/
@@ -18,6 +20,7 @@ public class SessionBackupRequest {
     
     /** Remote user's device ID **/
 	@NotNull
+	@Min(value = 1, message = "remoteDeviceId must be greater than 0")
     private Integer remoteDeviceId;
 		
 	/**

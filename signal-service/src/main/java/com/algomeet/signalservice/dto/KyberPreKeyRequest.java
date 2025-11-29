@@ -9,7 +9,7 @@ import lombok.Data;
 @Data
 public class KyberPreKeyRequest {	
 	@NotNull
-	@Min(value = 0, message = "kyberPreKeyId must be greater than equal to 0")
+	@Min(value = 1, message = "kyberPreKeyId must be greater than 0")
 	private Integer kyberPreKeyId;
 	
 	@NotEmpty

@@ -5,6 +5,7 @@ import com.algomeet.signalservice.dto.CommonResponse;
 import com.algomeet.signalservice.dto.GroupSessionBackupRequest;
 import com.algomeet.signalservice.dto.GroupSessionBackupResponse;
 import com.algomeet.signalservice.enums.ResponseCode;
+import com.algomeet.signalservice.exceptions.GroupSessionBackupExistsException;
 import com.algomeet.signalservice.exceptions.RecordNotFoundException;
 import com.algomeet.signalservice.service.GroupSessionBackupService;
 import com.algomeet.signalservice.util.SecurityUtil;
@@ -33,10 +34,10 @@ public class GroupSessionBackupController implements GroupSessionBackupControlle
 			UUID userKey = UUID.fromString(SecurityUtil.getUserKey());
 			GroupSessionBackupResponse saved = service.saveBackup(userKey, request);
 			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, saved));
-		} catch (RecordNotFoundException ex) {
+		} catch (GroupSessionBackupExistsException ex) {
 			return ResponseEntity.status(HttpStatus.CONFLICT)
-					.body(CommonResponse.from(ResponseCode.GROUP_SESSION_BACKUP_NOT_FOUND));
-		}
+					.body(CommonResponse.from(ResponseCode.GROUP_SESSION_BACKUP_EXISTS));
+		}		
 	}
 
 	@Override

@@ -6,6 +6,7 @@ import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.CollectionUtils;
 
 import com.algomeet.signalservice.dto.SessionBackupRequest;
 import com.algomeet.signalservice.dto.SessionBackupResponse;
@@ -54,17 +55,19 @@ public class SessionBackupService {
     			.toList();
     }
 
+    @Transactional
     public void deleteByDeviceRegistrationAndRemoteUser(UUID userkey, Integer deviceId, Integer registrationId, UUID remoteUserKey, Integer remoteDeviceId) {
-    	Optional<SessionBackup> sessionOpt = repository.findById(new SessionBackupId(userkey, deviceId, registrationId, remoteUserKey, remoteDeviceId));
+    	repository.findById(new SessionBackupId(userkey, deviceId, registrationId, remoteUserKey, remoteDeviceId))
+    	.orElseThrow(() -> new RecordNotFoundException(String.format("User session not found %s, %s, %d", userkey, deviceId, registrationId)));
 
-    	if (sessionOpt.isPresent()) {
-    		sessionOpt.ifPresent(repository::delete);
-    	} else {
-    		throw new RecordNotFoundException(String.format("User session not found %s, %s, %d", userkey, deviceId, registrationId));
-    	}
+    	repository.deleteById(new SessionBackupId(userkey, deviceId, registrationId, remoteUserKey, remoteDeviceId));
     }
     
     public void deleteByDeviceId(UUID userKey, Integer deviceId) {
+    	if(CollectionUtils.isEmpty(repository.findByIdUserKeyAndIdDeviceId(userKey, deviceId))) {
+    		throw new RecordNotFoundException("User session not found");
+    	}
+    	
     	repository.deleteByIdUserKeyAndIdDeviceId(userKey, deviceId);
     }
         

@@ -2,6 +2,7 @@ package com.algomeet.signalservice.dto;
 
 import java.util.List;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
@@ -12,7 +13,7 @@ import lombok.Data;
 @Data
 public class DeviceKeyBackupUpdateRequest {		
 	@NotNull
-	@Min(value = 0, message = "registrationId must be greater than equal to 0")
+	@Min(value = 1, message = "registrationId must be greater than equal to 1")
     private Integer registrationId;
 	
 	@Pattern(
@@ -22,12 +23,10 @@ public class DeviceKeyBackupUpdateRequest {
 	@Size(max = 200)
     private String serializedIdentityKey;	
 	
-	@Pattern(
-		    regexp = "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$",
-		    message = "{invalid-base64-format}"
-		)
-	@Size(max = 200000)
-	private List<String> serializedPreKeys;
+	@Valid
+	@NotEmpty
+	@Size(max = 3000)
+	private List<@Pattern(regexp = "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$", message = "Must be valid Base64") String> serializedPreKeys;
 	
 	@Pattern(
 		    regexp = "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$",

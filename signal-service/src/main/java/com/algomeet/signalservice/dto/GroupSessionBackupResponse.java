@@ -15,7 +15,7 @@ public class GroupSessionBackupResponse {
     
     private UUID senderUserKey;
     private Integer senderDeviceId;
-    private String serializedSenderKey;
+    private String serializedSession;
     private String aesAlg;
     private String version;
     private String salt;

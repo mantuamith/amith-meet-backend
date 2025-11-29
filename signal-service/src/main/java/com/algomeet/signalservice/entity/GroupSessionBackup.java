@@ -23,7 +23,7 @@ public class GroupSessionBackup {
     /** Base64-encoded AES-encrypted  serialized SenderKeyRecord */
     @Lob
     @Column(columnDefinition = "TEXT", nullable = false)
-    private String serializedSenderKey;
+    private String serializedSession;
             
     /** Algorithm name, e.g. "AES/GCM/NoPadding" or "AES-CBC". */
     @Column(length = 32)

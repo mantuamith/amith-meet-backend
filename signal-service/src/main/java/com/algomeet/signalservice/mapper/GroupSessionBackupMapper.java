@@ -15,7 +15,7 @@ public class GroupSessionBackupMapper {
         backup.setDeviceId(request.getDeviceId());
         backup.setSenderUserKey(request.getSenderUserKey());
         backup.setSenderDeviceId(request.getSenderDeviceId());
-        backup.setSerializedSenderKey(request.getSerializedSenderKey());
+        backup.setSerializedSession(request.getSerializedSession());
         backup.setAesAlg(request.getAesAlg());
         backup.setVersion(request.getVersion());
         backup.setSalt(request.getSalt());
@@ -30,7 +30,7 @@ public class GroupSessionBackupMapper {
         dto.setDeviceId(entity.getDeviceId());
         dto.setSenderUserKey(entity.getSenderUserKey());
         dto.setSenderDeviceId(entity.getSenderDeviceId());
-        dto.setSerializedSenderKey(entity.getSerializedSenderKey());
+        dto.setSerializedSession(entity.getSerializedSession());
         dto.setAesAlg(entity.getAesAlg());
         dto.setVersion(entity.getVersion());
         dto.setSalt(entity.getSalt());

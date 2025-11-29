@@ -40,6 +40,10 @@ public class MessageBackupDocument {
     
     @Size(max = 20000)
     @Field("encryptedMessage")
+	@Pattern(
+		    regexp = "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$",
+		    message = "{invalid-base64-format}"
+		)
     private String encryptedMessage;    
     
     /** Algorithm name, e.g. "AES/GCM/NoPadding" or "AES-CBC". */

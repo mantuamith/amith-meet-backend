@@ -8,7 +8,7 @@ import lombok.Data;
 @Data
 public class SignedPreKeyRequest {
 	@NotNull
-	@Min(value = 0, message = "signedPreKeyId must be greater than equal to 0")
+	@Min(value = 1, message = "signedPreKeyId must be greater than 0")
 	private Integer signedPreKeyId;
 
 	@NotEmpty
