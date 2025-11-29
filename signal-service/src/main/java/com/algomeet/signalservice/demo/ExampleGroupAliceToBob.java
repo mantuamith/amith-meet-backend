@@ -47,7 +47,7 @@ public class ExampleGroupAliceToBob {
 		SenderKeyDistributionMessage sentAliceDistributionMessage =
 				aliceSessionBuilder.create(SENDER_ADDRESS, DISTRIBUTION_ID);
 
-		System.out.println("skdm: " + Base64.getEncoder().encodeToString(sentAliceDistributionMessage.serialize()));
+		System.out.println("skdm: " + Base64.getEncoder().encodeToString(sentAliceDistributionMessage.serialize()).length());
 		// Encrypt SKDM using 1:1 session and upload to BE using API endpoint: POST /signal/v2/devices/{senderDeviceId}/groups/{groupId}/sender-keys		
 
 
@@ -78,6 +78,7 @@ public class ExampleGroupAliceToBob {
 		/** Backup Bob's inbounds group session */		
 		// Take note: Backup the Inbound SenderKeyRecord (only if chain index == 0), saving backup for chain index > 0 will break ratchets after restore
 		SenderKeyRecord record = bobStore.loadSenderKey(SENDER_ADDRESS, DISTRIBUTION_ID);
+
 		byte[] bytes = record.serialize();
 
 		System.out.println("SenderKeyRecord inbound: " + Base64.getEncoder().encodeToString(bytes));
@@ -96,7 +97,7 @@ public class ExampleGroupAliceToBob {
         // Take node: For outbound session backup the full record (with current chain key/index)
 		SenderKeyRecord recordOutbound = aliceStore.loadSenderKey(SENDER_ADDRESS, DISTRIBUTION_ID);
 		byte[] bytesOutbound = recordOutbound.serialize();
-
+		
 		System.out.println("SenderKeyRecord outbound: " + Base64.getEncoder().encodeToString(bytesOutbound));
 		// Encrypt using AES and upload group session backup to backend using API endpoint: POST /signal/backup/group-sessions
 

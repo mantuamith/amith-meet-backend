@@ -1,0 +1,29 @@
+package com.algomeet.signalservice.dto;
+
+import java.util.UUID;
+
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
+import lombok.Data;
+
+@Data
+public class GroupSenderKeyBackupRequest {
+    @NotBlank
+    private String groupId;
+
+    @NotNull
+    private UUID distributionId;
+
+    @NotBlank
+    @Size(max = 300)
+    private String serializedSkdm;
+
+    @NotBlank
+    private String version;
+    
+    @NotBlank
+    private String aesAlg;
+    @NotBlank
+    private String salt;
+}

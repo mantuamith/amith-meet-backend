@@ -25,8 +25,8 @@ import com.algomeet.signalservice.entity.SignedPreKey;
 import com.algomeet.signalservice.entity.SignedPreKeyId;
 import com.algomeet.signalservice.entity.UserDevice;
 import com.algomeet.signalservice.entity.UserDeviceId;
-import com.algomeet.signalservice.exceptions.DeviceAlreadyExistsException;
-import com.algomeet.signalservice.exceptions.OneTimePreKeyAlreadyExistsException;
+import com.algomeet.signalservice.exceptions.DeviceExistsException;
+import com.algomeet.signalservice.exceptions.OneTimePreKeyExistsException;
 import com.algomeet.signalservice.exceptions.RecordNotFoundException;
 import com.algomeet.signalservice.mapper.KyberPreKeyMapper;
 import com.algomeet.signalservice.mapper.OneTimePreKeyMapper;
@@ -58,7 +58,7 @@ public class UserDeviceService {
 		try {
 			savedDevice = repository.save(device);
 		} catch (DataIntegrityViolationException ex) {
-			throw new DeviceAlreadyExistsException(
+			throw new DeviceExistsException(
 					String.format("User device already exist with registration ID %d and identity key %s", 
 							request.getRegistrationId(), request.getIdentityKey()));
 		}
@@ -128,7 +128,7 @@ public class UserDeviceService {
 		try {
 			savedOtPreKeys = oneTimePreKeyRepository.saveAll(otPreKeys);
 		} catch (DataIntegrityViolationException ex) {
-			throw new OneTimePreKeyAlreadyExistsException(
+			throw new OneTimePreKeyExistsException(
 					String.format("Device one-time pre key already exist"));
 		}
 

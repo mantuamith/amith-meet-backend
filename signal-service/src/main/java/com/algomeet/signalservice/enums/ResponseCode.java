@@ -6,8 +6,8 @@ public enum ResponseCode {
 	AUTH_SESSION_REVOKED("AUTH_SESSION_REVOKED", "auth.session.revoked"),
     SUCCESS("SUCCESS", "success"),
     USER_DEVICE_ID_NOT_FOUND("USER_DEVICE_ID_NOT_FOUND", "user-device.id-not-found"),
-    USER_DEVICE_ALREADY_EXISTS("USER_DEVICE_ALREADY_EXISTS", "user-device.already-exists"),
-    ONE_TIME_PRE_KEY_ALREADY_EXISTS("ONE_TIME_PRE_KEY_ALREADY_EXISTS", "one-time-pre-key.already-exists"),
+    USER_DEVICE_EXISTS("USER_DEVICE_EXISTS", "user-device.already-exists"),
+    ONE_TIME_PRE_KEY_EXISTS("ONE_TIME_PRE_KEY_EXISTS", "one-time-pre-key.already-exists"),
     
     SIGNED_PRE_KEY_NOT_FOUND("SIGNED_PRE_KEY_NOT_FOUND", "signed-pre-key.not-found"),
     KYBER_PRE_KEY_NOT_FOUND("KYBER_PRE_KEY_NOT_FOUND", "kyber-pre-key.not-found"),
@@ -19,7 +19,11 @@ public enum ResponseCode {
 	DEVICE_KEY_BACKUP_NOT_FOUND("DEVICE_KEY_BACKUP_NOT_FOUND", "device-key-backup.not-found"),	
 	USER_SESSION_BACKUP_NOT_FOUND("USER_SESSION_BACKUP_NOT_FOUND", "user-session-backup.not-found"),
 	GROUP_SESSION_BACKUP_NOT_FOUND("GROUP_SESSION_BACKUP_NOT_FOUND", "group-session-backup.not-found"),	
-	MESSAGE_BACKUP_NOT_FOUND("MESSAGE_BACKUP_NOT_FOUND", "message-backup.not-found");
+	MESSAGE_BACKUP_NOT_FOUND("MESSAGE_BACKUP_NOT_FOUND", "message-backup.not-found"),
+	
+	GROUP_SENDER_KEY_BACKUP_EXISTS("GROUP_SENDER_KEY_BACKUP_EXISTS", "sender-key-backup.already-exists"),
+	GROUP_SENDER_KEY_BACKUP_NOT_FOUND("GROUP_SENDER_KEY_BACKUP_NOT_FOUND", "sender-key-backup.not-found")
+	;
 	
     private final String code;
     private final String message;
