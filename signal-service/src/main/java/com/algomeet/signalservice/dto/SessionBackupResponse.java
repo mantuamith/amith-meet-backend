@@ -23,9 +23,6 @@ public class SessionBackupResponse {
 
 	private String serializedSession;
 
-	/** true = inbound, false = outbound */
-	private boolean inbound;
-
 	/** The encryption algorithm, e.g. "OLM" */
 	private String algorithm;	
 

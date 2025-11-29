@@ -50,16 +50,12 @@ public class ExampleGroupAliceToBob {
 		System.out.println("skdm: " + Base64.getEncoder().encodeToString(sentAliceDistributionMessage.serialize()).length());
 		// Encrypt SKDM using 1:1 session and upload to BE using API endpoint: POST /signal/v2/devices/{senderDeviceId}/groups/{groupId}/sender-keys		
 
-
 		// Retrieve recipient SKDM and decrypt using 1:1 session from BE using API endpoint: GET /signal/v2/devices/{receiverDeviceId}/groups/{groupId}/sender-keys/poll	
 		SenderKeyDistributionMessage receivedAliceDistributionMessage =
 				new SenderKeyDistributionMessage(sentAliceDistributionMessage.serialize());
 
 		bobSessionBuilder.process(SENDER_ADDRESS, receivedAliceDistributionMessage);
-		
-		// Create decryptor for Alice's sent messages
-		aliceSentMessageDecryptorSessionBuilder.process(SENDER_ADDRESS, receivedAliceDistributionMessage);
-
+				
 		CiphertextMessage ciphertextFromAlice =
 				aliceGroupCipher.encrypt(DISTRIBUTION_ID, "smert ze smert".getBytes());
 		System.out.println("Encrypted: " + Base64.getEncoder().encodeToString(ciphertextFromAlice.serialize()));
@@ -68,7 +64,9 @@ public class ExampleGroupAliceToBob {
 		System.out.println("Decrypted: " + new String(plaintextFromAlice));
 
 		
-		// Alice decrypt it's own message
+		// Create decryptor for Alice's sent messages
+		aliceSentMessageDecryptorSessionBuilder.process(SENDER_ADDRESS, receivedAliceDistributionMessage);
+		// Alice decrypt it's own/sent messages
 		GroupCipher aliceSentMessagesGroupCipher = new GroupCipher(aliceSentDecryptStore, SENDER_ADDRESS);
 		byte[] plaintextFromAliceSentMessage =
 		        aliceSentMessagesGroupCipher.decrypt(ciphertextFromAlice.serialize());
@@ -91,7 +89,6 @@ public class ExampleGroupAliceToBob {
 		// Store sender keys back to in-memory store
 		bobStore.storeSenderKey(SENDER_ADDRESS, DISTRIBUTION_ID, recordRestore);
         
-
 		
 		/** Backup Alice's outbound group session */	
         // Take node: For outbound session backup the full record (with current chain key/index)

@@ -74,7 +74,10 @@ public interface GroupSessionBackupControllerDoc {
             @PathVariable String groupId,
 
             @Parameter(description = "Sender key distribution ID")
-            @PathVariable UUID distributionId);
+            @PathVariable UUID distributionId,
+            
+            @Parameter(description = "true = inbound, false = outbound")
+			@PathVariable boolean isInbound);
 
     // ----------------------------------------------------------------------
     @Operation(
@@ -106,7 +109,10 @@ public interface GroupSessionBackupControllerDoc {
             @PathVariable String groupId,
 
             @Parameter(description = "Sender key distribution ID")
-            @PathVariable UUID distributionId);
+            @PathVariable UUID distributionId,
+
+            @Parameter(description = "true = inbound, false = outbound")
+			@PathVariable boolean isInbound);
 
     // ----------------------------------------------------------------------
     @Operation(

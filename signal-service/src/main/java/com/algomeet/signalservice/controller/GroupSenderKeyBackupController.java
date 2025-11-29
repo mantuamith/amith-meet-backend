@@ -34,6 +34,7 @@ import lombok.RequiredArgsConstructor;
 public class GroupSenderKeyBackupController implements GroupSenderKeyBackupControllerDoc{
 	private final GroupSenderKeyBackupService service;
 
+	@Override
 	@PostMapping
 	public ResponseEntity<CommonResponse<GroupSenderKeyBackupResponse>> create(@Validated @RequestBody GroupSenderKeyBackupRequest request) {
 		try {
@@ -45,6 +46,7 @@ public class GroupSenderKeyBackupController implements GroupSenderKeyBackupContr
 		}
 	}
 	
+	@Override
 	@PutMapping("/{groupId}/{distributionId}")
 	public ResponseEntity<CommonResponse<GroupSenderKeyBackupResponse>> update(
 			@PathVariable String groupId,
@@ -60,6 +62,7 @@ public class GroupSenderKeyBackupController implements GroupSenderKeyBackupContr
 		}
 	}		
 
+	@Override
 	@GetMapping("/{groupId}/{distributionId}")
 	public ResponseEntity<CommonResponse<GroupSenderKeyBackupResponse>> get(
 			@PathVariable String groupId,
@@ -70,18 +73,21 @@ public class GroupSenderKeyBackupController implements GroupSenderKeyBackupContr
 						.body(CommonResponse.from(ResponseCode.GROUP_SENDER_KEY_BACKUP_NOT_FOUND)));
 	}
 
+	@Override
 	@GetMapping
 	public ResponseEntity<CommonResponse<List<GroupSenderKeyBackupResponse>>> getByUser(@PathVariable UUID userKey) {
 		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS,
 				service.findByUser(UUID.fromString(SecurityUtil.getUserKey()))));
 	}
 
+	@Override
 	@GetMapping("/{groupId}")
 	public ResponseEntity<CommonResponse<List<GroupSenderKeyBackupResponse>>> getByGroup(@PathVariable String groupId) {
 		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS,
 				service.findByGroup(groupId)));
 	}
 
+	@Override
 	@DeleteMapping("/{groupId}/{distributionId}")
 	public ResponseEntity<CommonResponse<?>> delete(
 			@PathVariable String groupId,

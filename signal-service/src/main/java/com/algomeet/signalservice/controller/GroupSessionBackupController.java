@@ -29,10 +29,14 @@ public class GroupSessionBackupController implements GroupSessionBackupControlle
 	@PostMapping
 	public ResponseEntity<CommonResponse<GroupSessionBackupResponse>> saveBackup(
 			@Validated @RequestBody GroupSessionBackupRequest request) {
-
-		UUID userKey = UUID.fromString(SecurityUtil.getUserKey());
-		GroupSessionBackupResponse saved = service.saveBackup(userKey, request);
-		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, saved));
+		try {
+			UUID userKey = UUID.fromString(SecurityUtil.getUserKey());
+			GroupSessionBackupResponse saved = service.saveBackup(userKey, request);
+			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, saved));
+		} catch (RecordNotFoundException ex) {
+			return ResponseEntity.status(HttpStatus.CONFLICT)
+					.body(CommonResponse.from(ResponseCode.GROUP_SESSION_BACKUP_NOT_FOUND));
+		}
 	}
 
 	@Override
@@ -44,13 +48,14 @@ public class GroupSessionBackupController implements GroupSessionBackupControlle
 	}
 
 	@Override
-	@GetMapping("/{groupId}/{distributionId}")
+	@GetMapping("/{groupId}/{distributionId}/{isInbound}")
 	public ResponseEntity<CommonResponse<GroupSessionBackupResponse>> getBackupByDistribution(
 			@PathVariable String groupId,
-			@PathVariable UUID distributionId) {
+			@PathVariable UUID distributionId,
+			@PathVariable boolean isInbound) {
 		try {
 			UUID userKey = UUID.fromString(SecurityUtil.getUserKey());
-			GroupSessionBackupResponse backups = service.findBackup(userKey, groupId, distributionId);
+			GroupSessionBackupResponse backups = service.findBackup(userKey, groupId, distributionId, isInbound);
 			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, backups));
 		} catch (RecordNotFoundException ex) {
 			return ResponseEntity.status(HttpStatus.NOT_FOUND)
@@ -68,13 +73,14 @@ public class GroupSessionBackupController implements GroupSessionBackupControlle
 	}
 
 	@Override
-	@DeleteMapping("/{groupId}/{distributionId}")
+	@DeleteMapping("/{groupId}/{distributionId}/{isInbound}")
 	public ResponseEntity<CommonResponse<?>> deleteBackup(
 			@PathVariable String groupId,
-			@PathVariable UUID distributionId) {
+			@PathVariable UUID distributionId,
+			@PathVariable boolean isInbound) {
 		try {
 			UUID userKey = UUID.fromString(SecurityUtil.getUserKey());
-			service.deleteBackup(userKey, groupId, distributionId);
+			service.deleteBackup(userKey, groupId, distributionId, isInbound);
 			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
 		} catch (RecordNotFoundException ex) {
 			return ResponseEntity.status(HttpStatus.NOT_FOUND)

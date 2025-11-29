@@ -4,6 +4,7 @@ import com.algomeet.signalservice.dto.GroupSessionBackupRequest;
 import com.algomeet.signalservice.dto.GroupSessionBackupResponse;
 import com.algomeet.signalservice.entity.GroupSessionBackup;
 import com.algomeet.signalservice.entity.GroupSessionBackupId;
+import com.algomeet.signalservice.exceptions.GroupSessionBackupExistsException;
 import com.algomeet.signalservice.exceptions.RecordNotFoundException;
 import com.algomeet.signalservice.repository.GroupSessionBackupRepository;
 import com.algomeet.signalservice.mapper.GroupSessionBackupMapper;
@@ -24,7 +25,15 @@ public class GroupSessionBackupService {
     private final GroupSessionBackupRepository repository;
 
     @Transactional
-    public GroupSessionBackupResponse saveBackup(UUID userKey, GroupSessionBackupRequest request) {
+    public GroupSessionBackupResponse saveBackup(UUID userKey, GroupSessionBackupRequest request) {    	
+    	// Inbound session backup must have chain key == 0, prevent from replacing the initial stage of session.
+    	if (request.isInbound()) {
+    		if(repository.findById(
+    				new GroupSessionBackupId(userKey, request.getGroupId(), request.getDistributionId(), request.isInbound())).isPresent()) {
+    			throw new GroupSessionBackupExistsException("Group session backup exists");
+    		}
+    	}
+    	
         GroupSessionBackup entity = GroupSessionBackupMapper.toEntity(userKey, request);
         GroupSessionBackup saved = repository.save(entity);
         return GroupSessionBackupMapper.toDto(saved);
@@ -37,8 +46,8 @@ public class GroupSessionBackupService {
                 .collect(Collectors.toList());
     }
 
-    public GroupSessionBackupResponse findBackup(UUID userKey, String groupId, UUID distributionId) {
-        return repository.findById(new GroupSessionBackupId(userKey, groupId, distributionId))
+    public GroupSessionBackupResponse findBackup(UUID userKey, String groupId, UUID distributionId, boolean isInbound) {
+        return repository.findById(new GroupSessionBackupId(userKey, groupId, distributionId, isInbound))
                 .map(GroupSessionBackupMapper::toDto)
                 .orElseThrow(() -> new RecordNotFoundException("Group session backup not found"));
     }
@@ -51,11 +60,11 @@ public class GroupSessionBackupService {
     }
 
     @Transactional
-    public void deleteBackup(UUID userKey, String groupId, UUID distributionId) {
-    	repository.findById(new GroupSessionBackupId(userKey, groupId, distributionId))
+    public void deleteBackup(UUID userKey, String groupId, UUID distributionId, boolean isInbound) {
+    	repository.findById(new GroupSessionBackupId(userKey, groupId, distributionId, isInbound))
     	.orElseThrow(() -> new RecordNotFoundException("Group session backup not found"));
 
-    	repository.deleteByIdUserKeyAndIdGroupIdAndIdDistributionId(userKey, groupId, distributionId);
+    	repository.deleteById(new GroupSessionBackupId(userKey, groupId, distributionId, isInbound));
     }
     
     public void deleteBackupByDevice(UUID userKey, Integer deviceId) {

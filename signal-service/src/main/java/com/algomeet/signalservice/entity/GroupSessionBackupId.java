@@ -20,6 +20,9 @@ public class GroupSessionBackupId implements Serializable {
     private String groupId;
     
     private UUID distributionId;
+    
+    /** true = inbound, false = outbound */
+    private boolean inbound;
 
     @Override
     public boolean equals(Object o) {
@@ -28,11 +31,12 @@ public class GroupSessionBackupId implements Serializable {
         GroupSessionBackupId that = (GroupSessionBackupId) o;
         return distributionId == that.distributionId &&
                Objects.equals(userKey, that.userKey) &&
-               Objects.equals(groupId, that.groupId);
+               Objects.equals(groupId, that.groupId) &&
+               Objects.equals(inbound, that.inbound);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(userKey, groupId, distributionId);
+        return Objects.hash(userKey, groupId, distributionId, inbound);
     }
 }

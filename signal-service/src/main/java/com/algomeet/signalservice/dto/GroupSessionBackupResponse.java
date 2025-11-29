@@ -10,8 +10,11 @@ public class GroupSessionBackupResponse {
     private String groupId;
     private UUID distributionId;
     private Integer deviceId;
-    private UUID remoteUserKey;
-    private Integer remoteDeviceId;
+    /** true = inbound, false = outbound */
+    private boolean inbound;
+    
+    private UUID senderUserKey;
+    private Integer senderDeviceId;
     private String serializedSenderKey;
     private String aesAlg;
     private String version;

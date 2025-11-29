@@ -38,7 +38,6 @@ public class SessionBackupService {
         		request.getRemoteDeviceId()));
         
         backup.setSerializedSession(request.getSerializedSession());
-        backup.setInbound(request.isInbound());
         backup.setAesAlg(request.getAesAlg());
         backup.setVersion(request.getVersion());
         backup.setSalt(request.getSalt());
@@ -81,7 +80,6 @@ public class SessionBackupService {
                 .remoteUserKey(entity.getId().getRemoteUserKey())
                 .remoteDeviceId(entity.getId().getRemoteDeviceId())
                 .serializedSession(entity.getSerializedSession())
-                .inbound(entity.isInbound())
 
                 .aesAlg(entity.getAesAlg())
                 .salt(entity.getSalt())

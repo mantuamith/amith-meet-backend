@@ -15,11 +15,11 @@ public class GroupSessionBackup {
     
 	private Integer deviceId;
 	
-    /** User key of remote user **/
-    private UUID remoteUserKey;
+    /** User key of sender address **/
+    private UUID senderUserKey;
     
-    private Integer remoteDeviceId;
-    
+    private Integer senderDeviceId;
+        
     /** Base64-encoded AES-encrypted  serialized SenderKeyRecord */
     @Lob
     @Column(columnDefinition = "TEXT", nullable = false)

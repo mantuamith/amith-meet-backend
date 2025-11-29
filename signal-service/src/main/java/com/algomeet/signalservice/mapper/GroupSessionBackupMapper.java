@@ -11,10 +11,10 @@ public class GroupSessionBackupMapper {
 
     public static GroupSessionBackup toEntity(UUID userKey, GroupSessionBackupRequest request) {
         GroupSessionBackup backup = new GroupSessionBackup();
-        backup.setId(new GroupSessionBackupId(userKey, request.getGroupId(), request.getDistributionId()));
+        backup.setId(new GroupSessionBackupId(userKey, request.getGroupId(), request.getDistributionId(), request.isInbound()));
         backup.setDeviceId(request.getDeviceId());
-        backup.setRemoteUserKey(request.getRemoteUserKey());
-        backup.setRemoteDeviceId(request.getRemoteDeviceId());
+        backup.setSenderUserKey(request.getSenderUserKey());
+        backup.setSenderDeviceId(request.getSenderDeviceId());
         backup.setSerializedSenderKey(request.getSerializedSenderKey());
         backup.setAesAlg(request.getAesAlg());
         backup.setVersion(request.getVersion());
@@ -26,9 +26,10 @@ public class GroupSessionBackupMapper {
         GroupSessionBackupResponse dto = new GroupSessionBackupResponse();
         dto.setGroupId(entity.getId().getGroupId());
         dto.setDistributionId(entity.getId().getDistributionId());
+        dto.setInbound(entity.getId().isInbound());
         dto.setDeviceId(entity.getDeviceId());
-        dto.setRemoteUserKey(entity.getRemoteUserKey());
-        dto.setRemoteDeviceId(entity.getRemoteDeviceId());
+        dto.setSenderUserKey(entity.getSenderUserKey());
+        dto.setSenderDeviceId(entity.getSenderDeviceId());
         dto.setSerializedSenderKey(entity.getSerializedSenderKey());
         dto.setAesAlg(entity.getAesAlg());
         dto.setVersion(entity.getVersion());

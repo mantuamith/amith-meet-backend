@@ -152,7 +152,7 @@ public class ExampleAliceToBob {
 		//bobStore.storeSignedPreKey();
 		//bobStore.storeKyberPreKey();
 		
-		/** Backup Bob inbound session */
+		/** Backup Bob's sessions (Contain both inbound and outbound) */
 		// Get list of all known sessions
 		SessionRecord bobSession = bobStore.loadSession(ALICE_ADDRESS);
 
@@ -169,12 +169,13 @@ public class ExampleAliceToBob {
 		bobStore.storeSession(ALICE_ADDRESS, restoredRecord);
 				
 		
-		/** Backup Alice outbound session */
+		/** Backup Alice's sessions (Contain both inbound and outbound)  */
 		// Get list of all known sessions
 		SessionRecord aliceSession = aliceStore.loadSession(BOB_ADDRESS);
 
 		// Save into your backup structure
 		Integer aliceRegistrationId = aliceSession.getLocalRegistrationId();
+		System.out.println("Local registration: " + aliceRegistrationId);
 		String aliceSerializedSessionBackup = Base64.getEncoder().encodeToString(aliceSession.serialize());
 		// Encrypt using AES & upload user session backups to backend using API endpoint: POST /signal/backup/devices/{deviceId}/sessions		
 		// Retrieve and restore session backups from backend using API endpoint: GET /signal/backup/devices/{deviceId}/sessions
@@ -182,6 +183,6 @@ public class ExampleAliceToBob {
 		byte[] restoreSerializedOutboundSessionBytes = Base64.getDecoder().decode(aliceSerializedSessionBackup);
 		SessionRecord restoredOutboundRecord = new SessionRecord(restoreSerializedOutboundSessionBytes);
 		// Store session to in-memory store
-		bobStore.storeSession(BOB_ADDRESS, restoredOutboundRecord);
+		aliceStore.storeSession(BOB_ADDRESS, restoredOutboundRecord);
 	}	
 }

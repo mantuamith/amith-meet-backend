@@ -22,7 +22,8 @@ public enum ResponseCode {
 	MESSAGE_BACKUP_NOT_FOUND("MESSAGE_BACKUP_NOT_FOUND", "message-backup.not-found"),
 	
 	GROUP_SENDER_KEY_BACKUP_EXISTS("GROUP_SENDER_KEY_BACKUP_EXISTS", "sender-key-backup.already-exists"),
-	GROUP_SENDER_KEY_BACKUP_NOT_FOUND("GROUP_SENDER_KEY_BACKUP_NOT_FOUND", "sender-key-backup.not-found")
+	GROUP_SENDER_KEY_BACKUP_NOT_FOUND("GROUP_SENDER_KEY_BACKUP_NOT_FOUND", "sender-key-backup.not-found"),
+	GROUP_SESSION_BACKUP_EXISTS("GROUP_SESSION_BACKUP_EXISTS", "group-session-backup.already-exists"),	
 	;
 	
     private final String code;

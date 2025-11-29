@@ -29,11 +29,7 @@ public class SessionBackupRequest {
 		    message = "{invalid-base64-format}"
 		)
 	@Size(max = 1500) 
-    private String serializedSession;
-	
-    /** true = inbound, false = outbound */
-    private boolean inbound;
-    
+    private String serializedSession; 
     
     /** Algorithm name, e.g. "AES/GCM/NoPadding" or "AES-CBC". */
     @Size(max = 32, message = "{backup.aes-alg.exceeded-max-size}")

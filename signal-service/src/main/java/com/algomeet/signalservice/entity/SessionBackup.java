@@ -17,10 +17,6 @@ import lombok.Data;
 public class SessionBackup {
 	@EmbeddedId
 	private SessionBackupId id;
-	  
-    /** true = inbound, false = outbound */
-    @Column(nullable = false)
-    private boolean inbound;
 
     /** Base64-encoded AES-encrypted serialized session */
     @Lob
