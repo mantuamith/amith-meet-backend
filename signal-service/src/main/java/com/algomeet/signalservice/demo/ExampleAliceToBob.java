@@ -30,8 +30,8 @@ import org.signal.libsignal.protocol.state.impl.InMemorySignalProtocolStore;
 import org.signal.libsignal.protocol.util.KeyHelper;
 
 public class ExampleAliceToBob {	
-	private static final SignalProtocolAddress ALICE_ADDRESS = new SignalProtocolAddress("+14151111111", 1);
-	private static final SignalProtocolAddress BOB_ADDRESS   = new SignalProtocolAddress("+14152222222", 1);
+	private static final SignalProtocolAddress ALICE_ADDRESS = new SignalProtocolAddress("2fc35cae-e0b7-40a5-b2aa-e86206730e99", 1);
+	private static final SignalProtocolAddress BOB_ADDRESS   = new SignalProtocolAddress("ppss00huw-kkd0-0df3-np6a-d84op538mh27", 1);
 
 	public static void main(String[] args) throws Exception {		
 		test();
@@ -78,7 +78,7 @@ public class ExampleAliceToBob {
 				.getIdentityKeyPair()
 				.getPrivateKey()
 				.calculateSignature(bobKyberPreKeyPair.getPublicKey().serialize());
-		// Upload device keys to backend using API endpoint: 
+		// Upload device keys (not only Sender but all users) to backend using API endpoints: 
 		// POST /signal/v2/devices - This endoint will return the device ID save it in your device to be used in succeeding request.
 		// POST /signal/v2/devices/{deviceId}/keys - Upload pre-keys bundle
 
@@ -106,12 +106,15 @@ public class ExampleAliceToBob {
 
 		PreKeySignalMessage incomingMessage = new PreKeySignalMessage(outgoingMessage.serialize());
 
+		//Add tp store the prekeys
 		bobStore.storePreKey(bobPreKeyId, new PreKeyRecord(bobPreKeyId, bobPreKeyPair));
 		bobStore.storePreKey(2, new PreKeyRecord(2, bobPreKeyPair));
-				
+		
+		//Add tp store the signed-prekeys
 		bobStore.storeSignedPreKey(bobSignedPreKeyId, new SignedPreKeyRecord(bobPreKeyBundle.getSignedPreKeyId(), 
 				System.currentTimeMillis(), bobSignedPreKeyPair, bobSignedPreKeySignature));
 
+		//Add tp store the kyber-prekeys
 		bobStore.storeKyberPreKey(bobKyberPreKeyId, new KyberPreKeyRecord(bobPreKeyBundle.getKyberPreKeyId(), 
 				System.currentTimeMillis(), bobKyberPreKeyPair, bobKyberPreKeySignature));
 
@@ -121,7 +124,7 @@ public class ExampleAliceToBob {
 		System.out.println("Decrypted message: " + new String(plaintext));
 		
 		
-		/** Backup device keys */
+		/** Backup Bob device keys */
 		IdentityKeyPair ik = bobStore.getIdentityKeyPair();
 		int registrationId = bobStore.getLocalRegistrationId();		
 		String serializedIdentityKey =  Base64.getEncoder().encodeToString(ik.serialize());
@@ -137,24 +140,48 @@ public class ExampleAliceToBob {
 		
 		String serializedSignedPreKey = Base64.getEncoder().encodeToString(bobStore.loadSignedPreKeys().get(0).serialize());
 		String serializedKyberPreKey = Base64.getEncoder().encodeToString(bobStore.loadKyberPreKeys().get(0).serialize());		
-		// Encrypt & upload device keys backup to backend using API endpoint: POST /signal/backup/device-keys
+		// Encrypt using AES & upload device keys backup to backend using API endpoint: POST /signal/backup/device-keys
 		
 		
 		// Retrieve and restore device keys backup from backend using API endpoint: GET /signal/backup/device-keys/{deviceId}
 		IdentityKeyPair restoreIdentity = new IdentityKeyPair(Base64.getDecoder().decode(serializedIdentityKey));
 		SignedPreKeyRecord restoreSignedPreKeyRecord = new SignedPreKeyRecord(Base64.getDecoder().decode(serializedSignedPreKey));
 		KyberPreKeyRecord restoreKyberPreKeyRecord = new KyberPreKeyRecord(Base64.getDecoder().decode(serializedKyberPreKey));
+		// Load restore keys to Bob store
+		//bobStore.storePreKey();
+		//bobStore.storeSignedPreKey();
+		//bobStore.storeKyberPreKey();
+		
+		/** Backup Bob inbound session */
+		// Get list of all known sessions
+		SessionRecord bobSession = bobStore.loadSession(ALICE_ADDRESS);
+
+		// Save into your backup structure
+		Integer bobRegId = bobSession.getLocalRegistrationId();
+		String bobSerializedSessionBackup = Base64.getEncoder().encodeToString(bobSession.serialize());
+		// Encrypt using AES & upload user session backups to backend using API endpoint: POST /signal/backup/devices/{deviceId}/sessions		
+		
+		// Retrieve and restore session backups from backend using API endpoint: GET /signal/backup/devices/{deviceId}/sessions
+		// Decrypt using AES
+		byte[] restoreSerializedSessionBytes = Base64.getDecoder().decode(bobSerializedSessionBackup);
+		SessionRecord restoredRecord = new SessionRecord(restoreSerializedSessionBytes);
+		// Store session to in-memory store
+		bobStore.storeSession(ALICE_ADDRESS, restoredRecord);
 				
 		
-		/** Backup sessions */
+		/** Backup Alice outbound session */
 		// Get list of all known sessions
-		SessionRecord aliceSession = bobStore.loadSession(ALICE_ADDRESS);
+		SessionRecord aliceSession = aliceStore.loadSession(BOB_ADDRESS);
 
 		// Save into your backup structure
 		Integer aliceRegistrationId = aliceSession.getLocalRegistrationId();
-		String SerializedSessionBackup = Base64.getEncoder().encodeToString(aliceSession.serialize());
-		// Encrypt & upload user session backups to backend using API endpoint: POST /signal/backup/devices/{deviceId}/sessions
-		
+		String aliceSerializedSessionBackup = Base64.getEncoder().encodeToString(aliceSession.serialize());
+		// Encrypt using AES & upload user session backups to backend using API endpoint: POST /signal/backup/devices/{deviceId}/sessions		
 		// Retrieve and restore session backups from backend using API endpoint: GET /signal/backup/devices/{deviceId}/sessions
+		// Decrypt using AES
+		byte[] restoreSerializedOutboundSessionBytes = Base64.getDecoder().decode(aliceSerializedSessionBackup);
+		SessionRecord restoredOutboundRecord = new SessionRecord(restoreSerializedOutboundSessionBytes);
+		// Store session to in-memory store
+		bobStore.storeSession(BOB_ADDRESS, restoredOutboundRecord);
 	}	
 }

@@ -21,7 +21,7 @@ public class GroupSessionBackupRequest {
 
     private UUID remoteUserKey;
 
-    private UUID remoteDevice;
+    private Integer remoteDeviceId;
 
     @NotBlank
     @Size(max = 350)

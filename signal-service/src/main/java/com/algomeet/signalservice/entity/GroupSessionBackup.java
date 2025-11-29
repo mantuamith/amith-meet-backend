@@ -18,7 +18,7 @@ public class GroupSessionBackup {
     /** User key of remote user **/
     private UUID remoteUserKey;
     
-    private UUID remoteDevice;
+    private Integer remoteDeviceId;
     
     /** Base64-encoded AES-encrypted  serialized SenderKeyRecord */
     @Lob
