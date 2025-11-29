@@ -8,6 +8,7 @@ import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
 
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
@@ -25,19 +26,23 @@ public class MessageBackupDocument {
 	@Id
     @Size(max = 56)
     private String messageId;
-	    
+	
+	@Deprecated
     @Size(max = 45)
     @Field("userKey")
     private String userKey;   
     
+	@NotEmpty
     @Size(max = 45)
     @Field("senderKey")
     private String senderKey; 
     
+	@NotEmpty
     @Size(max = 45)
     @Field("receiverKey")
     private String receiverKey;     
     
+	@NotEmpty
     @Size(max = 20000)
     @Field("encryptedMessage")
 	@Pattern(

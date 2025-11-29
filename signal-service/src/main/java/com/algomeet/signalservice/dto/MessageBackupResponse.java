@@ -1,6 +1,7 @@
 package com.algomeet.signalservice.dto;
 
 import java.time.Instant;
+import java.util.UUID;
 
 import com.algomeet.signalservice.document.MessageBackupDocument;
 
