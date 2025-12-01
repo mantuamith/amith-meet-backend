@@ -90,7 +90,7 @@ public class OpaqueClient {
 
         ResponseEntity<CommonResponse<UserMasterSecretResponse>> resp =
                 rest.exchange(
-                        baseUrl + "/user/master-secret/store",
+                        baseUrl + "/master-secret/store",
                         HttpMethod.POST,
                         entity,
                         new ParameterizedTypeReference<CommonResponse<UserMasterSecretResponse>>() {}
@@ -100,7 +100,7 @@ public class OpaqueClient {
     }
     
     /**
-     * Call /user/master-secret/credential/exchange endpoint
+     * Call /credential-response endpoint
      */
     public UserCredentialResponse exchangeMasterSecretCredential(
             CredentialType type,
@@ -115,7 +115,7 @@ public class OpaqueClient {
 
         ResponseEntity<CommonResponse<UserCredentialResponse>> resp =
                 rest.exchange(
-                        baseUrl + "/user/master-secret/credential/exchange",
+                        baseUrl + "/credential-response",
                         HttpMethod.POST,
                         entity,
                         new ParameterizedTypeReference<CommonResponse<UserCredentialResponse>>() {}
@@ -141,7 +141,7 @@ public class OpaqueClient {
 
         ResponseEntity<CommonResponse<RetrieveUserMasterSecretResponse>> resp =
                 rest.exchange(
-                        baseUrl + "/user/master-secret/retrieve",
+                        baseUrl + "/master-secret/retrieve",
                         HttpMethod.POST,
                         entity,
                         new ParameterizedTypeReference<CommonResponse<RetrieveUserMasterSecretResponse>>() {}

@@ -1,0 +1,1 @@
+Kindly refer to build guide docs under: /docs

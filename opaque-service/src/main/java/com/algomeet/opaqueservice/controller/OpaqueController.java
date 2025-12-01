@@ -83,7 +83,7 @@ class OpaqueController {
 						serverId)));
 	}
 
-	@PostMapping("/user/master-secret/store")
+	@PostMapping("/master-secret/store")
 	public ResponseEntity<CommonResponse<UserMasterSecretResponse>> saveMasterSecret(@RequestBody UserMasterSecretRequest req) {
 		UUID userKey = UUID.fromString(SecurityUtil.getUserKey());	
 
@@ -108,7 +108,7 @@ class OpaqueController {
 		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, mapTo(userSecureStore))); 
 	}	
 	
-	@PutMapping("/user/master-secret/store")
+	@PutMapping("/master-secret/store")
 	public ResponseEntity<CommonResponse<UserMasterSecretResponse>> updateMasterSecret(@RequestBody UserMasterSecretRequest req) {
 		UUID userKey = UUID.fromString(SecurityUtil.getUserKey());		
 		String key = OpaqueRedisKeysUtil.getRegisterServerSecKey(userKey.toString(), req.getType());
@@ -126,7 +126,7 @@ class OpaqueController {
 		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, mapTo(userSecureStore))); 
 	}	
 
-	@PostMapping("/user/master-secret/credential/exchange")
+	@PostMapping("/credential-response")
 	public ResponseEntity<CommonResponse<UserCredentialResponse>> exchangeMasterSecCredential(@RequestBody UserCredentialRequest req) {
 		UUID userKey = UUID.fromString(SecurityUtil.getUserKey());
 
@@ -154,7 +154,7 @@ class OpaqueController {
 				Base64.getEncoder().encodeToString(credResp.pub)))); 
 	}		
 
-	@PostMapping("/user/master-secret/retrieve")
+	@PostMapping("/master-secret/retrieve")
 	public ResponseEntity<CommonResponse<RetrieveUserMasterSecretResponse>> retrieveSecret(@RequestBody RetrieveUserMasterSecretRequest req) {
 		UUID userKey = UUID.fromString(SecurityUtil.getUserKey());
 

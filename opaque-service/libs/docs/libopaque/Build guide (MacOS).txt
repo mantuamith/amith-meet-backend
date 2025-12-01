@@ -15,7 +15,11 @@ Build Steps:
 	 LIBOPAQUE_DIR=/Users/ariellepasana/git/algomeet-backend/opaque-service/libs/libopaque-1.0.1
 	 JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-17.jdk/Contents/Home
 	 
-  2. Compile libopaque sources:
+  2. Manually copy Java classes from "$LIBOPAQUE_DIR/java/ctrlc" to project JNI package "com/algomeet/opaqueservice/jni" 
+     
+  3. Manually update "$LIBOPAQUE_DIR/java/jni.c", change Java class packages names to "com/algomeet/opaqueservice/jni" and "com/algomeet/opaqueservice/jni/dto" 
+          
+  4. Compile libopaque sources:
      
 	 cd $LIBOPAQUE_DIR/java
 	 
@@ -30,7 +34,7 @@ Build Steps:
 	    -I$JAVA_HOME/include \
 	    -fPIC -c jni.c ../src/common.c ../src/opaque.c
 
-   3. Link everything into the shared library:
+   5. Link everything into the shared library:
 
       cd $LIBOPAQUE_DIR/java
 
@@ -40,4 +44,8 @@ Build Steps:
          $LIBOPRF_DIR/src/*.o \
          $LIBOPRF_DIR/src/noise_xk/src/*.o \
          -L/opt/homebrew/lib -lsodium
+    
+    6. Copy libopaque.dylib or libopaque.so to "src/main/resources/native"
+
+
 	

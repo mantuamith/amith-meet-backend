@@ -1,7 +1,7 @@
 package com.algomeet.opaqueservice.jni;
 
-import java.nio.charset.*;
-import java.util.Arrays;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 
 import com.algomeet.opaqueservice.jni.dto.OpaqueCredReq;
