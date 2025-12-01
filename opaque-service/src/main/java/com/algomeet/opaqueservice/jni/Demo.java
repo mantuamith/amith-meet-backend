@@ -19,8 +19,8 @@ public class Demo {
 
         // Initialize
         OpaqueClient client = new OpaqueClient("http://localhost:8092/opaque");
-        String bearerToken = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJtYWRkb3guYWxnb2ZyYW1lQGdtYWlsLmNvbSIsInVzZXJuYW1lIjoibWFkZG94Iiwicm9sZSI6IlJPTEVfU0EiLCJzaWQiOiJlMmEwNGFiYy0wNDc0LTQ0M2UtYWI2My00OTRhOWE0ODhlZWEiLCJ1c2VyX2tleSI6IjJmYzM1Y2FlLWUwYjctNDBhNS1iMmFhLWU4NjIwNjczMGU5OSIsInRlbmFudElkIjowLCJpYXQiOjE3NjM1MzEwNDIsImV4cCI6MTc2MzYyMTA0Mn0.23K5jN1tTXY7XM0dqfEC0UYGRH4B_4RrOF1_E873yOA";
-
+        String bearerToken = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJtYWRkb3guYWxnb2ZyYW1lQGdtYWlsLmNvbSIsInVzZXJuYW1lIjoibWFkZG94Iiwicm9sZSI6IlJPTEVfU0EiLCJzaWQiOiJhMzk4YzA2Zi04MGU4LTQyOGMtYWNmNC1hZTUxMDY3YmQxMWQiLCJ1c2VyX2tleSI6IjJmYzM1Y2FlLWUwYjctNDBhNS1iMmFhLWU4NjIwNjczMGU5OSIsInRlbmFudElkIjowLCJpYXQiOjE3NjQ1OTY1NzYsImV4cCI6MTc2NDU5NzQ3Nn0.iUtWRg77KustLsLBHdw1fai9kznez_O8rw5MgacnvjA";
+//
 //        // --- Step 1: Create OPAQUE clientRegistrationMessage ---       
 //        Opaque o = new Opaque();
 //        OpaqueRegReq regReq = o.createRegReq("password");
@@ -56,7 +56,7 @@ public class Demo {
 //        );
 //
 //        System.out.println("Saved Secret = " + saveResp.getMasterSecretKey());        
-       
+//       
         
         // Retrieve secret                
         Opaque opaqueRetriever = new Opaque();
