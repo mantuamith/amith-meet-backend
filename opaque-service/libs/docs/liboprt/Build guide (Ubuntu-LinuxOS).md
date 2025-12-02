@@ -1,0 +1,47 @@
+Library github repo: https://github.com/stef/liboprf
+
+Prequesites:
+
+ These bindings depend on the following:
+	- java-jdk-dev (jdk17)
+	- libsodium (libsodium-1.0.19-stable.tar.gz)
+	- liboprf
+
+Steps:
+   
+   1. Run these commands in terminal:
+   
+	  export LIBOPRF_DIR=/usr/projects/opaque-service/libs/liboprf-0.9.2
+	
+   2. Compile liboprf .c files using this command:
+	  # Compile all .c files
+	
+	  cd $LIBOPRF_DIR/src
+	  make clean
+	  make
+      make install  
+		
+	  cc -I/usr/include \
+		 -I./ \
+		 -Inoise_xk/include \
+		 -Inoise_xk/include/karmel \
+		 -Inoise_xk/include/karmel/minimal \
+		 -fPIC -c *.c
+	   
+	3. Then create the static library:
+
+       ar rcs liboprf.a *.o
+       
+    4. Compile Noise_XK sources separately:
+        
+		cd noise_xk/src
+		
+		cc -I/opt/homebrew/include \
+		   -I../include \
+		   -I../include/karmel \
+		   -I../include/karmel/minimal \
+		   -fPIC -c Noise_XK.c XK.c
+		
+		
+		This produces Noise_XK.o and XK.o.
+		

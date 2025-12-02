@@ -1,0 +1,19 @@
+package com.algomeet.opaqueservice.dto;
+
+import java.util.UUID;
+
+import com.algomeet.opaqueservice.enums.CredentialType;
+
+import lombok.Builder;
+import lombok.Data;
+
+@Data
+@Builder
+public class UserMasterSecretResponse {
+	private UUID userKey;
+	private CredentialType type;
+	private String masterSecretKey;
+    private String algorithm;
+    private String version;
+    private String salt;
+}
