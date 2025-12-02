@@ -162,7 +162,8 @@ public class MeetingService {
             if (request.getPassword() == null || request.getPassword().isBlank()) {
                 throw new IllegalArgumentException("Password enabled but no password provided");
             }
-            meeting.setPasswordHash(passwordEncoder.encode(request.getPassword()));
+            //meeting.setPasswordHash(passwordEncoder.encode(request.getPassword()));
+            meeting.setPasswordHash(request.getPassword());
         } else {
             meeting.setPasswordHash(null);
         }
@@ -347,8 +348,7 @@ public class MeetingService {
         byte[] b = actual.getBytes(java.nio.charset.StandardCharsets.UTF_8);
         if (a.length != b.length) return false;
         int result = 0;
-        for (int i = 0; i < a.length; i++)
-            result |= a[i] ^ b[i];
+        for (int i = 0; i < a.length; i++) result |= a[i] ^ b[i];
         return result == 0;
     }
 
@@ -557,6 +557,6 @@ public class MeetingService {
             return true;
         if (supplied == null || supplied.isBlank())
             return false;
-        return passwordEncoder.matches(supplied, m.getPasswordHash());
+        return supplied.equals(m.getPasswordHash());
     }
 }
