@@ -1,0 +1,45 @@
+spring:
+  profiles:
+    active: local
+
+---
+
+spring:
+  config:
+    activate:
+      on-profile: local
+
+  datasource:
+    url: jdbc:postgresql://192.168.0.156:5432/clorameet_db
+    username: clorameet_sandro
+    password: algo@123
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+       
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  data:
+    mongodb:
+      uri: mongodb://chatadmin:securePass123@192.168.0.156:27017/chatdb?authSource=admin
+      auto-index-creation: true
+
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: 6379
+      password: ${REDIS_PASSWORD}
+
+  jackson:
+    serialization:
+      INDENT_OUTPUT: true
+
+server:
+  port: 8093
+
+jwt:
+  secret: Y0h4TkFxWkd6Um9TTktOVlFobU9naFN3SzY5cWhVY08=

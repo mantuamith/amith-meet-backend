@@ -35,8 +35,8 @@ public class UserController {
     // Feign client will call this from auth-service to register user
     @PostMapping
     public ResponseEntity<?> createUser(@RequestBody UserRequest request) {
-        boolean emailTaken    = userRepository.existsByEmail(request.getEmail());
-        boolean usernameTaken = userRepository.existsByUsername(request.getUsername());
+        boolean emailTaken    = userRepository.existsByEmailIgnoreCase(request.getEmail());
+        boolean usernameTaken = userRepository.existsByUsernameIgnoreCase(request.getUsername());
 
         if (emailTaken && usernameTaken) {
             return ResponseEntity.status(HttpStatus.CONFLICT).body(
@@ -233,7 +233,7 @@ public class UserController {
     @DeleteMapping("/email/{email}")
     @Transactional  //  Works as a quick fix
     public ResponseEntity<?> deleteUserByEmail(@PathVariable String email) {
-        if (!userRepository.existsByEmail(email)) {
+        if (!userRepository.existsByEmailIgnoreCase(email)) {
             return ResponseEntity.status(404).body(Map.of("error", "User not found"));
         }
 
@@ -307,8 +307,8 @@ public class UserController {
             @RequestParam(required = false) String username,
             @RequestParam(required = false) String phone) {
 
-        boolean emailTaken = (email != null && !email.isBlank()) && userRepository.existsByEmail(email);
-        boolean usernameTaken = (username != null && !username.isBlank()) && userRepository.existsByUsername(username);
+        boolean emailTaken = (email != null && !email.isBlank()) && userRepository.existsByEmailIgnoreCase(email);
+        boolean usernameTaken = (username != null && !username.isBlank()) && userRepository.existsByUsernameIgnoreCase(username);
         boolean phoneTaken = (phone != null && !phone.isBlank()) && userRepository.existsByPhone(phone);
 
         return Map.of(

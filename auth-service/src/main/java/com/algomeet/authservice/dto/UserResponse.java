@@ -40,6 +40,7 @@ public class UserResponse implements SecuredDto{
      */
     private String deviceType;
     private Integer tenantId;
+    private String lang;
 
     @SuppressWarnings("unchecked")
     public UserResponse(Map<String, Object> map) {

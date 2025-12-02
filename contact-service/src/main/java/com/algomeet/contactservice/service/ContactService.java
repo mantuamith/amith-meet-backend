@@ -102,17 +102,17 @@ public class ContactService {
 
         UserDto user = userClient.byKey(me);
 
-        Notification notif = Notification.builder()  
-        		.receiverIds(Set.of(other.toString()))
-        		.type(NotificationType.FRIEND_REQUEST)
-        		.title(wrapWithBraces(user.getUsername()) + " sent you a friend request")
-        		.body(wrapWithBraces(user.getUsername()) + " sent you a friend request")
-        		.deliveryAckRequired(true)
-        		.tenantId(TenantContext.getCurrentTenant())
-        		.build();
+        Notification notif = Notification.builder()
+                .receiverIds(Set.of(other.toString()))
+                .type(NotificationType.FRIEND_REQUEST)
+                .title(wrapWithBraces(user.getUsername()) + " sent you a friend request")
+                .body(wrapWithBraces(user.getUsername()) + " sent you a friend request")
+                .deliveryAckRequired(true)
+                .tenantId(TenantContext.getCurrentTenant())
+                .build();
         // Publish
-        notificationService.sendPush(notif); 
-      log.info("Friend request notification sent from {} to {}", me, other);
+        notificationService.sendPush(notif);
+        log.info("Friend request notification sent from {} to {}", me, other);
 
     }
 
@@ -148,17 +148,17 @@ public class ContactService {
 
         UserDto user = userClient.byKey(me);
 
-        Notification notif = Notification.builder()       
-        		// Set receiver
-        		.receiverIds(Set.of(other.toString()))                 
-        		.type(NotificationType.FRIEND_REQUEST_ACCEPTED)        
-        		.title(wrapWithBraces(user.getUsername()) + " accepted your friend request")
-        		.body(wrapWithBraces(user.getUsername()) + " accepted your friend request")
-        		.deliveryAckRequired(true)
-        		.tenantId(TenantContext.getCurrentTenant())
-        		.build();
+        Notification notif = Notification.builder()
+                // Set receiver
+                .receiverIds(Set.of(other.toString()))
+                .type(NotificationType.FRIEND_REQUEST_ACCEPTED)
+                .title(wrapWithBraces(user.getUsername()) + " accepted your friend request")
+                .body(wrapWithBraces(user.getUsername()) + " accepted your friend request")
+                .deliveryAckRequired(true)
+                .tenantId(TenantContext.getCurrentTenant())
+                .build();
         // Publish
-        notificationService.sendPush(notif); 
+        notificationService.sendPush(notif);
 
         log.info("Friend request acceptance notification sent from {} to {}", me, other);
 
@@ -198,18 +198,18 @@ public class ContactService {
                     contactRepository.delete(contact);
                     log.info("Deleted contact request {} -> {}", other, me);
                 });
-               
-        Notification notif = Notification.builder()       
-        		// Set receiver
-        		.receiverIds(Set.of(other.toString()))                 
-        		.type(NotificationType.FRIEND_REQUEST_REJECTED)        
-        		.title(wrapWithBraces(userLogin) + " rejected your friend request")
-        		.body(wrapWithBraces(userLogin) + " rejected your friend request")
-        		.deliveryAckRequired(true)
-        		.tenantId(TenantContext.getCurrentTenant())
-        		.build();
+
+        Notification notif = Notification.builder()
+                // Set receiver
+                .receiverIds(Set.of(other.toString()))
+                .type(NotificationType.FRIEND_REQUEST_REJECTED)
+                .title(wrapWithBraces(userLogin) + " rejected your friend request")
+                .body(wrapWithBraces(userLogin) + " rejected your friend request")
+                .deliveryAckRequired(true)
+                .tenantId(TenantContext.getCurrentTenant())
+                .build();
         // Publish
-        notificationService.sendPush(notif); 
+        notificationService.sendPush(notif);
     }
 
     public void deleteContact(String userId, String contactUserId) {

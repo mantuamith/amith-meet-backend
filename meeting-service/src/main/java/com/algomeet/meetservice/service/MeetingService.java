@@ -149,16 +149,21 @@ public class MeetingService {
 
         meeting.setHostEmail(hostEmail);
         // if your Meeting entity has this column + setter:
-        try { meeting.getClass().getMethod("setHostUserKey", UUID.class); meeting.setHostUserKey(hostUserKey); } catch (NoSuchMethodException ignored) {}
+        try {
+            meeting.getClass().getMethod("setHostUserKey", UUID.class);
+            meeting.setHostUserKey(hostUserKey);
+        } catch (NoSuchMethodException ignored) {
+        }
 
         meeting.setStatus(MeetingStatus.SCHEDULED);
 
         meeting.setPasswordEnabled(request.isPasswordEnabled());
         if (request.isPasswordEnabled()) {
             if (request.getPassword() == null || request.getPassword().isBlank()) {
-                                throw new IllegalArgumentException("Password enabled but no password provided");
+                throw new IllegalArgumentException("Password enabled but no password provided");
             }
-            meeting.setPasswordHash(passwordEncoder.encode(request.getPassword()));
+            //meeting.setPasswordHash(passwordEncoder.encode(request.getPassword()));
+            meeting.setPasswordHash(request.getPassword());
         } else {
             meeting.setPasswordHash(null);
         }
@@ -226,7 +231,6 @@ public class MeetingService {
     }
 
 
-
     // Mark a meeting as COMPLETED
     public boolean markMeetingAsCompleted(String meetingId, String email) {
         log.info("MarkCompleted request: id={}, byHost={}", meetingId, maskEmail(email));
@@ -265,11 +269,17 @@ public class MeetingService {
 
         boolean isHost = safeEqIgnoreCase(m.getHostEmail(), email);
         boolean hasValidToken = token != null && hasValidToken(token, m.getToken());
-        log.debug("GetMeetingById accessCheck: isHost={}, hasValidToken={}, status={}", isHost, hasValidToken, m.getStatus());
+        boolean isAttendee = m.getAttendees() != null && m.getAttendees().stream()
+                .anyMatch(a -> safeEqIgnoreCase(a, email));
+        log.info("GetMeetingById accessCheck: isHost={}, isAttendee={}, hasValidToken={}, status={}",
+                isHost, isAttendee, hasValidToken, m.getStatus());
 
         // Access gate: host OR (valid token for attendee)
+        // NOTE: attendee *does not* bypass token per the new policy (token is mandatory
+        // unless the caller is the host). This enforces "token required" when password
+        // is not enabled, and allows controller to later enforce password when enabled.
         if (!isHost && !hasValidToken) {
-            log.warn("GetMeetingById denied: id={}, by={}", id, maskEmail(email));
+            log.info("GetMeetingById denied: id={}, by={}", id, maskEmail(email));
             return Optional.empty(); // 403 in controller
         }
 
@@ -279,7 +289,8 @@ public class MeetingService {
             return Optional.empty();
         }
 
-        // Host auto-starts the meeting if not already started & not completed/expired
+        // Host auto-starts the meeting if not already started & not completed/expired... Disabling this part of the Code JOiN API will be used
+        //
         if (isHost) {
             if (m.getStatus() == MeetingStatus.SCHEDULED) {
                 m.setStatus(MeetingStatus.STARTED);
@@ -294,10 +305,19 @@ public class MeetingService {
         return Optional.of(m);
     }
 
+    /**
+     *  Raw find by id (no access checks). Useful for controllers that want to inspect
+     *  meeting properties (e.g. passwordEnabled) to decide how to respond.
+     */
+    public Optional<Meeting> findMeetingByIdRaw(String id) {
+        return meetingRepository.findById(id);
+    }
+
     // Open (guest) access with token only
     public Optional<Meeting> getOpenMeetingById(String id, String token) {
         log.info("GetOpenMeetingById: id={}", id);
-        if (token != null) log.debug("GetOpenMeetingById: tokenLen={}", token.length());
+        if (token != null)
+            log.debug("GetOpenMeetingById: tokenLen={}", token.length());
 
         Optional<Meeting> meetingOpt = meetingRepository.findById(id);
         if (meetingOpt.isEmpty()) {
@@ -455,14 +475,38 @@ public class MeetingService {
         // Track which fields changed (no sensitive contents logged)
         boolean changed = false;
 
-        if (req.getMeetingName() != null) { m.setMeetingName(req.getMeetingName()); changed = true; }
-        if (req.getMeetDescription() != null) { m.setMeetingDescription(req.getMeetDescription()); changed = true; }
-        if (req.getMeetingStartTime() != null) { m.setMeetingStartTime(req.getMeetingStartTime()); changed = true; }
-        if (req.getMeetingEndTime() != null) { m.setMeetingEndTime(req.getMeetingEndTime()); changed = true; }
-        if (req.getRecurrence() != null) { m.setRecurrence(req.getRecurrence()); changed = true; }
-        if (req.getReminderEnabled() != null) { m.setReminderEnabled(req.getReminderEnabled()); changed = true; }
-        if (req.getReminderMinutes() != null) { m.setReminderMinutes(req.getReminderMinutes()); changed = true; }
-        if (req.getLobbyEnabled() != null) { m.setLobbyEnabled(req.getLobbyEnabled()); changed = true; }
+        if (req.getMeetingName() != null) {
+            m.setMeetingName(req.getMeetingName());
+            changed = true;
+        }
+        if (req.getMeetDescription() != null) {
+            m.setMeetingDescription(req.getMeetDescription());
+            changed = true;
+        }
+        if (req.getMeetingStartTime() != null) {
+            m.setMeetingStartTime(req.getMeetingStartTime());
+            changed = true;
+        }
+        if (req.getMeetingEndTime() != null) {
+            m.setMeetingEndTime(req.getMeetingEndTime());
+            changed = true;
+        }
+        if (req.getRecurrence() != null) {
+            m.setRecurrence(req.getRecurrence());
+            changed = true;
+        }
+        if (req.getReminderEnabled() != null) {
+            m.setReminderEnabled(req.getReminderEnabled());
+            changed = true;
+        }
+        if (req.getReminderMinutes() != null) {
+            m.setReminderMinutes(req.getReminderMinutes());
+            changed = true;
+        }
+        if (req.getLobbyEnabled() != null) {
+            m.setLobbyEnabled(req.getLobbyEnabled());
+            changed = true;
+        }
         if (req.getAttendees() != null) {
             m.setInvitedParticipants(new HashSet<>(req.getAttendees()));
             changed = true;
@@ -501,16 +545,18 @@ public class MeetingService {
         String[] parts = email.split("@", 2);
         String local = parts[0];
         String domain = parts[1];
-        String maskedLocal = local.length() <= 2 ? local.charAt(0) + "*" : local.substring(0, 2) + "***";
+        String maskedLocal = local.length() <= 2 ? local.charAt(0) + "*" : local.substring(0, 4) + "***";
         return maskedLocal + "@" + domain;
     }
 
-    /** Server-side check for participant-supplied password (host never needs it). */
+    /**
+     * Server-side check for participant-supplied password (host never needs it).
+     */
     public boolean verifyPassword(Meeting m, String supplied) {
         if (!m.isPasswordEnabled())
             return true;
         if (supplied == null || supplied.isBlank())
             return false;
-        return passwordEncoder.matches(supplied, m.getPasswordHash());
+        return supplied.equals(m.getPasswordHash());
     }
 }

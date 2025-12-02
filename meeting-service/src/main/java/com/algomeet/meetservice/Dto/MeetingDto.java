@@ -8,6 +8,7 @@ public record MeetingDto(
     String meetingType,
     String hostEmail,
     String status,
+    String token,
     Instant meetingStartTime,
     Instant meetingEndTime,
     RoomDto room,
@@ -19,5 +20,6 @@ public record MeetingDto(
     List<String> attendees,
     List<String> invitedParticipants,
     String joinUrl,
-    Boolean passwordEnabled
+    Boolean passwordEnabled,
+    String passwordHash
 ) {}

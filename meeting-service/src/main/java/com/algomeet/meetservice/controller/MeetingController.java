@@ -68,32 +68,32 @@ public class MeetingController implements MeetingControllerDoc  {
             if (meetingOpt.isEmpty()) {
                 log.warn("GetMeeting denied: id={}, user={}", id, maskEmail(email));
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body(MeetingResponse.error("MEETING_ACCESS_DENIED",
-                                "Unauthorized, invalid token, or meeting unavailable"));
+                        .body(MeetingResponse.error(ResponseCodes.MEETING_ACCESS_DENIED,
+                                i18n("meeting_access_denied")));
             }
 
             var meeting = meetingOpt.get();
             String code, msg;
             switch (meeting.getStatus()) {
                 case STARTED -> {
-                    code = "MEETING_JOINED_SUCCESS";
+                    code = ResponseCodes.MEETING_JOINED_SUCCESS;
                     msg = "You can join now.";
                 }
                 case SCHEDULED -> {
-                    code = "MEETING_NOT_STARTED";
+                    code = ResponseCodes.MEETING_NOT_STARTED;
                     msg = "Host hasn’t started the meeting yet.";
                 }
                 case COMPLETED -> {
-                    code = "MEETING_COMPLETED";
-                    msg = "This meeting is over.";
+                    code = ResponseCodes.MEETING_COMPLETED;
+                    msg = i18n("meeting.completed");
                 }
                 case EXPIRED -> {
                     code = "MEETING_EXPIRED";
-                    msg = "This meeting link has expired.";
+                    msg =  i18n("meeting.expired");
                 }
                 default -> {
-                    code = "MEETING_FETCH_SUCCESS";
-                    msg = "Meeting fetched.";
+                    code = ResponseCodes.MEETING_FETCH_SUCCESS;
+                    msg = i18n("meeting.fetch.success");
                 }
             }
 
@@ -104,11 +104,11 @@ public class MeetingController implements MeetingControllerDoc  {
         } catch (AccessDeniedException e) {
             log.warn("GetMeeting access denied: id={}, user={}, reason={}", id, maskEmail(email), e.getMessage());
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(MeetingResponse.error("MEETING_ACCESS_DENIED", e.getMessage()));
+                    .body(MeetingResponse.error(ResponseCodes.MEETING_ACCESS_DENIED, i18n("meeting_access_denied")));
         } catch (Exception e) {
             log.error("GetMeeting error: id={}, user={}, ex={}", id, maskEmail(email), e.toString(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(MeetingResponse.error("INTERNAL_ERROR", "Unexpected error while fetching meeting"));
+                    .body(MeetingResponse.error(ResponseCodes.INTERNAL_ERROR, i18n("meeting_internal_error")));
         }
     }
 
@@ -122,7 +122,7 @@ public class MeetingController implements MeetingControllerDoc  {
     ) {
         if (req == null || req.token() == null || req.token().isBlank()) {
             return ResponseEntity.badRequest()
-                    .body(MeetingResponse.error("TOKEN_REQUIRED", "Join token is required."));
+                    .body(MeetingResponse.error( ResponseCodes.TOKEN_REQUIRED, i18n("join-token.required")));
         }
         final String guestKey = GuestIdentity.resolve(request, response);
 
@@ -130,15 +130,28 @@ public class MeetingController implements MeetingControllerDoc  {
                 .map(m -> {
                     if (m.getStatus() == MeetingStatus.COMPLETED) {
                         return ResponseEntity.status(HttpStatus.GONE)
-                                .body(MeetingResponse.error("MEETING_COMPLETED", "This meeting is over."));
+                                .body(MeetingResponse.error(ResponseCodes.MEETING_COMPLETED, i18n("meeting.completed")));
                     }
                     if (m.getStatus() == MeetingStatus.EXPIRED) {
                         return ResponseEntity.status(HttpStatus.GONE)
-                                .body(MeetingResponse.error("MEETING_EXPIRED", "This meeting link has expired."));
+                                .body(MeetingResponse.error(ResponseCodes.MEETING_EXPIRED, i18n("meeting.expired")));
                     }
-                    if (!meetingService.verifyPassword(m, req.password())) {
-                        return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                                .body(MeetingResponse.error("PASSWORD_REQUIRED", "Password incorrect or missing."));
+                    // If meeting requires password but none provided -> ask client for passcode (200 + success envelope)
+                    // If meeting requires password:
+                    // - no password supplied -> tell client to prompt for passcode (200 + success envelope).
+                    // - password supplied but incorrect -> 403 PASSWORD_INCORRECT
+                    if (m.isPasswordEnabled()) {
+                        if (req.password() == null || req.password().isBlank()) {
+                            return ResponseEntity.ok(MeetingResponse.success(
+                                    ResponseCodes.PASSWORD_REQUIRED,
+                                    i18n("meeting.password.required"),
+                                    mapper.toDto(m)
+                            ));
+                        }
+                        if (!meetingService.verifyPassword(m, req.password())) {
+                            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                                    .body(MeetingResponse.error(ResponseCodes.PASSWORD_INCORRECT, i18n("meeting.password.incorrect")));
+                        }
                     }
 
                     var existing = tokenRegistry.getIfActive(m.getId(), guestKey);
@@ -149,33 +162,92 @@ public class MeetingController implements MeetingControllerDoc  {
 
                     tokenRegistry.save(m.getId(), guestKey, gen.token(), Duration.ofSeconds(300));
 
-                    var dto =  mapper.toDto(m);
+                    var dto = mapper.toDto(m);
                     return ResponseEntity.ok(MeetingResponse.success(
-                            "MEETING_JOINED_SUCCESS", "You can join now.",
+                            ResponseCodes.MEETING_JOINED_SUCCESS, "You can join now.",
                             new OpenMeetingJoinResponse(dto, gen.token(), gen.room(), gen.exp())
                     ));
                 })
                 .orElseGet(() -> ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body(MeetingResponse.error("MEETING_ACCESS_DENIED",
+                        .body(MeetingResponse.error(ResponseCodes.MEETING_ACCESS_DENIED,
                                 "Unauthorized, invalid token, or meeting unavailable")));
     }
 
     @PostMapping("/{id}/join")
     public ResponseEntity<?> joinAsUser(
             @PathVariable String id,
+            @RequestParam(required = false) String token,
+            @RequestParam(required = false) String password,
             HttpServletRequest req,
             HttpServletResponse res
     ) {
         final String email = currentUser(); // from SecurityContext
 
-        var mOpt = meetingService.getMeetingById(id, email, /*token*/ null);
+        var mOpt = meetingService.getMeetingById(id, email, token);
+
         if (mOpt.isEmpty()) {
+
+            var rawOpt = meetingService.findMeetingByIdRaw(id);
+
+            if (rawOpt.isPresent()) {
+                Meeting raw = rawOpt.get();
+                // If meeting requires password and user is not host, tell client passcode required
+                boolean isHost = email != null && email.equalsIgnoreCase(raw.getHostEmail());
+                boolean isAttendee = raw.getAttendees() != null && raw.getAttendees().stream()
+                        .anyMatch(a -> a.equalsIgnoreCase(email));
+
+                if (!isHost && raw.isPasswordEnabled()) {
+                    /*
+                    * Policy: when password is enabled, both token + password are required.
+                     * If we reached here (mOpt empty) it's because token was missing/invalid.
+                     * Prompt the client to provide a password (so UI can show passcode input)
+                     * — later the client must supply the token as well when re-calling.
+                     */
+                    return ResponseEntity.ok(MeetingResponse.success(
+                            ResponseCodes.PASSWORD_REQUIRED,
+                            i18n("meeting.password.required"),
+                            mapper.toDto(raw)
+                    ));
+                }
+                if (!isHost && !raw.isPasswordEnabled()) {
+                    /*
+                     * Policy: when password is NOT enabled, a valid token is mandatory.
+                     * Client did not provide a valid token, so indicate token is required.
+                     */
+                    return ResponseEntity.ok(MeetingResponse.success(
+                            ResponseCodes.TOKEN_REQUIRED,
+                            i18n("join-token.required"),
+                            mapper.toDto(raw)
+                    ));
+                }
+            }
+
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(MeetingResponse.error("MEETING_ACCESS_DENIED", "Unauthorized or not found"));
+                    .body(MeetingResponse.error(ResponseCodes.MEETING_ACCESS_DENIED, "Unauthorized or not found"));
         }
 
         var m = mOpt.get();
         boolean isHost = email.equalsIgnoreCase(m.getHostEmail());
+        boolean isAttendee = m.getAttendees() != null && m.getAttendees().stream()
+                .anyMatch(a -> a.equalsIgnoreCase(email));
+
+        // Enforce meeting password for logged-in users who are NOT host and NOT in attendees
+        if (!isHost && m.isPasswordEnabled()) {
+            // No password provided -> prompt frontend to ask for passcode
+            if (password == null || password.isBlank()) {
+                return ResponseEntity.ok(MeetingResponse.success(
+                        ResponseCodes.PASSWORD_REQUIRED,
+                        i18n("meeting.password.required"),
+                        mapper.toDto(m)
+                ));
+            }
+            // Password provided but incorrect -> deny
+            if (!meetingService.verifyPassword(m, password)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(MeetingResponse.error(ResponseCodes.PASSWORD_INCORRECT, i18n("meeting.password.incorrect")));
+            }
+            // password correct -> proceed
+        }
 
         // Start on first host join
         if (isHost && m.getStatus() == MeetingStatus.SCHEDULED) {
@@ -185,7 +257,7 @@ public class MeetingController implements MeetingControllerDoc  {
         // If not started yet and user is not the host, don’t mint a token
         if (m.getStatus() != MeetingStatus.STARTED && !isHost) {
             return ResponseEntity.ok(MeetingResponse.success(
-                    "MEETING_NOT_STARTED", "Host hasn’t started yet", mapper.toDto(m)));
+                    ResponseCodes.MEETING_NOT_STARTED, "Host hasn’t started yet", mapper.toDto(m)));
         }
 
         // Identify the logged-in user
@@ -211,7 +283,7 @@ public class MeetingController implements MeetingControllerDoc  {
                     "reused"
             );
             return ResponseEntity.ok(MeetingResponse.success(
-                    "MEETING_JOINED_SUCCESS", "You can join now.",
+                    ResponseCodes.MEETING_JOINED_SUCCESS, "You can join now.",
                     new OpenMeetingJoinResponse(mapper.toDto(m), reused.token(), reused.room(), reused.exp())
             ));
         }
@@ -223,7 +295,7 @@ public class MeetingController implements MeetingControllerDoc  {
         tokenRegistry.save(m.getId(), userId, gen.token(), java.time.Duration.ofMinutes(5));
 
         return ResponseEntity.ok(MeetingResponse.success(
-                "MEETING_JOINED_SUCCESS", "You can join now.",
+                ResponseCodes.MEETING_JOINED_SUCCESS, "You can join now.",
                 new OpenMeetingJoinResponse(mapper.toDto(m), gen.token(), gen.room(), gen.exp())
         ));
     }
@@ -234,6 +306,7 @@ public class MeetingController implements MeetingControllerDoc  {
             @PathVariable String id,
             @RequestParam(required = false) String token,
             @RequestParam(required = false) String name,
+            @RequestParam(required = false) String password,
             HttpServletRequest request,
             HttpServletResponse response
     ) {
@@ -251,47 +324,68 @@ public class MeetingController implements MeetingControllerDoc  {
             final String guestKey = GuestIdentity.resolve(request, response);
 
             return meetingService.getOpenMeetingById(id, linkToken)
-                    .map(m -> switch (m.getStatus()) {
-                        case STARTED -> {
-                            var existing = tokenRegistry.getIfActive(m.getId(), guestKey);
-                            existing.ifPresent(t -> tokenRegistry.revoke(m.getId(), guestKey));
+                    .map(m -> {
+                        switch (m.getStatus()) {
+                            case STARTED: {
+                                // If meeting has password enabled, enforce it for guests as well.
+                                if (m.isPasswordEnabled()) {
+                                    // If no password supplied -> tell client passcode is required
+                                    if (password == null || password.isBlank()) {
+                                        return ResponseEntity.ok(MeetingResponse.success(
+                                                ResponseCodes.PASSWORD_REQUIRED,
+                                                i18n("meeting.password.required"),
+                                                mapper.toDto(m)
+                                        ));
+                                    }
+                                    // If password supplied but incorrect -> deny
+                                    if (!meetingService.verifyPassword(m, password)) {
+                                        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                                                .body(MeetingResponse.error("PASSWORD_INCORRECT", i18n("meeting.password.incorrect")));
+                                    }
+                                    // else password OK -> continue to mint token
+                                }
 
-                            String displayName = (userName != null && !userName.isBlank())
-                                    ? userName.trim()
-                                    : "";
+                                var existing = tokenRegistry.getIfActive(m.getId(), guestKey);
+                                existing.ifPresent(t -> tokenRegistry.revoke(m.getId(), guestKey));
 
-                            boolean moderator = false;
+                                String displayName = (userName != null && !userName.isBlank())
+                                        ? userName.trim()
+                                        : (name != null ? name.trim() : "");
 
-                            var gen = algomeetJwtService.generateForMeeting(
-                                    m, guestKey, displayName, null, moderator);
+                                boolean moderator = false;
 
-                            tokenRegistry.save(m.getId(), guestKey, gen.token(), java.time.Duration.ofSeconds(300));
+                                var gen = algomeetJwtService.generateForMeeting(
+                                        m, guestKey, displayName, null, moderator);
 
-                            var dto =  mapper.toDto(m);
-                            yield ResponseEntity.ok(MeetingResponse.success(
-                                    "MEETING_JOINED_SUCCESS", "meeting.join.success",
-                                    new OpenMeetingJoinResponse(dto, gen.token(), gen.room(), gen.exp())
-                            ));
+                                tokenRegistry.save(m.getId(), guestKey, gen.token(), java.time.Duration.ofSeconds(300));
+
+                                var dto = mapper.toDto(m);
+                                return ResponseEntity.ok(MeetingResponse.success(
+                                        ResponseCodes.MEETING_JOINED_SUCCESS, i18n("mee"),
+                                        new OpenMeetingJoinResponse(dto, gen.token(), gen.room(), gen.exp())
+                                ));
+                            }
+                            case SCHEDULED:
+                                return ResponseEntity.ok(MeetingResponse.success(
+                                        ResponseCodes.MEETING_NOT_STARTED, "Host hasn’t started the meeting yet.", mapper.toDto(m)));
+                            case COMPLETED:
+                                return ResponseEntity.status(HttpStatus.GONE)
+                                        .body(MeetingResponse.error(ResponseCodes.MEETING_COMPLETED, "This meeting is over."));
+                            case EXPIRED:
+                                return ResponseEntity.status(HttpStatus.GONE)
+                                        .body(MeetingResponse.error(ResponseCodes.MEETING_EXPIRED, i18n("meeting.expired")));
+                            default:
+                                return ResponseEntity.ok(MeetingResponse.success(ResponseCodes.MEETING_FETCH_SUCCESS, i18n("meeting.fetch.success"), mapper.toDto(m)));
                         }
-                        case SCHEDULED -> ResponseEntity.ok(
-                                MeetingResponse.success("MEETING_NOT_STARTED", "Host hasn’t started the meeting yet.", mapper.toDto(m)));
-
-                        case COMPLETED -> ResponseEntity.status(HttpStatus.GONE)
-                                .body(MeetingResponse.error("MEETING_COMPLETED", "This meeting is over."));
-                        case EXPIRED -> ResponseEntity.status(HttpStatus.GONE)
-                                .body(MeetingResponse.error("MEETING_EXPIRED", "This meeting link has expired."));
-
-                        default -> ResponseEntity.ok(
-                                MeetingResponse.success("MEETING_FETCH_SUCCESS", "Meeting fetched.", mapper.toDto(m)));
                     })
                     .orElseGet(() -> ResponseEntity.status(HttpStatus.FORBIDDEN)
-                            .body(MeetingResponse.error("MEETING_ACCESS_DENIED",
+                            .body(MeetingResponse.error(ResponseCodes.MEETING_ACCESS_DENIED,
                                     "Unauthorized, invalid token, or meeting unavailable")));
 
         } catch (AccessDeniedException e) {
             log.warn("OpenMeeting access denied: id={}, reason={}", id, e.getMessage());
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(MeetingResponse.error("MEETING_ACCESS_DENIED", e.getMessage()));
+                    .body(MeetingResponse.error(ResponseCodes.MEETING_ACCESS_DENIED, e.getMessage()));
         } catch (Exception e) {
             log.error("OpenMeeting error: id={}, ex={}", id, e.toString(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -332,7 +426,7 @@ public class MeetingController implements MeetingControllerDoc  {
             log.info("CompleteMeeting success: id={}", id);
             // TODO: Integrate notification-service for push notifications
             return ResponseEntity.ok(Map.of(
-                    "code", "MEETING_COMPLETED",
+                    "code", ResponseCodes.MEETING_COMPLETED,
                     "message", i18n("meeting.update.mark-completed")
             ));
         } else {
@@ -409,7 +503,7 @@ public class MeetingController implements MeetingControllerDoc  {
         } catch (AccessDeniedException ade) {
             log.warn("EditMeeting access denied: id={}, by={}, reason={}", id, maskEmail(email), ade.getMessage());
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(MeetingResponse.error("MEETING_ACCESS_DENIED", ade.getMessage()));
+                    .body(MeetingResponse.error(ResponseCodes.MEETING_ACCESS_DENIED, ade.getMessage()));
         } catch (IllegalArgumentException iae) {
             log.warn("EditMeeting bad request: id={}, reason={}", id, iae.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
@@ -433,7 +527,7 @@ public class MeetingController implements MeetingControllerDoc  {
         } catch (AccessDeniedException ade) {
             log.warn("DeleteMeeting access denied: id={}, by={}, reason={}", id, maskEmail(email), ade.getMessage());
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(MeetingResponse.error("MEETING_ACCESS_DENIED", ade.getMessage()));
+                    .body(MeetingResponse.error(ResponseCodes.MEETING_ACCESS_DENIED, ade.getMessage()));
         } catch (IllegalArgumentException iae) {
             log.warn("DeleteMeeting bad request: id={}, reason={}", id, iae.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)

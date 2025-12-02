@@ -106,7 +106,7 @@ class MessageActionServiceTest {
         req.setReplyToMessageId("orig");
         req.setReceiver("bob");
         req.setContent("reply");
-        MessageDocument saved = service.replyTo(req, "alice", null);
+        MessageDocument saved = service.replyTo(req, "alice", "null");
 
         assertThat(saved.getId()).isEqualTo("replyId");
         verify(simp).convertAndSendToUser(eq("bob"), eq("/queue/messages"), any());
