@@ -11,8 +11,8 @@ Build Steps:
 
   1. Run these commands in termal:
 
-	 LIBOPRF_DIR=/Users/ariellepasana/git/algomeet-backend/opaque-service/libs/liboprf-0.9.2
-	 LIBOPAQUE_DIR=/Users/ariellepasana/git/algomeet-backend/opaque-service/libs/libopaque-1.0.1
+	 LIBOPRF_DIR=/Users/<user>/git/algomeet-backend/opaque-service/libs/liboprf-0.9.2
+	 LIBOPAQUE_DIR=/Users/<user>/git/algomeet-backend/opaque-service/libs/libopaque-1.0.1
 	 JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-17.jdk/Contents/Home
 	 
   2. Manually copy Java classes from "$LIBOPAQUE_DIR/java/ctrlc" to project JNI package "com/algomeet/opaqueservice/jni" 
