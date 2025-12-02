@@ -69,7 +69,7 @@ public class MeetingController implements MeetingControllerDoc  {
                 log.warn("GetMeeting denied: id={}, user={}", id, maskEmail(email));
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
                         .body(MeetingResponse.error(ResponseCodes.MEETING_ACCESS_DENIED,
-                                i18n("meeting_access_denied")));
+                                i18n("meeting.access.denied")));
             }
 
             var meeting = meetingOpt.get();
@@ -120,13 +120,9 @@ public class MeetingController implements MeetingControllerDoc  {
             HttpServletRequest request,
             HttpServletResponse response
     ) {
-        if (req == null || req.token() == null || req.token().isBlank()) {
-            return ResponseEntity.badRequest()
-                    .body(MeetingResponse.error( ResponseCodes.TOKEN_REQUIRED, i18n("join-token.required")));
-        }
         final String guestKey = GuestIdentity.resolve(request, response);
 
-        return meetingService.getOpenMeetingById(id, req.token().trim())
+        return (ResponseEntity<?>) meetingService.getOpenMeetingById(id, req.token())
                 .map(m -> {
                     if (m.getStatus() == MeetingStatus.COMPLETED) {
                         return ResponseEntity.status(HttpStatus.GONE)
@@ -140,18 +136,39 @@ public class MeetingController implements MeetingControllerDoc  {
                     // If meeting requires password:
                     // - no password supplied -> tell client to prompt for passcode (200 + success envelope).
                     // - password supplied but incorrect -> 403 PASSWORD_INCORRECT
-                    if (m.isPasswordEnabled()) {
-                        if (req.password() == null || req.password().isBlank()) {
+
+                    if (req.token() != null && !req.token().isBlank() &&!req.token().trim().equals(m.getToken())){
+                        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                                .body(MeetingResponse.error(ResponseCodes.MEETING_ACCESS_DENIED,
+                                        i18n("meeting.access.denied")));
+                    }
+
+                    if (req.token() != null && !req.token().trim().isBlank()) {
+                        if (m.getToken().equals(req.token().trim())) {
+                            var existing = tokenRegistry.getIfActive(m.getId(), guestKey);
+                            existing.ifPresent(t -> tokenRegistry.revoke(m.getId(), guestKey));
+
+                            var gen = algomeetJwtService.generateForMeeting(
+                                    m, guestKey, (req.name() == null ? "" : req.name().trim()), null, false);
+
+                            tokenRegistry.save(m.getId(), guestKey, gen.token(), Duration.ofSeconds(300));
+                            var dto = mapper.toDto(m);
                             return ResponseEntity.ok(MeetingResponse.success(
-                                    ResponseCodes.PASSWORD_REQUIRED,
-                                    i18n("meeting.password.required"),
-                                    mapper.toDto(m)
+                                    ResponseCodes.MEETING_JOINED_SUCCESS, "You can join now.",
+                                    new OpenMeetingJoinResponse(dto, gen.token(), gen.room(), gen.exp())
                             ));
-                        }
-                        if (!meetingService.verifyPassword(m, req.password())) {
-                            return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                                    .body(MeetingResponse.error(ResponseCodes.PASSWORD_INCORRECT, i18n("meeting.password.incorrect")));
-                        }
+                        } else
+                            return ResponseEntity.status(HttpStatus.FORBIDDEN);
+                    } else if(req.password() == null || req.password().isBlank()) {
+                        return ResponseEntity.ok(MeetingResponse.success(
+                                ResponseCodes.PASSWORD_REQUIRED,
+                                i18n("meeting.password.required"),
+                                mapper.toDto(m)
+                        ));
+                    }
+                    if (!meetingService.verifyPassword(m, req.password())) {
+                        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                                .body(MeetingResponse.error(ResponseCodes.PASSWORD_INCORRECT, i18n("meeting.password.incorrect")));
                     }
 
                     var existing = tokenRegistry.getIfActive(m.getId(), guestKey);
@@ -184,72 +201,46 @@ public class MeetingController implements MeetingControllerDoc  {
         final String email = currentUser(); // from SecurityContext
 
         var mOpt = meetingService.getMeetingById(id, email, token);
-
-        if (mOpt.isEmpty()) {
-
-            var rawOpt = meetingService.findMeetingByIdRaw(id);
-
-            if (rawOpt.isPresent()) {
-                Meeting raw = rawOpt.get();
-                // If meeting requires password and user is not host, tell client passcode required
-                boolean isHost = email != null && email.equalsIgnoreCase(raw.getHostEmail());
-                boolean isAttendee = raw.getAttendees() != null && raw.getAttendees().stream()
-                        .anyMatch(a -> a.equalsIgnoreCase(email));
-
-                if (!isHost && raw.isPasswordEnabled()) {
-                    /*
-                    * Policy: when password is enabled, both token + password are required.
-                     * If we reached here (mOpt empty) it's because token was missing/invalid.
-                     * Prompt the client to provide a password (so UI can show passcode input)
-                     * — later the client must supply the token as well when re-calling.
-                     */
-                    return ResponseEntity.ok(MeetingResponse.success(
-                            ResponseCodes.PASSWORD_REQUIRED,
-                            i18n("meeting.password.required"),
-                            mapper.toDto(raw)
-                    ));
-                }
-                if (!isHost && !raw.isPasswordEnabled()) {
-                    /*
-                     * Policy: when password is NOT enabled, a valid token is mandatory.
-                     * Client did not provide a valid token, so indicate token is required.
-                     */
-                    return ResponseEntity.ok(MeetingResponse.success(
-                            ResponseCodes.TOKEN_REQUIRED,
-                            i18n("join-token.required"),
-                            mapper.toDto(raw)
-                    ));
-                }
-            }
-
-            return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(MeetingResponse.error(ResponseCodes.MEETING_ACCESS_DENIED, "Unauthorized or not found"));
-        }
-
         var m = mOpt.get();
         boolean isHost = email.equalsIgnoreCase(m.getHostEmail());
         boolean isAttendee = m.getAttendees() != null && m.getAttendees().stream()
                 .anyMatch(a -> a.equalsIgnoreCase(email));
 
+        if ((token == null || token.isBlank()) && (password == null || password.isBlank())) {
+            return ResponseEntity.ok(MeetingResponse.success(
+                    ResponseCodes.PASSWORD_REQUIRED,
+                    i18n("meeting.password.required"),
+                    mapper.toDto(m)
+            ));
+        }
+
         // Enforce meeting password for logged-in users who are NOT host and NOT in attendees
-        if (!isHost && m.isPasswordEnabled()) {
+        if (!isHost && token != null && !m.getToken().equals(token.trim())) {
+            return ResponseEntity.ok(MeetingResponse.success(
+                    ResponseCodes.MEETING_ACCESS_DENIED,
+                    i18n("meeting.access.denied"),
+                    mapper.toDto(m)
+            ));
+        }else if (!isHost && password != null && password.isBlank() ) {
             // No password provided -> prompt frontend to ask for passcode
-            if (password == null || password.isBlank()) {
+
                 return ResponseEntity.ok(MeetingResponse.success(
                         ResponseCodes.PASSWORD_REQUIRED,
                         i18n("meeting.password.required"),
                         mapper.toDto(m)
                 ));
-            }
-            // Password provided but incorrect -> deny
+
+            // password correct -> proceed
+        }
+        if (!isHost && password != null && !password.isBlank() ){
             if (!meetingService.verifyPassword(m, password)) {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
                         .body(MeetingResponse.error(ResponseCodes.PASSWORD_INCORRECT, i18n("meeting.password.incorrect")));
             }
-            // password correct -> proceed
         }
 
-        // Start on first host join
+
+            // Start on first host join
         if (isHost && m.getStatus() == MeetingStatus.SCHEDULED) {
             meetingService.startIfScheduledByHost(m);
         }
