@@ -11,7 +11,7 @@ Steps:
    
    1. Run these commands in terminal:
    
-	  LIBOPRF_DIR=/Users/ariellepasana/git/algomeet-backend/opaque-service/libs/liboprf-0.9.2
+	  LIBOPRF_DIR=/Users/<user>/git/algomeet-backend/opaque-service/libs/liboprf-0.9.2
 	
    2. Compile liboprf .c files using this command:
 	  # Compile all .c files

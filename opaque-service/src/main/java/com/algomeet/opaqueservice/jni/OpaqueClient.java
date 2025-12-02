@@ -102,7 +102,7 @@ public class OpaqueClient {
     /**
      * Call /credential-response endpoint
      */
-    public UserCredentialResponse exchangeMasterSecretCredential(
+    public UserCredentialResponse credentialResponse(
             CredentialType type,
             String clientPublicKeyBase64,
             String bearerToken) {

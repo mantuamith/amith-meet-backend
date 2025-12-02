@@ -38,11 +38,11 @@ public class Demo {
 //        OpaqueIds ids = new OpaqueIds("2fc35cae-e0b7-40a5-b2aa-e86206730e99".getBytes(Charset.forName("UTF-8")),
 //        		regResponse.getServerId().getBytes(Charset.forName("UTF-8")));
 //
-//        OpaquePreRecExpKey prerec = o.finalizeReg(regReq.sec, Base64.getDecoder().decode(regResponse.getPublicKey()), ids);   
-//        System.out.println("Export Key = " + prerec.export_key);
+//        OpaquePreRecExpKey preRec = o.finalizeReg(regReq.sec, Base64.getDecoder().decode(regResponse.getPublicKey()), ids);   
+//        System.out.println("Export Key = " + preRec.export_key);
 //                
 //        String clientRecordBase64 = Base64.getEncoder().encodeToString(prerec.rec);
-//        System.out.println("Record = " +  Base64.getEncoder().encodeToString(prerec.rec));
+//        System.out.println("Record = " +  Base64.getEncoder().encodeToString(preRec.rec));
 //          
 //        // Save secret
 //        UserMasterSecretResponse saveResp = client.saveSecret(
@@ -65,7 +65,7 @@ public class Demo {
         
         String clientPubKeyBase64 = Base64.getEncoder().encodeToString(credReq.pub);   
         
-        UserCredentialResponse credResp = client.exchangeMasterSecretCredential(
+        UserCredentialResponse credResp = client.credentialResponse(
                 CredentialType.PIN,
                 clientPubKeyBase64,
                 bearerToken
