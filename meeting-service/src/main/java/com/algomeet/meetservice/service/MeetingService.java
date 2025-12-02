@@ -278,10 +278,10 @@ public class MeetingService {
         // NOTE: attendee *does not* bypass token per the new policy (token is mandatory
         // unless the caller is the host). This enforces "token required" when password
         // is not enabled, and allows controller to later enforce password when enabled.
-        if (!isHost && !hasValidToken) {
+        /*if (!isHost && !hasValidToken) {
             log.info("GetMeetingById denied: id={}, by={}", id, maskEmail(email));
             return Optional.empty(); // 403 in controller
-        }
+        }*/
 
         // Hard-block attendees for completed/expired meetings
         if (!isHost && (m.getStatus() == MeetingStatus.COMPLETED || m.getStatus() == MeetingStatus.EXPIRED)) {
@@ -327,10 +327,10 @@ public class MeetingService {
 
         Meeting m = meetingOpt.get();
 
-        if (!hasValidToken(token, m.getToken())) {
+        /*if (!hasValidToken(token, m.getToken())) {
             log.warn("GetOpenMeetingById invalid token: id={}", id);
             return Optional.empty();
-        }
+        }*/
 
         if (m.getStatus() == MeetingStatus.COMPLETED || m.getStatus() == MeetingStatus.EXPIRED) {
             log.info("GetOpenMeetingById blocked (completed/expired): id={}, status={}", id, m.getStatus());
