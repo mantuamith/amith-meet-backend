@@ -3,8 +3,8 @@ Library github repo: https://github.com/stef/libopaque/
 Prequesites:
 
  These bindings depend on the following:
-	- java-jdk-dev (install)
-	- libsodium (install)
+	- java-jdk-dev (jdk17)
+	- libsodium (libsodium-1.0.19-stable.tar.gz)
 	- liboprf (build using build doc guide under /docs/liboprt)
 
 Build Steps:

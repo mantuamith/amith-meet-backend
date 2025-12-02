@@ -3,8 +3,8 @@ Library github repo: https://github.com/stef/liboprf
 Prequesites:
 
  These bindings depend on the following:
-	- java-jdk-dev
-	- libsodium
+	- java-jdk-dev (jdk17)
+	- libsodium (libsodium-1.0.19-stable.tar.gz)
 	- liboprf
 
 Steps:
