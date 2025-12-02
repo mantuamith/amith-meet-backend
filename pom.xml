@@ -24,6 +24,7 @@
     <module>contact-service</module>
     <module>meeting-service</module>
     <module>control-service</module>
+    <module>signal-service</module>
   </modules>
 
   <properties>
