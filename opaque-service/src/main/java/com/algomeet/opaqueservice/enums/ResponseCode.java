@@ -7,7 +7,8 @@ public enum ResponseCode {
     SUCCESS("SUCCESS", "success"),
     MASTER_SECRET_KEY_NOT_FOUND("MASTER_SECRET_KEY_NOT_FOUND", "master-secret-key.not-found"),
     MASTER_SECRET_KEY_ALRREADY_EXISTS("MASTER_SECRET_KEY_ALRREADY_EXISTS", "master-secret-key.already-exists"),
-    MASTER_SECRET_KEY_FORBIDDEN_ACCESS("MASTER_SECRET_KEY_FORBIDDEN_ACCESS", "master-secret-key.forbidden-access");
+    MASTER_SECRET_KEY_FORBIDDEN_ACCESS("MASTER_SECRET_KEY_FORBIDDEN_ACCESS", "master-secret-key.forbidden-access"),
+    MASTER_SECRET_KEY_TEMPORARILY_LOCKED("MASTER_SECRET_KEY_TEMPORARILY_LOCKED", "master-secret-key.temporarily-locked");
 	
     private final String code;
     private final String message;
