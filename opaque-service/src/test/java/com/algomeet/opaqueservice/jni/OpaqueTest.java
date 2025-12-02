@@ -24,12 +24,21 @@ public class OpaqueTest {
         OpaqueIds ids = new OpaqueIds("idU".getBytes(Charset.forName("UTF-8")),
                                       "idS".getBytes(Charset.forName("UTF-8")));
         Opaque o = new Opaque();
+        
+        // Server
         OpaqueRecExpKey ret = o.register("password", ids);
 
-        OpaqueCredReq creq = o.createCredReq("password");        
+        // Retrieve 
+        // Client
+        OpaqueCredReq creq = o.createCredReq("password");     
+        
+        // server
         OpaqueCredResp cresp = o.createCredResp(creq.pub, ret.rec, ids, "context");
+        
+        // Client
         OpaqueCreds creds = o.recoverCreds(cresp.pub, creq.sec, "context", ids); 
-               
+        
+        // Server
         assert o.userAuth(cresp.sec, creds.authU);
     }
 
@@ -39,68 +48,94 @@ public class OpaqueTest {
                                       "idS".getBytes(Charset.forName("UTF-8")));
         Opaque o = new Opaque();
         byte[] skS = fromHex("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f");
+        // Client
         OpaqueRecExpKey ret = o.register("password", skS, ids);
         assert ret != null;  
         
+        // Retrieve 
+        // Client
         OpaqueCredReq creq = o.createCredReq("password");
         assert creq != null;  
         
+        // Server
         OpaqueCredResp cresp = o.createCredResp(creq.pub, ret.rec, ids, "context");
         assert cresp != null;  
         
+        // Client
         OpaqueCreds creds = o.recoverCreds(cresp.pub, creq.sec, "context", ids);
         
-        assert creds.export_key != null;        
+        assert creds.export_key != null;       
+         // server
         assert o.userAuth(cresp.sec, creds.authU);
     }
 
 	@Test
 	public void test_privreg() {
         Opaque o = new Opaque();
+        // Client
         OpaqueRegReq regReq = o.createRegReq("password");
 
+        // Server
         OpaqueRegResp regResp = o.createRegResp(regReq.M);
         OpaqueIds ids = new OpaqueIds("idU".getBytes(Charset.forName("UTF-8")),
                                       "idS".getBytes(Charset.forName("UTF-8")));
+        
+        // Client
         OpaquePreRecExpKey prerec = o.finalizeReg(regReq.sec, regResp.pub, ids);
 
+        // Server
         byte[] rec = o.storeRec(regResp.sec, prerec.rec);
         assert rec != null;  
 
+        
+        // Retrieve 
+        // Client
         OpaqueCredReq creq = o.createCredReq("password");
         assert creq != null;  
 
+        // Server
         OpaqueCredResp cresp = o.createCredResp(creq.pub, rec, ids, "context");
         assert cresp != null;  
 
+        // Client
         OpaqueCreds creds = o.recoverCreds(cresp.pub, creq.sec, "context", ids);
         assert creds.export_key != null;   
         
+        // Server
         assert o.userAuth(cresp.sec, creds.authU);
     }
 
 	@Test
 	public void test_priv1kreg() {
         Opaque o = new Opaque();
+         // Client
         OpaqueRegReq regReq = o.createRegReq("password");
         byte[] skS = fromHex("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f");
+        
+        // Server
         OpaqueRegResp regResp = o.createRegResp(regReq.M, skS);
 
         OpaqueIds ids = new OpaqueIds("2fc35cae-e0b7-40a5-b2aa-e86206730e99".getBytes(Charset.forName("UTF-8")),
                                       "algomeet.com".getBytes(Charset.forName("UTF-8")));
         
+        // Client
         OpaquePreRecExpKey preRec = o.finalizeReg(regReq.sec, regResp.pub, ids);
 
+        // Server
         byte[] rec = o.storeRec(regResp.sec, preRec.rec);
         assert rec != null;  
-               
+                       
+        // Retrieve 
         Opaque o2 = new Opaque();
+        // Client
 		OpaqueCredReq creq2 = o2.createCredReq("password");
+		// Server
 		OpaqueCredResp cresp2 = o2.createCredResp(creq2.pub, rec, ids, "context");
+		// Client
         OpaqueCreds creds = o2.recoverCreds(cresp2.pub, creq2.sec, "context", ids);
 
         Assertions.assertEquals(Base64.getEncoder().encodeToString(creds.export_key), Base64.getEncoder().encodeToString(preRec.export_key));
-        
+        // Server
         assert (o2.userAuth(cresp2.sec, creds.authU));
     }
 
