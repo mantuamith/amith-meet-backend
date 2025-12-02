@@ -1,6 +1,7 @@
 package com.algomeet.signalingservice.repository;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -15,6 +16,8 @@ import jakarta.transaction.Transactional;
 @Repository
 public interface UserIdentityKeyRepository extends JpaRepository<UserIdentityKey, UserIdentityKeyId> {   
     List<UserIdentityKey> findByIdUserKey(UUID userKey);
+    
+    Optional<UserIdentityKey> findByIdUserKeyAndDeviceId(UUID userKey, String deviceId);
     
     @Modifying
     @Transactional

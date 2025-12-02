@@ -8,8 +8,8 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class E2eeUserSettingResponse {
+public class UserE2eeSettingResponse {
     private UUID userKey;
-    private String autoSyncKey;
-    private Boolean autoSyncEnabled;
+    private Boolean autoSyncEnabled;  
+    private Boolean pinConfigured;   
 }
