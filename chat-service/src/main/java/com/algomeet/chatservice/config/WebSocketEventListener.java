@@ -2,21 +2,20 @@ package com.algomeet.chatservice.config;
 
 import java.security.Principal;
 
-import lombok.extern.slf4j.Slf4j;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.context.event.EventListener;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.stereotype.Component;
-import org.springframework.web.socket.messaging.*;
+import org.springframework.web.socket.messaging.SessionConnectEvent;
+import org.springframework.web.socket.messaging.SessionConnectedEvent;
+import org.springframework.web.socket.messaging.SessionDisconnectEvent;
+import org.springframework.web.socket.messaging.SessionSubscribeEvent;
+import org.springframework.web.socket.messaging.SessionUnsubscribeEvent;
 
-import com.algomeet.chatservice.service.UserSessionService;
-import com.algomeet.chatservice.constant.Constants;
-import com.algomeet.chatservice.service.GroupSessionMessageService;
 import com.algomeet.chatservice.service.MessageService;
+import com.algomeet.chatservice.service.UserSessionService;
 
 import lombok.AllArgsConstructor;
-import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 
 @Component
@@ -26,7 +25,6 @@ public class WebSocketEventListener {
 
     private final UserSessionService userSessionService;
     private final MessageService messageService;
-    private final GroupSessionMessageService groupSessionMessageService;
     
     @EventListener
     public void handleWebSocketConnectListener(SessionConnectEvent event) {
@@ -71,14 +69,6 @@ public class WebSocketEventListener {
         StompHeaderAccessor accessor = StompHeaderAccessor.wrap(event.getMessage());
         log.info("[WS SUBSCRIBE] Session ID: {}, Destination: {}", accessor.getSessionId(), accessor.getDestination());
         
-        if (Constants.DESTINATION_KEYS_GROUP_SHARE.equalsIgnoreCase(accessor.getDestination())) {
-			try {
-				// Deliver all pending group session messages
-				groupSessionMessageService.deliverAllPendingTo(event.getUser().getName());
-			} catch (Exception ex) {
-				log.warn("[WS CONNECTED] group message session auto-deliver failed for user={}: {}", event.getUser().getName(), ex.getMessage());
-			}
-		}
     }
 
     @EventListener
