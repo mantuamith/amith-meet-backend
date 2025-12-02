@@ -21,6 +21,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 
@@ -89,7 +90,7 @@ public interface UserKeyControllerDoc {
 			@Valid @RequestBody UserOneTimeKeyRequest request);
 	
 	@Operation(
-		summary = "Get all one-time keys for identity key",
+		summary = "Get all one-time keys for identity key if userKey parameter is not present, else return only one onetime key.",
 		description = "Retrieves all one-time keys associated with a specific identity key.",
 		responses = {
 			@ApiResponse(responseCode = "200", description = "Successfully retrieved one-time keys"),
@@ -97,7 +98,7 @@ public interface UserKeyControllerDoc {
 		}
 	)
 	public ResponseEntity<CommonResponse<List<UserOneTimeKeyResponse>>> getOneTimeKeys(
-			@PathVariable String identityKey);
+			@PathVariable String identityKey, @RequestParam Optional<UUID> userKeyOpt);
 
 	@Operation(
 		summary = "Delete one-time key by ID",
@@ -110,6 +111,38 @@ public interface UserKeyControllerDoc {
 	public ResponseEntity<CommonResponse<?>> deleteOneTimeKey(
 			@Parameter(description = "One-time key database ID") @PathVariable Long id);
 
+	@Operation(
+	        summary = "Get remaining unused one-time keys count",
+	        description = "Returns the number of unused one-time keys for the specified identity key "
+	                    + "belonging to the authenticated user."
+	)
+	@ApiResponses(value = {
+	        @ApiResponse(
+	                responseCode = "200",
+	                description = "Successfully retrieved count of unused one-time keys",
+	                content = @Content(
+	                        mediaType = "application/json",
+	                        schema = @Schema(implementation = CommonResponse.class)
+	                )
+	        ),
+	        @ApiResponse(
+	                responseCode = "404",
+	                description = "Identity key not found",
+	                content = @Content(
+	                        mediaType = "application/json",
+	                        schema = @Schema(implementation = CommonResponse.class)
+	                )
+	        ),
+	        @ApiResponse(
+	                responseCode = "500",
+	                description = "Internal server error",
+	                content = @Content
+	        )
+	})
+	public ResponseEntity<CommonResponse<Integer>> getCountOneTimeKeys(
+	        @Parameter(description = "The identity key whose remaining unused one-time keys are requested")
+	        @PathVariable String identityKey);
+	
 	@Operation(
 		summary = "Delete multiple one-time keys",
 		description = "Deletes multiple one-time keys by their IDs.",

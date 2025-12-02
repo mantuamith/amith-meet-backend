@@ -2,6 +2,7 @@ package com.algomeet.authservice.controller;
 
 import java.util.UUID;
 
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -22,6 +23,7 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequestMapping("/auth/user-profiles")
 @RequiredArgsConstructor
+@SecurityRequirement(name = "bearerAuth")
 public class UserProfileController implements UserProfileControllerDoc{	
 	private final UserProfileService userProfileService;
 

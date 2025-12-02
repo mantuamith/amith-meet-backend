@@ -20,6 +20,7 @@ import com.algomeet.signalingservice.dto.UserOneTimeKeyResponse;
 import com.algomeet.signalingservice.entity.UserIdentityKey;
 import com.algomeet.signalingservice.entity.UserIdentityKeyId;
 import com.algomeet.signalingservice.entity.UserOneTimeKey;
+import com.algomeet.signalingservice.exceptions.DeviceIdAlreadyExistsException;
 import com.algomeet.signalingservice.exceptions.IdentityKeyAlreadyExistsException;
 import com.algomeet.signalingservice.exceptions.OneTimeKeyAlreadyExistsException;
 import com.algomeet.signalingservice.exceptions.OneTimeKeysReservedMaxLimitExceededException;
@@ -41,8 +42,8 @@ public class UserKeyService {
     private int reservedOneTimeKeysMaxLimit;
 
     public UserIdentityKeyResponse registerUserIdentity(UUID userKey, UserIdentityKeyRequest request) {
-    	if (userIdentityRepo.findById(new UserIdentityKeyId(userKey, request.getIdentityKey())).isPresent()) {    		
-    		throw new IdentityKeyAlreadyExistsException("User key and Identity key already exists");
+    	if (userIdentityRepo.findByIdUserKeyAndDeviceId(userKey, request.getDeviceId()).isPresent()) {    		
+    		throw new DeviceIdAlreadyExistsException("User key and device ID already exists");
     	}	    	
     	
         UserIdentityKey userIdentityKey = new UserIdentityKey();
@@ -77,9 +78,9 @@ public class UserKeyService {
                 .orElseThrow(() -> new RecordNotFoundException("User key not found"));
         
         // Check if reserved keys max limit did not exceed
-        List<UserOneTimeKey> allUserOnetimeKeys = oneTimeRepo.findByUserKey(userKey);         
-        if (allUserOnetimeKeys != null && allUserOnetimeKeys.size() > reservedOneTimeKeysMaxLimit) {
-        	throw new OneTimeKeysReservedMaxLimitExceededException("Number of user reserved one time keys max limit exceeded");
+        Integer count = oneTimeRepo.countByUserKeyAndIdentityKeyAndUsedFalse(userKey, identityKey);        
+        if (count != null && count > reservedOneTimeKeysMaxLimit) {
+        	throw new OneTimeKeysReservedMaxLimitExceededException("Number of user's reserved one time keys per device exceeded the max limit");
         }        
         
         List<UserOneTimeKey> onetimeKeys = new ArrayList<>();
@@ -129,7 +130,7 @@ public class UserKeyService {
     	
     	UserIdentityAndOneTimeKeysResponse response = new UserIdentityAndOneTimeKeysResponse();
     	response.setUserKey(userKey);
-    	response.setKeys(new ArrayList<>());
+    	response.setDevices(new ArrayList<>());
     	for (UserIdentityKey userIdentityKey : userIdentityKeys) {
     		Optional<UserOneTimeKey> oneTimeKeyOpt = oneTimeRepo.findFirstByUserKeyAndIdentityKeyAndUsedFalse(userKey, userIdentityKey.getId().getIdentityKey());
 
@@ -151,7 +152,7 @@ public class UserKeyService {
     			usedOneTimeKey.setUsed(true);
     			oneTimeRepo.save(usedOneTimeKey);
 
-    			response.getKeys().add(UserIdentityAndOneTimeKeyResponse.builder()
+    			response.getDevices().add(UserIdentityAndOneTimeKeyResponse.builder()
     					.deviceId(userIdentityKey.getDeviceId())
     					.identityKey(userIdentityKey.getId().getIdentityKey())
     					.oneTimeKey(oneTimeKey)
@@ -178,6 +179,42 @@ public class UserKeyService {
                         .updatedAt(k.getUpdatedAt())
                         .build())
                 .collect(Collectors.toList());
+    }
+    
+    public UserOneTimeKeyResponse getOneTimeKey(UUID userKey, String identityKey) {
+    	userIdentityRepo.findById(new UserIdentityKeyId(userKey, identityKey))
+    			.orElseThrow(() -> new RecordNotFoundException("User identity key not found"));
+    	
+    	Optional<UserOneTimeKey> oneTimeKeyOpt = oneTimeRepo.findFirstByUserKeyAndIdentityKeyAndUsedFalse(userKey, identityKey);    	
+    	UserOneTimeKeyResponse oneTimeKeyResp = null;
+    	
+    	if (oneTimeKeyOpt.isPresent()) {
+    		oneTimeKeyResp = oneTimeKeyOpt
+    				.map(k -> UserOneTimeKeyResponse.builder()
+    						.id(k.getId())
+    						.key(k.getOneTimeKey())                        
+    						.userKey(k.getUserKey()) 
+    						.identityKey(k.getIdentityKey())
+    						.used(k.isUsed())
+    						.createdAt(k.getCreatedAt())
+    						.updatedAt(k.getUpdatedAt())
+    						.build())
+    				.get();   
+
+    		// Update one time key "used" value to true
+    		UserOneTimeKey usedOneTimeKey = oneTimeKeyOpt.get();
+    		usedOneTimeKey.setUsed(true);
+    		oneTimeRepo.save(usedOneTimeKey);
+    	}
+		
+		return oneTimeKeyResp;
+    }
+    
+    public Integer getCountOneTimeKeys(UUID userKey, String identityKey) {
+    	userIdentityRepo.findById(new UserIdentityKeyId(userKey, identityKey))
+    			.orElseThrow(() -> new RecordNotFoundException("User identity key not found"));
+    	
+    	return oneTimeRepo.countByUserKeyAndIdentityKeyAndUsedFalse(userKey, identityKey);
     }
     
     public void deleteIdentityKey(UUID userKey, String identityKey) {

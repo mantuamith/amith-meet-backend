@@ -15,5 +15,18 @@ import lombok.NoArgsConstructor;
 public class UserIdentityAndOneTimeKeysResponse {
     private UUID userKey;
     
-    private List<UserIdentityAndOneTimeKeyResponse> keys;    
+    @Deprecated // deprecated to improve context meaning
+    private List<UserIdentityAndOneTimeKeyResponse> keys;   
+    
+    private List<UserIdentityAndOneTimeKeyResponse> devices;
+
+    @Deprecated
+	public List<UserIdentityAndOneTimeKeyResponse> getKeys() {
+		return devices;
+	}
+
+	@Deprecated
+	public void setKeys(List<UserIdentityAndOneTimeKeyResponse> keys) {
+		this.devices = keys;
+	}    
 }
