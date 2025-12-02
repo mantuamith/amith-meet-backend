@@ -25,6 +25,7 @@
     <module>meeting-service</module>
     <module>control-service</module>
     <module>signal-service</module>
+    <module>opaque-service</module>
   </modules>
 
   <properties>
