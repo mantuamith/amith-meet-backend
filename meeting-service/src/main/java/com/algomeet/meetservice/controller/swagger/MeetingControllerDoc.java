@@ -23,6 +23,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 
 import java.util.List;
@@ -405,7 +406,8 @@ public interface MeetingControllerDoc {
             @org.springframework.web.bind.annotation.RequestParam(required = false) String name,
             @RequestParam(required = false) String password,
             HttpServletRequest request,
-            HttpServletResponse response
+            HttpServletResponse response,
+            @RequestBody OpenJoinRequest req
     );
 
     // ---------- PING ----------
