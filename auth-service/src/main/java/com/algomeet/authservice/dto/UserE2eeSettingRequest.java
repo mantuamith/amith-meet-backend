@@ -25,7 +25,7 @@ public class UserE2eeSettingRequest {
     private Boolean passcodeConfigured; 
     
     /**
-     * PIN/ device secret Argon2 configuration
+     * (PIN, passcode, device secret) Argon2 configuration
      */
     @Valid
     private Argon2Config argon2Config;
