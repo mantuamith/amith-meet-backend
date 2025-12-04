@@ -11,6 +11,8 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class UserE2eeSettingResponse {
     private UUID userKey;
+    private Boolean autoSyncEnabled;   
     private Boolean pinConfigured;
-    private Boolean autoSyncEnabled;
+    private Boolean passcodeConfigured; 
+    private Argon2Config argon2Config;
 }

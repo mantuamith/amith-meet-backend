@@ -52,10 +52,20 @@ public class UserE2eeSettingController {
         	if (request.getPinConfigured() != null) {
         		setting.setPinConfigured(request.getPinConfigured());
         	}
+        	
+        	if (request.getPasscodeConfigured() != null) {
+        		setting.setPasscodeConfigured(request.getPasscodeConfigured());
+        	}
+        	
+        	if (request.getArgon2Config() != null) {
+        		setting.setArgon2Config(request.getArgon2Config());
+        	}
         } else {
         	setting.setUserKey(userKey);
         	setting.setAutoSyncEnabled(request.getAutoSyncEnabled());
         	setting.setPinConfigured(request.getPinConfigured());
+        	setting.setPasscodeConfigured(request.getPasscodeConfigured());
+        	setting.setArgon2Config(request.getArgon2Config());
         }
 
         UserE2eeSetting saved = repository.save(setting);
@@ -77,7 +87,9 @@ public class UserE2eeSettingController {
         return new UserE2eeSettingResponse(
                 entity.getUserKey(),
                 entity.getAutoSyncEnabled(),
-                entity.getPinConfigured()
+                entity.getPinConfigured(),
+                entity.getPasscodeConfigured(),
+                entity.getArgon2Config()
         );
     }
 }
