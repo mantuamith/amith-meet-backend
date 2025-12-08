@@ -1,8 +1,7 @@
 package com.algomeet.authservice.controller;
 
-import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -16,6 +15,8 @@ import com.algomeet.authservice.dto.UserE2eeSettingResponse;
 import com.algomeet.authservice.enums.ResponseCode;
 import com.algomeet.authservice.service.UserE2eeSettingService;
 import com.algomeet.authservice.util.SecurityUtil;
+
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 
 /**
  * REST controller for managing End-to-End Encryption (E2EE) user settings.
@@ -82,7 +83,7 @@ public class UserE2eeSettingController implements UserE2eeSettingControllerDoc{
     @Override
     @PostMapping
     public ResponseEntity<CommonResponse<UserE2eeSettingResponse>> createOrUpdate(
-            @RequestBody UserE2eeSettingRequest request) {
+           @Validated @RequestBody UserE2eeSettingRequest request) {
         UserE2eeSettingResponse updated = service.createOrUpdateUserSetting(SecurityUtil.getUserKey(), request);
         return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, updated));
     }

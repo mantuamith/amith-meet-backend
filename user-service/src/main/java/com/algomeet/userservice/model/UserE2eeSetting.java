@@ -2,7 +2,11 @@ package com.algomeet.userservice.model;
 
 import java.util.UUID;
 
+import com.algomeet.userservice.converter.Argon2ConfigConverter;
+import com.algomeet.userservice.dto.Argon2Config;
+
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
@@ -35,7 +39,20 @@ public class UserE2eeSetting {
      * Used as flag if PIN was configured by the user.
      */
     @Column(nullable = false)
-    private Boolean pinConfigured;   
+    private Boolean pinConfigured; 
+    
+    /**
+     * Used as flag if passcode was configured by the user.
+     */
+    @Column(nullable = false)
+    private Boolean passcodeConfigured;  
+    
+    /**
+     * PIN Argon2 parameters configuration
+     */
+    @Column(columnDefinition = "VARCHAR(512)")
+    @Convert(converter = Argon2ConfigConverter.class)
+    private Argon2Config argon2Config;
     
     /**
      * Ensure default is applied before saving if not explicitly set.
@@ -48,6 +65,10 @@ public class UserE2eeSetting {
         
         if (pinConfigured == null) {
         	pinConfigured = false;
+        }
+        
+        if (passcodeConfigured == null) {
+        	passcodeConfigured = false;
         }
     } 
 }
