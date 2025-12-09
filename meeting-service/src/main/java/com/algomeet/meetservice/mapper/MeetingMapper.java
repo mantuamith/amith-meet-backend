@@ -29,6 +29,7 @@ public  class MeetingMapper {
             m.getMeetingStartTime(),
             m.getMeetingEndTime(),
             roomToDto(m.getRoom()),
+            m.getHostName(),
             m.getMeetingName(),
             m.getMeetingDescription(),
             m.isLobbyEnabled(),

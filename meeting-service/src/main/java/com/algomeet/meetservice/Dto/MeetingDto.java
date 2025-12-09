@@ -12,6 +12,7 @@ public record MeetingDto(
     Instant meetingStartTime,
     Instant meetingEndTime,
     RoomDto room,
+    String hostName,
     String meetingName,
     String meetingDescription,
     boolean lobbyEnabled,
