@@ -1,7 +1,12 @@
 // dto/RegisterInitRequest.java
 package com.algomeet.authservice.dto;
 
+import org.springframework.security.access.AccessDeniedException;
+
 import com.algomeet.authservice.enums.DeviceType;
+import com.algomeet.authservice.enums.UserRole;
+import com.algomeet.authservice.util.SecurityUtil;
+
 //import com.algomeet.authservice.enums.VerificationType; // EMAIL or SMS
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Email;
@@ -11,7 +16,7 @@ import jakarta.validation.constraints.Pattern;
 import lombok.Data;
 
 @Data
-public class RegisterInitRequest {
+public class RegisterInitRequest implements SecuredDto{
     @NotBlank private String username;
 
     @Email private String email;                 // optional (email or phone required)
@@ -35,10 +40,27 @@ public class RegisterInitRequest {
     
     private String role;
     private Integer tenantId;
+    
+    /** User preferred language */
+    private String lang;
 
     @AssertTrue(message = "Either email or phone must be provided")
     public boolean isContactProvided() {
         return (email != null && !email.isBlank()) ||
                 (phone != null && !phone.isBlank());
     }
+
+	@Override
+	public void secured() {
+		if (!SecurityUtil.isUserHasAdminRole()) {
+			setRole(UserRole.ROLE_USER.name()); 
+			setTenantId(null); // Use default tenant Id			
+		}
+		
+		if (role != null 
+				&& (UserRole.ROLE_SA.name().equals(role.trim().toUpperCase())
+						|| "SA".equals(role.trim().toUpperCase()))){
+			throw new AccessDeniedException("Not allowed to create user with SA role");
+		}
+	}
 }

@@ -6,11 +6,14 @@ import lombok.RequiredArgsConstructor;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 import com.algomeet.multitenancy.context.TenantContext;
+import com.algomeet.notificationservice.controller.swagger.NotificationControllerDoc;
 import com.algomeet.notificationservice.dto.PushNotificationRequest;
 import com.algomeet.notificationservice.enums.ResponseCode;
 import com.algomeet.notificationservice.publisher.NotificationStreamPublisher;
@@ -24,15 +27,22 @@ import jakarta.validation.Valid;
 @RestController
 @RequestMapping("/")
 @RequiredArgsConstructor
-public class NotificationController {
+public class NotificationController implements NotificationControllerDoc{
 
     private final NotificationStreamPublisher notificationPublisher;
     
     @Autowired
     private ObjectMapper objectMapper;
+    
+    @Value("${push-notification.endpoint.enabled:false}")
+    private Boolean isPushNotificationEndpointEnabled;
 
     @PostMapping("notifications/push")
     public ResponseEntity<? extends CommonResponse<?>> create(@RequestBody @Valid PushNotificationRequest notificationRequest) throws JsonProcessingException {    	
+    	if (!isPushNotificationEndpointEnabled) {
+    		return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(CommonResponse.from(ResponseCode.USER_NOTIFICATION_ENDPOINT_DISABLED)); 
+    	}
+    	
     	if (!(StringUtils.hasLength(notificationRequest.getId()))) {
     		notificationRequest.setId(UUID.randomUUID().toString());
     	}

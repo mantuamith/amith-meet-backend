@@ -31,6 +31,20 @@ public class SecurityConfig {
                         .requestMatchers("/auth/**").permitAll()
                         .requestMatchers("/api/meetings/open/**").permitAll()   // allow open meetings
                         .requestMatchers("/api/meetings/**").authenticated()
+                        
+                        // Swagger - start
+                        .requestMatchers("/swagger-ui.html").permitAll() 
+                        .requestMatchers("/swagger-ui/index.html").permitAll()   
+                        .requestMatchers("/swagger-ui/swagger-ui.css").permitAll()  
+                        .requestMatchers("/swagger-ui/index.css").permitAll()  
+                        .requestMatchers("/swagger-ui/swagger-ui-bundle.js").permitAll()  
+                        .requestMatchers("/swagger-ui/swagger-ui-standalone-preset.js").permitAll()  
+                        .requestMatchers("/swagger-ui/swagger-initializer.js").permitAll()  
+                        .requestMatchers("/swagger-ui/favicon-32x32.png").permitAll()  
+                        .requestMatchers("/swagger-ui/favicon-16x16.png").permitAll()  
+                        .requestMatchers("/v3/api-docs/swagger-config").permitAll() 
+                        .requestMatchers("/v3/api-docs").permitAll() 
+                        // Swagger - end  
                         .anyRequest().denyAll()
                 )
                 .sessionManagement(sm -> sm
@@ -51,7 +65,8 @@ public class SecurityConfig {
                 "http://localhost:3000",
                 "https://localhost:8080",
                 "http://localhost:8080",   // all localhost ports
-                "https://*.algoframe.in" // any subdomain of algoframe.in
+                "https://*.algoframe.in",
+                "https://meet.algoframe.local" // any subdomain of algoframe.in
         ));
 
         // Allowed methods

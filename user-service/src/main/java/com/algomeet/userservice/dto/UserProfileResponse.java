@@ -31,5 +31,6 @@ public class UserProfileResponse {
     private String phone;
     private String role;
     private Integer tenantId;
+    private String lang;
     
 }

@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.util.AntPathMatcher;
@@ -18,7 +19,10 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
+
+import static com.algomeet.authservice.enums.ResponseCode.AUTH_SESSION_REVOKED;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -41,7 +45,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 || "OPTIONS".equalsIgnoreCase(request.getMethod());
     }
 
-    @Override
+	@Override
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
                                     FilterChain chain)
@@ -72,6 +76,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 String email = jwtUtil.extractEmail(token);
                 String tokenSid = jwtUtil.extractSid(token);
                 String userKey = jwtUtil.extractUserKey(token);
+                String role = jwtUtil.extractRole(token);
+                Integer tenantId = jwtUtil.extractTenantId(token);
 
                 if (email == null || tokenSid == null) {
                     unauthorized(response);
@@ -88,10 +94,26 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 }
 
                 // 2d) All good → set Authentication (principal=email)
-                var auth = new UsernamePasswordAuthenticationToken(email, null, Collections.emptyList());
+                List<GrantedAuthority> authorities = Collections.emptyList();
+                if (role != null) {                	
+                	authorities = List.of(new GrantedAuthority () {
+            			@Override
+            			public String getAuthority() {
+            				if (!role.toUpperCase().startsWith("ROLE_")) {
+            					return "ROLE_" + role;
+            				}
+            				
+            				return role;
+            			}
+            		});
+                }
+                        
+                @SuppressWarnings("serial")
+				var auth = new UsernamePasswordAuthenticationToken(email, null, authorities);
                 auth.setDetails(Map.of(
                         "user_key", userKey,
-                        "sid", tokenSid));
+                        "sid", tokenSid,
+                        "tenantId", tenantId));
                 SecurityContextHolder.getContext().setAuthentication(auth);
 
             } catch (Exception ex) {

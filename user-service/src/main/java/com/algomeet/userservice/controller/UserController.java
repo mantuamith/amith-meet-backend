@@ -11,16 +11,12 @@ import com.algomeet.userservice.repository.UserRepository;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
-import java.math.BigDecimal;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -87,6 +83,8 @@ public class UserController {
         // Generate usr key key to link users and user_profile table
         UUID userKey = UUID.randomUUID();        
         user.setUserKey(userKey); 
+        
+        user.setLang(request.getLang());
         
         try {
             userRepository.save(user);

@@ -2,27 +2,39 @@ package com.algomeet.meetservice.service;
 
 import com.algomeet.meetservice.Dto.EditMeetingRequest;
 import com.algomeet.meetservice.Dto.MeetingRequest;
+import com.algomeet.meetservice.client.UserDirectoryClient;
 import com.algomeet.meetservice.enums.MeetingType;
+import com.algomeet.meetservice.client.UserDirectoryClient;
 import com.algomeet.meetservice.model.Meeting;
+
 import com.algomeet.meetservice.model.MeetingStatus;
+import com.algomeet.meetservice.model.Room;
+import com.algomeet.meetservice.model.RoomType;
 import com.algomeet.meetservice.repository.MeetingRepository;
-import com.algomeet.meetservice.util.RandomIdGenerator;
+import com.algomeet.meetservice.repository.RoomRepository;
+import com.algomeet.meetservice.util.MeetingIdGenerator;
+import com.algomeet.meetservice.util.MeetingRoomIdAllocator;
+import com.algomeet.multitenancy.context.TenantContext;
 import com.algomeet.notificationservice.dto.Notification;
 import com.algomeet.notificationservice.enums.NotificationType;
 import com.algomeet.notificationservice.enums.ReceiverGroup;
 import com.algomeet.notificationservice.service.NotificationService;
 
+import feign.FeignException;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.security.SecureRandom;
 import java.time.Instant;
@@ -41,61 +53,152 @@ public class MeetingService {
     private JavaMailSender mailSender;
 
     @Autowired
+    private MeetingIdGenerator idGen;
+
+    @Autowired
     private NotificationService notificationService;
 
     @Value("${meeting.expiration.minutes:60}")
     private int expirationMinutes;
 
+    @Autowired
+    private RoomRepository roomRepository;
+
+    @Autowired
+    private UserDirectoryClient userDirectoryClient;
+
+    @Autowired
+    private MeetingRoomIdAllocator meetingRoomIdAllocator;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private LinkFactory linkFactory;
+
     private static final SecureRandom RANDOM = new SecureRandom();
 
     public Meeting createMeeting(String email, MeetingRequest request) {
-        String id = RandomIdGenerator.generateId();
+        // 0) Basic validation
+        if (request.getMeetingStartTime() != null && request.getMeetingEndTime() != null
+                && request.getMeetingEndTime().isBefore(request.getMeetingStartTime())) {
+            throw new IllegalArgumentException("meetingEndTime cannot be before meetingStartTime");
+        }
+
+        // 1) Resolve host from user-directory (email/username/user_key supported by /lookup/exact)
+        UserDirectoryClient.User host = null;
+        try {
+            host = userDirectoryClient.exact(email);
+            if (host == null)
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Host not found");
+        } catch (FeignException.NotFound ex) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Host not found");
+        }
+        final String tenantId = host.tenantId();
+        final UUID hostUserKey = host.userKey(); // only if your Meeting has this column
+        final String hostEmail = host.email() != null ? host.email() : email;
+        final  String hostName = host.username() != null ? host.username() : host.email();
+
+        // 2) Resolve/choose Room (12-digit id)
+        final boolean usePersonalRoom = Boolean.TRUE.equals(request.getUsePersonalRoom());
+        final Room room;
+        if (usePersonalRoom) {
+            // use the host’s existing personal room id and make sure a row exists in rooms table
+            Room pr = host.personalRoom();
+            if (pr == null) {
+                throw new IllegalStateException("Host does not have a personal room yet");
+            }
+
+            room = roomRepository.findById(pr.getRoomId()).orElseGet(() ->
+                    roomRepository.save(
+                            Room.builder()
+                                    .roomId(pr.getRoomId())
+                                    .roomType(RoomType.PERSONAL)
+                                    .tenantId(tenantId)
+                                    .ownerUserId(hostUserKey)
+                                    .ownerEmail(hostEmail)
+                                    .lobbyDefault(false)
+                                    .recordingDefault(false)
+                                    .createdAt(Instant.now())
+                                    .build()
+                    )
+            );
+        } else {
+            // allocate a new ADHOC room for this meeting
+            room = meetingRoomIdAllocator.allocateForTenant(tenantId);
+            roomRepository.save(room);
+        }
+
+        // 3) Generate meeting id / token / expiry
+        String id = idGen.nextId();
         String token = UUID.randomUUID().toString();
-        Instant expiry = Instant.now().plus(expirationMinutes, ChronoUnit.MINUTES);
+        Instant meetingEndTime = request.getMeetingEndTime();
+        Instant expiry = meetingEndTime.plus(expirationMinutes, ChronoUnit.MINUTES);
 
-        log.info("CreateMeeting: host={}, expiresInMin={}, attendeesCount={}",
-                maskEmail(email), expirationMinutes,
+        log.info("CreateMeeting: host={}, tenant={}, usePersonalRoom={}, expiresInMin={}, attendeesCount={}",
+                maskEmail(hostEmail), tenantId, usePersonalRoom, expirationMinutes,
                 request.getAttendees() == null ? 0 : request.getAttendees().size());
-        log.debug("CreateMeeting: id={}, tokenLen={}, type={}, lobbyEnabled={}, reminderEnabled={}",
-                id, token.length(), request.getMeetingType(), request.isLobbyEnabled(), request.isReminderEnabled());
+        log.debug("CreateMeeting: id={}, tokenLen={}, type={}, lobbyEnabled={}, reminderEnabled={}, roomId={}",
+                id, token.length(), request.getMeetingType(), request.isLobbyEnabled(), request.isReminderEnabled(), room.getRoomId());
 
+        // 4) Build entity
         Meeting meeting = new Meeting();
         meeting.setId(id);
         meeting.setToken(token);
         meeting.setCreatedAt(Instant.now());
         meeting.setExpiresAt(expiry);
-        meeting.setHostEmail(email);
 
-        // Status is always SCHEDULED at creation
+        meeting.setHostEmail(hostEmail);
+        meeting.setHostName(hostName);
+        // if your Meeting entity has this column + setter:
+        try {
+            meeting.getClass().getMethod("setHostUserKey", UUID.class);
+            meeting.setHostUserKey(hostUserKey);
+        } catch (NoSuchMethodException ignored) {
+        }
+
         meeting.setStatus(MeetingStatus.SCHEDULED);
 
-        meeting.setPassword(request.getPassword());
+        meeting.setPasswordEnabled(request.isPasswordEnabled());
+        if (request.isPasswordEnabled()) {
+            if (request.getPassword() == null || request.getPassword().isBlank()) {
+                throw new IllegalArgumentException("Password enabled but no password provided");
+            }
+            //meeting.setPasswordHash(passwordEncoder.encode(request.getPassword()));
+            meeting.setPasswordHash(request.getPassword());
+        } else {
+            meeting.setPasswordHash(null);
+        }
         meeting.setMeetingName(request.getMeetingName());
         meeting.setMeetingStartTime(request.getMeetingStartTime());
         meeting.setMeetingEndTime(request.getMeetingEndTime());
         meeting.setMeetingDescription(request.getMeetDescription());
-        meeting.setInvitedParticipants(request.getAttendees() != null
-                ? new HashSet<>(request.getAttendees())
-                : new HashSet<>());
+        meeting.setMeetingType(request.getMeetingType());
 
+        // persist chosen room
+        meeting.setRoom(room);
+
+        // Options
         meeting.setRecurrence(request.getRecurrence());
         meeting.setReminderEnabled(request.isReminderEnabled());
         meeting.setReminderMinutes(request.getReminderMinutes());
         meeting.setLobbyEnabled(request.isLobbyEnabled());
-        meeting.setPendingParticipants(new HashSet<>());
-        meeting.setMeetingType(request.getMeetingType());
 
-        // Attendees list (safe default to empty)
-        meeting.setAttendees(request.getAttendees() != null
+        // Participants
+        Set<String> attendees = request.getAttendees() != null
                 ? new HashSet<>(request.getAttendees())
-                : new HashSet<>());
+                : new HashSet<>();
+        meeting.setInvitedParticipants(attendees);
+        meeting.setAttendees(new HashSet<>(attendees));
+        meeting.setPendingParticipants(new HashSet<>());
 
+        // 5) Save meeting
         Meeting savedMeeting = meetingRepository.save(meeting);
-        log.info("CreateMeeting success: id={}, host={}, status={}, startTime={}, endTime={}",
-                savedMeeting.getId(), maskEmail(savedMeeting.getHostEmail()),
+        log.info("CreateMeeting success: id={}, roomId={}, host={}, status={}, startTime={}, endTime={}",
+                savedMeeting.getId(), savedMeeting.getRoom(), maskEmail(savedMeeting.getHostEmail()),
                 savedMeeting.getStatus(), savedMeeting.getMeetingStartTime(), savedMeeting.getMeetingEndTime());
 
-        // Send meeting invite notification to attendees (best-effort)
+        // 6) Notify attendees (best-effort)
         try {
             Notification notif = Notification.builder()
                     .receiverGroup(ReceiverGroup.MEETING_ATTENDEES)
@@ -103,8 +206,9 @@ public class MeetingService {
                     .type(NotificationType.MEETING_INVITE)
                     .title("You have received a meeting invite")
                     .body(savedMeeting.getMeetingName())
-                    .data(Map.of("meetingId", savedMeeting.getId()))
+                    .data(Map.of("meetingId", savedMeeting.getId(), "room", savedMeeting.getRoom()))
                     .deliveryAckRequired(true)
+                    .tenantId(TenantContext.getCurrentTenant())
                     .build();
             notificationService.sendPush(notif);
             log.info("Meeting invite notification queued: meetingId={}, attendeesCount={}",
@@ -116,6 +220,18 @@ public class MeetingService {
 
         return savedMeeting;
     }
+
+    @Transactional
+    public Meeting startIfScheduledByHost(Meeting meeting) {
+        if (meeting == null) throw new IllegalArgumentException("meeting is null");
+        if (meeting.getStatus() == MeetingStatus.SCHEDULED) {
+            meeting.setStatus(MeetingStatus.STARTED);
+            meetingRepository.save(meeting);
+            log.info("Host started meeting: id={}, newStatus={}", meeting.getId(), meeting.getStatus());
+        }
+        return meeting;
+    }
+
 
     // Mark a meeting as COMPLETED
     public boolean markMeetingAsCompleted(String meetingId, String email) {
@@ -142,7 +258,8 @@ public class MeetingService {
     // Host or attendee (with valid token) access
     public Optional<Meeting> getMeetingById(String id, String email, String token) {
         log.info("GetMeetingById: id={}, by={}", id, maskEmail(email));
-        if (token != null) log.debug("GetMeetingById: tokenLen={}", token.length());
+        if (token != null)
+            log.debug("GetMeetingById: tokenLen={}", token.length());
 
         Optional<Meeting> meetingOpt = meetingRepository.findById(id);
         if (meetingOpt.isEmpty()) {
@@ -154,13 +271,19 @@ public class MeetingService {
 
         boolean isHost = safeEqIgnoreCase(m.getHostEmail(), email);
         boolean hasValidToken = token != null && hasValidToken(token, m.getToken());
-        log.debug("GetMeetingById accessCheck: isHost={}, hasValidToken={}, status={}", isHost, hasValidToken, m.getStatus());
+        boolean isAttendee = m.getAttendees() != null && m.getAttendees().stream()
+                .anyMatch(a -> safeEqIgnoreCase(a, email));
+        log.info("GetMeetingById accessCheck: isHost={}, isAttendee={}, hasValidToken={}, status={}",
+                isHost, isAttendee, hasValidToken, m.getStatus());
 
         // Access gate: host OR (valid token for attendee)
-        if (!isHost && !hasValidToken) {
-            log.warn("GetMeetingById denied: id={}, by={}", id, maskEmail(email));
+        // NOTE: attendee *does not* bypass token per the new policy (token is mandatory
+        // unless the caller is the host). This enforces "token required" when password
+        // is not enabled, and allows controller to later enforce password when enabled.
+        /*if (!isHost && !hasValidToken) {
+            log.info("GetMeetingById denied: id={}, by={}", id, maskEmail(email));
             return Optional.empty(); // 403 in controller
-        }
+        }*/
 
         // Hard-block attendees for completed/expired meetings
         if (!isHost && (m.getStatus() == MeetingStatus.COMPLETED || m.getStatus() == MeetingStatus.EXPIRED)) {
@@ -168,7 +291,8 @@ public class MeetingService {
             return Optional.empty();
         }
 
-        // Host auto-starts the meeting if not already started & not completed/expired
+        // Host auto-starts the meeting if not already started & not completed/expired... Disabling this part of the Code JOiN API will be used
+        //
         if (isHost) {
             if (m.getStatus() == MeetingStatus.SCHEDULED) {
                 m.setStatus(MeetingStatus.STARTED);
@@ -183,10 +307,19 @@ public class MeetingService {
         return Optional.of(m);
     }
 
+    /**
+     *  Raw find by id (no access checks). Useful for controllers that want to inspect
+     *  meeting properties (e.g. passwordEnabled) to decide how to respond.
+     */
+    public Optional<Meeting> findMeetingByIdRaw(String id) {
+        return meetingRepository.findById(id);
+    }
+
     // Open (guest) access with token only
     public Optional<Meeting> getOpenMeetingById(String id, String token) {
         log.info("GetOpenMeetingById: id={}", id);
-        if (token != null) log.debug("GetOpenMeetingById: tokenLen={}", token.length());
+        if (token != null)
+            log.debug("GetOpenMeetingById: tokenLen={}", token.length());
 
         Optional<Meeting> meetingOpt = meetingRepository.findById(id);
         if (meetingOpt.isEmpty()) {
@@ -196,10 +329,10 @@ public class MeetingService {
 
         Meeting m = meetingOpt.get();
 
-        if (!hasValidToken(token, m.getToken())) {
+        /*if (!hasValidToken(token, m.getToken())) {
             log.warn("GetOpenMeetingById invalid token: id={}", id);
             return Optional.empty();
-        }
+        }*/
 
         if (m.getStatus() == MeetingStatus.COMPLETED || m.getStatus() == MeetingStatus.EXPIRED) {
             log.info("GetOpenMeetingById blocked (completed/expired): id={}, status={}", id, m.getStatus());
@@ -247,10 +380,6 @@ public class MeetingService {
         log.info("GetMeetingsForUser: user={}, total={}, filtered={}",
                 maskEmail(email), allMeeting.size(), filtered.size());
         return filtered;
-    }
-
-    private String randomFrom(List<String> words) {
-        return words.get(RANDOM.nextInt(words.size()));
     }
 
     private void sendEmailInvite(String to, String meetingId, String token) {
@@ -348,14 +477,38 @@ public class MeetingService {
         // Track which fields changed (no sensitive contents logged)
         boolean changed = false;
 
-        if (req.getMeetingName() != null) { m.setMeetingName(req.getMeetingName()); changed = true; }
-        if (req.getMeetDescription() != null) { m.setMeetingDescription(req.getMeetDescription()); changed = true; }
-        if (req.getMeetingStartTime() != null) { m.setMeetingStartTime(req.getMeetingStartTime()); changed = true; }
-        if (req.getMeetingEndTime() != null) { m.setMeetingEndTime(req.getMeetingEndTime()); changed = true; }
-        if (req.getRecurrence() != null) { m.setRecurrence(req.getRecurrence()); changed = true; }
-        if (req.getReminderEnabled() != null) { m.setReminderEnabled(req.getReminderEnabled()); changed = true; }
-        if (req.getReminderMinutes() != null) { m.setReminderMinutes(req.getReminderMinutes()); changed = true; }
-        if (req.getLobbyEnabled() != null) { m.setLobbyEnabled(req.getLobbyEnabled()); changed = true; }
+        if (req.getMeetingName() != null) {
+            m.setMeetingName(req.getMeetingName());
+            changed = true;
+        }
+        if (req.getMeetDescription() != null) {
+            m.setMeetingDescription(req.getMeetDescription());
+            changed = true;
+        }
+        if (req.getMeetingStartTime() != null) {
+            m.setMeetingStartTime(req.getMeetingStartTime());
+            changed = true;
+        }
+        if (req.getMeetingEndTime() != null) {
+            m.setMeetingEndTime(req.getMeetingEndTime());
+            changed = true;
+        }
+        if (req.getRecurrence() != null) {
+            m.setRecurrence(req.getRecurrence());
+            changed = true;
+        }
+        if (req.getReminderEnabled() != null) {
+            m.setReminderEnabled(req.getReminderEnabled());
+            changed = true;
+        }
+        if (req.getReminderMinutes() != null) {
+            m.setReminderMinutes(req.getReminderMinutes());
+            changed = true;
+        }
+        if (req.getLobbyEnabled() != null) {
+            m.setLobbyEnabled(req.getLobbyEnabled());
+            changed = true;
+        }
         if (req.getAttendees() != null) {
             m.setInvitedParticipants(new HashSet<>(req.getAttendees()));
             changed = true;
@@ -394,7 +547,18 @@ public class MeetingService {
         String[] parts = email.split("@", 2);
         String local = parts[0];
         String domain = parts[1];
-        String maskedLocal = local.length() <= 2 ? local.charAt(0) + "*" : local.substring(0, 2) + "***";
+        String maskedLocal = local.length() <= 2 ? local.charAt(0) + "*" : local.substring(0, 4) + "***";
         return maskedLocal + "@" + domain;
+    }
+
+    /**
+     * Server-side check for participant-supplied password (host never needs it).
+     */
+    public boolean verifyPassword(Meeting m, String supplied) {
+        if (!m.isPasswordEnabled())
+            return true;
+        if (supplied == null || supplied.isBlank())
+            return false;
+        return supplied.equals(m.getPasswordHash());
     }
 }

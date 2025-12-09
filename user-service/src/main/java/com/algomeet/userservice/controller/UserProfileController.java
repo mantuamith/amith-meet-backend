@@ -32,14 +32,7 @@ public class UserProfileController {
     	}
     	    	
     	Optional<UserProfileResponse> userProfileResponseOpt = repository.findById(id)
-                .map(this::toResponse); 
-    	
-    	UserProfileResponse userProfileResp = userProfileResponseOpt.get();
-    	userProfileResp.setEmail(userOpt.get().getEmail());
-    	userProfileResp.setPhone(userOpt.get().getPhone());
-    	userProfileResp.setUsername(userOpt.get().getUsername());  
-    	userProfileResp.setRole(userOpt.get().getRole());
-    	userProfileResp.setTenantId(userOpt.get().getTenantId());
+                .map(profile -> toResponse(profile, userOpt.get()));   	
       	
     	return userProfileResponseOpt.map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
@@ -50,11 +43,33 @@ public class UserProfileController {
     public ResponseEntity<UserProfileResponse> updateProfile(
             @PathVariable UUID id,
             @RequestBody UserProfileUpdateRequest request) {
+    	
+    	final Optional<User> userOpt = userRepository.findByUserKey(id);
+    	final User savedUser;
+    	
+    	if(userOpt.isPresent()) {
+    		User user = userOpt.get();
+    		if(request.getTenantId() != null) {
+    			user.setTenantId(request.getTenantId());
+    		}
+    		
+    		if (request.getRole() != null) {
+    			user.setRole(request.getRole());
+    		}
+    		
+    		if (request.getLang() != null) {
+    			user.setLang(request.getLang());
+    		}
+    		
+    		savedUser = userRepository.save(user);
+    	} else {
+    		return ResponseEntity.notFound().build();
+    	}
 
         return repository.findById(id)
                 .map(existing -> {
                     updateEntity(existing, request); // overwrite all
-                    return ResponseEntity.ok(toResponse(repository.save(existing)));
+                    return ResponseEntity.ok(toResponse(repository.save(existing), savedUser));
                 })
                 .orElse(ResponseEntity.notFound().build());
     }
@@ -73,7 +88,7 @@ public class UserProfileController {
         if (request.getSecurityQuestionsEnabled() != null) entity.setSecurityQuestionsEnabled(request.getSecurityQuestionsEnabled());
     }
 
-    private UserProfileResponse toResponse(UserProfile entity) {    	
+    private UserProfileResponse toResponse(UserProfile entity, User user) {       	
         return UserProfileResponse.builder()
                 .id(entity.getId())
                 .loginTypePolicy(entity.getLoginTypePolicy())
@@ -86,7 +101,14 @@ public class UserProfileController {
                 .registrationDeviceType(entity.getRegistrationDeviceType())
                 .registrationDate(entity.getRegistrationDate())
                 .passcode(entity.getPasscode())
-                .securityQuestionsEnabled(entity.getSecurityQuestionsEnabled())
+                .securityQuestionsEnabled(entity.getSecurityQuestionsEnabled())     
+                
+                .username(user.getUsername())
+                .email(user.getEmail())
+                .phone(user.getPhone())
+                .role(user.getRole())
+                .tenantId(user.getTenantId())
+                .lang(user.getLang())
                 .build();
     }
 }

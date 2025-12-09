@@ -1,8 +1,8 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
-                             http://maven.apache.org/xsd/maven-4.0.0.xsd">
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
+
     <groupId>com.example</groupId>
     <artifactId>meeting-service</artifactId>
     <version>0.0.1-SNAPSHOT</version>
@@ -19,31 +19,50 @@
 
     <properties>
         <java.version>17</java.version>
+        <testcontainers.version>1.20.2</testcontainers.version>
+        <surefire.version>3.2.5</surefire.version>
+        <failsafe.version>3.2.5</failsafe.version>
+
+        <!-- ITs are skipped by default; enable via -Pit or -DskipITs=false -->
+        <skipITs>true</skipITs>
+        <!-- default spring profile for ITs; overridden by -Dspring.profiles.active=... if needed -->
+        <spring.profiles.active>it</spring.profiles.active>
     </properties>
-	  <repositories>
-	      <repository>
-	          <id>github-mtc</id>
-	          <url>https://maven.pkg.github.com/Algoframe-Private-Limited/multi-tenancy-core</url>
-	      </repository>
-	      <repository>
-	          <id>github-notify</id>
-	          <url>https://maven.pkg.github.com/Algoframe-Private-Limited/notification-service-publish-starter</url>
-	      </repository>
-	  </repositories>
-	
-	  <dependencyManagement>
-	    <dependencies>
-	      <dependency>
-	        <groupId>org.springframework.cloud</groupId>
-	        <artifactId>spring-cloud-dependencies</artifactId>
-	        <version>2023.0.1</version> <!-- For Spring Boot 3.2.x -->
-	        <type>pom</type>
-	        <scope>import</scope>
-	      </dependency>
-	    </dependencies>
-	  </dependencyManagement>
+
+    <repositories>
+        <repository>
+            <id>github-mtc</id>
+            <url>https://maven.pkg.github.com/Algoframe-Private-Limited/multi-tenancy-core</url>
+        </repository>
+        <repository>
+            <id>github-notify</id>
+            <url>https://maven.pkg.github.com/Algoframe-Private-Limited/notification-service-publish-starter</url>
+        </repository>
+    </repositories>
+
+    <dependencyManagement>
+        <dependencies>
+            <!-- Spring Cloud BOM for Boot 3.2.x -->
+            <dependency>
+                <groupId>org.springframework.cloud</groupId>
+                <artifactId>spring-cloud-dependencies</artifactId>
+                <version>2023.0.1</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <!-- Testcontainers BOM -->
+            <dependency>
+                <groupId>org.testcontainers</groupId>
+                <artifactId>testcontainers-bom</artifactId>
+                <version>1.20.2</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 
     <dependencies>
+        <!-- App -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
@@ -57,34 +76,25 @@
             <artifactId>spring-boot-starter-mail</artifactId>
         </dependency>
         <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+        </dependency>
+
+        <!-- DBs -->
+        <dependency>
             <groupId>com.h2database</groupId>
             <artifactId>h2</artifactId>
             <scope>runtime</scope>
         </dependency>
         <dependency>
-            <groupId>jakarta.mail</groupId>
-            <artifactId>jakarta.mail-api</artifactId>
-            <version>2.1.1</version>
-        </dependency>
-        <dependency>
-            <groupId>jakarta.activation</groupId>
-            <artifactId>jakarta.activation-api</artifactId>
-            <version>2.1.1</version>
-        </dependency>
-        <dependency>
-            <groupId>org.projectlombok</groupId>
-            <artifactId>lombok</artifactId>
-        </dependency>
-        <dependency>
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>
-            <version>42.6.0</version> <!-- or any compatible version -->
-        </dependency>
-
-        <!-- Spring Security -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-security</artifactId>
+            <version>42.6.0</version>
+            <scope>runtime</scope>
         </dependency>
 
         <!-- JWT -->
@@ -105,25 +115,91 @@
             <version>0.11.5</version>
             <scope>runtime</scope>
         </dependency>
-	    <dependency>
-	        <groupId>com.algomeet</groupId>
-	        <artifactId>multi-tenancy-core</artifactId>
-	        <version>0.1.3</version>
-	    </dependency>
-	    <dependency>
-	        <groupId>com.algomeet</groupId>
-	        <artifactId>notification-service-publish-starter</artifactId>
-	        <version>0.1.6</version>
-	    </dependency>
+
+        <!-- Swagger/OpenAPI -->
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+            <version>2.5.0</version>
+        </dependency>
+
+        <!-- Internal starters -->
+        <dependency>
+            <groupId>com.algomeet</groupId>
+            <artifactId>multi-tenancy-core</artifactId>
+            <version>0.1.4</version>
+        </dependency>
+        <dependency>
+            <groupId>com.algomeet</groupId>
+            <artifactId>notification-service-publish-starter</artifactId>
+            <version>0.1.8</version>
+        </dependency>
+
+        <!-- Mail (Jakarta) -->
+        <dependency>
+            <groupId>jakarta.mail</groupId>
+            <artifactId>jakarta.mail-api</artifactId>
+            <version>2.1.1</version>
+        </dependency>
+        <dependency>
+            <groupId>jakarta.activation</groupId>
+            <artifactId>jakarta.activation-api</artifactId>
+            <version>2.1.1</version>
+        </dependency>
+
+        <!-- Lombok -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- Unit test deps -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- Testcontainers -->
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- (optional) If you plan to run PG in a container for ITs too -->
+        <!--
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>test</scope>
+        </dependency> -->
     </dependencies>
 
     <build>
         <plugins>
+            <!-- Spring Boot -->
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
             </plugin>
 
+            <!-- Compiler -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
@@ -144,6 +220,62 @@
                     </annotationProcessorPaths>
                 </configuration>
             </plugin>
+
+            <!-- Unit tests -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>${surefire.version}</version>
+                <configuration>
+                    <includes>
+                        <include>**/*Test.java</include>
+                        <include>**/*Tests.java</include>
+                    </includes>
+                    <excludes>
+                        <!-- keep ITs & /it/ package out of surefire -->
+                        <exclude>**/*IT.java</exclude>
+                        <exclude>**/it/**/*</exclude>
+                    </excludes>
+                </configuration>
+            </plugin>
+
+            <!-- Integration tests -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <version>${failsafe.version}</version>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>integration-test</goal>
+                            <goal>verify</goal>
+                        </goals>
+                        <configuration>
+                            <!-- pick ITs from src/test/java, inside .../it/, named *IT.java -->
+                            <includes>
+                                <include>**/it/**/*IT.java</include>
+                            </includes>
+                            <!-- skip unless -Pit or -DskipITs=false -->
+                            <skipITs>${skipITs}</skipITs>
+                            <!-- pass Spring profile to ITs -->
+                            <systemPropertyVariables>
+                                <spring.profiles.active>${spring.profiles.active}</spring.profiles.active>
+                            </systemPropertyVariables>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <!-- Enable with: mvn verify -Pit  (runs ITs with spring.profiles.active=it) -->
+        <profile>
+            <id>it</id>
+            <properties>
+                <skipITs>false</skipITs>
+                <spring.profiles.active>it</spring.profiles.active>
+            </properties>
+        </profile>
+    </profiles>
 </project>

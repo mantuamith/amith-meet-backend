@@ -3,6 +3,7 @@ package com.algomeet.authservice.controller;
 
 import com.algomeet.authservice.client.UserClient;
 import com.algomeet.authservice.config.AuthProperties;
+import com.algomeet.authservice.controller.swagger.AuthControllerDoc;
 import com.algomeet.authservice.dto.*;
 import com.algomeet.authservice.enums.LoginPolicy;
 import com.algomeet.authservice.enums.LoginResponseType;
@@ -19,6 +20,9 @@ import com.algomeet.authservice.policy.LoginPolicyResolver;
 import com.algomeet.authservice.policy.SingleDeviceEnforcer;
 import com.algomeet.authservice.token.RefreshTokenStore;
 import com.algomeet.authservice.util.JwtUtil;
+import com.algomeet.authservice.util.MessageUtil;
+import static com.algomeet.authservice.util.MessageUtil.wrapWithBraces;
+import com.algomeet.multitenancy.context.TenantContext;
 import com.algomeet.notificationservice.dto.Notification;
 import com.algomeet.notificationservice.enums.NotificationType;
 import com.algomeet.notificationservice.enums.ReceiverGroup;
@@ -32,6 +36,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -42,7 +47,7 @@ import java.util.Set;
 @RestController
 @RequestMapping("/auth")
 @RequiredArgsConstructor
-public class AuthController {
+public class AuthController implements AuthControllerDoc{
 
     private final AuthService authService;
     private final RefreshTokenStore refreshTokenStore;
@@ -56,32 +61,16 @@ public class AuthController {
     private final NotificationService notificationService;
 
     private final UserClient userClient;
+    private final UserProfileService userProfileService;    
 
     // ---------- Helpers (masking, safe logs) ----------
-    private String mLogin(String v){ return v == null ? "null" : v.replaceAll("^(.{2}).+(@.*)?$","$1***$2"); }
-    private String mDev(String v){ return v == null ? "null" : (v.length()<=6? "***" : v.substring(0,3)+"***"+v.substring(v.length()-3)); }
-
-    // ----------------- Registration -------------------
-    @Deprecated
-    @PostMapping("/register")
-    public ResponseEntity<?> register(@RequestBody Map<String, String> payload) {
-        final String username = payload.get("username");
-        final String email = payload.get("email");
-        // DO NOT LOG raw password
-        log.info("REGISTER: attempt username={} email={}", username, mLogin(email));
-        try {
-            UserResponse user = authService.registerUser(username, email, payload.get("password"));
-            log.info("REGISTER: success userId={} username={} email={}", user.getId(), user.getUsername(), mLogin(user.getEmail()));
-            return ResponseEntity.ok(AuthResponse.from(ResponseCode.AUTH_REGISTER_SUCCESS, user));
-        } catch (Exception e) {
-            log.error("REGISTER: failed username={} email={} error={}", username, mLogin(email), e.toString(), e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
-                    "code", ResponseCode.AUTH_REGISTER_FAILED.getCode(),
-                    "message", ResponseCode.AUTH_REGISTER_FAILED.getDefaultMessage(),
-                    "error", e.getMessage()
-            ));
-        }
+    private String mLogin(String v){
+        return v == null ? "null" : v.replaceAll("^(.{2}).+(@.*)?$","$1***$2");
     }
+    private String mDev(String v)
+    {
+        return v == null ? "null" : (v.length()<=6? "***" : v.substring(0,3)+"***"+v.substring(v.length()-3)); }
+
 
     // ----------------- Token Refresh ------------------
     @PostMapping("/refresh")
@@ -202,8 +191,9 @@ public class AuthController {
             		.type(NotificationType.USER_OFFLINE)
             		.receiverGroup(ReceiverGroup.USER_FRIENDS)
             		.receiverGroupRefId(user.getUserKey().toString())
-            		.title(user.getUsername() + " is offline")
-            		.body(user.getUsername() + " is offline")
+            		.title(wrapWithBraces(user.getUsername()) + " is offline")
+            		.body(wrapWithBraces(user.getUsername()) + " is offline")
+            		.tenantId(TenantContext.getCurrentTenant())
             		.build();
             notificationService.sendPush(notif);
             
@@ -248,7 +238,7 @@ public class AuthController {
         }
 
         AuthResponse auth = authService.validatePassword(request.getLogin(), request.getPassword());
-        if (!ResponseCode.AUTH_LOGIN_SUCCESS.getCode().equals(auth.getCode())) {
+        if (auth == null || !ResponseCode.AUTH_LOGIN_SUCCESS.getCode().equals(auth.getCode())) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials");
         }
 
@@ -263,8 +253,9 @@ public class AuthController {
                 Notification notif = Notification.builder()
                 		.type(NotificationType.LOCKED_SINGLE_DEVICE)
                 		.receiverIds(Set.of(user.getUserKey() != null ? user.getUserKey().toString() : user.getUsername()))
-                        .title("Account locked " + user.getActiveDeviceId() + " device")
-                		.body("Account locked " + user.getActiveDeviceId() + " device")
+                        .title("Account locked " + wrapWithBraces(user.getActiveDeviceId()) + " device")
+                		.body("Account locked " + wrapWithBraces(user.getActiveDeviceId()) + " device")
+                		.tenantId(TenantContext.getCurrentTenant())
                 		.build();
                 notificationService.sendPush(notif);
                 
@@ -288,14 +279,25 @@ public class AuthController {
                 
                 // Update user used to login device token
                	userClient.updateDeviceTypeAndToken(user.getId(), request.getDeviceType().name(), request.getDeviceToken());
+               	               	
+               	if (StringUtils.hasLength(request.getLang())) {
+               		// Update to user preferred language
+               		UserProfileUpdateRequest userProfileUpdateRequest = new UserProfileUpdateRequest();
+               		userProfileUpdateRequest.setLang(request.getLang());
+               		userProfileService.updateProfile(user.getUserKey(), userProfileUpdateRequest);
+               	}
                	
+                String refId = (user.getUserKey() != null)
+                        ? user.getUserKey().toString()
+                        : String.valueOf(user.getUsername());
                 // Add push notification
                 Notification notif = Notification.builder()
                 		.type(NotificationType.USER_ONLINE)
                 		.receiverGroup(ReceiverGroup.USER_FRIENDS)
-                		.receiverGroupRefId(user.getUserKey().toString())
-                		.title(user.getUsername() + " is online")
-                		.body(user.getUsername() + " is online")
+                		.receiverGroupRefId(refId)
+                		.title(wrapWithBraces(user.getUsername()) + " is online")
+                		.body(wrapWithBraces(user.getUsername()) + " is online")
+                		.tenantId(TenantContext.getCurrentTenant())
                 		.build();
                 notificationService.sendPush(notif);
                 
@@ -382,14 +384,22 @@ public class AuthController {
 
         // Update user used to login device token
         userClient.updateDeviceTypeAndToken(user.getId(), request.getDeviceType().name(), request.getDeviceToken());
+        
+        if (StringUtils.hasLength(request.getLang())) {
+       		// Update to user preferred language
+       		UserProfileUpdateRequest userProfileUpdateRequest = new UserProfileUpdateRequest();
+       		userProfileUpdateRequest.setLang(request.getLang());
+       		userProfileService.updateProfile(user.getUserKey(), userProfileUpdateRequest);
+       	}
 
         // Add push notification
         Notification notif = Notification.builder()
         		.type(NotificationType.USER_ONLINE)
         		.receiverGroup(ReceiverGroup.USER_FRIENDS)
         		.receiverGroupRefId(user.getUserKey().toString())
-        		.title(user.getUsername() + " is online")
-        		.body(user.getUsername() + " is online")
+        		.title(wrapWithBraces(user.getUsername()) + " is online")
+        		.body(wrapWithBraces(user.getUsername()) + " is online")
+        		.tenantId(TenantContext.getCurrentTenant())
         		.build();
         notificationService.sendPush(notif);    
         

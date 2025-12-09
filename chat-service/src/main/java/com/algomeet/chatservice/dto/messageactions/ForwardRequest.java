@@ -11,4 +11,8 @@ public class ForwardRequest {
     // forward to either user or group
     private String receiver; // userId
     private String groupId;  // group id
+
+    private String clientMessageId;
+
+    private Long msgForwardTimeStamp;
 }

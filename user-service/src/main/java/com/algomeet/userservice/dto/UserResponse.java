@@ -29,6 +29,8 @@ public class UserResponse {
     private Short loginTypePolicy;
 
     private Integer tenantId;
+    
+    private String lang;
 
     public UserResponse(User user) {
         this.id = user.getId();
@@ -36,13 +38,14 @@ public class UserResponse {
         this.email = user.getEmail();
         this.password = user.getPassword();
         this.loginTypePolicy = user.getLoginTypePolicy(); // <-- added
+        this.role = user.getRole();
         this.activeDeviceId = user.getActiveDeviceId();
         
         if(user.getUserKey() != null) {
         	this.userKey = user.getUserKey().toString();
         }
         
-        user.setTenantId(user.getTenantId());
-        user.setRole(user.getRole());
+        this.tenantId = user.getTenantId();
+        this.lang = user.getLang();
     }
 }

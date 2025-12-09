@@ -18,7 +18,7 @@ import com.algomeet.notificationservice.consumer.receiver.processor.ReceiverGrou
 import com.algomeet.notificationservice.consumer.receiver.processor.ReceiverGroupProcessorProvider;
 import com.algomeet.notificationservice.dto.NotificationDto;
 import com.algomeet.notificationservice.dto.NotificationMessage;
-import com.algomeet.notificationservice.dto.PublishPushMessage;
+import com.algomeet.notificationservice.dto.PublishPushMessageDto;
 import com.algomeet.notificationservice.dto.UserDto;
 import com.algomeet.notificationservice.enums.DeviceType;
 import com.algomeet.notificationservice.model.Notification;
@@ -27,8 +27,9 @@ import com.algomeet.notificationservice.publisher.PushMessagePublisher;
 import com.algomeet.notificationservice.repository.UserNativeRepository;
 import com.algomeet.notificationservice.repository.UserNotificationRepository;
 import com.algomeet.notificationservice.service.ApnsSenderService;
+import com.algomeet.notificationservice.util.NotificationMessageI18nUtil;
 import com.algomeet.notificationservice.util.UserNotificationUtil;
-import com.algomeet.notificationservice.websocket.NotificationWebSocketHandler;
+import com.algomeet.notificationservice.websocket.handler.TextWebsocketHandler;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
 
@@ -94,10 +95,13 @@ public class PushNotificationProcessor implements NotificationProcessor{
 				}
 				
 				// Save user notification
-				UserNotification userNotification = saveUserNotification(userDto.getUserKey(), notification);
+				UserNotification savedUserNotification = saveUserNotification(userDto.getUserKey(), notification);
 
 				// Add metadata such as user notification id, and notification type
-				UserNotificationUtil.addNotificationCustomData(notification, userNotification);
+				UserNotificationUtil.addNotificationCustomData(notification, savedUserNotification);
+				
+				// Translate / apply i18n to notification
+				NotificationMessageI18nUtil.i18n(notification, userDto.getLang());
 
 				// Push notification
 				if (DeviceType.IOS.name().equals(userDto.getDeviceType())
@@ -106,14 +110,14 @@ public class PushNotificationProcessor implements NotificationProcessor{
 					try {
 						boolean deliveryStatus = apnsSenderService.sendPush(userDto.getDeviceToken(), notification);
 						// Update status
-						updateDeliveryStataus(deliveryStatus, userNotification);
+						updateDeliveryStataus(deliveryStatus, savedUserNotification);
 
 					} catch (Exception e) {}
 				} else {
 					// Android and web clients
 					NotificationMessage notifMessage = NotificationMessage.getNotificationMessage(notification);
 					ObjectWriter ow = objectMapper.writer().withDefaultPrettyPrinter();
-					String jsonMessage = ow.writeValueAsString(new PublishPushMessage(userDto.getUserKey(), notifMessage));
+					String jsonMessage = ow.writeValueAsString(new PublishPushMessageDto(userDto.getUserKey(), notifMessage));
 					
 					// Publish push message to all subscribers to support multiple running instances of notification-service
 					pushMessagePublisher.publish(jsonMessage);
@@ -126,11 +130,11 @@ public class PushNotificationProcessor implements NotificationProcessor{
 	
 	public void pushMessage(String userKey, NotificationMessage notifMessage) {
 		// Android devices or web clients
-		Set<WebSocketSession> userSessions = NotificationWebSocketHandler.getAuthenticatedUserSessions()
+		Set<WebSocketSession> subcriberSessions = TextWebsocketHandler.getSessions()
 				.get(userKey);
 
-		if(!(CollectionUtils.isEmpty(userSessions))) {
-			for (WebSocketSession session : userSessions) {
+		if(!(CollectionUtils.isEmpty(subcriberSessions))) {
+			for (WebSocketSession session : subcriberSessions) {
 				send(session, notifMessage);
 			}
 		}	
@@ -193,7 +197,7 @@ public class PushNotificationProcessor implements NotificationProcessor{
 		} 
 		
 		if (!CollectionUtils.isEmpty(usernames)) {
-			receiverList.addAll(userNativeRepository.getUsersByUserNameList(rawReceiverList.stream().toList()));
+			receiverList.addAll(userNativeRepository.getUsersByUsernameList(rawReceiverList.stream().toList()));
 		} 
 		
 		return receiverList;

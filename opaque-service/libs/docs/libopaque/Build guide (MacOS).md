@@ -1,0 +1,51 @@
+Library github repo: https://github.com/stef/libopaque/
+
+Prequesites:
+
+ These bindings depend on the following:
+	- java-jdk-dev (jdk17)
+	- libsodium (libsodium-1.0.19-stable.tar.gz)
+	- liboprf (build using build doc guide under /docs/liboprt)
+
+Build Steps:
+
+  1. Run these commands in termal:
+
+	 LIBOPRF_DIR=/Users/<user>/git/algomeet-backend/opaque-service/libs/liboprf-0.9.2
+	 LIBOPAQUE_DIR=/Users/<user>/git/algomeet-backend/opaque-service/libs/libopaque-1.0.1
+	 JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-17.jdk/Contents/Home
+	 
+  2. Manually copy Java classes from "$LIBOPAQUE_DIR/java/ctrlc" to project JNI package "com/algomeet/opaqueservice/jni" 
+     
+  3. Manually update "$LIBOPAQUE_DIR/java/jni.c", change Java class packages names to "com/algomeet/opaqueservice/jni" and "com/algomeet/opaqueservice/jni/dto" 
+          
+  4. Compile libopaque sources:
+     
+	 cd $LIBOPAQUE_DIR/java
+	 
+	 cc -I/opt/homebrew/include \
+	    -I$LIBOPAQUE_DIR/src \
+	    -I$LIBOPAQUE_DIR \
+	    -I$LIBOPRF_DIR/src \
+	    -I$LIBOPRF_DIR/src/noise_xk/include \
+	    -I$LIBOPRF_DIR/src/noise_xk/include/karmel \
+	    -I$LIBOPRF_DIR/src/noise_xk/include/karmel/minimal \
+	    -I$JAVA_HOME/include/darwin \
+	    -I$JAVA_HOME/include \
+	    -fPIC -c jni.c ../src/common.c ../src/opaque.c
+
+   5. Link everything into the shared library:
+
+      cd $LIBOPAQUE_DIR/java
+
+      cc -shared \
+         -o libopaque.dylib \
+         jni.o common.o opaque.o \
+         $LIBOPRF_DIR/src/*.o \
+         $LIBOPRF_DIR/src/noise_xk/src/*.o \
+         -L/opt/homebrew/lib -lsodium
+    
+    6. Copy libopaque.dylib or libopaque.so to "src/main/resources/native"
+
+
+	

@@ -1,5 +1,6 @@
 package com.algomeet.notificationservice.controller;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -9,7 +10,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.algomeet.notificationservice.controller.swagger.UserNotificationControllerDoc;
 import com.algomeet.notificationservice.enums.ResponseCode;
+import com.algomeet.notificationservice.exceptions.RecordNotFoundException;
 import com.algomeet.notificationservice.response.CommonResponse;
 import com.algomeet.notificationservice.service.UserNotificationService;
 
@@ -18,7 +21,7 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequestMapping("/notifications/user-notifications")
 @RequiredArgsConstructor
-public class UserNotificationController {
+public class UserNotificationController implements UserNotificationControllerDoc{
 
     private final UserNotificationService userNotificationService;
 
@@ -54,22 +57,39 @@ public class UserNotificationController {
     // Mark as read
     @PatchMapping("/{id}/read")
     public ResponseEntity<? extends CommonResponse<?>> markAsRead(@PathVariable Long id) {
-    	userNotificationService.markAsRead(id);
+    	try {
+    		userNotificationService.markAsRead(id);
+    	} catch (RecordNotFoundException ex) {
+    		ResponseEntity.status(HttpStatus.NOT_FOUND.value()).body(
+    				CommonResponse.from(ResponseCode.USER_NOTIFICATION_ID_NOT_FOUND));
+    	}
+    	
         return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
     }
 
     // Mark as delivered
     @PatchMapping("/{id}/delivered")
     public ResponseEntity<? extends CommonResponse<?>> markAsDelivered(@PathVariable Long id) {
-       userNotificationService.markAsDelivered(id);
-        
-        return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
+    	try {
+    		userNotificationService.markAsDelivered(id);
+
+    	} catch (RecordNotFoundException ex) {
+    		ResponseEntity.status(HttpStatus.NOT_FOUND.value()).body(
+    				CommonResponse.from(ResponseCode.USER_NOTIFICATION_ID_NOT_FOUND));
+    	}
+    	return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
     }
 
     // Delete user notification
     @DeleteMapping("/{id}")
     public ResponseEntity<? extends CommonResponse<?>> deleteUserNotification(@PathVariable Long id) {
-        userNotificationService.deleteUserNotification(id);
-        return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
+    	try {
+    		userNotificationService.deleteUserNotification(id);
+    	} catch (RecordNotFoundException ex) {
+    		ResponseEntity.status(HttpStatus.NOT_FOUND.value()).body(
+    				CommonResponse.from(ResponseCode.USER_NOTIFICATION_ID_NOT_FOUND));
+    	}
+    	
+    	return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
     }
 }

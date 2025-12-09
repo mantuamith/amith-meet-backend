@@ -7,9 +7,11 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
 
 import java.util.List;
 
@@ -29,7 +31,37 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/contacts/**").authenticated()
+                        
+                        // Swagger - start
+                        .requestMatchers("/swagger-ui.html").permitAll() 
+                        .requestMatchers("/swagger-ui/index.html").permitAll()   
+                        .requestMatchers("/swagger-ui/swagger-ui.css").permitAll()  
+                        .requestMatchers("/swagger-ui/index.css").permitAll()  
+                        .requestMatchers("/swagger-ui/swagger-ui-bundle.js").permitAll()  
+                        .requestMatchers("/swagger-ui/swagger-ui-standalone-preset.js").permitAll()  
+                        .requestMatchers("/swagger-ui/swagger-initializer.js").permitAll()  
+                        .requestMatchers("/swagger-ui/favicon-32x32.png").permitAll()  
+                        .requestMatchers("/swagger-ui/favicon-16x16.png").permitAll()  
+                        .requestMatchers("/v3/api-docs/swagger-config").permitAll() 
+                        .requestMatchers("/v3/api-docs").permitAll() 
+                        // Swagger - end  
                         .anyRequest().permitAll()
+                )
+                .exceptionHandling(x -> x
+                        .authenticationEntryPoint((req, res, ex) -> {
+                            if (!res.isCommitted()) {
+                                res.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                                res.setContentType("application/json");
+                                res.getWriter().write("{\"code\":\"AUTH_SESSION_REVOKED\",\"message\":\"Unauthorized\"}");
+                            }
+                        })
+                        .accessDeniedHandler((req, res, ex) -> {
+                            if (!res.isCommitted()) {
+                                res.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                                res.setContentType("application/json");
+                                res.getWriter().write("{\"code\":\"ACCESS_DENIED\",\"message\":\"Access Denied\"}");
+                            }
+                        })
                 )
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

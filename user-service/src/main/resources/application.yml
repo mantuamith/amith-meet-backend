@@ -5,6 +5,8 @@ spring:
 ---
 
 spring:
+  application:
+    name: user-service
   config:
     activate:
       on-profile: local
@@ -23,9 +25,10 @@ spring:
 
 
 
-  redis:
-    host: localhost
-    port: 6379
+  data:
+    redis:
+      host: localhost
+      port: 6379
 
   jackson:
     serialization:

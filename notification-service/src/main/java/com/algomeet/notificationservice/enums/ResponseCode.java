@@ -3,7 +3,9 @@ package com.algomeet.notificationservice.enums;
 import com.algomeet.notificationservice.util.MessageUtil;
 
 public enum ResponseCode {
-    SUCCESS("0", "success");
+    SUCCESS("SUCCESS", "success"),
+	USER_NOTIFICATION_ID_NOT_FOUND("USER_NOTIFICATION_ID_NOT_FOUND", "user-notification.id.not-found"),
+	USER_NOTIFICATION_ENDPOINT_DISABLED("USER_NOTIFICATION_ENDPOINT_DISABLED", "user-notification.endpoint.disabled");
 
     private final String code;
     private final String message;
