@@ -22,7 +22,8 @@ public class Meeting {
 
     private String token;
 
-    private String hostEmail;  // Added field
+    private String hostEmail;
+    private String hostName;// Added field
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "room_id", nullable = false)

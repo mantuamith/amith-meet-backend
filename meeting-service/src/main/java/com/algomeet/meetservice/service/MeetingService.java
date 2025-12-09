@@ -97,6 +97,7 @@ public class MeetingService {
         final String tenantId = host.tenantId();
         final UUID hostUserKey = host.userKey(); // only if your Meeting has this column
         final String hostEmail = host.email() != null ? host.email() : email;
+        final  String hostName = host.username() != null ? host.username() : host.email();
 
         // 2) Resolve/choose Room (12-digit id)
         final boolean usePersonalRoom = Boolean.TRUE.equals(request.getUsePersonalRoom());
@@ -131,8 +132,8 @@ public class MeetingService {
         // 3) Generate meeting id / token / expiry
         String id = idGen.nextId();
         String token = UUID.randomUUID().toString();
-        Instant now = Instant.now();
-        Instant expiry = now.plus(expirationMinutes, ChronoUnit.MINUTES);
+        Instant meetingEndTime = request.getMeetingEndTime();
+        Instant expiry = meetingEndTime.plus(expirationMinutes, ChronoUnit.MINUTES);
 
         log.info("CreateMeeting: host={}, tenant={}, usePersonalRoom={}, expiresInMin={}, attendeesCount={}",
                 maskEmail(hostEmail), tenantId, usePersonalRoom, expirationMinutes,
@@ -144,10 +145,11 @@ public class MeetingService {
         Meeting meeting = new Meeting();
         meeting.setId(id);
         meeting.setToken(token);
-        meeting.setCreatedAt(now);
+        meeting.setCreatedAt(Instant.now());
         meeting.setExpiresAt(expiry);
 
         meeting.setHostEmail(hostEmail);
+        meeting.setHostName(hostName);
         // if your Meeting entity has this column + setter:
         try {
             meeting.getClass().getMethod("setHostUserKey", UUID.class);

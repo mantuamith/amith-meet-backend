@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
+import com.algomeet.meetservice.model.MeetingStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -46,7 +47,7 @@ public class MeetingCleanupScheduler {
      * Marks expired meetings as EXPIRED instead of deleting them.
      * Runs every 60 seconds.
      */
-    /*@Scheduled(fixedRate = 60000)
+    @Scheduled(fixedRate = 60000)
     public void markExpiredMeetings() {
         Instant now = Instant.now();
         List<Meeting> expiredMeetings = meetingRepository.findByExpiresAtBefore(now);
@@ -66,7 +67,7 @@ public class MeetingCleanupScheduler {
         });
 
         log.info("[MEETING CLEANUP] Updated {} meeting(s) to EXPIRED", expiredMeetings.size());
-    }*/
+    }
 
 
 
@@ -77,7 +78,7 @@ public class MeetingCleanupScheduler {
      *
      * TODO: In future, also notify participants before deletion if required.
      */
-   /* @Scheduled(fixedRate = 60000)
+    @Scheduled(fixedRate = 60000)
     public void cleanupExpiredMeetings() {
         Instant now = Instant.now();
         List<Meeting> expiredMeetings = meetingRepository.findByExpiresAtBefore(now);
@@ -88,13 +89,14 @@ public class MeetingCleanupScheduler {
         }
 
         expiredMeetings.forEach(meeting -> {
-            log.info("[MEETING CLEANUP] Deleting expired meeting: {} (Expired at: {})",
-                    meeting.getId(), meeting.getExpiresAt());
-            meetingRepository.delete(meeting);
+				log.info("[MEETING CLEANUP] Deleting expired meeting: {} (Expired at: {})",
+				meeting.getId(), meeting.getExpiresAt());
+				if (meeting.getStatus() == MeetingStatus.EXPIRED)
+					meetingRepository.delete(meeting);
         });
 
         log.info("[MEETING CLEANUP] Removed {} expired meeting(s)", expiredMeetings.size());
-    }*/
+    }
 
     /**
      * Scheduled task that runs every minute to check for upcoming meetings
