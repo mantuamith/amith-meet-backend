@@ -24,7 +24,7 @@ jobs:
       - id: set-matrix
         run: |
           SERVICES=("auth-service" "chat-service" "contact-service" "meeting-service" \
-                    "user-service" "notification-service" "control-service" "signaling-service")
+                    "user-service" "notification-service" "control-service" "signaling-service" "signal-service")
 
           CHANGED_SERVICES=()
           for service in "${SERVICES[@]}"; do
