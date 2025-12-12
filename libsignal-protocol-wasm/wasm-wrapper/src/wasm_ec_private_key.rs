@@ -37,32 +37,30 @@ pub fn store_key(pk: PrivateKey) -> u32 {
     for (i, slot) in table.iter_mut().enumerate() {
         if slot.is_none() {
             *slot = Some(boxed);
-            return i as u32;
+            return (i + 1) as u32; // Return (index + 1)
         }
     }
 
     table.push(Some(boxed));
-    (table.len() - 1) as u32
+    table.len() as u32 // Return (index + 1)
 }
 
-fn load_key(ptr: u32) -> Option<PrivateKey> {
-    /*
+pub fn get_private_key(ptr: u32) -> Option<PrivateKey> {  
     if ptr == 0 {
         return None;
-    } */
+    } 
 
     let table = PRIVATE_KEYS.lock().unwrap();
     table
-        .get(ptr as usize)?
+        .get((ptr - 1) as usize)?
         .as_ref()
         .map(|boxed| (**boxed).clone())
 }
 
-fn remove_key(ptr: u32) {
-    /*
+fn remove_key(ptr: u32) {    
     if ptr == 0 {
         return;
-    } */
+    } 
 
     let mut table = PRIVATE_KEYS.lock().unwrap();
     if let Some(slot) = table.get_mut(ptr as usize) {
@@ -109,14 +107,14 @@ pub fn ecprivatekey_destroy(ptr: u32) {
 
 #[wasm_bindgen(js_namespace = ecPrivateKey)]
 pub fn ecprivatekey_serialize(ptr: u32) -> Result<Uint8Array, JsValue> {
-    let key = load_key(ptr)
+    let key = get_private_key(ptr)
         .ok_or_else(|| JsValue::from_str("ecprivatekey_serialize - Invalid EC private key pointer"))?;
     Ok(vec_to_uint8array(&key.serialize()))
 }
 
 #[wasm_bindgen(js_namespace = ecPrivateKey)]
 pub fn ecprivatekey_sign(ptr: u32, message: &[u8]) -> Result<Uint8Array, JsValue> {
-    let key = load_key(ptr)
+    let key = get_private_key(ptr)
         .ok_or_else(|| JsValue::from_str("ecprivatekey_sign - Invalid EC private key pointer"))?;
 
     // ---- WASM-compatible RNG ----
@@ -132,14 +130,11 @@ pub fn ecprivatekey_sign(ptr: u32, message: &[u8]) -> Result<Uint8Array, JsValue
 
 #[wasm_bindgen(js_namespace = ecPrivateKey)]
 pub fn ecprivatekey_agree(ptr_priv: u32, ptr_pub: u32) -> Result<Uint8Array, JsValue> {
-    let priv_key = load_key(ptr_priv)
+    let priv_key = get_private_key(ptr_priv)
         .ok_or_else(|| JsValue::from_str("ecprivatekey_agree - Invalid EC private key pointer"))?;
 
-    // Convert Option -> Result for `?`
-    let pub_key = unsafe {
-        crate::wasm_ec_public_key::take_public_key(ptr_pub)
-            .ok_or_else(|| JsValue::from_str("take_public_key - Invalid EC public key pointer"))?
-    };
+    // get_public_key returns Result<PublicKey, JsValue>, so just use `?`
+    let pub_key = crate::wasm_ec_public_key::get_public_key(ptr_pub)?;
 
     let shared = priv_key
         .calculate_agreement(&pub_key)
@@ -150,7 +145,7 @@ pub fn ecprivatekey_agree(ptr_priv: u32, ptr_pub: u32) -> Result<Uint8Array, JsV
 
 #[wasm_bindgen(js_namespace = ecPrivateKey)]
 pub fn ecprivatekey_get_public_key(ptr: u32) -> Result<u32, JsValue> {
-    let priv_key = load_key(ptr)
+    let priv_key = get_private_key(ptr)
         .ok_or_else(|| JsValue::from_str("ecprivatekey_get_public_key - Invalid EC private key pointer"))?;
     
     // Unwrap Result<PublicKey, CurveError>

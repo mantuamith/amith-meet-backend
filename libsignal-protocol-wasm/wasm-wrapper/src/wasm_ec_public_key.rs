@@ -26,25 +26,24 @@ pub fn store_public_key(pk: PublicKey) -> u32 {
     for (i, slot) in table.iter_mut().enumerate() {
         if slot.is_none() {
             *slot = Some(boxed);
-            return i as u32;
+            return (i + 1)as u32; // Return (index + 1)
         }
     }
 
     table.push(Some(boxed));
-    (table.len() - 1) as u32
+    table.len() as u32 // Return (index + 1)
 }
 
 /// Get a CLONED PublicKey
-fn get_public_key(handle: u32) -> Result<PublicKey, JsValue> {
-    /*
+pub fn get_public_key(handle: u32) -> Result<PublicKey, JsValue> {    
     if handle == 0 {
         return Err(JsValue::from_str("null public key"));
-    } */
+    } 
 
     let table = PUBLIC_KEYS.lock().unwrap();
 
     table
-        .get(handle as usize)
+        .get((handle - 1) as usize)
         .and_then(|slot| slot.as_ref())
         .map(|boxed| (**boxed).clone()) // clone the PublicKey (32 bytes)
         .ok_or_else(|| JsValue::from_str("invalid public key handle"))
@@ -52,13 +51,13 @@ fn get_public_key(handle: u32) -> Result<PublicKey, JsValue> {
 
 /// Take ownership (used by destroy)
 pub fn take_public_key(handle: u32) -> Option<Box<PublicKey>> {
-    /*
+    
     if handle == 0 {
         return None;
-    } */
+    } 
 
     let mut table = PUBLIC_KEYS.lock().unwrap();
-    table.get_mut(handle as usize)?.take()
+    table.get_mut((handle - 1) as usize)?.take()
 }
 
 // ======================================================================

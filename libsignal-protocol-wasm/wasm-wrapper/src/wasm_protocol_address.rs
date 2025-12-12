@@ -22,42 +22,59 @@ fn store_address(addr: ProtocolAddress) -> u32 {
     for (i, slot) in table.iter_mut().enumerate() {
         if slot.is_none() {
             *slot = Some(boxed);
-            return i as u32;
+            return (i + 1) as u32; // return (index + 1)
         }
     }
 
     table.push(Some(boxed));
-    (table.len() - 1) as u32
+    table.len() as u32  // return (index + 1)
 }
 
-fn load_address(ptr: u32) -> Result<ProtocolAddress, JsValue> {
+fn load_address(ptr: u32) -> Result<ProtocolAddress, JsValue> {    
     if ptr == 0 {
         return Err(JsValue::from_str("Null protocol address handle"));
     }
 
     let table = ADDRESSES.lock().unwrap();
     table
-        .get(ptr as usize)
+        .get((ptr - 1) as usize)
         .and_then(|opt| opt.as_ref())
         .map(|boxed| (**boxed).clone())
         .ok_or_else(|| JsValue::from_str("Invalid protocol address handle"))
 }
 
-fn remove_address(ptr: u32) {
+
+pub fn get_protocol_address_clone(handle: u32) -> Result<ProtocolAddress, JsValue> {
+    if handle == 0 {
+        return Err(JsValue::from_str("null protocolAddress handle"));
+    }
+    let table = ADDRESSES.lock().unwrap();
+    let opt = table.get((handle - 1) as usize).and_then(|opt| opt.as_ref()).ok_or_else(|| JsValue::from_str("invalid protocolAddress handle"))?;
+    // clone the protocolAddress (requires protocolAddress: Clone)
+    Ok((**opt).clone())
+}
+
+fn remove_address(ptr: u32) {    
     if ptr == 0 {
         return;
-    }
+    } 
     let mut table = ADDRESSES.lock().unwrap();
-    if let Some(slot) = table.get_mut(ptr as usize) {
+    if let Some(slot) = table.get_mut((ptr - 1) as usize) {
         *slot = None;
     }
+}
+
+/// Convert &ProtocolAddress → handle.
+/// This is what your adapters expect.
+pub fn protocoladdress_to_handle(addr: &ProtocolAddress) -> Result<u32, JsValue> {
+    Ok(store_address(addr.clone()))
 }
 
 // -------------------------------------------------------
 // WASM EXPORTED FUNCTIONS
 // -------------------------------------------------------
 
-#[wasm_bindgen(js_namespace = ProtocolAddress)]
+#[wasm_bindgen(js_namespace = protocolAddress)]
 pub fn protocoladdress_new(name: String, device_id: u32) -> Result<u32, JsValue> {
     // Convert device_id into the internal type (1–127)
     let converted = device_id.try_into().map_err(|_err| {
@@ -72,19 +89,19 @@ pub fn protocoladdress_new(name: String, device_id: u32) -> Result<u32, JsValue>
     Ok(store_address(addr))
 }
 
-#[wasm_bindgen(js_namespace = ProtocolAddress)]
+#[wasm_bindgen(js_namespace = protocolAddress)]
 pub fn protocoladdress_name(ptr: u32) -> Result<String, JsValue> {
     let addr = load_address(ptr)?;
     Ok(addr.name().to_string())
 }
 
-#[wasm_bindgen(js_namespace = ProtocolAddress)]
+#[wasm_bindgen(js_namespace = protocolAddress)]
 pub fn protocoladdress_device_id(ptr: u32) -> Result<u32, JsValue> {
     let addr = load_address(ptr)?;
     Ok(addr.device_id().into())
 }
 
-#[wasm_bindgen(js_namespace = ProtocolAddress)]
+#[wasm_bindgen(js_namespace = protocolAddress)]
 pub fn protocoladdress_destroy(ptr: u32) {
     remove_address(ptr);
 }

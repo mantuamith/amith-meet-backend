@@ -32,6 +32,13 @@ mod wasm_identity_store;
 mod wasm_ec_public_key;
 mod wasm_ec_private_key;
 mod wasm_protocol_address;
+mod wasm_identity_key_pair;
+mod wasm_kem_secret_key;
+mod wasm_kem_public_key;
+mod wasm_kem_key_pair;
+mod wasm_pre_key_bundle;
+mod wasm_session_builder;
+mod wasm_session_record;
 
 // Re-export each module's wasm_bindgen API
 pub use protocol::*;
@@ -39,6 +46,13 @@ pub use wasm_identity_store::*;
 pub use wasm_ec_public_key::*;
 pub use wasm_ec_private_key::*;
 pub use wasm_protocol_address::*;
+pub use wasm_identity_key_pair::*;
+pub use wasm_kem_secret_key::*;
+pub use wasm_kem_public_key::*;
+pub use wasm_kem_key_pair::*;
+pub use wasm_pre_key_bundle::*;
+pub use wasm_session_record::*;
+pub use wasm_session_builder::*;
 
 // ------------------------
 // ERROR HANDLING
