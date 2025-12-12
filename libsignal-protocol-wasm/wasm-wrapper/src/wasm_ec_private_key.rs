@@ -1,0 +1,190 @@
+use wasm_bindgen::prelude::*;
+use js_sys::Uint8Array;
+use web_sys::console;
+use libsignal_core::curve::{PrivateKey, PublicKey, KeyPair};
+use crate::wasm_ec_public_key::store_public_key;
+
+use rand_chacha::ChaCha20Rng;
+use rand_chacha::rand_core::{SeedableRng, RngCore};
+use base64::engine::general_purpose::STANDARD as B64;
+use getrandom;
+
+use wasm_bindgen::JsValue;
+
+use once_cell::sync::Lazy;
+
+use std::sync::Mutex;
+use std::cmp::Ordering;
+
+// ------------------------------
+// Utility: Convert Rust Vec<u8> → Uint8Array
+// ------------------------------
+fn vec_to_uint8array(data: &[u8]) -> Uint8Array {
+    Uint8Array::from(data)
+}
+
+static PRIVATE_KEYS: Lazy<Mutex<Vec<Option<Box<PrivateKey>>>>> = Lazy::new(|| {
+    let mut v = Vec::new();
+    v.push(None); // handle 0 = null
+    Mutex::new(v)
+});
+
+/// Store → return handle
+pub fn store_key(pk: PrivateKey) -> u32 {
+    let mut table = PRIVATE_KEYS.lock().unwrap();
+    let boxed = Box::new(pk);
+
+    for (i, slot) in table.iter_mut().enumerate() {
+        if slot.is_none() {
+            *slot = Some(boxed);
+            return i as u32;
+        }
+    }
+
+    table.push(Some(boxed));
+    (table.len() - 1) as u32
+}
+
+fn load_key(ptr: u32) -> Option<PrivateKey> {
+    /*
+    if ptr == 0 {
+        return None;
+    } */
+
+    let table = PRIVATE_KEYS.lock().unwrap();
+    table
+        .get(ptr as usize)?
+        .as_ref()
+        .map(|boxed| (**boxed).clone())
+}
+
+fn remove_key(ptr: u32) {
+    /*
+    if ptr == 0 {
+        return;
+    } */
+
+    let mut table = PRIVATE_KEYS.lock().unwrap();
+    if let Some(slot) = table.get_mut(ptr as usize) {
+        *slot = None;
+    }
+}
+
+extern crate alloc;
+
+// ===============================================================
+// ================  WASM-BINDGEN EXPORTED FUNCTIONS =============
+// ===============================================================
+#[wasm_bindgen(js_namespace = ecPrivateKey)]
+pub fn ecprivatekey_generate() -> u32 {    
+    // --- Generate 32 bytes of strong randomness ---
+    let mut seed = [0u8; 32];
+    if let Err(e) = getrandom::getrandom(&mut seed) {
+        console::error_1(&format!("Random seed error: {}", e).into());
+        return 0; // return NULL-handle in JS
+    }
+
+    // --- Create a ChaCha20 RNG from the seed ---
+    let mut rng = ChaCha20Rng::from_seed(seed);
+
+    // --- Generate a keypair ---
+    let keypair = KeyPair::generate(&mut rng);
+
+    // --- Store the private key in your table ---
+    store_key(keypair.private_key)
+}
+
+#[wasm_bindgen(js_namespace = ecPrivateKey)]
+pub fn ecprivatekey_deserialize(bytes: &[u8]) -> u32 {
+    match PrivateKey::deserialize(bytes) {
+        Ok(key) => store_key(key),
+        Err(_) => 0,
+    }
+}
+
+#[wasm_bindgen(js_namespace = ecPrivateKey)]
+pub fn ecprivatekey_destroy(ptr: u32) {
+    remove_key(ptr);
+}
+
+#[wasm_bindgen(js_namespace = ecPrivateKey)]
+pub fn ecprivatekey_serialize(ptr: u32) -> Result<Uint8Array, JsValue> {
+    let key = load_key(ptr)
+        .ok_or_else(|| JsValue::from_str("ecprivatekey_serialize - Invalid EC private key pointer"))?;
+    Ok(vec_to_uint8array(&key.serialize()))
+}
+
+#[wasm_bindgen(js_namespace = ecPrivateKey)]
+pub fn ecprivatekey_sign(ptr: u32, message: &[u8]) -> Result<Uint8Array, JsValue> {
+    let key = load_key(ptr)
+        .ok_or_else(|| JsValue::from_str("ecprivatekey_sign - Invalid EC private key pointer"))?;
+
+    // ---- WASM-compatible RNG ----
+    let mut rng = rand::thread_rng();
+
+    // ---- Correct signature call ----
+    let sig = key
+        .calculate_signature(message, &mut rng)
+        .map_err(|e| JsValue::from_str(&format!("sign failed: {}", e)))?;
+
+    Ok(vec_to_uint8array(&sig))
+}
+
+#[wasm_bindgen(js_namespace = ecPrivateKey)]
+pub fn ecprivatekey_agree(ptr_priv: u32, ptr_pub: u32) -> Result<Uint8Array, JsValue> {
+    let priv_key = load_key(ptr_priv)
+        .ok_or_else(|| JsValue::from_str("ecprivatekey_agree - Invalid EC private key pointer"))?;
+
+    // Convert Option -> Result for `?`
+    let pub_key = unsafe {
+        crate::wasm_ec_public_key::take_public_key(ptr_pub)
+            .ok_or_else(|| JsValue::from_str("take_public_key - Invalid EC public key pointer"))?
+    };
+
+    let shared = priv_key
+        .calculate_agreement(&pub_key)
+        .map_err(|_| JsValue::from_str("calculate_agreement - ECDH agreement failed"))?;
+
+    Ok(vec_to_uint8array(&shared))
+}
+
+#[wasm_bindgen(js_namespace = ecPrivateKey)]
+pub fn ecprivatekey_get_public_key(ptr: u32) -> Result<u32, JsValue> {
+    let priv_key = load_key(ptr)
+        .ok_or_else(|| JsValue::from_str("ecprivatekey_get_public_key - Invalid EC private key pointer"))?;
+    
+    // Unwrap Result<PublicKey, CurveError>
+    let pub_key = priv_key
+        .public_key()
+        .map_err(|e| JsValue::from_str(&format!("derive public key failed: {}", e)))?;
+
+    let pub_ptr = store_public_key(pub_key);
+    Ok(pub_ptr)
+}
+
+#[wasm_bindgen(js_namespace = ecPrivateKey)]
+pub fn ecprivatekey_hpke_open(
+    _ptr: u32,
+    _ciphertext: &[u8],
+    _info: &[u8],
+    _aad: &[u8],
+) -> Result<Uint8Array, JsValue> {
+    Err(JsValue::from_str("HPKE is not supported in libsignal_protocol::PrivateKey"))
+}
+
+// ---------------------------------------------
+// Secure RNG for WASM
+// ---------------------------------------------
+fn new_rng() -> Result<ChaCha20Rng, JsValue> {
+    let mut seed = [0u8; 32];
+    getrandom::getrandom(&mut seed)
+        .map_err(|e| js_err(format!("Random seed error: {e}")))?;
+    Ok(ChaCha20Rng::from_seed(seed))
+}
+
+// ---------------------------------------------
+// Local js_err helper (required)
+// ---------------------------------------------
+fn js_err(msg: impl ToString) -> JsValue {
+    JsValue::from_str(&msg.to_string())
+}
