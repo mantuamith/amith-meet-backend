@@ -43,6 +43,11 @@ on:
         required: true
         default: 'true'
         type: boolean
+      signal-service:
+        description: 'Build signal-service?'
+        required: true
+        default: 'true'
+        type: boolean
       extra-tag:
         description: 'Additional tag (optional)'
         required: false
@@ -71,6 +76,7 @@ jobs:
           if [ "${{ github.event.inputs.notification-service }}" == "true" ]; then SERVICES+=("\"notification-service\""); fi
           if [ "${{ github.event.inputs.control-service }}" == "true" ]; then SERVICES+=("\"control-service\""); fi
           if [ "${{ github.event.inputs.signaling-service }}" == "true" ]; then SERVICES+=("\"signaling-service\""); fi
+          if [ "${{ github.event.inputs.signal-service }}" == "true" ]; then SERVICES+=("\"signal-service\""); fi
           
           # join with commas, not spaces
           SERVICES_JOINED=$(IFS=, ; echo "${SERVICES[*]}")
