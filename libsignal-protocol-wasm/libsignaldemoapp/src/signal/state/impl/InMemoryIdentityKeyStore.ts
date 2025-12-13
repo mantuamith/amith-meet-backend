@@ -20,19 +20,23 @@ export class InMemoryIdentityKeyStore implements IdentityKeyStore {
   // ---------------------------------------------------------------------------
   // IdentityKeyStore API
   // ---------------------------------------------------------------------------
-
-  getIdentityKeyPair(): IdentityKeyPair {
+  /*
+  async getIdentityKeyPair(): Promise<IdentityKeyPair> {
     return this.identityKeyPair;
+  } */
+
+  async getIdentityKeyPair(): Promise<Uint8Array> {
+    return this.identityKeyPair.serialize();
   }
 
-  getLocalRegistrationId(): number {
+  async getLocalRegistrationId(): Promise<number> {
     return this.localRegistrationId;
   }
 
-saveIdentity(
+async saveIdentity(
   address: SignalProtocolAddress,
   identityKey: IdentityKey
-): IdentityChange {
+): Promise<IdentityChange> {
   const existing = this.trustedKeys.get(address);
 
   this.trustedKeys.set(address, identityKey);
@@ -44,11 +48,11 @@ saveIdentity(
   }
 }
 
-  isTrustedIdentity(
+  async isTrustedIdentity(
     address: SignalProtocolAddress,
     identityKey: IdentityKey,
     direction: Direction
-  ): boolean {
+  ): Promise<boolean> {
     const trusted = this.trustedKeys.get(address);
     return trusted === undefined || trusted.equals(identityKey);
   }

@@ -6,7 +6,7 @@ export class InMemoryPreKeyStore implements PreKeyStore {
 
   private store: Map<number, Uint8Array> = new Map();
 
-  loadPreKey(preKeyId: number): PreKeyRecord {
+  async loadPreKey(preKeyId: number): Promise<PreKeyRecord> {
     if (!this.store.has(preKeyId)) {
       throw new InvalidKeyIdException("No such prekeyrecord!");
     }
@@ -19,7 +19,7 @@ export class InMemoryPreKeyStore implements PreKeyStore {
     }
   }
 
-  storePreKey(preKeyId: number, record: PreKeyRecord): void {
+  async storePreKey(preKeyId: number, record: PreKeyRecord): Promise<void> {
     this.store.set(preKeyId, record.serialize());
   }
 
@@ -27,7 +27,7 @@ export class InMemoryPreKeyStore implements PreKeyStore {
     return this.store.has(preKeyId);
   }
 
-  removePreKey(preKeyId: number): void {
+  async removePreKey(preKeyId: number): Promise<void> {
     this.store.delete(preKeyId);
   }
 }

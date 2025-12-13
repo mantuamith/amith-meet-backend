@@ -13,7 +13,7 @@ import { InMemoryIdentityKeyStore } from "./InMemoryIdentityKeyStore";
 import { InMemoryKyberPreKeyStore } from "./InMemoryKyberPreKeyStore";
 import { InMemoryPreKeyStore } from "./InMemoryPreKeyStore";
 import { InMemorySenderKeyStore } from "./InMemorySenderKeyStore";
-import { InMemorySessionStore } from "./InMemorySessionStore";
+import { InMemorySessionStore } from "./InMemorySessionStore.ts";
 import { InMemorySignedPreKeyStore } from "./InMemorySignedPreKeyStore";
 import type { IdentityKeyPair } from "../../protocol/IdentityKeyPair";
 
@@ -40,11 +40,11 @@ export class InMemorySignalProtocolStore implements SignalProtocolStore {
   // Identity store
   // --------------------------------------------------------------------
 
-  getIdentityKeyPair(): IdentityKeyPair {
+  getIdentityKeyPair(): Promise<Uint8Array> {
     return this.identityKeyStore.getIdentityKeyPair();
   }
 
-  getLocalRegistrationId(): number {
+  getLocalRegistrationId(): Promise<number> {
     return this.identityKeyStore.getLocalRegistrationId();
   }
 
@@ -56,7 +56,7 @@ export class InMemorySignalProtocolStore implements SignalProtocolStore {
     address: SignalProtocolAddress,
     identityKey: IdentityKey,
     direction: Direction
-  ): boolean {
+  ): Promise<boolean> {
     return this.identityKeyStore.isTrustedIdentity(address, identityKey, direction);
   }
 
@@ -68,61 +68,57 @@ export class InMemorySignalProtocolStore implements SignalProtocolStore {
   // PreKey store
   // --------------------------------------------------------------------
 
-  loadPreKey(preKeyId: number): PreKeyRecord {
+  loadPreKey(preKeyId: number): Promise<PreKeyRecord> {
     return this.preKeyStore.loadPreKey(preKeyId);
   }
 
-  storePreKey(preKeyId: number, record: PreKeyRecord): void {
-    this.preKeyStore.storePreKey(preKeyId, record);
+  storePreKey(preKeyId: number, record: PreKeyRecord): Promise<void> {
+    return this.preKeyStore.storePreKey(preKeyId, record);
   }
 
   containsPreKey(preKeyId: number): boolean {
     return this.preKeyStore.containsPreKey(preKeyId);
   }
 
-  removePreKey(preKeyId: number): void {
-    this.preKeyStore.removePreKey(preKeyId);
+  removePreKey(preKeyId: number): Promise<void> {
+    return this.preKeyStore.removePreKey(preKeyId);
   }
 
   // --------------------------------------------------------------------
   // Session store
   // --------------------------------------------------------------------
 
-  loadSession(address: SignalProtocolAddress): SessionRecord {
-    return this.sessionStore.loadSession(address);
+  loadSession(remoteHandle: number): Promise<SessionRecord | null>  {
+    return this.sessionStore.loadSession(remoteHandle);
   }
 
   loadExistingSessions(
-    addresses: SignalProtocolAddress[]
+    remoteHandles: number[]
   ): SessionRecord[] {
-    return this.sessionStore.loadExistingSessions(addresses);
+    return this.sessionStore.loadExistingSessions(remoteHandles);
   }
 
-  getSubDeviceSessions(name: string): number[] {
-    return this.sessionStore.getSubDeviceSessions(name);
+  storeSession(remoteHandle: number, serialized: Uint8Array): Promise<void> {
+    return this.sessionStore.storeSession(remoteHandle, serialized);
   }
 
-  storeSession(address: SignalProtocolAddress, record: SessionRecord): void {
-    this.sessionStore.storeSession(address, record);
+  containsSession(remoteHandle: number): boolean {
+    return this.sessionStore.containsSession(remoteHandle);
   }
 
-  containsSession(address: SignalProtocolAddress): boolean {
-    return this.sessionStore.containsSession(address);
+  deleteSession(remoteHandle: number): void {
+    this.sessionStore.deleteSession(remoteHandle);
   }
 
-  deleteSession(address: SignalProtocolAddress): void {
-    this.sessionStore.deleteSession(address);
-  }
-
-  deleteAllSessions(name: string): void {
-    this.sessionStore.deleteAllSessions(name);
+  deleteAllSessionsForHandle(remoteHandle: number): void {
+    this.sessionStore.deleteAllSessionsForHandle(remoteHandle);
   }
 
   // --------------------------------------------------------------------
   // Signed pre-key store
   // --------------------------------------------------------------------
 
-  loadSignedPreKey(id: number): SignedPreKeyRecord {
+  loadSignedPreKey(id: number): Promise<SignedPreKeyRecord> {
     return this.signedPreKeyStore.loadSignedPreKey(id);
   }
 
@@ -130,8 +126,8 @@ export class InMemorySignalProtocolStore implements SignalProtocolStore {
     return this.signedPreKeyStore.loadSignedPreKeys();
   }
 
-  storeSignedPreKey(id: number, record: SignedPreKeyRecord): void {
-    this.signedPreKeyStore.storeSignedPreKey(id, record);
+  storeSignedPreKey(id: number, record: SignedPreKeyRecord): Promise<void> {
+    return this.signedPreKeyStore.storeSignedPreKey(id, record);
   }
 
   containsSignedPreKey(id: number): boolean {

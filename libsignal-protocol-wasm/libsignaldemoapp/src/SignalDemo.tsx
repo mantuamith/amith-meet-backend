@@ -14,6 +14,7 @@ import { KeyHelper } from "./signal/protocol/util/KeyHelper";
 import { KEMKeyPair } from "./signal/protocol/kem/KEMKeyPair";
 import { KEMKeyType } from "./signal/protocol/kem/KEMKeyType";
 import { PreKeyBundle } from "./signal/state/PreKeyBundle";
+import { SessionBuilder } from "./signal/protocol/SessionBuilder";
 
 
 // base64 helpers
@@ -112,7 +113,7 @@ export default function SignalDemo() {
   const bobRegistrationId = KeyHelper.generateRegistrationId();
 
   const bobKyberPreKeyPair = KEMKeyPair.generate(KEMKeyType.KYBER_1024);
-  const bobKyberPreKeySig = bobIdentityKeyPair2.getPrivateKey().calculateSignature(bobKyberPreKeyPair.secretKey.serialize());
+  const bobKyberPreKeySig = bobIdentityKeyPair2.getPrivateKey().calculateSignature(bobKyberPreKeyPair.publicKey.serialize());
   console.log(bobKyberPreKeyPair);
   console.log("Kyber secretKey: " + toBase64(bobKyberPreKeyPair.secretKey.serialize()));
   console.log("Kyber secretKey: " + toBase64(bobKyberPreKeyPair.publicKey.serialize()));
@@ -128,7 +129,7 @@ export default function SignalDemo() {
 
   const bobSignedPreKeyPair2 = ECKeyPair.generate();
   
-  const bobSignedPreKeySig = bobIdentityKeyPair2.getPrivateKey().calculateSignature(bobSignedPreKeyPair2.privateKey.serialize());
+  const bobSignedPreKeySig = bobIdentityKeyPair2.getPrivateKey().calculateSignature(bobSignedPreKeyPair2.publicKey.serialize());
   console.log("signed prekey signature: " + b64.encode(bobSignedPreKeySig));
 
   // Create preKeyBundle
@@ -145,10 +146,23 @@ export default function SignalDemo() {
 				bobSignedPreKeyId, 
 				bobSignedPreKeyPair2.publicKey,
 				bobSignedPreKeySig,
-				bobStore.getIdentityKeyPair().getPublicKey(),
+				bobIdentityKey,
 				bobKyberPreKeyId,
 				bobKyberPreKeyPair.publicKey,
 				bobKyberPreKeySig);
+  
+  
+  // Create Alice session builder
+  const aliceSessionBuilder = SessionBuilder.fromStore(aliceStore, bobAddress);
+
+  console.log("identity pub:", bobIdentityKey.serialize());
+  console.log("signed prekey pub:", bobSignedPreKeyPair2.publicKey.serialize());
+  console.log("signed prekey sig:", bobSignedPreKeySig);
+
+  console.log("kyber prekey pub:", bobKyberPreKeyPair.publicKey.serialize());
+  console.log("kyber prekey sig:", bobKyberPreKeySig);
+  // Process preKeyBundle
+  aliceSessionBuilder.process(bobPreKeyBundle);
 
   const bobIdPrivB64 = b64.encode(bobIdentityKeyPair2.privateKey.serialize());
   const bobIdPubB64 = b64.encode(bobIdentityKeyPair2.publicKey.serialize());

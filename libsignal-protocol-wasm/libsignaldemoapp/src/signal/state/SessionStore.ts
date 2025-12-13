@@ -1,59 +1,51 @@
 import type { SessionRecord } from "./SessionRecord";
-import type { SignalProtocolAddress } from "../protocol/SignalProtocolAddress";
 
 export interface SessionStore {
 
   /**
-   * Load a copy of the SessionRecord for the given address, or create a new one if none exists.
+   * Load a copy of the SessionRecord for the given remote HANDLE,
+   * or return null if none exists.
    *
    * Implementations MUST return a deep copy so that modifications do not affect
    * stored state unless `storeSession()` is explicitly called.
    *
-   * @param address - The remote client's name + deviceId tuple.
+   * @param remoteHandle - Opaque numeric handle provided by WASM
    */
-  loadSession(address: SignalProtocolAddress): SessionRecord;
+  loadSession(remoteHandle: number): Promise<SessionRecord | null>;
 
   /**
-   * Load SessionRecords for multiple addresses.
+   * Load SessionRecords for multiple remote handles.
    *
-   * @param addresses - List of remote client addresses.
-   * @throws NoSessionException if any address has no active session.
+   * @param remoteHandles - List of opaque numeric handles
+   * @throws NoSessionException if any handle has no active session.
    */
-  loadExistingSessions(addresses: SignalProtocolAddress[]): SessionRecord[];
+  loadExistingSessions(remoteHandles: number[]): SessionRecord[];
 
   /**
-   * Return all device IDs that have active sessions for a given recipient.
+   * Persist a SessionRecord for a given remote handle.
    *
-   * @param name - The recipient (username).
+   * @param remoteHandle - Opaque numeric handle
+   * @param record - The SessionRecord to store
    */
-  getSubDeviceSessions(name: string): number[];
+  storeSession(remoteHandle: number,  record: Uint8Array): Promise<void>;
 
   /**
-   * Persist a SessionRecord for a given remote client.
+   * Check whether a session exists for the given remote handle.
    *
-   * @param address - The remote client's address.
-   * @param record - The SessionRecord to store.
+   * @param remoteHandle - Opaque numeric handle
    */
-  storeSession(address: SignalProtocolAddress, record: SessionRecord): void;
+  containsSession(remoteHandle: number): boolean;
 
   /**
-   * Check whether a session exists for the given address.
+   * Remove a session for a given remote handle.
    *
-   * @param address - The remote client's address.
+   * @param remoteHandle - Opaque numeric handle
    */
-  containsSession(address: SignalProtocolAddress): boolean;
+  deleteSession(remoteHandle: number): void;
 
   /**
-   * Remove a session for a given address.
-   *
-   * @param address - The remote client's address.
+   * OPTIONAL: Remove all sessions for a given remote handle.
+   * (Included for symmetry; WASM does not currently call this.)
    */
-  deleteSession(address: SignalProtocolAddress): void;
-
-  /**
-   * Remove all sessions associated with a given recipient name.
-   *
-   * @param name - The recipient's name.
-   */
-  deleteAllSessions(name: string): void;
+  deleteAllSessionsForHandle?(remoteHandle: number): void;
 }

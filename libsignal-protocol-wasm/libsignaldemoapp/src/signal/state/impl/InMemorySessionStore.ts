@@ -1,25 +1,32 @@
 import { NoSessionException } from "../../exceptions/NoSessionException";
 import { SessionRecord } from "../SessionRecord";
 import type { SessionStore } from "../SessionStore";
-import type { SignalProtocolAddress } from "../../protocol/SignalProtocolAddress";
 
+/**
+ * In-memory SessionStore keyed by opaque remote address HANDLE (number).
+ *
+ * IMPORTANT:
+ * - WASM passes a numeric handle, NOT a SignalProtocolAddress object
+ * - The handle uniquely identifies (name, deviceId) on the Rust side
+ */
 export class InMemorySessionStore implements SessionStore {
 
   private sessions = new Map<string, Uint8Array>();
 
   constructor() {}
 
-  /** Helper to map SignalProtocolAddress → unique string key */
-  private addressKey(address: SignalProtocolAddress): string {
-    return `${address.name}:${address.deviceId}`;
+  /** Helper to map remote address HANDLE → unique string key */
+  private addressKey(remoteHandle: number): string {
+    return String(remoteHandle);
   }
 
-  loadSession(remoteAddress: SignalProtocolAddress): SessionRecord {
-    const key = this.addressKey(remoteAddress);
+  async loadSession(remoteHandle: number): Promise<SessionRecord | null> {
+    const key = this.addressKey(remoteHandle);
     const serialized = this.sessions.get(key);
 
     if (!serialized) {
-      return new SessionRecord(); // matches Java behavior
+      // Rust expects None, not empty SessionRecord
+      return null;
     }
 
     try {
@@ -29,15 +36,18 @@ export class InMemorySessionStore implements SessionStore {
     }
   }
 
-  loadExistingSessions(addresses: SignalProtocolAddress[]): SessionRecord[] {
+  loadExistingSessions(remoteHandles: number[]): SessionRecord[] {
     const result: SessionRecord[] = [];
 
-    for (const address of addresses) {
-      const key = this.addressKey(address);
+    for (const handle of remoteHandles) {
+      const key = this.addressKey(handle);
       const serialized = this.sessions.get(key);
 
       if (!serialized) {
-        throw new NoSessionException(address, `no session for ${address.toString()}`);
+        throw new NoSessionException(
+          handle + 
+          `no session for remote handle ${handle}`
+        );
       }
 
       try {
@@ -50,40 +60,20 @@ export class InMemorySessionStore implements SessionStore {
     return result;
   }
 
-  getSubDeviceSessions(name: string): number[] {
-    const result: number[] = [];
-
-    for (const [key, _value] of this.sessions.entries()) {
-      const [storedName, deviceIdStr] = key.split(":");
-      const deviceId = Number(deviceIdStr);
-
-      if (storedName === name && deviceId !== 1) {
-        result.push(deviceId);
-      }
-    }
-
-    return result;
+  async storeSession(remoteHandle: number,  serialized: Uint8Array): Promise<void> {
+    const key = this.addressKey(remoteHandle);
+    this.sessions.set(key, serialized);
   }
 
-  storeSession(address: SignalProtocolAddress, record: SessionRecord): void {
-    const key = this.addressKey(address);
-    this.sessions.set(key, record.serialize());
+  containsSession(remoteHandle: number): boolean {
+    return this.sessions.has(this.addressKey(remoteHandle));
   }
 
-  containsSession(address: SignalProtocolAddress): boolean {
-    return this.sessions.has(this.addressKey(address));
+  deleteSession(remoteHandle: number): void {
+    this.sessions.delete(this.addressKey(remoteHandle));
   }
 
-  deleteSession(address: SignalProtocolAddress): void {
-    this.sessions.delete(this.addressKey(address));
-  }
-
-  deleteAllSessions(name: string): void {
-    for (const key of [...this.sessions.keys()]) {
-      const [storedName] = key.split(":");
-      if (storedName === name) {
-        this.sessions.delete(key);
-      }
-    }
+  deleteAllSessionsForHandle(remoteHandle: number): void {
+    this.sessions.delete(this.addressKey(remoteHandle));
   }
 }

@@ -11,6 +11,7 @@ import type { SignalProtocolStore } from "../state/SignalProtocolStore";
 import type { SignalProtocolAddress } from "./SignalProtocolAddress";
 import { UntrustedIdentityException } from "../exceptions/UntrustedIdentityException";
 import type { PreKeyBundle } from "../state/PreKeyBundle";
+import { sessionBuilder as  sessionBuilderWasm } from "libsignal_wasm_pqxdh";
 
 /**
  * TypeScript equivalent of Java's SessionBuilder.
@@ -72,7 +73,7 @@ export class SessionBuilder {
         this.remoteAddress.handle,
         this.sessionStore,
         this.identityKeyStore,
-        nowMs
+        BigInt(nowMs)
       );
     } catch (err: any) {
       // Java version wraps errors via filterExceptions

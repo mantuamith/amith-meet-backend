@@ -7,7 +7,7 @@ export interface SignedPreKeyStore {
    *
    * @throws InvalidKeyIdException if no record exists for the given id.
    */
-  loadSignedPreKey(signedPreKeyId: number): SignedPreKeyRecord;
+  loadSignedPreKey(signedPreKeyId: number): Promise<SignedPreKeyRecord>;
 
   /**
    * Load all stored SignedPreKeyRecords.
@@ -17,7 +17,7 @@ export interface SignedPreKeyStore {
   /**
    * Store a SignedPreKeyRecord.
    */
-  storeSignedPreKey(signedPreKeyId: number, record: SignedPreKeyRecord): void;
+  storeSignedPreKey(signedPreKeyId: number, record: SignedPreKeyRecord): Promise<void>;
 
   /**
    * Check whether a SignedPreKeyRecord exists for the given id.

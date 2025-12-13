@@ -147,7 +147,7 @@ impl IdentityKeyStore for JsIdentityStoreAdapter {
             .map_err(|e| SignalProtocolError::InvalidArgument(format!("{:?}", e)))?;
 
         // MUST return valid enum variant → use Added or Changed
-        Ok(IdentityChange::Added)
+        Ok(IdentityChange::NewOrUnchanged)
     }
 
     /// get_identity_key_pair() -> Promise<{ public: Uint8Array, private: Uint8Array }>

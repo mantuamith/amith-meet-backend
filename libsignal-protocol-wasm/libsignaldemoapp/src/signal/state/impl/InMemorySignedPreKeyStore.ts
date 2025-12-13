@@ -8,7 +8,7 @@ export class InMemorySignedPreKeyStore implements SignedPreKeyStore {
 
   constructor() {}
 
-  loadSignedPreKey(id: number): SignedPreKeyRecord {
+  async loadSignedPreKey(id: number): Promise<SignedPreKeyRecord> {
     const serialized = this.store.get(id);
 
     if (!serialized) {
@@ -36,7 +36,7 @@ export class InMemorySignedPreKeyStore implements SignedPreKeyStore {
     return results;
   }
 
-  storeSignedPreKey(id: number, record: SignedPreKeyRecord): void {
+  async storeSignedPreKey(id: number, record: SignedPreKeyRecord): Promise<void> {
     this.store.set(id, record.serialize());
   }
 

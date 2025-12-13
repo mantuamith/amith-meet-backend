@@ -8,7 +8,7 @@ export interface PreKeyStore {
    * @param preKeyId - The ID of the PreKeyRecord to load.
    * @throws InvalidKeyIdException if there is no corresponding record.
    */
-  loadPreKey(preKeyId: number): PreKeyRecord;
+  loadPreKey(preKeyId: number): Promise<PreKeyRecord>;
 
   /**
    * Store a local PreKeyRecord.
@@ -16,7 +16,7 @@ export interface PreKeyStore {
    * @param preKeyId - The ID of the PreKeyRecord to store.
    * @param record - The PreKeyRecord instance.
    */
-  storePreKey(preKeyId: number, record: PreKeyRecord): void;
+  storePreKey(preKeyId: number, record: PreKeyRecord): Promise<void>;
 
   /**
    * Check whether a PreKeyRecord exists for the given ID.
@@ -31,5 +31,5 @@ export interface PreKeyStore {
    *
    * @param preKeyId - The ID of the PreKeyRecord to remove.
    */
-  removePreKey(preKeyId: number): void;
+  removePreKey(preKeyId: number): Promise<void>;
 }

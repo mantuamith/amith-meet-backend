@@ -134,6 +134,22 @@ pub fn prekeybundle_new(
     // Wrap identity_pub into IdentityKey
     let identity_key = libsignal_protocol::IdentityKey::new(identity_pub);
 
+    // --- DEBUG: verify signed EC pre-key locally ---
+    let ok = identity_pub.verify_signature(
+        &signed_pub.serialize(),
+        &signed_sig,
+    );
+
+    assert!(ok, "LOCAL SIGNED PREKEY SIGNATURE INVALID");
+
+    // --- DEBUG: verify kyber pre-key locally ---
+    let ok2 = identity_pub.verify_signature(
+        &kyber_pub.serialize(),
+        &kyber_sig,
+    );
+
+    assert!(ok2, "LOCAL KYBER PREKEY SIGNATURE INVALID");
+
     // Call constructor
     let bundle = PreKeyBundle::new(
         registration_id,

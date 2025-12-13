@@ -1,8 +1,8 @@
 import type { IdentityKey } from "../protocol/IdentityKey";
 import type { Direction } from "./Direction";
 import type { IdentityChange } from "./IdentityChange";
-import type { IdentityKeyPair } from "./IdentityKeyPair";
 import type { SignalProtocolAddress } from "../protocol/SignalProtocolAddress";
+import type { IdentityKeyPair } from "../protocol/IdentityKeyPair";
 
 /**
  * TypeScript equivalent of Signal's IdentityKeyStore interface.
@@ -16,13 +16,13 @@ export interface IdentityKeyStore {
   /**
    * Get the local client's persistent identity key pair.
    */
-  getIdentityKeyPair(): IdentityKeyPair;
+  getIdentityKeyPair(): Promise<Uint8Array>;
 
   /**
    * Return the local client's registration ID.
    * A random 1–16380 value, generated at install time.
    */
-  getLocalRegistrationId(): number;
+  getLocalRegistrationId(): Promise<number>;
 
   /**
    * Save a remote client's identity key as trusted.
@@ -34,7 +34,7 @@ export interface IdentityKeyStore {
   saveIdentity(
     address: SignalProtocolAddress,
     identityKey: IdentityKey
-  ): IdentityChange;
+  ): Promise<IdentityChange>;
 
   /**
    * Determine whether a remote identity key is trusted.
@@ -48,7 +48,7 @@ export interface IdentityKeyStore {
     address: SignalProtocolAddress,
     identityKey: IdentityKey,
     direction: Direction
-  ): boolean;
+  ): Promise<boolean>;
 
   /**
    * Return the trusted identity for a remote client.
