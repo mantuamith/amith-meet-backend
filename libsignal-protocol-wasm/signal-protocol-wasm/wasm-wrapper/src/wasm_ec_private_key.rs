@@ -162,7 +162,7 @@ pub fn ecprivatekey_agree(ptr_priv: u32, ptr_pub: u32) -> Result<Uint8Array, JsV
     with_private_key(ptr_priv, |priv_key| {
         // Fetch the public key OUTSIDE the private-key lock if possible
         // (safe because it uses a different table)
-        let pub_key = crate::wasm_ec_public_key::get_public_key(ptr_pub)?;
+        let pub_key = crate::wasm_ec_public_key::get_public_key_clone(ptr_pub)?;
 
         let shared = priv_key
             .calculate_agreement(&pub_key)

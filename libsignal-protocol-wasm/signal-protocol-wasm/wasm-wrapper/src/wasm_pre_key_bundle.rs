@@ -6,7 +6,7 @@ use web_sys::console;
 use once_cell::sync::Lazy;
 use std::sync::Mutex;
 
-use crate::wasm_ec_public_key; // assumed module that exposes get_public_key(...) -> Result<PublicKey, JsValue>
+use crate::wasm_ec_public_key; // assumed module that exposes get_public_key_clone(...) -> Result<PublicKey, JsValue>
 use crate::wasm_kem_public_key; // assumed module that exposes get_kem_public(...) -> Result<kem::PublicKey, JsValue>
 
 use libsignal_protocol::{PreKeyBundle, PreKeyBundleContent}; // adjust paths to your crate
@@ -87,8 +87,8 @@ pub fn prekeybundle_new(
     let pre_key_opt: Option<(u32, PublicKey)> = if pre_key_id == -1 || pre_key_ptr == 0 {
         None
     } else {
-        let pubk = crate::wasm_ec_public_key::get_public_key(pre_key_ptr)
-            .map_err(|e| JsValue::from_str(&format!("prekey get_public_key failed: {:?}", e)))?;
+        let pubk = crate::wasm_ec_public_key::get_public_key_clone(pre_key_ptr)
+            .map_err(|e| JsValue::from_str(&format!("prekey get_public_key_clone failed: {:?}", e)))?;
         Some((pre_key_id as u32, pubk))
     };
 
@@ -96,15 +96,15 @@ pub fn prekeybundle_new(
     if signed_prekey_ptr == 0 {
         return Err(JsValue::from_str("signedPreKey pointer is null"));
     }
-    let signed_pub = crate::wasm_ec_public_key::get_public_key(signed_prekey_ptr)
-        .map_err(|e| JsValue::from_str(&format!("signedPreKey get_public_key failed: {:?}", e)))?;
+    let signed_pub = crate::wasm_ec_public_key::get_public_key_clone(signed_prekey_ptr)
+        .map_err(|e| JsValue::from_str(&format!("signedPreKey get_public_key_clone failed: {:?}", e)))?;
 
     // identity key - required
     if identity_ptr == 0 {
         return Err(JsValue::from_str("identity pointer is null"));
     }
-    let identity_pub = crate::wasm_ec_public_key::get_public_key(identity_ptr)
-        .map_err(|e| JsValue::from_str(&format!("identity get_public_key failed: {:?}", e)))?;
+    let identity_pub = crate::wasm_ec_public_key::get_public_key_clone(identity_ptr)
+        .map_err(|e| JsValue::from_str(&format!("identity get_public_key_clone failed: {:?}", e)))?;
 
     // kyber public - required
     if kyber_ptr == 0 {

@@ -39,6 +39,11 @@ mod wasm_kem_key_pair;
 mod wasm_pre_key_bundle;
 mod wasm_session_builder;
 mod wasm_session_record;
+mod wasm_pre_key_signal_message;
+mod handle_store;
+mod wasm_signal_message;
+mod utils;
+mod wasm_session_cipher;
 
 // Re-export each module's wasm_bindgen API
 pub use protocol::*;
@@ -53,6 +58,11 @@ pub use wasm_kem_key_pair::*;
 pub use wasm_pre_key_bundle::*;
 pub use wasm_session_record::*;
 pub use wasm_session_builder::*;
+pub use wasm_pre_key_signal_message::*;
+pub use handle_store::*;
+pub use wasm_signal_message::*;
+pub use utils::*;
+pub use wasm_session_cipher::*;
 
 // ------------------------
 // ERROR HANDLING

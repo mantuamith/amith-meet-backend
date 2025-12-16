@@ -43,6 +43,53 @@ fn load_address(ptr: u32) -> Result<ProtocolAddress, JsValue> {
         .ok_or_else(|| JsValue::from_str("Invalid protocol address handle"))
 }
 
+pub fn with_protocol_address<F, R>(ptr: u32, f: F) -> Result<R, JsValue>
+where
+    F: FnOnce(&ProtocolAddress) -> Result<R, JsValue>,
+{
+    if ptr == 0 {
+        return Err(JsValue::from_str("Invalid ProtocolAddress pointer"));
+    }
+
+    let table = ADDRESSES.lock().unwrap();
+
+    let key = table
+        .get((ptr - 1) as usize)
+        .and_then(|slot| slot.as_ref())
+        .ok_or_else(|| JsValue::from_str("Invalid ProtocolAddress pointer"))?;
+
+    // Borrow happens ONLY here
+    f(key)
+}
+
+pub async fn with_protocol_address_async<R, F, Fut>(
+    handle: u32,
+    f: F,
+) -> Result<R, JsValue>
+where
+    F: FnOnce(ProtocolAddress) -> Fut,
+    Fut: std::future::Future<Output = Result<R, JsValue>>,
+{
+    if handle == 0 {
+        return Err(JsValue::from_str("Invalid ProtocolAddress pointer"));
+    }
+
+    // Extract OWNED ProtocolAddress
+    let addr: ProtocolAddress = {
+        let table = ADDRESSES.lock().unwrap();
+
+        let boxed = table
+            .get((handle - 1) as usize)
+            .and_then(|slot| slot.as_ref())
+            .ok_or_else(|| JsValue::from_str("Invalid ProtocolAddress pointer"))?;
+
+        (**boxed).clone()
+        // or equivalently: (*boxed).clone()
+    };
+
+    // Safe: owned value, no borrow, no lock
+    f(addr).await
+}
 
 pub fn get_protocol_address_clone(handle: u32) -> Result<ProtocolAddress, JsValue> {
     if handle == 0 {

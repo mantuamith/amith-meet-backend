@@ -9,7 +9,7 @@ use libsignal_core::curve::{PublicKey, PrivateKey};
 use libsignal_protocol::{IdentityKey, IdentityKeyPair};
 
 /// helpers from other modules (adjust names if necessary)
-use crate::wasm_ec_public_key::{store_public_key, get_public_key};
+use crate::wasm_ec_public_key::{store_public_key, get_public_key_clone};
 use crate::wasm_ec_private_key::{store_key, with_private_key};
 
 use rand_chacha::ChaCha20Rng;
@@ -71,8 +71,8 @@ pub fn identitykeypair_deserialize(bytes: &Uint8Array) -> Result<Object, JsValue
 #[wasm_bindgen(js_namespace = identityKeyPair)]
 pub fn identitykeypair_serialize(public_ptr: u32, private_ptr: u32) -> Result<Uint8Array, JsValue> {
     // Obtain keys (these functions should return Result<..., JsValue>)
-    let public_curve: PublicKey = get_public_key(public_ptr)
-        .map_err(|e| JsValue::from_str(&format!("get_public_key failed: {:?}", e)))?;
+    let public_curve: PublicKey = get_public_key_clone(public_ptr)
+        .map_err(|e| JsValue::from_str(&format!("get_public_key_clone failed: {:?}", e)))?;
     let private_curve: PrivateKey = get_private_key(private_ptr)
     .ok_or_else(|| JsValue::from_str("get_private_key failed"))?;
 
@@ -92,8 +92,8 @@ pub fn identitykeypair_serialize(
     public_ptr: u32,
     private_ptr: u32,
 ) -> Result<Uint8Array, JsValue> {
-    let public_curve: PublicKey = get_public_key(public_ptr)
-        .map_err(|e| JsValue::from_str(&format!("get_public_key failed: {:?}", e)))?;
+    let public_curve: PublicKey = get_public_key_clone(public_ptr)
+        .map_err(|e| JsValue::from_str(&format!("get_public_key_clone failed: {:?}", e)))?;
 
     with_private_key(private_ptr, |private_curve| {
         let identity_public = IdentityKey::new(public_curve);
@@ -116,15 +116,15 @@ pub fn identitykeypair_sign_alternate_identity(
     other_public_ptr: u32,
 ) -> Result<Uint8Array, JsValue> {
     // Get own keys
-    let public_curve: PublicKey = get_public_key(public_ptr)
-        .map_err(|e| JsValue::from_str(&format!("get_public_key failed: {:?}", e)))?;
+    let public_curve: PublicKey = get_public_key_clone(public_ptr)
+        .map_err(|e| JsValue::from_str(&format!("get_public_key_clone failed: {:?}", e)))?;
 
     let private_curve: PrivateKey = get_private_key(private_ptr)
     .ok_or_else(|| JsValue::from_str("get_private_key failed"))?;
 
     // Get other identity public key
-    let other_pub_curve: PublicKey = get_public_key(other_public_ptr)
-        .map_err(|e| JsValue::from_str(&format!("get_public_key (other) failed: {:?}", e)))?;
+    let other_pub_curve: PublicKey = get_public_key_clone(other_public_ptr)
+        .map_err(|e| JsValue::from_str(&format!("get_public_key_clone (other) failed: {:?}", e)))?;
 
     // Build IdentityKeyPair & IdentityKey for the "other" identity
     let our_identity = IdentityKey::new(public_curve);
@@ -149,11 +149,11 @@ pub fn identitykeypair_sign_alternate_identity(
     private_ptr: u32,
     other_public_ptr: u32,
 ) -> Result<Uint8Array, JsValue> {
-    let public_curve: PublicKey = get_public_key(public_ptr)
-        .map_err(|e| JsValue::from_str(&format!("get_public_key failed: {:?}", e)))?;
+    let public_curve: PublicKey = get_public_key_clone(public_ptr)
+        .map_err(|e| JsValue::from_str(&format!("get_public_key_clone failed: {:?}", e)))?;
 
-    let other_pub_curve: PublicKey = get_public_key(other_public_ptr)
-        .map_err(|e| JsValue::from_str(&format!("get_public_key (other) failed: {:?}", e)))?;
+    let other_pub_curve: PublicKey = get_public_key_clone(other_public_ptr)
+        .map_err(|e| JsValue::from_str(&format!("get_public_key_clone (other) failed: {:?}", e)))?;
 
     with_private_key(private_ptr, |private_curve| {
         let our_identity = IdentityKey::new(public_curve);

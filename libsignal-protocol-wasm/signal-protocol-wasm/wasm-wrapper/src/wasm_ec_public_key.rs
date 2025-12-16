@@ -35,7 +35,7 @@ pub fn store_public_key(pk: PublicKey) -> u32 {
 }
 
 /// Get a CLONED PublicKey
-pub fn get_public_key(handle: u32) -> Result<PublicKey, JsValue> {    
+pub fn get_public_key_clone(handle: u32) -> Result<PublicKey, JsValue> {    
     if handle == 0 {
         return Err(JsValue::from_str("null public key"));
     } 
@@ -47,6 +47,25 @@ pub fn get_public_key(handle: u32) -> Result<PublicKey, JsValue> {
         .and_then(|slot| slot.as_ref())
         .map(|boxed| (**boxed).clone()) // clone the PublicKey (32 bytes)
         .ok_or_else(|| JsValue::from_str("invalid public key handle"))
+}
+
+pub fn with_public_key<F, R>(ptr: u32, f: F) -> Result<R, JsValue>
+where
+    F: FnOnce(&PublicKey) -> Result<R, JsValue>,
+{
+    if ptr == 0 {
+        return Err(JsValue::from_str("Invalid EC public key pointer"));
+    }
+
+    let table = PUBLIC_KEYS.lock().unwrap();
+
+    let key = table
+        .get((ptr - 1) as usize)
+        .and_then(|slot| slot.as_ref())
+        .ok_or_else(|| JsValue::from_str("Invalid EC public key pointer"))?;
+
+    // Borrow happens ONLY here
+    f(key)
 }
 
 /// Take ownership (used by destroy)
@@ -97,12 +116,10 @@ pub fn ec_public_key_destroy(ptr: u32) {
 
 #[wasm_bindgen(js_namespace = ecPublicKey)]
 pub fn ec_public_key_verify(ptr: u32, message: &[u8], signature: &[u8]) -> bool {
-    let pk = match get_public_key(ptr) {
-        Ok(pk) => pk,
-        Err(_) => return false,
-    };
-
-    pk.verify_signature(message, signature)
+    with_public_key(ptr, |pk| {
+        Ok(pk.verify_signature(message, signature))
+    })
+    .unwrap_or(false)
 }
 
 #[wasm_bindgen(js_namespace = ecPublicKey)]
@@ -118,40 +135,46 @@ pub fn ec_public_key_hpke_seal(
 
 #[wasm_bindgen(js_namespace = ecPublicKey)]
 pub fn ec_public_key_serialize(ptr: u32) -> Uint8Array {
-    match get_public_key(ptr) {
-        Ok(pk) => vec_to_uint8array(&pk.serialize()),
-        Err(_) => Uint8Array::new_with_length(0),
-    }
+    with_public_key(ptr, |pk| {
+        Ok(vec_to_uint8array(&pk.serialize()))
+    })
+    .unwrap_or_else(|_| Uint8Array::new_with_length(0))
 }
 
 #[wasm_bindgen(js_namespace = ecPublicKey)]
 pub fn ec_public_key_get_public_key_bytes(ptr: u32) -> Uint8Array {
-    match get_public_key(ptr) {
-        Ok(pk) => vec_to_uint8array(pk.public_key_bytes()),
-        Err(_) => Uint8Array::new_with_length(0),
-    }
+    with_public_key(ptr, |pk| {
+        Ok(vec_to_uint8array(pk.public_key_bytes()))
+    })
+    .unwrap_or_else(|_| Uint8Array::new_with_length(0))
 }
 
 #[wasm_bindgen(js_namespace = ecPublicKey)]
 pub fn ec_public_key_equals(ptr_a: u32, ptr_b: u32) -> bool {
-    match (get_public_key(ptr_a), get_public_key(ptr_b)) {
-        (Ok(a), Ok(b)) => a == b,
-        _ => false,
+    if ptr_a == 0 || ptr_b == 0 {
+        return false;
     }
+
+    with_public_key(ptr_a, |a| {
+        with_public_key(ptr_b, |b| {
+            Ok(a == b)
+        })
+    })
+    .unwrap_or(false)
 }
 
+/*
 #[wasm_bindgen(js_namespace = ecPublicKey)]
-pub fn ec_public_key_compare(ptr_a: u32, ptr_b: u32) -> i32 {
-    if ptr_a == 0 && ptr_b == 0 { return 0; }
-    if ptr_a == 0 { return -1; }
-    if ptr_b == 0 { return 1; }
-
-    let a = match get_public_key(ptr_a) { Ok(a) => a, Err(_) => return 0 };
-    let b = match get_public_key(ptr_b) { Ok(b) => b, Err(_) => return 0 };
-
-    match a.cmp(&b) {
-        Ordering::Less => -1,
-        Ordering::Equal => 0,
-        Ordering::Greater => 1,
+pub fn ec_public_key_equals(ptr_a: u32, ptr_b: u32) -> bool {
+    if ptr_a == 0 || ptr_b == 0 {
+        return false;
     }
-}
+
+    let a = match with_public_key(ptr_a, |a| Ok(a.clone())) {
+        Ok(a) => a,
+        Err(_) => return false,
+    };
+
+    with_public_key(ptr_b, |b| Ok(a == *b))
+        .unwrap_or(false)
+}*/

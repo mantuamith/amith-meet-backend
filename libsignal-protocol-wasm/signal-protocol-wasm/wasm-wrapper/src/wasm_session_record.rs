@@ -10,7 +10,7 @@ use std::time::{Duration, SystemTime};
 use libsignal_protocol::{SessionRecord, SessionUsabilityRequirements}; // adjust path if necessary
 use libsignal_core::curve::PublicKey; // adjust if your PublicKey lives elsewhere
 
-use crate::wasm_ec_public_key; // must expose get_public_key(handle: u32) -> Result<PublicKey, JsValue>
+use crate::wasm_ec_public_key::{with_public_key}; // must expose with_public_key(handle: u32) -> Result<PublicKey, JsValue>
 
 // ------------------------------------------------------------
 // Handle table for SessionRecord (0 = null)
@@ -192,6 +192,7 @@ pub fn sessionrecord_has_usable_sender_chain(ptr: u32, now_ms: u64) -> bool {
     }
 }
 
+/*
 #[wasm_bindgen(js_namespace = sessionRecord)]
 pub fn sessionrecord_current_ratchet_key_matches(ptr: u32, key_ptr: u32) -> bool {
     if ptr == 0 || key_ptr == 0 {
@@ -203,7 +204,6 @@ pub fn sessionrecord_current_ratchet_key_matches(ptr: u32, key_ptr: u32) -> bool
         Err(_) => return false,
     };
 
-    // retrieve PublicKey by handle (assumes wasm_ec_public_key::get_public_key returns Result<PublicKey, JsValue>)
     let pk = match crate::wasm_ec_public_key::get_public_key(key_ptr) {
         Ok(p) => p,
         Err(e) => {
@@ -219,6 +219,31 @@ pub fn sessionrecord_current_ratchet_key_matches(ptr: u32, key_ptr: u32) -> bool
             false
         }
     }
+}*/
+
+#[wasm_bindgen(js_namespace = sessionRecord)]
+pub fn sessionrecord_current_ratchet_key_matches(ptr: u32, key_ptr: u32) -> bool {
+    if ptr == 0 || key_ptr == 0 {
+        return false;
+    }
+
+    let rec = match get_session_record_clone(ptr) {
+        Ok(r) => r,
+        Err(_) => return false,
+    };
+
+    with_public_key(key_ptr, |pk| {
+        match rec.current_ratchet_key_matches(pk) {
+            Ok(v) => Ok(v),
+            Err(e) => {
+                console::error_1(
+                    &format!("current_ratchet_key_matches failed: {:?}", e).into(),
+                );
+                Ok(false)
+            }
+        }
+    })
+    .unwrap_or(false)
 }
 
 #[wasm_bindgen(js_namespace = sessionRecord)]

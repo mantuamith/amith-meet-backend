@@ -16,7 +16,7 @@ use rand_chacha::rand_core::{SeedableRng, RngCore};
 use getrandom;
 use web_sys::console;
 
-mod adapters;
+pub mod adapters;
 mod converters;
 
 use adapters::{JsSessionStoreAdapter, JsIdentityStoreAdapter};
