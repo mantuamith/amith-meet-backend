@@ -1,51 +1,35 @@
-import type { IdentityKey } from "../../protocol/IdentityKey";
-import type { Direction } from "../Direction";
+import { IdentityKey } from "../../protocol/IdentityKey";
+import { directionToNumber, type Direction } from "../Direction";
 import type { IdentityChange } from "../IdentityChange";
 import type { IdentityKeyStore } from "../IdentityKeyStore";
 import type { SignalProtocolAddress } from "../../protocol/SignalProtocolAddress";
 import type { IdentityKeyPair } from "../../protocol/IdentityKeyPair";
+import { identityKeyStore as  identityKeyStoreWasm } from "libsignal_wasm_pqxdh";
 
 export class InMemoryIdentityKeyStore implements IdentityKeyStore {
+  private readonly storeHandle!: number;
 
-  private trustedKeys = new Map<SignalProtocolAddress, IdentityKey>();
-
-  private readonly identityKeyPair: IdentityKeyPair;
-  private readonly localRegistrationId: number;
-
-  constructor(identityKeyPair: IdentityKeyPair, localRegistrationId: number) {
-    this.identityKeyPair = identityKeyPair;
-    this.localRegistrationId = localRegistrationId;
+  constructor(identityKeyPair: IdentityKeyPair, localRegistrationId: number) {      
+    this.storeHandle = identityKeyStoreWasm.identitykeystore_create_identity_key_store(
+      identityKeyPair.publicKey.publicKey.handle,
+      identityKeyPair.privateKey.handle,
+      localRegistrationId);
   }
 
-  // ---------------------------------------------------------------------------
-  // IdentityKeyStore API
-  // ---------------------------------------------------------------------------
-  /*
-  async getIdentityKeyPair(): Promise<IdentityKeyPair> {
-    return this.identityKeyPair;
-  } */
-
   async getIdentityKeyPair(): Promise<Uint8Array> {
-    return this.identityKeyPair.serialize();
+    return identityKeyStoreWasm.identitykeystore_get_identity_key_pair(this.storeHandle);
   }
 
   async getLocalRegistrationId(): Promise<number> {
-    return this.localRegistrationId;
+    return identityKeyStoreWasm.identitykeystore_get_local_registration_id(this.storeHandle);
   }
 
 async saveIdentity(
-  address: SignalProtocolAddress,
-  identityKey: IdentityKey
-): Promise<IdentityChange> {
-  const existing = this.trustedKeys.get(address);
-
-  this.trustedKeys.set(address, identityKey);
-
-  if (!existing || identityKey.equals(existing)) {
-    return "NEW_OR_UNCHANGED";
-  } else {
-    return "REPLACED_EXISTING";
-  }
+    address: SignalProtocolAddress,
+    identityKey: IdentityKey
+  ): Promise<IdentityChange> {
+  identityKeyStoreWasm.identitykeystore_save_identity(this.storeHandle, address.handle, identityKey.serialize());
+  return "NEW_OR_UNCHANGED";
 }
 
   async isTrustedIdentity(
@@ -53,11 +37,25 @@ async saveIdentity(
     identityKey: IdentityKey,
     direction: Direction
   ): Promise<boolean> {
-    const trusted = this.trustedKeys.get(address);
-    return trusted === undefined || trusted.equals(identityKey);
+    return identityKeyStoreWasm.identitykeystore_is_trusted_identity(this.storeHandle, address.handle, identityKey.serialize(),
+     directionToNumber(direction));
   }
 
   getIdentity(address: SignalProtocolAddress): IdentityKey | null {
-    return this.trustedKeys.get(address) ?? null;
+    const bytes =
+    identityKeyStoreWasm.identitykeystore_get_identity(
+      this.storeHandle,
+      address.handle
+    );
+
+  if (!bytes) {
+    return null; // TOFU / no identity stored
+  }
+
+  return new IdentityKey(bytes);
+  }
+
+  getIdentityKeyStoreHandle(): number {
+    return this.storeHandle;
   }
 }

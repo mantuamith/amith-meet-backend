@@ -34,6 +34,7 @@ export class InMemorySignalProtocolStore implements SignalProtocolStore {
 
   constructor(identityKeyPair: IdentityKeyPair, registrationId: number) {
     this.identityKeyStore = new InMemoryIdentityKeyStore(identityKeyPair, registrationId);
+    
   }
 
   // --------------------------------------------------------------------
@@ -64,6 +65,10 @@ export class InMemorySignalProtocolStore implements SignalProtocolStore {
     return this.identityKeyStore.getIdentity(address);
   }
 
+  getIdentityKeyStoreHandle(): number {
+    return this.identityKeyStore.getIdentityKeyStoreHandle();
+  }
+
   // --------------------------------------------------------------------
   // PreKey store
   // --------------------------------------------------------------------
@@ -88,30 +93,30 @@ export class InMemorySignalProtocolStore implements SignalProtocolStore {
   // Session store
   // --------------------------------------------------------------------
 
-  loadSession(remoteHandle: number): Promise<SessionRecord | null>  {
-    return this.sessionStore.loadSession(remoteHandle);
+  loadSession(address: SignalProtocolAddress): Promise<SessionRecord | null>  {
+    return this.sessionStore.loadSession(address);
   }
 
   loadExistingSessions(
-    remoteHandles: number[]
+    addresses: SignalProtocolAddress[]
   ): SessionRecord[] {
-    return this.sessionStore.loadExistingSessions(remoteHandles);
+    return this.sessionStore.loadExistingSessions(addresses);
   }
 
-  storeSession(remoteHandle: number, serialized: Uint8Array): Promise<void> {
-    return this.sessionStore.storeSession(remoteHandle, serialized);
+  storeSession(address: SignalProtocolAddress, serialized: Uint8Array): Promise<void> {
+    return this.sessionStore.storeSession(address, serialized);
   }
 
-  containsSession(remoteHandle: number): boolean {
-    return this.sessionStore.containsSession(remoteHandle);
+  containsSession(address: SignalProtocolAddress): boolean {
+    return this.sessionStore.containsSession(address);
   }
 
-  deleteSession(remoteHandle: number): void {
-    this.sessionStore.deleteSession(remoteHandle);
+  deleteSession(address: SignalProtocolAddress): void {
+    this.sessionStore.deleteSession(address);
   }
 
-  deleteAllSessionsForHandle(remoteHandle: number): void {
-    this.sessionStore.deleteAllSessionsForHandle(remoteHandle);
+  getSessionStoreHandle(): number {
+    return this.sessionStore.getSessionStoreHandle();
   }
 
   // --------------------------------------------------------------------

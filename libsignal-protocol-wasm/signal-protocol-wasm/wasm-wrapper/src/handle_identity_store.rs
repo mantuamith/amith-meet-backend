@@ -1,19 +1,26 @@
 use std::collections::HashMap;
 use std::hash::Hash;
+use libsignal_protocol::{
+    IdentityKeyPair,
+};
 
-pub struct HandleStore<K, T>
+pub struct HandleIdentityStore<K, T>
 where
     K: Eq + Hash,
 {
+    registration_id: u32,
+    identity_key_pair: IdentityKeyPair,
     map: HashMap<K, T>,
 }
 
-impl<K, T> HandleStore<K, T>
+impl<K, T> HandleIdentityStore<K, T>
 where
     K: Eq + Hash,
 {
-    pub fn new() -> Self {
+    pub fn new(registration_id: u32, identity_key_pair: IdentityKeyPair) -> Self {
         Self {
+            registration_id: registration_id,
+            identity_key_pair: identity_key_pair,
             map: HashMap::new(),
         }
     }
@@ -42,5 +49,13 @@ where
 
     pub fn get_mut(&mut self, key: &K) -> Option<&mut T> {
         self.map.get_mut(key)
+    }
+
+    pub fn identity_key_pair(&self) -> &IdentityKeyPair {
+        &self.identity_key_pair
+    }
+
+    pub fn registration_id(&self) -> u32 {
+        self.registration_id
     }
 }

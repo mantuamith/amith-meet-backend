@@ -57,4 +57,9 @@ export interface IdentityKeyStore {
   getIdentity(
     address: SignalProtocolAddress
   ): IdentityKey | null;
+
+  /**
+   * Return the store pointer to wasm
+   */
+  getIdentityKeyStoreHandle(): number;
 }

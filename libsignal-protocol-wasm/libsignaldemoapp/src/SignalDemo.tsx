@@ -15,6 +15,7 @@ import { KEMKeyPair } from "./signal/protocol/kem/KEMKeyPair";
 import { KEMKeyType } from "./signal/protocol/kem/KEMKeyType";
 import { PreKeyBundle } from "./signal/state/PreKeyBundle";
 import { SessionBuilder } from "./signal/protocol/SessionBuilder";
+import { SessionCipher } from "./signal/protocol/SessionCipher";
 
 
 // base64 helpers
@@ -75,8 +76,6 @@ export default function SignalDemo() {
   //  1,
   //  bobIdentityKeyPair.private_key
   //);
-
-
 
   //  Addresses
   const aliceAddress = new SignalProtocolAddress("alice", 1);
@@ -150,17 +149,29 @@ export default function SignalDemo() {
 				bobKyberPreKeyId,
 				bobKyberPreKeyPair.publicKey,
 				bobKyberPreKeySig);
-  
-  
+    
   // Create Alice session builder
   const aliceSessionBuilder = SessionBuilder.fromStore(aliceStore, bobAddress);
 
+  // Bob’s PreKeyBundle fetched from server
+  await aliceSessionBuilder.process(bobPreKeyBundle);
+  
+  const originalMessage = "L'homme est condamné à être libre";
+	const aliceSessionCipher = SessionCipher.fromStore(aliceStore, bobAddress);
+
+  const bytes = new TextEncoder().encode(originalMessage);
+	const outgoingMessage = aliceSessionCipher.encrypt(bytes);
+
+  console.log("Encrypted message:");
+  console.log("Encrypted message:", b64.encode((await outgoingMessage).serialize()));
+  /*
   console.log("identity pub:", bobIdentityKey.serialize());
   console.log("signed prekey pub:", bobSignedPreKeyPair2.publicKey.serialize());
   console.log("signed prekey sig:", bobSignedPreKeySig);
 
   console.log("kyber prekey pub:", bobKyberPreKeyPair.publicKey.serialize());
   console.log("kyber prekey sig:", bobKyberPreKeySig);
+  */
   // Process preKeyBundle
   aliceSessionBuilder.process(bobPreKeyBundle);
 

@@ -5,14 +5,14 @@ import type { KyberPreKeyStore } from "../state/KyberPreKeyStore";
 import type { IdentityKeyStore } from "../state/IdentityKeyStore";
 import type { SignalProtocolStore } from "../state/SignalProtocolStore";
 import type { SignalProtocolAddress } from "./SignalProtocolAddress";
-import { SessionRecord } from "../state/SessionRecord";
-
 import {
   sessionCipher as sessionCipherWasm,
 } from "libsignal_wasm_pqxdh";
 import type { CiphertextMessage } from "./message/CiphertextMessage";
-import type { PreKeySignalMessage } from "./message/PreKeySignalMessage";
+import { PreKeySignalMessage } from "./message/PreKeySignalMessage";
 import type { SignalMessage } from "./message/SignalMessage";
+import type { SessionCipherWasm } from "../wasm/SessionCipherWasm";
+import { CiphertextMessageFactory } from "./message/CiphertextMessageFactory";
 
 /**
  * TypeScript equivalent of Java's SessionCipher.
@@ -83,17 +83,23 @@ export class SessionCipher {
   /**
    * Encrypt a message with explicit timestamp (used for testing).
    */
-  async encryptWithTime(
+async encryptWithTime(
     paddedMessage: Uint8Array,
     nowMs: number
   ): Promise<CiphertextMessage> {
-    return sessionCipherWasm.sessioncipher_encrypt(
+    const wasm = sessionCipherWasm as unknown as SessionCipherWasm;
+
+    // await the Promise<number>
+    const handle = await wasm.sessioncipher_encrypt_message(
       paddedMessage,
       this.remoteAddress.handle,
-      this.sessionStore,
-      this.identityKeyStore,
+      this.sessionStore.getSessionStoreHandle(),
+      this.identityKeyStore.getIdentityKeyStoreHandle(),
       BigInt(nowMs)
     );
+
+    // construct the correct runtime type
+    return CiphertextMessageFactory.fromHandle(handle);
   }
 
   // ------------------------------------------------------------------
@@ -103,6 +109,7 @@ export class SessionCipher {
   /**
    * Decrypt a PreKeySignalMessage.
    */
+  /*
   async decryptPreKeySignalMessage(
     ciphertext: PreKeySignalMessage
   ): Promise<Uint8Array> {
@@ -115,11 +122,12 @@ export class SessionCipher {
       this.signedPreKeyStore,
       this.kyberPreKeyStore
     );
-  }
+  } */
 
   /**
    * Decrypt a SignalMessage.
    */
+   /*
   async decryptSignalMessage(
     ciphertext: SignalMessage
   ): Promise<Uint8Array> {
@@ -129,7 +137,7 @@ export class SessionCipher {
       this.sessionStore,
       this.identityKeyStore
     );
-  }
+  } */
 
   // ------------------------------------------------------------------
   // Session metadata
@@ -139,11 +147,11 @@ export class SessionCipher {
    * Get the remote party's registration ID.
    */
   async getRemoteRegistrationId(): Promise<number> {
-    if (!this.sessionStore.containsSession(this.remoteAddress)) {
+    if (!this.sessionStore.containsSession(this.remoteAddress.handle)) {
       throw new Error(`No session for (${this.remoteAddress.toString()})`);
     }
 
-    const record = await this.sessionStore.loadSession(this.remoteAddress);
+    const record = await this.sessionStore.loadSession(this.remoteAddress.handle);
     if (!record) {
       throw new Error(`No session for (${this.remoteAddress.toString()})`);
     }
@@ -155,11 +163,11 @@ export class SessionCipher {
    * Get the current session version.
    */
   async getSessionVersion(): Promise<number> {
-    if (!this.sessionStore.containsSession(this.remoteAddress)) {
+    if (!this.sessionStore.containsSession(this.remoteAddress.handle)) {
       throw new Error(`No session for (${this.remoteAddress.toString()})`);
     }
 
-    const record = await this.sessionStore.loadSession(this.remoteAddress);
+    const record = await this.sessionStore.loadSession(this.remoteAddress.handle);
     if (!record) {
       throw new Error(`No session for (${this.remoteAddress.toString()})`);
     }

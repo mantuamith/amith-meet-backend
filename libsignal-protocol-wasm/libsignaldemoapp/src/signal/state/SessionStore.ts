@@ -1,3 +1,4 @@
+import type { SignalProtocolAddress } from "../protocol/SignalProtocolAddress";
 import type { SessionRecord } from "./SessionRecord";
 
 export interface SessionStore {
@@ -9,43 +10,42 @@ export interface SessionStore {
    * Implementations MUST return a deep copy so that modifications do not affect
    * stored state unless `storeSession()` is explicitly called.
    *
-   * @param remoteHandle - Opaque numeric handle provided by WASM
+   * @param address - User address
    */
-  loadSession(remoteHandle: number): Promise<SessionRecord | null>;
+  loadSession(address: SignalProtocolAddress): Promise<SessionRecord | null>;
 
   /**
    * Load SessionRecords for multiple remote handles.
    *
-   * @param remoteHandles - List of opaque numeric handles
+   * @param addresses - List of user address
    * @throws NoSessionException if any handle has no active session.
    */
-  loadExistingSessions(remoteHandles: number[]): SessionRecord[];
+  loadExistingSessions(addresses: SignalProtocolAddress[]): SessionRecord[];
 
   /**
    * Persist a SessionRecord for a given remote handle.
    *
-   * @param remoteHandle - Opaque numeric handle
+   * @param address - User address
    * @param record - The SessionRecord to store
    */
-  storeSession(remoteHandle: number,  record: Uint8Array): Promise<void>;
+  storeSession(address: SignalProtocolAddress,  record: Uint8Array): Promise<void>;
 
   /**
    * Check whether a session exists for the given remote handle.
    *
-   * @param remoteHandle - Opaque numeric handle
+   * @param address - User address
    */
-  containsSession(remoteHandle: number): boolean;
+  containsSession(address: SignalProtocolAddress): boolean;
 
   /**
    * Remove a session for a given remote handle.
    *
-   * @param remoteHandle - Opaque numeric handle
+   * @param address - User address
    */
-  deleteSession(remoteHandle: number): void;
+  deleteSession(address: SignalProtocolAddress): void;
 
   /**
-   * OPTIONAL: Remove all sessions for a given remote handle.
-   * (Included for symmetry; WASM does not currently call this.)
+   * Return the store pointer to wasm
    */
-  deleteAllSessionsForHandle?(remoteHandle: number): void;
+  getSessionStoreHandle(): number;
 }

@@ -68,11 +68,14 @@ export class SessionBuilder {
       //   sessionStore object
       //   identityKeyStore object
       //   timestamp (ms)
+      console.log("identityStoreHandle", this.identityKeyStore.getIdentityKeyStoreHandle());
+      console.log("sessionStoreHandle", this.sessionStore.getSessionStoreHandle());
+
       sessionBuilderWasm.sessionbuilder_process_prekey_bundle(
         preKey.handle,
         this.remoteAddress.handle,
-        this.sessionStore,
-        this.identityKeyStore,
+        this.sessionStore.getSessionStoreHandle(),
+        this.identityKeyStore.getIdentityKeyStoreHandle(),
         BigInt(nowMs)
       );
     } catch (err: any) {

@@ -8,7 +8,7 @@ use std::rc::Rc;
 use std::time::{UNIX_EPOCH, Duration};
 
 use crate::wasm_pre_key_bundle::get_prekeybundle_clone;
-use crate::wasm_protocol_address::get_protocol_address_clone;
+use crate::wasm_protocol_address::{get_protocol_address_clone};
 use libsignal_protocol::process_prekey_bundle;
 
 use rand_chacha::ChaCha20Rng;
@@ -17,16 +17,35 @@ use getrandom;
 use web_sys::console;
 
 pub mod adapters;
-mod converters;
 
 use adapters::{JsSessionStoreAdapter, JsIdentityStoreAdapter};
+
+use libsignal_protocol::error::Result as ProtocolResult;
+use libsignal_protocol::{SignalProtocolError};
+
+fn require_store_handle(name: &str, store_handle: u32) -> ProtocolResult<()> {
+    if store_handle == 0 {
+        let msg = format!(
+            "[{}] called with store_handle == 0 (store not initialized)",
+            name
+        );
+
+        // 🔊 Browser console error
+        console::error_1(&msg.clone().into());
+
+        // Signal-style failure
+        return Err(SignalProtocolError::InvalidArgument(msg));
+    }
+
+    Ok(())
+}
 
 #[wasm_bindgen(js_namespace = sessionBuilder)]
 pub fn sessionbuilder_process_prekey_bundle(
     prekey_ptr: u32,
     remote_ptr: u32,
-    session_store_js: JsValue,
-    identity_store_js: JsValue,
+    session_store_handle: u32,
+    identity_key_store_handle: u32,
     now_ms: u64,
 ) -> Promise {
     let fut = async move {
@@ -38,9 +57,29 @@ pub fn sessionbuilder_process_prekey_bundle(
 
         let now = UNIX_EPOCH + Duration::from_millis(now_ms);
 
-        let mut session_store = JsSessionStoreAdapter::new(session_store_js, remote_ptr);
-        let mut identity_store = JsIdentityStoreAdapter::new(identity_store_js, remote_ptr);
+        console::log_1(
+            &format!(
+                "process_prekey_bundle: session_store_handle={}, identity_store_handle={}",
+                session_store_handle, identity_key_store_handle
+            ).into()
+            );
 
+        // Guard — MUST propagate with conversion
+        require_store_handle(
+            "sessionbuilder_process_prekey_bundle (session_store_handle)",
+            session_store_handle,
+        )
+        .map_err(|e| JsValue::from_str(&format!("{:?}", e)))?;
+
+        require_store_handle(
+            "sessionbuilder_process_prekey_bundle (identity_store_handle)",
+            identity_key_store_handle,
+        )
+        .map_err(|e| JsValue::from_str(&format!("{:?}", e)))?;
+
+        let mut session_store = JsSessionStoreAdapter::new(session_store_handle);
+        let mut identity_store = JsIdentityStoreAdapter::new(identity_key_store_handle);
+        
         // --- Generate 32 bytes of strong randomness ---
         let mut seed = [0u8; 32];
         getrandom::getrandom(&mut seed)

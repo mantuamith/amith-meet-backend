@@ -41,6 +41,13 @@ fn remove_message(handle: u32) {
     PREKEY_SIGNAL_MESSAGES.lock().unwrap().remove(&handle);
 }
 
+pub fn has_prekey_signal_message(handle: u32) -> bool {
+    PREKEY_SIGNAL_MESSAGES
+        .lock()
+        .unwrap()
+        .contains_key(&handle)
+}
+
 #[wasm_bindgen(js_namespace = preKeySignalMessage)]
 pub fn prekeysignalmessage_deserialize(serialized: &[u8]) -> u32 {
     let msg = PreKeySignalMessage::try_from(serialized)

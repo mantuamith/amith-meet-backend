@@ -7,7 +7,7 @@ export interface SessionBuilderWasm{
     remoteAddressPtr: number,
     sessionStore: SessionStore,
     identityKeyStore: IdentityKeyStore,
-    nowMs: number
+    nowMs: bigint
     ): void;
 
 }

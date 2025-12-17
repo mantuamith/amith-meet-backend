@@ -45,8 +45,8 @@ pub fn store_key(pk: PrivateKey) -> u32 {
     table.len() as u32 // Return (index + 1)
 }
 
-/*
-pub fn get_private_key(ptr: u32) -> Option<PrivateKey> {  
+
+pub fn get_private_key_clone(ptr: u32) -> Option<PrivateKey> {  
     if ptr == 0 {
         return None;
     } 
@@ -56,7 +56,7 @@ pub fn get_private_key(ptr: u32) -> Option<PrivateKey> {
         .get((ptr - 1) as usize)?
         .as_ref()
         .map(|boxed| (**boxed).clone())
-}*/
+}
 
 pub fn with_private_key<F, R>(ptr: u32, f: F) -> Result<R, JsValue>
 where

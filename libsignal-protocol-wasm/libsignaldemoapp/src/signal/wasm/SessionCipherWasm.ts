@@ -1,5 +1,8 @@
 // wasm/SessionCipherWasm.ts
 
+import type { IdentityKeyStore } from "../state/IdentityKeyStore";
+import type { SessionStore } from "../state/SessionStore";
+
 export interface SessionCipherWasm {
   /**
    * Decrypt a PreKeySignalMessage.
@@ -30,8 +33,8 @@ export interface SessionCipherWasm {
   sessioncipher_encrypt_message(
     plaintext: Uint8Array,
     remoteAddressHandle: number,
-    sessionStore: unknown,
-    identityKeyStore: unknown,
-    nowMillis: number
+    sessionStoreHandle: number,
+    identityKeyStoreHandle: number,
+    nowMillis: bigint
   ): Promise<number>; // returns CiphertextMessage handle
 }

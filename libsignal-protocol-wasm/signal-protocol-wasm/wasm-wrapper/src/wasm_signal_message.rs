@@ -3,13 +3,13 @@ use libsignal_protocol::{SignalMessage, IdentityKey};
 
 use std::sync::Mutex;
 use once_cell::sync::Lazy;
-use crate::handle_store::{HandleStore};
+use crate::handle_message_store::{HandleMessageStore};
 use crate::wasm_ec_public_key::{with_public_key, store_public_key};
 use js_sys::Uint8Array;
 use crate::utils::vec_to_uint8array;
 
-static SIGNAL_MESSAGES: Lazy<Mutex<HandleStore<SignalMessage>>> =
-    Lazy::new(|| Mutex::new(HandleStore::new()));
+static SIGNAL_MESSAGES: Lazy<Mutex<HandleMessageStore<SignalMessage>>> =
+    Lazy::new(|| Mutex::new(HandleMessageStore::new()));
 
 // -------- SignalMessage helpers --------
 pub fn store_signal_message(msg: SignalMessage) -> u32 {
@@ -22,6 +22,13 @@ pub fn with_signal_message<R>(handle: u32, f: impl FnOnce(&SignalMessage) -> R) 
 
 pub fn remove_signal_message(handle: u32) {
     SIGNAL_MESSAGES.lock().unwrap().remove(handle);
+}
+
+pub fn has_signal_message(handle: u32) -> bool {
+    SIGNAL_MESSAGES
+        .lock()
+        .unwrap()
+        .contains(handle)
 }
 
 #[wasm_bindgen(js_namespace = signalMessage)]
