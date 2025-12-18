@@ -162,19 +162,3 @@ pub fn ec_public_key_equals(ptr_a: u32, ptr_b: u32) -> bool {
     })
     .unwrap_or(false)
 }
-
-/*
-#[wasm_bindgen(js_namespace = ecPublicKey)]
-pub fn ec_public_key_equals(ptr_a: u32, ptr_b: u32) -> bool {
-    if ptr_a == 0 || ptr_b == 0 {
-        return false;
-    }
-
-    let a = match with_public_key(ptr_a, |a| Ok(a.clone())) {
-        Ok(a) => a,
-        Err(_) => return false,
-    };
-
-    with_public_key(ptr_b, |b| Ok(a == *b))
-        .unwrap_or(false)
-}*/

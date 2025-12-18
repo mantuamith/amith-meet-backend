@@ -43,4 +43,8 @@ where
     pub fn get_mut(&mut self, key: &K) -> Option<&mut T> {
         self.map.get_mut(key)
     }
+
+    pub fn values(&self) -> impl Iterator<Item = &T> {
+        self.map.values()
+    }
 }

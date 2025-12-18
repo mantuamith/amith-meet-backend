@@ -31,6 +31,21 @@ pub fn has_signal_message(handle: u32) -> bool {
         .contains(handle)
 }
 
+/// Get a cloned SignalMessage from a handle (internal use)
+pub fn get_signal_message_clone(handle: u32) -> Result<SignalMessage, JsValue> {
+    if handle == 0 {
+        return Err(JsValue::from_str("Invalid SignalMessage handle (0)"));
+    }
+
+    let mut guard = SIGNAL_MESSAGES.lock().unwrap();
+
+    if !guard.contains(handle) {
+        return Err(JsValue::from_str("Invalid SignalMessage handle"));
+    }
+
+    Ok(guard.with(handle, |msg| msg.clone()))
+}
+
 #[wasm_bindgen(js_namespace = signalMessage)]
 pub fn signalmessage_deserialize(serialized: &[u8]) -> u32 {
     let msg = SignalMessage::try_from(serialized)

@@ -28,7 +28,7 @@ static KYBER_KEYPAIRS: Lazy<Mutex<Vec<Option<Box<KyberKeyPair>>>>> = Lazy::new(|
     Mutex::new(v)
 });
 
-fn store_kem_keypair(pair: KyberKeyPair) -> u32 {
+pub fn store_kem_keypair(pair: KyberKeyPair) -> u32 {
     let mut table = KYBER_KEYPAIRS.lock().unwrap();
     let boxed = Box::new(pair);
 
@@ -68,6 +68,20 @@ fn remove_kem_keypair(ptr: u32) {
 
 fn js_err(msg: impl ToString) -> JsValue {
     JsValue::from_str(&msg.to_string())
+}
+
+/// Get a CLONED Kyber KeyPair from a handle
+/// (Used by KyberPreKeyRecord, SessionBuilder, etc.)
+pub fn get_kyber_keypair_clone(ptr: u32) -> Option<KyberKeyPair> {
+    if ptr == 0 {
+        return None;
+    }
+
+    let table = KYBER_KEYPAIRS.lock().unwrap();
+    table
+        .get((ptr - 1) as usize)?
+        .as_ref()
+        .map(|boxed| (**boxed).clone())
 }
 
 // ============================================================

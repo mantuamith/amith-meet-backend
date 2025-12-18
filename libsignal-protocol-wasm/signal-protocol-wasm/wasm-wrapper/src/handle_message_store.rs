@@ -32,4 +32,8 @@ impl<T> HandleMessageStore<T> {
     pub fn contains(&self, handle: u32) -> bool {
         self.map.contains_key(&handle)
     }
+
+    pub fn take(&mut self, handle: u32) -> Option<T> {
+        self.map.remove(&handle)
+    }
 }

@@ -48,6 +48,12 @@ mod handle_store;
 mod handle_identity_store;
 mod wasm_session_store;
 mod wasm_identity_key_store;
+mod wasm_pre_key_record;
+mod wasm_signed_prekey_record;
+mod wasm_kyber_prekey_record;
+mod wasm_pre_key_store;
+mod wasm_signed_pre_key_store;
+mod wasm_kyber_pre_key_store;
 
 // Re-export each module's wasm_bindgen API
 pub use protocol::*;
@@ -70,6 +76,12 @@ pub use wasm_ciphertext_message::*;
 pub use handle_store::*;
 pub use wasm_session_store::*;
 pub use wasm_identity_key_store::*;
+pub use wasm_pre_key_record::*;
+pub use wasm_signed_prekey_record::*;
+pub use wasm_kyber_prekey_record::*;
+pub use wasm_pre_key_store::*;
+pub use wasm_signed_pre_key_store::*;
+pub use wasm_kyber_pre_key_store::*;
 
 // ------------------------
 // ERROR HANDLING

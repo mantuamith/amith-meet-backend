@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 use once_cell::sync::Lazy;
 use web_sys::console;
+use wasm_bindgen::JsValue;
 
 use crate::handle_message_store::{HandleMessageStore};
 
@@ -13,6 +14,22 @@ static CIPHERTEXT_MESSAGES: Lazy<Mutex<HandleMessageStore<CiphertextMessage>>> =
 
 pub fn store_ciphertext_message(msg: CiphertextMessage) -> u32 {
     CIPHERTEXT_MESSAGES.lock().unwrap().insert(msg)
+}
+
+pub fn take_ciphertext_message(
+    handle: u32,
+) -> Result<CiphertextMessage, JsValue> {
+    if handle == 0 {
+        return Err(JsValue::from_str(
+            "Invalid CiphertextMessage handle (0)",
+        ));
+    }
+
+    let mut store = CIPHERTEXT_MESSAGES.lock().unwrap();
+
+    store
+        .take(handle)
+        .ok_or_else(|| JsValue::from_str("Invalid CiphertextMessage handle"))
 }
 
 #[wasm_bindgen(js_namespace = ciphertextMessage)]

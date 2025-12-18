@@ -192,35 +192,6 @@ pub fn sessionrecord_has_usable_sender_chain(ptr: u32, now_ms: u64) -> bool {
     }
 }
 
-/*
-#[wasm_bindgen(js_namespace = sessionRecord)]
-pub fn sessionrecord_current_ratchet_key_matches(ptr: u32, key_ptr: u32) -> bool {
-    if ptr == 0 || key_ptr == 0 {
-        return false;
-    }
-
-    let rec = match get_session_record_clone(ptr) {
-        Ok(r) => r,
-        Err(_) => return false,
-    };
-
-    let pk = match crate::wasm_ec_public_key::get_public_key(key_ptr) {
-        Ok(p) => p,
-        Err(e) => {
-            console::error_1(&format!("get_public_key failed: {:?}", e).into());
-            return false;
-        }
-    };
-
-    match rec.current_ratchet_key_matches(&pk) {
-        Ok(v) => v,
-        Err(e) => {
-            console::error_1(&format!("current_ratchet_key_matches failed: {:?}", e).into());
-            false
-        }
-    }
-}*/
-
 #[wasm_bindgen(js_namespace = sessionRecord)]
 pub fn sessionrecord_current_ratchet_key_matches(ptr: u32, key_ptr: u32) -> bool {
     if ptr == 0 || key_ptr == 0 {

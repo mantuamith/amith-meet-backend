@@ -67,25 +67,6 @@ pub fn identitykeypair_deserialize(bytes: &Uint8Array) -> Result<Object, JsValue
 // identitykeypair_serialize
 // -------------------------
 // Accepts two handles (publicPtr, privatePtr) and returns Uint8Array containing the serialized pair.
-/*
-#[wasm_bindgen(js_namespace = identityKeyPair)]
-pub fn identitykeypair_serialize(public_ptr: u32, private_ptr: u32) -> Result<Uint8Array, JsValue> {
-    // Obtain keys (these functions should return Result<..., JsValue>)
-    let public_curve: PublicKey = get_public_key_clone(public_ptr)
-        .map_err(|e| JsValue::from_str(&format!("get_public_key_clone failed: {:?}", e)))?;
-    let private_curve: PrivateKey = get_private_key(private_ptr)
-    .ok_or_else(|| JsValue::from_str("get_private_key failed"))?;
-
-    // Wrap into identity types expected by IdentityKeyPair
-    // We assume IdentityKey::new(public_curve) exists and IdentityKeyPair::new(public, private)
-    let identity_public = IdentityKey::new(public_curve);
-    let ikp = IdentityKeyPair::new(identity_public, private_curve);
-
-    // serialize -> Vec<u8>
-    let serialized = ikp.serialize().into_vec(); // adjust if serialize returns Box<[u8]> or Vec<u8>
-
-    Ok(vec_to_uint8array(serialized))
-} */
 
 #[wasm_bindgen(js_namespace = identityKeyPair)]
 pub fn identitykeypair_serialize(
@@ -108,40 +89,6 @@ pub fn identitykeypair_serialize(
 // identitykeypair_sign_alternate_identity
 // -------------------------
 // Use the given (publicPtr, privatePtr) to sign `otherPublicPtr` and return signature bytes.
-/*
-#[wasm_bindgen(js_namespace = identityKeyPair)]
-pub fn identitykeypair_sign_alternate_identity(
-    public_ptr: u32,
-    private_ptr: u32,
-    other_public_ptr: u32,
-) -> Result<Uint8Array, JsValue> {
-    // Get own keys
-    let public_curve: PublicKey = get_public_key_clone(public_ptr)
-        .map_err(|e| JsValue::from_str(&format!("get_public_key_clone failed: {:?}", e)))?;
-
-    let private_curve: PrivateKey = get_private_key(private_ptr)
-    .ok_or_else(|| JsValue::from_str("get_private_key failed"))?;
-
-    // Get other identity public key
-    let other_pub_curve: PublicKey = get_public_key_clone(other_public_ptr)
-        .map_err(|e| JsValue::from_str(&format!("get_public_key_clone (other) failed: {:?}", e)))?;
-
-    // Build IdentityKeyPair & IdentityKey for the "other" identity
-    let our_identity = IdentityKey::new(public_curve);
-    let ikp = IdentityKeyPair::new(our_identity, private_curve);
-
-    let other_identity = IdentityKey::new(other_pub_curve);
-
-    let mut rng = new_crypto_rng()?;
-
-    // Sign alternate identity
-    let sig = ikp
-        .sign_alternate_identity(&other_identity, &mut rng)
-        .map_err(|e| JsValue::from_str(&format!("sign_alternate_identity failed: {:?}", e)))?;
-
-    Ok(vec_to_uint8array(sig.into_vec()))
-}
-    */
 
 #[wasm_bindgen(js_namespace = identityKeyPair)]
 pub fn identitykeypair_sign_alternate_identity(
