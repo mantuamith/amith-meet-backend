@@ -38,4 +38,6 @@ export interface KyberPreKeyStore {
     signedPreKeyId: number,
     baseKey: ECPublicKey
   ): void;
+
+  getKyberPreKeyStoreHandle(): number;
 }

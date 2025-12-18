@@ -1,31 +1,22 @@
 import { InvalidKeyIdException } from "../../exceptions/InvalidKeyIdException";
-import { ReusedBaseKeyException } from "../../exceptions/ReusedBaseKeyException";
 import type { ECPublicKey } from "../../protocol/ecc/ECPublicKey";
 import { KyberPreKeyRecord } from "../KyberPreKeyRecord";
 import type { KyberPreKeyStore } from "../KyberPreKeyStore";
-
-export type KyberTuple = readonly [number, number];
-
-function makeTuple(a: number, b: number): KyberTuple {
-  return [a, b] as const;
-}
+import { kyberPreKeyStore as kyberPreKeyStoreWasm } from "libsignal_wasm_pqxdh";
 
 export class InMemoryKyberPreKeyStore implements KyberPreKeyStore {
+  private readonly storeHandle!: number;
 
-  private store = new Map<number, Uint8Array>();
-  private used = new Set<number>();
-
-  /**
-   * (kyberPreKeyId, signedPreKeyId)  →  Set<ECPublicKey>
-   */
-  private baseKeysSeen = new Map<KyberTuple, Set<ECPublicKey>>();
+  constructor() {
+    this.storeHandle = kyberPreKeyStoreWasm.kyberprekeystore_create();
+  }
 
   // ---------------------------------------------------------------------------
   // loadKyberPreKey()
   // ---------------------------------------------------------------------------
 
   loadKyberPreKey(id: number): KyberPreKeyRecord {
-    const serialized = this.store.get(id);
+    const serialized = kyberPreKeyStoreWasm.kyberprekeystore_load_kyber_prekey(this.storeHandle, id);
 
     if (!serialized) {
       throw new InvalidKeyIdException(`No such KyberPreKeyRecord! ${id}`);
@@ -45,7 +36,7 @@ export class InMemoryKyberPreKeyStore implements KyberPreKeyStore {
   loadKyberPreKeys(): KyberPreKeyRecord[] {
     const results: KyberPreKeyRecord[] = [];
 
-    for (const serialized of this.store.values()) {
+    for (const serialized of kyberPreKeyStoreWasm.kyberprekeystore_load_kyber_prekeys(this.storeHandle)) {
       try {
         results.push(new KyberPreKeyRecord(serialized));
       } catch (e) {
@@ -61,7 +52,7 @@ export class InMemoryKyberPreKeyStore implements KyberPreKeyStore {
   // ---------------------------------------------------------------------------
 
   storeKyberPreKey(id: number, record: KyberPreKeyRecord): void {
-    this.store.set(id, record.serialize());
+    kyberPreKeyStoreWasm.kyberprekeystore_store_kyber_prekey(this.storeHandle, id, record.serialize());
   }
 
   // ---------------------------------------------------------------------------
@@ -69,7 +60,7 @@ export class InMemoryKyberPreKeyStore implements KyberPreKeyStore {
   // ---------------------------------------------------------------------------
 
   containsKyberPreKey(id: number): boolean {
-    return this.store.has(id);
+    return kyberPreKeyStoreWasm.kyberprekeystore_contains_kyber_prekey(this.storeHandle, id);
   }
 
   // ---------------------------------------------------------------------------
@@ -81,28 +72,7 @@ export class InMemoryKyberPreKeyStore implements KyberPreKeyStore {
     signedPreKeyId: number,
     baseKey: ECPublicKey
   ): void {
-
-    this.used.add(kyberPreKeyId);
-
-    const tuple = makeTuple(kyberPreKeyId, signedPreKeyId);
-    const seenSet = this.baseKeysSeen.get(tuple);
-
-    if (!seenSet) {
-      // First time this (kyberPreKeyId, signedPreKeyId) pair is used
-      this.baseKeysSeen.set(tuple, new Set([baseKey]));
-      return;
-    }
-
-    // Check whether this exact ECPublicKey was already used
-    //
-    // NOTE: relies on your ECPublicKey.equals(other) implementation.
-    for (const existing of seenSet) {
-      if (existing.equals(baseKey)) {
-        throw new ReusedBaseKeyException();
-      }
-    }
-
-    seenSet.add(baseKey);
+    kyberPreKeyStoreWasm.kyberprekeystore_mark_kyber_prekey_used(this.storeHandle, kyberPreKeyId, signedPreKeyId, baseKey.handle);    
   }
 
   // ---------------------------------------------------------------------------
@@ -110,6 +80,10 @@ export class InMemoryKyberPreKeyStore implements KyberPreKeyStore {
   // ---------------------------------------------------------------------------
 
   hasKyberPreKeyBeenUsed(id: number): boolean {
-    return this.used.has(id);
+    return kyberPreKeyStoreWasm.kyberprekeystore_has_kyber_prekey_been_used(this.storeHandle, id);
+  }
+
+  getKyberPreKeyStoreHandle(): number {
+    return this.storeHandle;
   }
 }

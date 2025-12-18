@@ -32,4 +32,6 @@ export interface PreKeyStore {
    * @param preKeyId - The ID of the PreKeyRecord to remove.
    */
   removePreKey(preKeyId: number): Promise<void>;
+
+  getPreKeyStoreHandle(): number;
 }

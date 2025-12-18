@@ -6,10 +6,8 @@ import { InvalidMessageException } from "../exceptions/InvalidMessageException";
 import { ECKeyPair } from "../protocol/ecc/ECKeyPair";
 import { ECPrivateKey } from "../protocol/ecc/ECPrivateKey";
 import { ECPublicKey } from "../protocol/ecc/ECPublicKey";
-import type { PreKeyRecordWasm } from "../wasm/PreKeyRecordWasm";
+import { preKeyRecord as  preKeyRecordWasm } from "libsignal_wasm_pqxdh";
 
-// Your WASM instance should be imported from somewhere
-declare const wasm: PreKeyRecordWasm;
 /**
  * TypeScript equivalent of Signal's PreKeyRecord.
  */
@@ -35,7 +33,7 @@ export class PreKeyRecord {
     // Case 1: new PreKeyRecord(serializedBytes)
     if (arg1 instanceof Uint8Array) {
       try {
-        this.handle = wasm.prekeyrecord_deserialize(arg1);
+        this.handle = preKeyRecordWasm.prekeyrecord_deserialize(arg1);
       } catch (_) {
         throw new InvalidMessageException("Failed to deserialize PreKeyRecord");
       }
@@ -49,7 +47,7 @@ export class PreKeyRecord {
     const pubPtr = keyPair.publicKey.handle;
     const privPtr = keyPair.privateKey.handle;
 
-    this.handle = wasm.prekeyrecord_new(id, pubPtr, privPtr);
+    this.handle = preKeyRecordWasm.prekeyrecord_new(id, pubPtr, privPtr);
   }
 
   // --------------------------------------------------------------
@@ -57,7 +55,7 @@ export class PreKeyRecord {
   // --------------------------------------------------------------
 
   getId(): number {
-    return wasm.prekeyrecord_get_id(this.handle);
+    return preKeyRecordWasm.prekeyrecord_get_id(this.handle);
   }
 
   /**
@@ -65,8 +63,8 @@ export class PreKeyRecord {
    */
   getKeyPair(): ECKeyPair {
     try {
-      const publicPtr = wasm.prekeyrecord_get_public_key(this.handle);
-      const privatePtr = wasm.prekeyrecord_get_private_key(this.handle);
+      const publicPtr = preKeyRecordWasm.prekeyrecord_get_public_key(this.handle);
+      const privatePtr = preKeyRecordWasm.prekeyrecord_get_private_key(this.handle);
 
       const pub = new ECPublicKey(publicPtr);
       const priv = new ECPrivateKey(privatePtr);
@@ -80,10 +78,10 @@ export class PreKeyRecord {
   }
 
   serialize(): Uint8Array {
-    return wasm.prekeyrecord_get_serialized(this.handle);
+    return preKeyRecordWasm.prekeyrecord_get_serialized(this.handle);
   }
 
   destroy(): void {
-    wasm.prekeyrecord_destroy(this.handle);
+    preKeyRecordWasm.prekeyrecord_destroy(this.handle);
   }
 }

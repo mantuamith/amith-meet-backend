@@ -109,20 +109,20 @@ async encryptWithTime(
   /**
    * Decrypt a PreKeySignalMessage.
    */
-  /*
+  
   async decryptPreKeySignalMessage(
     ciphertext: PreKeySignalMessage
   ): Promise<Uint8Array> {
     return sessionCipherWasm.sessioncipher_decrypt_prekey_signal_message(
       ciphertext.handle,
       this.remoteAddress.handle,
-      this.sessionStore,
-      this.identityKeyStore,
-      this.preKeyStore,
-      this.signedPreKeyStore,
-      this.kyberPreKeyStore
+      this.sessionStore.getSessionStoreHandle(),
+      this.identityKeyStore.getIdentityKeyStoreHandle(),
+      this.preKeyStore.getPreKeyStoreHandle(),
+      this.signedPreKeyStore.getSignedPreKeyStoreHandle(),
+      this.kyberPreKeyStore.getKyberPreKeyStoreHandle()
     );
-  } */
+  } 
 
   /**
    * Decrypt a SignalMessage.
@@ -134,8 +134,8 @@ async encryptWithTime(
     return sessionCipherWasm.sessioncipher_decrypt_signal_message(
       ciphertext.handle,
       this.remoteAddress.handle,
-      this.sessionStore,
-      this.identityKeyStore
+      this.sessionStore.getSessionStoreHandle(),
+      this.identityKeyStore.getIdentityKeyStoreHandle()
     );
   } */
 
@@ -147,11 +147,11 @@ async encryptWithTime(
    * Get the remote party's registration ID.
    */
   async getRemoteRegistrationId(): Promise<number> {
-    if (!this.sessionStore.containsSession(this.remoteAddress.handle)) {
+    if (!this.sessionStore.containsSession(this.remoteAddress)) {
       throw new Error(`No session for (${this.remoteAddress.toString()})`);
     }
 
-    const record = await this.sessionStore.loadSession(this.remoteAddress.handle);
+    const record = await this.sessionStore.loadSession(this.remoteAddress);
     if (!record) {
       throw new Error(`No session for (${this.remoteAddress.toString()})`);
     }
@@ -163,11 +163,11 @@ async encryptWithTime(
    * Get the current session version.
    */
   async getSessionVersion(): Promise<number> {
-    if (!this.sessionStore.containsSession(this.remoteAddress.handle)) {
+    if (!this.sessionStore.containsSession(this.remoteAddress)) {
       throw new Error(`No session for (${this.remoteAddress.toString()})`);
     }
 
-    const record = await this.sessionStore.loadSession(this.remoteAddress.handle);
+    const record = await this.sessionStore.loadSession(this.remoteAddress);
     if (!record) {
       throw new Error(`No session for (${this.remoteAddress.toString()})`);
     }

@@ -89,6 +89,10 @@ export class InMemorySignalProtocolStore implements SignalProtocolStore {
     return this.preKeyStore.removePreKey(preKeyId);
   }
 
+  getPreKeyStoreHandle(): number {
+    return this.preKeyStore.getPreKeyStoreHandle();
+  }
+
   // --------------------------------------------------------------------
   // Session store
   // --------------------------------------------------------------------
@@ -143,6 +147,10 @@ export class InMemorySignalProtocolStore implements SignalProtocolStore {
     this.signedPreKeyStore.removeSignedPreKey(id);
   }
 
+  getSignedPreKeyStoreHandle(): number {
+    return this.signedPreKeyStore.getSignedPreKeyStoreHandle();
+  }
+
   // --------------------------------------------------------------------
   // Sender-key (groups) store
   // --------------------------------------------------------------------
@@ -192,5 +200,9 @@ export class InMemorySignalProtocolStore implements SignalProtocolStore {
 
   hasKyberPreKeyBeenUsed(id: number): boolean {
     return this.kyberPreKeyStore.hasKyberPreKeyBeenUsed(id);
+  }
+
+  getKyberPreKeyStoreHandle(): number {
+    return this.kyberPreKeyStore.getKyberPreKeyStoreHandle();
   }
 }

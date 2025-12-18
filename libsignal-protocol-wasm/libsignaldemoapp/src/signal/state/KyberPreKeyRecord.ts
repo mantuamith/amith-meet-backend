@@ -1,9 +1,7 @@
 import { InvalidKeyException } from "../exceptions/InvalidKeyException";
 import { InvalidMessageException } from "../exceptions/InvalidMessageException";
 import { KEMKeyPair } from "../protocol/kem/KEMKeyPair";
-import type { KyberPreKeyRecordWasm } from "../wasm/KyberPreKeyRecordWasm";
-
-declare const wasm: KyberPreKeyRecordWasm;
+import { kyberPreKeyRecord as  kyberPreKeyRecordWasm } from "libsignal_wasm_pqxdh";
 
 export class KyberPreKeyRecord {
   public readonly handle: number;
@@ -26,7 +24,7 @@ export class KyberPreKeyRecord {
     // Case 1: `new KyberPreKeyRecord(serialized)`
     if (arg1 instanceof Uint8Array) {
       try {
-        this.handle = wasm.kyber_prekey_deserialize(arg1);
+        this.handle = kyberPreKeyRecordWasm.kyber_prekey_deserialize(arg1);
       } catch (_) {
         throw new InvalidMessageException("Failed to deserialize KyberPreKeyRecord");
       }
@@ -41,9 +39,9 @@ export class KyberPreKeyRecord {
 
     const keyPairHandle = keyPair.handle;
 
-    this.handle = wasm.kyber_prekey_new(
+    this.handle = kyberPreKeyRecordWasm.kyber_prekey_new(
       id,
-      timestamp,
+      BigInt(timestamp),
       keyPairHandle,
       signature
     );
@@ -54,11 +52,11 @@ export class KyberPreKeyRecord {
   // ----------------------------------------------------------------------
 
   getId(): number {
-    return wasm.kyber_prekey_get_id(this.handle);
+    return kyberPreKeyRecordWasm.kyber_prekey_get_id(this.handle);
   }
 
-  getTimestamp(): number {
-    return wasm.kyber_prekey_get_timestamp(this.handle);
+  getTimestamp(): BigInt {
+    return kyberPreKeyRecordWasm.kyber_prekey_get_timestamp(this.handle);
   }
 
   /**
@@ -66,7 +64,7 @@ export class KyberPreKeyRecord {
    */
   getKeyPair(): KEMKeyPair {
     try {
-      const kpHandle = wasm.kyber_prekey_get_keypair(this.handle);
+      const kpHandle = kyberPreKeyRecordWasm.kyber_prekey_get_keypair(this.handle);
       return new KEMKeyPair(kpHandle);
     } catch (e) {
       throw new InvalidKeyException(
@@ -76,17 +74,17 @@ export class KyberPreKeyRecord {
   }
 
   getSignature(): Uint8Array {
-    return wasm.kyber_prekey_get_signature(this.handle);
+    return kyberPreKeyRecordWasm.kyber_prekey_get_signature(this.handle);
   }
 
   serialize(): Uint8Array {
-    return wasm.kyber_prekey_serialize(this.handle);
+    return kyberPreKeyRecordWasm.kyber_prekey_serialize(this.handle);
   }
 
   /**
    * Equivalent to Java's release(nativeHandle)
    */
   destroy(): void {
-    wasm.kyber_prekey_destroy(this.handle);
+    kyberPreKeyRecordWasm.kyber_prekey_destroy(this.handle);
   }
 }

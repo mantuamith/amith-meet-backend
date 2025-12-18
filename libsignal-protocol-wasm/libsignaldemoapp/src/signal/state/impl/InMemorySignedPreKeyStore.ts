@@ -1,15 +1,20 @@
 import { InvalidKeyIdException } from "../../exceptions/InvalidKeyIdException";
 import { SignedPreKeyRecord } from "../SignedPreKeyRecord";
 import type { SignedPreKeyStore } from "../SignedPreKeyStore";
+import { signedPreKeyStore as signedPreKeyStoreWasm } from "libsignal_wasm_pqxdh";
 
 export class InMemorySignedPreKeyStore implements SignedPreKeyStore {
+  private readonly storeHandle!: number;
 
-  private store = new Map<number, Uint8Array>();
-
-  constructor() {}
+  constructor() {
+    this.storeHandle = signedPreKeyStoreWasm.signedprekeystore_create();
+  }
+  getSignedPreKeyStoreHandle(): number {
+    return this.storeHandle;
+  }
 
   async loadSignedPreKey(id: number): Promise<SignedPreKeyRecord> {
-    const serialized = this.store.get(id);
+    const serialized = signedPreKeyStoreWasm.signedprekeystore_load_signed_prekey(this.storeHandle, id);
 
     if (!serialized) {
       throw new InvalidKeyIdException(`No such SignedPreKeyRecord! ${id}`);
@@ -26,7 +31,7 @@ export class InMemorySignedPreKeyStore implements SignedPreKeyStore {
     const results: SignedPreKeyRecord[] = [];
 
     try {
-      for (const serialized of this.store.values()) {
+      for (const serialized of signedPreKeyStoreWasm.signedprekeystore_load_signed_prekeys(this.storeHandle)) {
         results.push(new SignedPreKeyRecord(serialized));
       }
     } catch (e) {
@@ -37,14 +42,14 @@ export class InMemorySignedPreKeyStore implements SignedPreKeyStore {
   }
 
   async storeSignedPreKey(id: number, record: SignedPreKeyRecord): Promise<void> {
-    this.store.set(id, record.serialize());
+    signedPreKeyStoreWasm.signedprekeystore_store_signed_prekey(this.storeHandle, id, record.serialize());
   }
 
   containsSignedPreKey(id: number): boolean {
-    return this.store.has(id);
+    return signedPreKeyStoreWasm.signedprekeystore_contains_signed_prekey(this.storeHandle, id);
   }
 
   removeSignedPreKey(id: number): void {
-    this.store.delete(id);
+    signedPreKeyStoreWasm.signedprekeystore_remove_signed_prekey(this.storeHandle, id);
   }
 }

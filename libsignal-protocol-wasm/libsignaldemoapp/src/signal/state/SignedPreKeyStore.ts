@@ -28,4 +28,6 @@ export interface SignedPreKeyStore {
    * Remove a SignedPreKeyRecord for the given id.
    */
   removeSignedPreKey(signedPreKeyId: number): void;
+
+  getSignedPreKeyStoreHandle(): number;
 }

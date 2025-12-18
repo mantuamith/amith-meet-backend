@@ -3,9 +3,7 @@ import { InvalidMessageException } from "../exceptions/InvalidMessageException";
 import { ECKeyPair } from "../protocol/ecc/ECKeyPair";
 import { ECPrivateKey } from "../protocol/ecc/ECPrivateKey";
 import { ECPublicKey } from "../protocol/ecc/ECPublicKey";
-import type { SignedPreKeyRecordWasm } from "../wasm/SignedPreKeyRecordWasm";
-
-declare const wasm: SignedPreKeyRecordWasm;
+import { signedPreKeyRecord as  signedPreKeyRecordWasm } from "libsignal_wasm_pqxdh";
 
 export class SignedPreKeyRecord {
 
@@ -30,7 +28,7 @@ export class SignedPreKeyRecord {
     // Case 1: new SignedPreKeyRecord(serialized)
     if (arg1 instanceof Uint8Array) {
       try {
-        this.handle = wasm.signed_prekey_deserialize(arg1);
+        this.handle = signedPreKeyRecordWasm.signed_prekey_deserialize(arg1);
       } catch (_) {
         throw new InvalidMessageException("Failed to deserialize SignedPreKeyRecord");
       }
@@ -46,9 +44,9 @@ export class SignedPreKeyRecord {
     const pubPtr = keyPair.publicKey.handle;
     const privPtr = keyPair.privateKey.handle;
 
-    this.handle = wasm.signed_prekey_new(
+    this.handle = signedPreKeyRecordWasm.signed_prekey_new(
       id,
-      timestamp,
+      BigInt(timestamp),
       pubPtr,
       privPtr,
       signature
@@ -58,13 +56,12 @@ export class SignedPreKeyRecord {
   // --------------------------------------------------------------------------
   // API Methods
   // --------------------------------------------------------------------------
-
   getId(): number {
-    return wasm.signed_prekey_get_id(this.handle);
+    return signedPreKeyRecordWasm.signed_prekey_get_id(this.handle);
   }
 
-  getTimestamp(): number {
-    return wasm.signed_prekey_get_timestamp(this.handle);
+  getTimestamp(): BigInt {
+    return signedPreKeyRecordWasm.signed_prekey_get_timestamp(this.handle);
   }
 
   /**
@@ -72,8 +69,8 @@ export class SignedPreKeyRecord {
    */
   getKeyPair(): ECKeyPair {
     try {
-      const pubPtr = wasm.signed_prekey_get_public_key(this.handle);
-      const privPtr = wasm.signed_prekey_get_private_key(this.handle);
+      const pubPtr = signedPreKeyRecordWasm.signed_prekey_get_public_key(this.handle);
+      const privPtr = signedPreKeyRecordWasm.signed_prekey_get_private_key(this.handle);
 
       const publicKey = new ECPublicKey(pubPtr);
       const privateKey = new ECPrivateKey(privPtr);
@@ -85,17 +82,17 @@ export class SignedPreKeyRecord {
   }
 
   getSignature(): Uint8Array {
-    return wasm.signed_prekey_get_signature(this.handle);
+    return signedPreKeyRecordWasm.signed_prekey_get_signature(this.handle);
   }
 
   serialize(): Uint8Array {
-    return wasm.signed_prekey_serialize(this.handle);
+    return signedPreKeyRecordWasm.signed_prekey_serialize(this.handle);
   }
 
   /**
    * Explicit cleanup (mirrors NativeHandleGuard.release)
    */
   destroy(): void {
-    wasm.signed_prekey_destroy(this.handle);
+    signedPreKeyRecordWasm.signed_prekey_destroy(this.handle);
   }
 }

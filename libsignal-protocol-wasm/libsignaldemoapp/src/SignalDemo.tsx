@@ -16,6 +16,10 @@ import { KEMKeyType } from "./signal/protocol/kem/KEMKeyType";
 import { PreKeyBundle } from "./signal/state/PreKeyBundle";
 import { SessionBuilder } from "./signal/protocol/SessionBuilder";
 import { SessionCipher } from "./signal/protocol/SessionCipher";
+import { PreKeyRecord } from "./signal/state/PreKeyRecord";
+import { SignedPreKeyRecord } from "./signal/state/SignedPreKeyRecord";
+import { KyberPreKeyRecord } from "./signal/state/KyberPreKeyRecord";
+import { PreKeySignalMessage } from "./signal/protocol/message/PreKeySignalMessage";
 
 
 // base64 helpers
@@ -108,17 +112,19 @@ export default function SignalDemo() {
   // Bob keys
   const bobIdentityKeyECPair = ECKeyPair.generate();
   const bobIdentityKey = new IdentityKey(bobIdentityKeyECPair.publicKey);
-  const bobIdentityKeyPair2 = new IdentityKeyPair(bobIdentityKey, bobIdentityKeyECPair.privateKey);
+  const bobIdentityKeyPair = new IdentityKeyPair(bobIdentityKey, bobIdentityKeyECPair.privateKey);
   const bobRegistrationId = KeyHelper.generateRegistrationId();
 
   const bobKyberPreKeyPair = KEMKeyPair.generate(KEMKeyType.KYBER_1024);
-  const bobKyberPreKeySig = bobIdentityKeyPair2.getPrivateKey().calculateSignature(bobKyberPreKeyPair.publicKey.serialize());
+  const bobKyberPreKeySig = bobIdentityKeyPair.getPrivateKey().calculateSignature(bobKyberPreKeyPair.publicKey.serialize());
   console.log(bobKyberPreKeyPair);
+  /*
   console.log("Kyber secretKey: " + toBase64(bobKyberPreKeyPair.secretKey.serialize()));
   console.log("Kyber secretKey: " + toBase64(bobKyberPreKeyPair.publicKey.serialize()));
-
+  */
+ 
   console.log("------->");
-  const bobStore = new InMemorySignalProtocolStore(bobIdentityKeyPair2, bobRegistrationId);
+  const bobStore = new InMemorySignalProtocolStore(bobIdentityKeyPair, bobRegistrationId);
 
   console.log(bobIdentityKeyECPair.publicKey);  
   console.log("------->");
@@ -126,9 +132,9 @@ export default function SignalDemo() {
   console.log("publicKey: " + toBase64(bobIdentityKeyECPair.publicKey.serialize()));
   console.log("------->");
 
-  const bobSignedPreKeyPair2 = ECKeyPair.generate();
+  const bobSignedPreKeyPair = ECKeyPair.generate();
   
-  const bobSignedPreKeySig = bobIdentityKeyPair2.getPrivateKey().calculateSignature(bobSignedPreKeyPair2.publicKey.serialize());
+  const bobSignedPreKeySig = bobIdentityKeyPair.getPrivateKey().calculateSignature(bobSignedPreKeyPair.publicKey.serialize());
   console.log("signed prekey signature: " + b64.encode(bobSignedPreKeySig));
 
   // Create preKeyBundle
@@ -143,7 +149,7 @@ export default function SignalDemo() {
 				bobPreKeyId, 
 				bobPreKeyPair.publicKey,
 				bobSignedPreKeyId, 
-				bobSignedPreKeyPair2.publicKey,
+				bobSignedPreKeyPair.publicKey,
 				bobSignedPreKeySig,
 				bobIdentityKey,
 				bobKyberPreKeyId,
@@ -164,9 +170,25 @@ export default function SignalDemo() {
 
   console.log("Encrypted message:");
   console.log("Encrypted message:", b64.encode((await outgoingMessage).serialize()));
+
+  /* Add to Bob's store its prekeys */
+  //Add tp store the prekeys
+	bobStore.storePreKey(bobPreKeyId, new PreKeyRecord(bobPreKeyId, bobPreKeyPair));		
+	//Add tp store the signed-prekeys
+	bobStore.storeSignedPreKey(bobSignedPreKeyId, new SignedPreKeyRecord(bobSignedPreKeyId, 
+				Date.now(), bobSignedPreKeyPair, bobSignedPreKeySig));
+	//Add tp store the kyber-prekeys
+	bobStore.storeKyberPreKey(bobKyberPreKeyId, new KyberPreKeyRecord(bobKyberPreKeyId, 
+				Date.now(), bobKyberPreKeyPair, bobKyberPreKeySig));
+
+  const bobSessionCipher = SessionCipher.fromStore(bobStore, aliceAddress);
+  const plaintext = await bobSessionCipher.decryptPreKeySignalMessage(new PreKeySignalMessage((await outgoingMessage).serialize()));
+ const text = new TextDecoder().decode(plaintext);
+  console.log("Decrypted message:", text);
   /*
   console.log("identity pub:", bobIdentityKey.serialize());
   console.log("signed prekey pub:", bobSignedPreKeyPair2.publicKey.serialize());
+  
   console.log("signed prekey sig:", bobSignedPreKeySig);
 
   console.log("kyber prekey pub:", bobKyberPreKeyPair.publicKey.serialize());
@@ -175,10 +197,10 @@ export default function SignalDemo() {
   // Process preKeyBundle
   aliceSessionBuilder.process(bobPreKeyBundle);
 
-  const bobIdPrivB64 = b64.encode(bobIdentityKeyPair2.privateKey.serialize());
-  const bobIdPubB64 = b64.encode(bobIdentityKeyPair2.publicKey.serialize());
-  const bobSpkPrivB64 = b64.encode(bobSignedPreKeyPair2.privateKey.serialize());
-  const bobSpkPubB64 = b64.encode(bobSignedPreKeyPair2.publicKey.serialize());
+  const bobIdPrivB64 = b64.encode(bobIdentityKeyPair.privateKey.serialize());
+  const bobIdPubB64 = b64.encode(bobIdentityKeyPair.publicKey.serialize());
+  const bobSpkPrivB64 = b64.encode(bobSignedPreKeyPair.privateKey.serialize());
+  const bobSpkPubB64 = b64.encode(bobSignedPreKeyPair.publicKey.serialize());
 
   // ---------- Kyber keypair (auto-generate if not pasted) ----------
   let bobKyPrivB64 = bobKyberPrivB64.trim();
