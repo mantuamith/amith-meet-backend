@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "buffer": "^6.0.3",
-    "libsignal_wasm_pqxdh": "file:../signal-protocol-wasm/wasm-wrapper/pkg",
+    "libsignal_wasm_pqxdh": "file:../libsignal-protocol-wasm/wasm-wrapper/pkg",
     "process": "^0.11.10",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",

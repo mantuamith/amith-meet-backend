@@ -1,26 +1,26 @@
 // src/SignalDemo.tsx
-import React, { useState } from "react";
-import { useSignalWasm } from "./useSignalWasm";
-import { parseWasmValue } from "./utils/parseWasmValue";
-import { protocol } from "libsignal_wasm_pqxdh";
-import { InMemorySignalProtocolStore } from "./signal/state/impl/InMemorySignalProtocolStore";
+import React, { useEffect, useState } from "react";
+import { InMemorySignalProtocolStore } from "./libsignal/state/impl/InMemorySignalProtocolStore";
 
-import { IdentityKey } from "./signal/protocol/IdentityKey";
-import { ECPublicKey } from "./signal/protocol/ecc/ECPublicKey";
-import { ECKeyPair } from "./signal/protocol/ecc/ECKeyPair";
-import { SignalProtocolAddress } from "./signal/protocol/SignalProtocolAddress";
-import { IdentityKeyPair } from "./signal/protocol/IdentityKeyPair";
-import { KeyHelper } from "./signal/protocol/util/KeyHelper";
-import { KEMKeyPair } from "./signal/protocol/kem/KEMKeyPair";
-import { KEMKeyType } from "./signal/protocol/kem/KEMKeyType";
-import { PreKeyBundle } from "./signal/state/PreKeyBundle";
-import { SessionBuilder } from "./signal/protocol/SessionBuilder";
-import { SessionCipher } from "./signal/protocol/SessionCipher";
-import { PreKeyRecord } from "./signal/state/PreKeyRecord";
-import { SignedPreKeyRecord } from "./signal/state/SignedPreKeyRecord";
-import { KyberPreKeyRecord } from "./signal/state/KyberPreKeyRecord";
-import { PreKeySignalMessage } from "./signal/protocol/message/PreKeySignalMessage";
-
+import { IdentityKey } from "./libsignal/protocol/IdentityKey";
+import { ECKeyPair } from "./libsignal/protocol/ecc/ECKeyPair";
+import { SignalProtocolAddress } from "./libsignal/protocol/SignalProtocolAddress";
+import { IdentityKeyPair } from "./libsignal/protocol/IdentityKeyPair";
+import { KeyHelper } from "./libsignal/protocol/util/KeyHelper";
+import { KEMKeyPair } from "./libsignal/protocol/kem/KEMKeyPair";
+import { KEMKeyType } from "./libsignal/protocol/kem/KEMKeyType";
+import { PreKeyBundle } from "./libsignal/state/PreKeyBundle";
+import { SessionBuilder } from "./libsignal/protocol/SessionBuilder";
+import { SessionCipher } from "./libsignal/protocol/SessionCipher";
+import { PreKeyRecord } from "./libsignal/state/PreKeyRecord";
+import { SignedPreKeyRecord } from "./libsignal/state/SignedPreKeyRecord";
+import { KyberPreKeyRecord } from "./libsignal/state/KyberPreKeyRecord";
+import { PreKeySignalMessage } from "./libsignal/protocol/message/PreKeySignalMessage";
+import initWasm from "../../libsignal-protocol-wasm/wasm-wrapper/pkg/libsignal_wasm_pqxdh";
+import { ECPublicKey } from "./libsignal/protocol/ecc/ECPublicKey";
+import { ECPrivateKey } from "./libsignal/protocol/ecc/ECPrivateKey";
+import { KEMPublicKey } from "./libsignal/protocol/kem/KEMPublicKey";
+import { KEMSecretKey } from "./libsignal/protocol/kem/KEMSecretKey";
 
 // base64 helpers
 const b64 = {
@@ -32,12 +32,6 @@ const b64 = {
     return arr;
   },
 };
-
-function randomBytes(n: number) {
-  const arr = new Uint8Array(n);
-  crypto.getRandomValues(arr);
-  return arr;
-}
 
 function toBase64(bytes: Uint8Array): string {
   let binary = "";
@@ -51,40 +45,19 @@ function toBase64(bytes: Uint8Array): string {
 }
 
 export default function SignalDemo() {
-  const {
-    ready,
-    pqxdh_initiate,
-    pqxdh_receive,
-    x25519_pub_from_priv,
-  } = useSignalWasm();
-
+  const [ready, setReady] = useState(true);
   const [output, setOutput] = useState("");
   // keep UI fields around (optional) for debugging or advanced usage
-  const [bobKyberPubB64, setBobKyberPubB64] = useState("");
-  const [bobKyberPrivB64, setBobKyberPrivB64] = useState("");
+  const [alicePlainMessageToBob, setAlicePlainMessageToBob] = useState("L'homme est condamné à être libre");
+  const [aliceEncryptedMessageToBob, setAliceEncryptedMessageToBob] = useState("");
+  const [aliceDecryptedMessageToBob, setAliceDecryptedMessageToBob] = useState("");
 
   async function runDemo() {
-  if (!ready) {
-    setOutput("WASM not loaded yet...");
-    return;
-  }
-
-  // ---------- generate keys WITH wasm helpers (avoid mixing raw random) ----------
-  // Alice identity + ephemeral
-  // const aliceIdentityKeyPairGen = protocol.identity_key_generate();
-  const aliceEphKeyPair = protocol.ephemeral_generate();
-
-  // Bob identity + signed-prekey
-  //const bobIdentityKeyPair = protocol.identity_key_generate();
-  //const bobSignedPreKeyPair = protocol.signed_prekey_generate(
-  //  1,
-  //  bobIdentityKeyPair.private_key
-  //);
-
-  //  Addresses
-  const aliceAddress = new SignalProtocolAddress("alice", 1);
-  const bobAddress = new SignalProtocolAddress("bob", 1);
+  //  Init addresses
+  const aliceAddress = new SignalProtocolAddress("2fc35cae-e0b7-40a5-b2aa-e86206730e99", 1);
+  const bobAddress = new SignalProtocolAddress("ppss00huw-kkd0-0df3-np6a-d84op538mh27", 1);
     
+  // Init Alice keys
   const aliceIdentityKeyECPair = ECKeyPair.generate();
   const aliceIdentityKey = new IdentityKey(aliceIdentityKeyECPair.publicKey);
   const aliceIdentityKeyPair = new IdentityKeyPair(aliceIdentityKey, aliceIdentityKeyECPair.privateKey);
@@ -92,12 +65,13 @@ export default function SignalDemo() {
 
   const  aliceKyberPreKeyPair = KEMKeyPair.generate(KEMKeyType.KYBER_1024);
   console.log(aliceKyberPreKeyPair);
+  /*
   console.log("Kyber secretKey: " + toBase64(aliceKyberPreKeyPair.secretKey.serialize()));
   console.log("Kyber secretKey: " + toBase64(aliceKyberPreKeyPair.publicKey.serialize()));
+  */
 
   console.log("------->");
   const aliceStore = new InMemorySignalProtocolStore(aliceIdentityKeyPair, aliceRegistrationId);
-
   console.log(aliceIdentityKeyECPair.publicKey);  
   console.log("------->");
   console.log("privateKey: " + toBase64(aliceIdentityKeyECPair.privateKey.serialize()));
@@ -107,42 +81,107 @@ export default function SignalDemo() {
     // Convert Uint8Array -> base64 for wasm calls that expect base64 strings
   const aliceIdPrivB64 = b64.encode(aliceIdentityKeyECPair.privateKey.serialize());
   const aliceIdPubB64 = b64.encode(aliceIdentityKeyECPair.publicKey.serialize());
-  const aliceEphPrivB64 = b64.encode(aliceEphKeyPair.private_key);
 
-  // Bob keys
-  const bobIdentityKeyECPair = ECKeyPair.generate();
-  const bobIdentityKey = new IdentityKey(bobIdentityKeyECPair.publicKey);
-  const bobIdentityKeyPair = new IdentityKeyPair(bobIdentityKey, bobIdentityKeyECPair.privateKey);
-  const bobRegistrationId = KeyHelper.generateRegistrationId();
+  // Inti Bob keys
+  var bobIdentityKeyECPair = null;
+  var bobIdentityKey = null;
+  var bobIdentityKeyPair = null;
+  var bobRegistrationId = null;
+  var bobKyberPreKeyPair = null;
+  var bobKyberPreKeySig = null;
+  var bobPreKeyPair = null;
+  var bobSignedPreKeyPair = null;
+  var bobSignedPreKeySig = null;
 
-  const bobKyberPreKeyPair = KEMKeyPair.generate(KEMKeyType.KYBER_1024);
-  const bobKyberPreKeySig = bobIdentityKeyPair.getPrivateKey().calculateSignature(bobKyberPreKeyPair.publicKey.serialize());
-  console.log(bobKyberPreKeyPair);
+  // Check and retrieve the flag
+
+  const bobIdentityKeySerialized = localStorage.getItem("bobIdentityKey");
+  bobIdentityKeyECPair = ECKeyPair.generate();
+ 
+  if (bobIdentityKeySerialized !== null) {
+     bobIdentityKey = new IdentityKey(b64.decodeToUint8(bobIdentityKeySerialized));     
+  } else {
+     bobIdentityKey = new IdentityKey(bobIdentityKeyECPair.publicKey);   
+     localStorage.setItem("bobIdentityKey", b64.encode(bobIdentityKey.serialize()));  
+  }
+
+  const bobIdentityKeyPairSerialized = localStorage.getItem("bobIdentityKeyPair");
+  if (bobIdentityKeyPairSerialized != null) {
+    bobIdentityKeyPair = new IdentityKeyPair(b64.decodeToUint8(bobIdentityKeyPairSerialized));
+  } else {
+    bobIdentityKeyPair = new IdentityKeyPair(bobIdentityKey, bobIdentityKeyECPair.privateKey);    
+    localStorage.setItem("bobIdentityKeyPair", b64.encode(bobIdentityKeyPair.serialize()));  
+  }
+  
+  const bobRegistrationIdStored = localStorage.getItem("bobRegistrationId");
+  if (bobRegistrationIdStored != null) {
+    bobRegistrationId = parseInt(bobRegistrationIdStored);
+  } else {
+    bobRegistrationId = KeyHelper.generateRegistrationId();  
+    localStorage.setItem("bobRegistrationId", bobRegistrationId + "");  
+  }
+
+  // Prekey
+  const bobPreKeyPairSerialized = localStorage.getItem("bobPreKeyPair");
+  if (bobPreKeyPairSerialized != null) {
+    const keys = bobPreKeyPairSerialized.split("|");
+    bobPreKeyPair = new ECKeyPair(new ECPublicKey(b64.decodeToUint8(keys[0])), 
+        new ECPrivateKey(b64.decodeToUint8(keys[1])));
+  } else {
+    bobPreKeyPair = ECKeyPair.generate(); 
+    localStorage.setItem("bobPreKeyPair", b64.encode(bobPreKeyPair.publicKey.serialize()) + "|" + 
+                          b64.encode(bobPreKeyPair.privateKey.serialize()));  
+  }
+
+  // Signed Prekey
+  const bobSignedPreKeyPairSerialized = localStorage.getItem("bobSignedPreKeyPair");
+  if (bobSignedPreKeyPairSerialized != null) {
+    const keys = bobSignedPreKeyPairSerialized.split("|");
+    bobSignedPreKeyPair = new ECKeyPair(new ECPublicKey(b64.decodeToUint8(keys[0])), 
+        new ECPrivateKey(b64.decodeToUint8(keys[1])));
+  } else {
+    bobSignedPreKeyPair = ECKeyPair.generate();
+    localStorage.setItem("bobSignedPreKeyPair", b64.encode(bobSignedPreKeyPair.publicKey.serialize()) + "|" + 
+                          b64.encode(bobSignedPreKeyPair.privateKey.serialize()));  
+  }
+
+  bobSignedPreKeySig = bobIdentityKeyPair.getPrivateKey().calculateSignature(bobSignedPreKeyPair.publicKey.serialize());
+
+  // Kyber prekey
+  const bobKyberPreKeyPairSerialized  = localStorage.getItem("bobKyberPreKeyPair");
+  if (bobKyberPreKeyPairSerialized != null) {
+    const keys = bobKyberPreKeyPairSerialized.split("|");
+    const kemPub = new KEMPublicKey(b64.decodeToUint8(keys[0]));
+    const kemSec = new KEMSecretKey(b64.decodeToUint8(keys[1]));
+    
+    bobKyberPreKeyPair = KEMKeyPair.fromKeys(kemPub, kemSec);
+  } else {
+    bobKyberPreKeyPair = KEMKeyPair.generate(KEMKeyType.KYBER_1024);
+    localStorage.setItem("bobKyberPreKeyPair", b64.encode(bobKyberPreKeyPair.publicKey.serialize()) + "|" + 
+                          b64.encode(bobKyberPreKeyPair.secretKey.serialize()));  
+  }
+  
+  bobKyberPreKeySig = bobIdentityKeyPair.getPrivateKey().calculateSignature(bobKyberPreKeyPair.publicKey.serialize());
   /*
   console.log("Kyber secretKey: " + toBase64(bobKyberPreKeyPair.secretKey.serialize()));
   console.log("Kyber secretKey: " + toBase64(bobKyberPreKeyPair.publicKey.serialize()));
   */
  
   console.log("------->");
-  const bobStore = new InMemorySignalProtocolStore(bobIdentityKeyPair, bobRegistrationId);
-
-  console.log(bobIdentityKeyECPair.publicKey);  
+  console.log("privateKey: " + toBase64(bobIdentityKeyPair.privateKey.serialize()));
+  console.log("publicKey: " + toBase64(bobIdentityKeyPair.publicKey.serialize()));
   console.log("------->");
-  console.log("privateKey: " + toBase64(bobIdentityKeyECPair.privateKey.serialize()));
-  console.log("publicKey: " + toBase64(bobIdentityKeyECPair.publicKey.serialize()));
-  console.log("------->");
-
-  const bobSignedPreKeyPair = ECKeyPair.generate();
-  
-  const bobSignedPreKeySig = bobIdentityKeyPair.getPrivateKey().calculateSignature(bobSignedPreKeyPair.publicKey.serialize());
+ 
   console.log("signed prekey signature: " + b64.encode(bobSignedPreKeySig));
+  console.log("Kyber prekey signature: " + b64.encode(bobKyberPreKeySig));
+
+  const bobStore = new InMemorySignalProtocolStore(bobIdentityKeyPair, bobRegistrationId);
 
   // Create preKeyBundle
   const bobDeviceId = 1;
 	const bobPreKeyId = 1;
 	const bobSignedPreKeyId = 2;
 	const bobKyberPreKeyId = 5;
-  const bobPreKeyPair = ECKeyPair.generate();
 
   const bobPreKeyBundle = new PreKeyBundle(bobRegistrationId, 
 	      bobDeviceId,
@@ -161,13 +200,15 @@ export default function SignalDemo() {
 
   // Bob’s PreKeyBundle fetched from server
   await aliceSessionBuilder.process(bobPreKeyBundle);
-  
-  const originalMessage = "L'homme est condamné à être libre";
+   
 	const aliceSessionCipher = SessionCipher.fromStore(aliceStore, bobAddress);
-
-  const bytes = new TextEncoder().encode(originalMessage);
+   
+  const message = alicePlainMessageToBob;
+  const bytes = new TextEncoder().encode(message);
 	const outgoingMessage = await aliceSessionCipher.encrypt(bytes);
-
+  
+  // Display
+  setAliceEncryptedMessageToBob(b64.encode(outgoingMessage.serialize()));
   console.log("Encrypted message type: ", outgoingMessage.getType());
   console.log("Encrypted message:", b64.encode(outgoingMessage.serialize()));
 
@@ -184,6 +225,9 @@ export default function SignalDemo() {
   const bobSessionCipher = SessionCipher.fromStore(bobStore, aliceAddress);
   const plaintext = await bobSessionCipher.decrypt(new PreKeySignalMessage(outgoingMessage.serialize()));
   const text = new TextDecoder().decode(plaintext);
+  
+  //Display
+  setAliceDecryptedMessageToBob(text);
   console.log("Decrypted message:", text);
   /*
   console.log("identity pub:", bobIdentityKey.serialize());
@@ -197,126 +241,72 @@ export default function SignalDemo() {
   // Process preKeyBundle
   aliceSessionBuilder.process(bobPreKeyBundle);
 
-  const bobIdPrivB64 = b64.encode(bobIdentityKeyPair.privateKey.serialize());
-  const bobIdPubB64 = b64.encode(bobIdentityKeyPair.publicKey.serialize());
-  const bobSpkPrivB64 = b64.encode(bobSignedPreKeyPair.privateKey.serialize());
-  const bobSpkPubB64 = b64.encode(bobSignedPreKeyPair.publicKey.serialize());
-
-  // ---------- Kyber keypair (auto-generate if not pasted) ----------
-  let bobKyPrivB64 = bobKyberPrivB64.trim();
-  let bobKyPubB64 = bobKyberPubB64.trim();
-
-  if (!bobKyPrivB64 || !bobKyPubB64) {
-    if (typeof protocol.kyber_keygen === "function") {
-      try {
-        const kyberPair = protocol.kyber_keygen(); // parseWasmValue will handle JsValue or object
-        //const map = parseWasmValue(kyberPair); // your helper returns a Map or object
-        // If parseWasmValue returns a Map:
-        bobKyPrivB64 = kyberPair.get ? kyberPair.get("priv_b64") : kyberPair.priv_b64;
-        bobKyPubB64 = kyberPair.get ? kyberPair.get("pub_b64") : kyberPair.pub_b64;
-
-        if (!bobKyPrivB64 || !bobKyPubB64) {
-          setOutput("kyber_keygen_wasm returned unexpected value; please paste Kyber keys.");
-          return;
-        }
-        setBobKyberPrivB64(bobKyPrivB64);
-        setBobKyberPubB64(bobKyPubB64);
-      } catch (e: any) {
-        setOutput("kyber_keygen_wasm threw: " + String(e) + "\nPlease paste Kyber keys.");
-        return;
-      }
-    } else {
-      setOutput("No Kyber keypair provided and wasm does not export kyber_keygen_wasm.");
-      return;
-    }
-  }
-
-  // ---------- Call pqxdh_initiate (Alice) ----------
-  let initiateRaw: any;
-  try {
-    // Passing base64 strings (matches the existing-wasm API shown earlier)
-    initiateRaw = pqxdh_initiate(
-      aliceIdPrivB64,
-      aliceEphPrivB64,
-      bobIdPubB64,
-      bobSpkPubB64,
-      bobKyPubB64,
-      "" // no OPK
-    );
-  } catch (e: any) {
-    setOutput("Initiate failed (threw): " + String(e));
-    return;
-  }
-
-  const initObj = parseWasmValue(initiateRaw);
-  if (!initObj || !initObj.ok) {
-    setOutput("Initiate failed: " + (initObj?.error ?? "unknown"));
-    return;
-  }
-
-  const kyberCiphertextB64 = initObj.kyber_ciphertext_b64;
-  const aliceEphPubFromInitiateB64 = initObj.eph_x25519_pub_b64;
-  const aliceSharedRootB64 = initObj.shared_root_b64;
-
-  // ---------- Call pqxdh_receive (Bob) ----------
-  let bobReceiveRaw: any;
-  try {
-    bobReceiveRaw = pqxdh_receive(
-      bobIdPrivB64,
-      bobSpkPrivB64,
-      bobKyPrivB64,
-      kyberCiphertextB64,
-      aliceIdPubB64,
-      aliceEphPubFromInitiateB64
-    );
-  } catch (e: any) {
-    setOutput("Receive failed (threw): " + String(e));
-    return;
-  }
-
-  const bobObj = parseWasmValue(bobReceiveRaw);
-  if (!bobObj || !bobObj.ok) {
-    setOutput("Receive failed: " + (bobObj?.error ?? "unknown"));
-    return;
-  }
-
-  const bobSharedRootB64 = bobObj.shared_root_b64;
-  const ok = aliceSharedRootB64 === bobSharedRootB64;
-
   setOutput(
-    `Alice Root: ${aliceSharedRootB64}\nBob Root:   ${bobSharedRootB64}\n\nMatch: ${ok ? "YES 🎉" : "NO ❌"}`
+    `Success`
   );
 }
 
+useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        await initWasm(); // 🔑 THIS IS REQUIRED
+        if (!cancelled) {
+          setReady(true);
+          console.log("libsignal_wasm_pqxdh initialized");
+        }
+      } catch (e) {
+        console.error("WASM init failed", e);
+        setOutput("WASM init failed: " + String(e));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+}, []);
+
   return (
     <div style={{ padding: 20 }}>
-      <h2>Signal PQXDH WASM Demo</h2>
+      <h2>Signal WASM Demo</h2>
 
       <div style={{ marginTop: 12 }}>
-        <label>Bob Kyber Public (base64):</label>
+        <label>Alice message to Bob (Plain Text):</label>
         <textarea
           rows={3}
           cols={80}
-          value={bobKyberPubB64}
-          onChange={(e) => setBobKyberPubB64(e.target.value)}
-          placeholder="Optional — left empty to auto-generate if available"
+          value={alicePlainMessageToBob}
+          onChange={(e) => setAlicePlainMessageToBob(e.target.value)}
+          placeholder="Raw text"
         />
       </div>
 
       <div style={{ marginTop: 8 }}>
-        <label>Bob Kyber Private (base64):</label>
+        <label>Alice encrypted message to Bob (base64):</label>
         <textarea
           rows={3}
           cols={80}
-          value={bobKyberPrivB64}
-          onChange={(e) => setBobKyberPrivB64(e.target.value)}
-          placeholder="Optional — left empty to auto-generate if available"
+          value={aliceEncryptedMessageToBob}
+          onChange={(e) => setAliceEncryptedMessageToBob(e.target.value)}
+          placeholder="Raw encrypted base64 format"
+        />
+      </div>
+    
+      <div style={{ marginTop: 8 }}>
+        <label>Decrypted message:</label>
+        <br />
+        <textarea
+          rows={3}
+          cols={80}
+          value={aliceDecryptedMessageToBob}
+          onChange={(e) => setAliceDecryptedMessageToBob(e.target.value)}
+          placeholder="Decrypted message"
         />
       </div>
 
       <div style={{ marginTop: 12 }}>
         <button disabled={!ready} onClick={runDemo}>
-          Run PQXDH Test
+          Run Encrypt and Decrypt Test
         </button>
       </div>
 

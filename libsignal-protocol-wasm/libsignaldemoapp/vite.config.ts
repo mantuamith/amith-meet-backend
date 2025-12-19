@@ -64,7 +64,7 @@ export default defineConfig({
     fs: {
       allow: [
         ".",
-        "/Users/dev/rust-projects/signal-protocol-wasm/wasm-wrapper/pkg"
+        "../libsignal-protocol-wasm/wasm-wrapper/pkg"
       ]
     }
   }
