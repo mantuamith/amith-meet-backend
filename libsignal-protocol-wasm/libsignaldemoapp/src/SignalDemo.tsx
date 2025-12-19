@@ -164,7 +164,6 @@ export default function SignalDemo() {
   console.log("Bob kyber prekey signature: " + b64.encode(bobKyberPreKeySig));
 
   if (!bobStore) {
-    console.log("INIT STORE---------->")
     bobStore = new InMemorySignalProtocolStore(bobIdentityKeyPair, bobRegistrationId);
   }
   
@@ -214,12 +213,10 @@ export default function SignalDemo() {
   }
 	
   //Add tp store the signed-prekeys
-  console.log("--------------test ----->" + bobStore.containsKyberPreKey(bobKyberPreKeyId));
   if (!bobStore.containsSignedPreKey(bobSignedPreKeyId)) {
     bobStore.storeSignedPreKey(bobSignedPreKeyId, new SignedPreKeyRecord(bobSignedPreKeyId, 
           Date.now(), bobSignedPreKeyPair, bobSignedPreKeySig));
   }
-  console.log("--------------test ends ----->" + bobStore.containsKyberPreKey(bobKyberPreKeyId));
 
 	//Add tp store the kyber-prekeys
   if (!bobStore.containsKyberPreKey(bobKyberPreKeyId)) {
