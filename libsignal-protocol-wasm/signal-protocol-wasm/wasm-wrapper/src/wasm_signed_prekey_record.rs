@@ -72,28 +72,29 @@ pub fn signed_prekey_new(
     priv_key_ptr: u32,
     signature: Uint8Array,
 ) -> Result<u32, JsValue> {
-    let private_key =
-        crate::wasm_ec_private_key::get_private_key_clone(priv_key_ptr)
-            .ok_or_else(|| JsValue::from_str("Invalid private key handle"))?;
+    // Borrow public key safely
+    crate::wasm_ec_public_key::with_public_key(pub_key_ptr, |public_key| {
+        // Borrow private key safely
+        crate::wasm_ec_private_key::with_private_key(priv_key_ptr, |private_key| {
+            // Rebuild KeyPair (Signal-required)
+            // Serialization happens INSIDE closures so keys never escape
+            let keypair = KeyPair::from_public_and_private(
+                &public_key.serialize(),
+                &private_key.serialize(),
+            )
+            .map_err(signal_err)?;
 
-    let public_key =
-        crate::wasm_ec_public_key::get_public_key_clone(pub_key_ptr)?;
+            let record = SignedPreKeyRecord::new(
+                SignedPreKeyId::from(id),
+                libsignal_protocol::Timestamp::from_epoch_millis(timestamp),
+                &keypair,
+                &signature.to_vec(),
+            );
 
-    let keypair = KeyPair::from_public_and_private(
-        &public_key.serialize(),
-        &private_key.serialize(),
-    )
-    .map_err(signal_err)?;
-
-    let record = SignedPreKeyRecord::new(
-        SignedPreKeyId::from(id),
-        libsignal_protocol::Timestamp::from_epoch_millis(timestamp),
-        &keypair,
-        &signature.to_vec(),
-    );
-
-    insert_signed_prekey(id, record)?;
-    Ok(id)
+            insert_signed_prekey(id, record)?;
+            Ok(id)
+        })
+    })
 }
 
 #[wasm_bindgen(js_namespace = signedPreKeyRecord)]

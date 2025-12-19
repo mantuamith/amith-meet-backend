@@ -22,8 +22,8 @@ use libsignal_protocol::error::SignalProtocolError;
 use libsignal_protocol::error::Result as ProtocolResult;
 
 /// helpers from other modules (adjust names if necessary)
-use crate::wasm_ec_public_key::{get_public_key_clone};
-use crate::wasm_ec_private_key::{get_private_key_clone};
+use crate::wasm_ec_public_key::{with_public_key};
+use crate::wasm_ec_private_key::{with_private_key};
 
 
 pub type IdentityStoreMap = HandleIdentityStore<String, IdentityKey>;
@@ -204,18 +204,23 @@ pub fn identitykeystore_create_identity_key_store(
     identity_private_key_handle: u32,
     registration_id: u32,
 ) -> Result<u32, JsValue> {
-    let public_key = get_public_key_clone(identity_public_key_handle)?;
+    // Borrow public key
+    with_public_key(identity_public_key_handle, |public_key| {
+        // Borrow private key
+        with_private_key(identity_private_key_handle, |private_key| {
+            // Build IdentityKeyPair inside the closures
+            let identity_key = IdentityKey::new(public_key.clone());
+            let identity_key_pair =
+                IdentityKeyPair::new(identity_key, private_key.clone());
 
-    let private_key = get_private_key_clone(identity_private_key_handle)
-        .ok_or_else(|| JsValue::from_str("Invalid private key handle"))?;
+            let store =
+                IdentityStoreMap::new(registration_id, identity_key_pair);
 
-    let identity_key = IdentityKey::new(public_key);
-    let identity_key_pair = IdentityKeyPair::new(identity_key, private_key);
-
-    let store: IdentityStoreMap = IdentityStoreMap::new(registration_id, identity_key_pair);
-
-    Ok(save_identity_key_store(store))
+            Ok(save_identity_key_store(store))
+        })
+    })
 }
+
 
 #[wasm_bindgen(js_namespace = identityKeyStore)]
 pub fn identitykeystore_get_identity_key_pair(store_handle: u32) -> Result<Uint8Array, JsValue> {

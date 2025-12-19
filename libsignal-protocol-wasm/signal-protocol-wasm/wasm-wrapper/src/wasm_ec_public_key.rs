@@ -6,77 +6,53 @@ use web_sys::console;
 use libsignal_core::curve::PublicKey;
 
 use std::sync::Mutex;
-use std::cmp::Ordering;
+
+use crate::handle_table::HandleTable;
 
 // ======================================================================
-// Safe global handle table
+// Storage
 // ======================================================================
 
-static PUBLIC_KEYS: Lazy<Mutex<Vec<Option<Box<PublicKey>>>>> = Lazy::new(|| {
-    let mut v = Vec::new();
-    v.push(None); // handle 0 = null
-    Mutex::new(v)
-});
+static PUBLIC_KEYS: Lazy<Mutex<HandleTable<PublicKey>>> =
+    Lazy::new(|| Mutex::new(HandleTable::new()));
+
+// ======================================================================
+// Helpers
+// ======================================================================
 
 /// Store → return handle
 pub fn store_public_key(pk: PublicKey) -> u32 {
-    let mut table = PUBLIC_KEYS.lock().unwrap();
-    let boxed = Box::new(pk);
-
-    for (i, slot) in table.iter_mut().enumerate() {
-        if slot.is_none() {
-            *slot = Some(boxed);
-            return (i + 1)as u32; // Return (index + 1)
-        }
-    }
-
-    table.push(Some(boxed));
-    table.len() as u32 // Return (index + 1)
+    PUBLIC_KEYS
+        .lock()
+        .unwrap()
+        .insert(pk)
 }
 
-/// Get a CLONED PublicKey
-pub fn get_public_key_clone(handle: u32) -> Result<PublicKey, JsValue> {    
-    if handle == 0 {
-        return Err(JsValue::from_str("null public key"));
-    } 
-
-    let table = PUBLIC_KEYS.lock().unwrap();
-
-    table
-        .get((handle - 1) as usize)
-        .and_then(|slot| slot.as_ref())
-        .map(|boxed| (**boxed).clone()) // clone the PublicKey (32 bytes)
-        .ok_or_else(|| JsValue::from_str("invalid public key handle"))
-}
-
-pub fn with_public_key<F, R>(ptr: u32, f: F) -> Result<R, JsValue>
+/// Borrow-only access
+pub fn with_public_key<F, R>(handle: u32, f: F) -> Result<R, JsValue>
 where
     F: FnOnce(&PublicKey) -> Result<R, JsValue>,
 {
-    if ptr == 0 {
-        return Err(JsValue::from_str("Invalid EC public key pointer"));
+    if handle == 0 {
+        return Err(JsValue::from_str("Invalid EC public key handle (0)"));
     }
 
-    let table = PUBLIC_KEYS.lock().unwrap();
-
-    let key = table
-        .get((ptr - 1) as usize)
-        .and_then(|slot| slot.as_ref())
-        .ok_or_else(|| JsValue::from_str("Invalid EC public key pointer"))?;
-
-    // Borrow happens ONLY here
-    f(key)
+    PUBLIC_KEYS
+        .lock()
+        .unwrap()
+        .with(handle, f)
 }
 
-/// Take ownership (used by destroy)
-pub fn take_public_key(handle: u32) -> Option<Box<PublicKey>> {
-    
+/// Destroy / consume
+pub fn remove_public_key(handle: u32) {
     if handle == 0 {
-        return None;
-    } 
+        return;
+    }
 
-    let mut table = PUBLIC_KEYS.lock().unwrap();
-    table.get_mut((handle - 1) as usize)?.take()
+    PUBLIC_KEYS
+        .lock()
+        .unwrap()
+        .remove(handle);
 }
 
 // ======================================================================
@@ -92,7 +68,11 @@ fn vec_to_uint8array(v: &[u8]) -> Uint8Array {
 // ======================================================================
 
 #[wasm_bindgen(js_namespace = ecPublicKey)]
-pub fn ec_public_key_deserialize(bytes: &[u8], offset: usize, length: usize) -> u32 {
+pub fn ec_public_key_deserialize(
+    bytes: &[u8],
+    offset: usize,
+    length: usize,
+) -> u32 {
     if offset > bytes.len() {
         return 0;
     }
@@ -111,11 +91,15 @@ pub fn ec_public_key_deserialize(bytes: &[u8], offset: usize, length: usize) -> 
 
 #[wasm_bindgen(js_namespace = ecPublicKey)]
 pub fn ec_public_key_destroy(ptr: u32) {
-    let _ = take_public_key(ptr);
+    remove_public_key(ptr);
 }
 
 #[wasm_bindgen(js_namespace = ecPublicKey)]
-pub fn ec_public_key_verify(ptr: u32, message: &[u8], signature: &[u8]) -> bool {
+pub fn ec_public_key_verify(
+    ptr: u32,
+    message: &[u8],
+    signature: &[u8],
+) -> bool {
     with_public_key(ptr, |pk| {
         Ok(pk.verify_signature(message, signature))
     })
@@ -127,7 +111,7 @@ pub fn ec_public_key_hpke_seal(
     _ptr: u32,
     _message: &[u8],
     _info: &[u8],
-    _aad: &[u8]
+    _aad: &[u8],
 ) -> Uint8Array {
     console::warn_1(&"HPKE seal not implemented".into());
     Uint8Array::new_with_length(0)

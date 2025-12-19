@@ -1,27 +1,48 @@
-use wasm_bindgen::prelude::*;
-use libsignal_protocol::{SignalMessage, IdentityKey};
-
 use std::sync::Mutex;
 use once_cell::sync::Lazy;
-use crate::handle_message_store::{HandleMessageStore};
-use crate::wasm_ec_public_key::{with_public_key, store_public_key};
+
+use wasm_bindgen::prelude::*;
 use js_sys::Uint8Array;
+
+use libsignal_protocol::{SignalMessage, IdentityKey};
+
+use crate::handle_table::HandleTable;
+use crate::wasm_ec_public_key::{with_public_key, store_public_key};
 use crate::utils::vec_to_uint8array;
 
-static SIGNAL_MESSAGES: Lazy<Mutex<HandleMessageStore<SignalMessage>>> =
-    Lazy::new(|| Mutex::new(HandleMessageStore::new()));
+// -----------------------------------------------------------------------------
+// Storage
+// -----------------------------------------------------------------------------
 
-// -------- SignalMessage helpers --------
+static SIGNAL_MESSAGES: Lazy<Mutex<HandleTable<SignalMessage>>> =
+    Lazy::new(|| Mutex::new(HandleTable::new()));
+
+// -----------------------------------------------------------------------------
+// Helpers
+// -----------------------------------------------------------------------------
+
 pub fn store_signal_message(msg: SignalMessage) -> u32 {
-    SIGNAL_MESSAGES.lock().unwrap().insert(msg)
+    SIGNAL_MESSAGES
+        .lock()
+        .unwrap()
+        .insert(msg)
 }
 
-pub fn with_signal_message<R>(handle: u32, f: impl FnOnce(&SignalMessage) -> R) -> R {
-    SIGNAL_MESSAGES.lock().unwrap().with(handle, f)
+pub fn with_signal_message<R>(
+    handle: u32,
+    f: impl FnOnce(&SignalMessage) -> R,
+) -> R {
+    SIGNAL_MESSAGES
+        .lock()
+        .unwrap()
+        .with(handle, f)
 }
 
 pub fn remove_signal_message(handle: u32) {
-    SIGNAL_MESSAGES.lock().unwrap().remove(handle);
+    SIGNAL_MESSAGES
+        .lock()
+        .unwrap()
+        .remove(handle);
 }
 
 pub fn has_signal_message(handle: u32) -> bool {
@@ -31,20 +52,28 @@ pub fn has_signal_message(handle: u32) -> bool {
         .contains(handle)
 }
 
-/// Get a cloned SignalMessage from a handle (internal use)
-pub fn get_signal_message_clone(handle: u32) -> Result<SignalMessage, JsValue> {
+/// Consume-once access (Signal-correct lifecycle)
+pub fn take_signal_message(
+    handle: u32,
+) -> Result<SignalMessage, JsValue> {
     if handle == 0 {
-        return Err(JsValue::from_str("Invalid SignalMessage handle (0)"));
+        return Err(JsValue::from_str(
+            "Invalid SignalMessage handle (0)",
+        ));
     }
 
-    let mut guard = SIGNAL_MESSAGES.lock().unwrap();
-
-    if !guard.contains(handle) {
-        return Err(JsValue::from_str("Invalid SignalMessage handle"));
-    }
-
-    Ok(guard.with(handle, |msg| msg.clone()))
+    SIGNAL_MESSAGES
+        .lock()
+        .unwrap()
+        .take(handle)
+        .ok_or_else(|| {
+            JsValue::from_str("Invalid SignalMessage handle")
+        })
 }
+
+// -----------------------------------------------------------------------------
+// WASM bindings
+// -----------------------------------------------------------------------------
 
 #[wasm_bindgen(js_namespace = signalMessage)]
 pub fn signalmessage_deserialize(serialized: &[u8]) -> u32 {
@@ -113,8 +142,8 @@ pub fn signalmessage_verify_mac(
                 )
             })
         })
+        .unwrap_or(false)
     })
-    .unwrap_or(false)
 }
 
 #[wasm_bindgen(js_namespace = signalMessage)]
@@ -123,4 +152,3 @@ pub fn signalmessage_get_serialized(handle: u32) -> Uint8Array {
         vec_to_uint8array(m.serialized())
     })
 }
-

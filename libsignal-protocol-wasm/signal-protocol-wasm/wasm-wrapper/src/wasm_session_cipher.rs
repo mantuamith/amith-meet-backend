@@ -110,7 +110,7 @@ pub async fn sessioncipher_encrypt_message(
 
 #[wasm_bindgen(js_namespace = sessionCipher)]
 pub async fn sessioncipher_decrypt_prekey_signal_message(
-    ciphertext_handle: u32,
+    prekey_signal_message_handle: u32,
     remote_address_handle: u32,
     session_store_handle: u32,
     identity_key_store_handle: u32,
@@ -118,40 +118,35 @@ pub async fn sessioncipher_decrypt_prekey_signal_message(
     signed_prekey_store_handle: u32,
     kyber_prekey_store_handle: u32,
 ) -> Result<Uint8Array, JsValue> {
-    console::log_1(&format!(
-        "ciphertext bytes, base64 ",
-    ).into());
-    // 1. Resolve message
-    let message = match crate::wasm_ciphertext_message::take_ciphertext_message(
-        ciphertext_handle,
-    ) {
-        Ok(m) => m,
-        Err(_) => return Ok(Uint8Array::new_with_length(0)),
-    };
+    // 1. Resolve PreKeySignalMessage
+    let message = crate::wasm_pre_key_signal_message::take_prekey_signal_message(
+        prekey_signal_message_handle,
+    )
+    .map_err(|e| {
+        web_sys::console::error_1(&e);
+        e
+    })?;
 
-    let bytes: Vec<u8> = message.serialize().to_vec();
-    let b64 = STANDARD.encode(&bytes);
-
-    console::log_1(&format!(
-        "ciphertext bytes len = {}, base64 = {}",
-        bytes.len(),
-        b64
-    ).into());
-
-    // 2. Resolve address
-    let address = match crate::wasm_protocol_address::get_protocol_address_clone(
+    // 2. Resolve ProtocolAddress
+    let address = crate::wasm_protocol_address::get_protocol_address_clone(
         remote_address_handle,
-    ) {
-        Ok(a) => a,
-        Err(_) => return Ok(Uint8Array::new_with_length(0)),
-    };
+    )
+    .map_err(|e| {
+        web_sys::console::error_1(&e);
+        e
+    })?;
 
-    // 3. Create store adapters
-    let mut session_store = JsSessionStoreAdapter::new(session_store_handle);
-    let mut identity_key_store = JsIdentityStoreAdapter::new(identity_key_store_handle);
-    let mut prekey_store = JsPreKeyStoreAdapter::new(prekey_store_handle);
-    let mut signed_prekey_store = JsSignedPreKeyStoreAdapter::new(signed_prekey_store_handle);
-    let mut kyber_prekey_store = JsKyberPreKeyStoreAdapter::new(kyber_prekey_store_handle);
+    // 3. Create JS-backed store adapters
+    let mut session_store =
+        JsSessionStoreAdapter::new(session_store_handle);
+    let mut identity_key_store =
+        JsIdentityStoreAdapter::new(identity_key_store_handle);
+    let mut prekey_store =
+        JsPreKeyStoreAdapter::new(prekey_store_handle);
+    let signed_prekey_store =
+        JsSignedPreKeyStoreAdapter::new(signed_prekey_store_handle);
+    let mut kyber_prekey_store =
+        JsKyberPreKeyStoreAdapter::new(kyber_prekey_store_handle);
 
     // 4. RNG
     let mut seed = [0u8; 32];
@@ -159,21 +154,26 @@ pub async fn sessioncipher_decrypt_prekey_signal_message(
         .map_err(|_| JsValue::from_str("RNG failure"))?;
     let mut rng = rand_chacha::ChaCha20Rng::from_seed(seed);
 
-    // 5. Decrypt
-    match libsignal_protocol::message_decrypt(
+    // 5. Decrypt (this is the important call)
+    match libsignal_protocol::message_decrypt_prekey(
         &message,
         &address,
         &mut session_store,
         &mut identity_key_store,
         &mut prekey_store,
-        &mut signed_prekey_store,
+        &signed_prekey_store,
         &mut kyber_prekey_store,
         &mut rng,
     )
     .await
     {
         Ok(plaintext) => Ok(Uint8Array::from(plaintext.as_slice())),
-        Err(_) => Ok(Uint8Array::new_with_length(0)),
+        Err(err) => {
+            web_sys::console::error_1(
+                &format!("PreKey decrypt failed: {err}").into(),
+            );
+            Ok(Uint8Array::new_with_length(0))
+        }
     }
 }
 

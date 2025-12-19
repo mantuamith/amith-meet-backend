@@ -62,30 +62,29 @@ pub fn prekeyrecord_new(
     id: u32,
     pub_ptr: u32,
     priv_ptr: u32,
-) -> Result<u32, JsValue>{
-    // --- Retrieve keys via helpers ---
-    let private_key =
-        crate::wasm_ec_private_key::get_private_key_clone(priv_ptr)
-            .ok_or_else(|| JsValue::from_str("Invalid private key handle"))?;
+) -> Result<u32, JsValue> {
+    // Borrow public key safely
+    crate::wasm_ec_public_key::with_public_key(pub_ptr, |public_key| {
+        // Borrow private key safely
+        crate::wasm_ec_private_key::with_private_key(priv_ptr, |private_key| {
+            // Rebuild KeyPair (Signal-required)
+            // Serialize INSIDE closures so keys never escape
+            let keypair = KeyPair::from_public_and_private(
+                &public_key.serialize(),
+                &private_key.serialize(),
+            )
+            .map_err(signal_err)?;
 
-    let public_key =
-        crate::wasm_ec_public_key::get_public_key_clone(pub_ptr)?;
+            let record = PreKeyRecord::new(
+                PreKeyId::from(id),
+                &keypair,
+            );
 
-    // --- Rebuild KeyPair (Signal-required) ---
-    let keypair = KeyPair::from_public_and_private(
-        &public_key.serialize(),
-        &private_key.serialize(),
-    )
-    .map_err(signal_err)?;
+            insert_prekey_record(id, record);
 
-    let record = PreKeyRecord::new(
-        PreKeyId::from(id),
-        &keypair,
-    );
-
-    insert_prekey_record(id, record);
-
-     Ok(id) // return ID as record handle
+            Ok(id) // return ID as record handle
+        })
+    })
 }
 
 #[wasm_bindgen(js_namespace = preKeyRecord)]

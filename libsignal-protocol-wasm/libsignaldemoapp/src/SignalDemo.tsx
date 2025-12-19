@@ -166,10 +166,10 @@ export default function SignalDemo() {
 	const aliceSessionCipher = SessionCipher.fromStore(aliceStore, bobAddress);
 
   const bytes = new TextEncoder().encode(originalMessage);
-	const outgoingMessage = aliceSessionCipher.encrypt(bytes);
+	const outgoingMessage = await aliceSessionCipher.encrypt(bytes);
 
-  console.log("Encrypted message:");
-  console.log("Encrypted message:", b64.encode((await outgoingMessage).serialize()));
+  console.log("Encrypted message type: ", outgoingMessage.getType());
+  console.log("Encrypted message:", b64.encode(outgoingMessage.serialize()));
 
   /* Add to Bob's store its prekeys */
   //Add tp store the prekeys
@@ -182,8 +182,8 @@ export default function SignalDemo() {
 				Date.now(), bobKyberPreKeyPair, bobKyberPreKeySig));
 
   const bobSessionCipher = SessionCipher.fromStore(bobStore, aliceAddress);
-  const plaintext = await bobSessionCipher.decryptPreKeySignalMessage(new PreKeySignalMessage((await outgoingMessage).serialize()));
- const text = new TextDecoder().decode(plaintext);
+  const plaintext = await bobSessionCipher.decrypt(new PreKeySignalMessage(outgoingMessage.serialize()));
+  const text = new TextDecoder().decode(plaintext);
   console.log("Decrypted message:", text);
   /*
   console.log("identity pub:", bobIdentityKey.serialize());

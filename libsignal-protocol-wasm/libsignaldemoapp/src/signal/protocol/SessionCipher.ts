@@ -110,18 +110,24 @@ async encryptWithTime(
    * Decrypt a PreKeySignalMessage.
    */
   
-  async decryptPreKeySignalMessage(
-    ciphertext: PreKeySignalMessage
+  async decrypt(
+    ciphertext: CiphertextMessage
   ): Promise<Uint8Array> {
-    return sessionCipherWasm.sessioncipher_decrypt_prekey_signal_message(
-      ciphertext.handle,
-      this.remoteAddress.handle,
-      this.sessionStore.getSessionStoreHandle(),
-      this.identityKeyStore.getIdentityKeyStoreHandle(),
-      this.preKeyStore.getPreKeyStoreHandle(),
-      this.signedPreKeyStore.getSignedPreKeyStoreHandle(),
-      this.kyberPreKeyStore.getKyberPreKeyStoreHandle()
-    );
+
+    if(ciphertext instanceof PreKeySignalMessage) {
+      return sessionCipherWasm.sessioncipher_decrypt_prekey_signal_message(
+        ciphertext.handle,
+        this.remoteAddress.handle,
+        this.sessionStore.getSessionStoreHandle(),
+        this.identityKeyStore.getIdentityKeyStoreHandle(),
+        this.preKeyStore.getPreKeyStoreHandle(),
+        this.signedPreKeyStore.getSignedPreKeyStoreHandle(),
+        this.kyberPreKeyStore.getKyberPreKeyStoreHandle()
+      );
+    }
+
+    // REQUIRED for TS correctness
+    return new Uint8Array();
   } 
 
   /**

@@ -1,12 +1,5 @@
-use std::collections::HashMap;
 use std::sync::Mutex;
 use once_cell::sync::Lazy;
-
-static PREKEY_SIGNAL_MESSAGES: Lazy<Mutex<HashMap<u32, PreKeySignalMessage>>> =
-    Lazy::new(|| Mutex::new(HashMap::new()));
-
-static NEXT_HANDLE: Lazy<Mutex<u32>> =
-    Lazy::new(|| Mutex::new(1));
 
 use wasm_bindgen::prelude::*;
 use libsignal_protocol::{
@@ -14,39 +7,73 @@ use libsignal_protocol::{
     SignalMessage,
 };
 
-//use crate::handles::{insert_public_key, store_signal_message};
+use crate::handle_table::HandleTable;
 use crate::wasm_ec_public_key::store_public_key;
 use crate::wasm_signal_message::store_signal_message;
 
+// -----------------------------------------------------------------------------
+// Storage
+// -----------------------------------------------------------------------------
+
+static PREKEY_SIGNAL_MESSAGES: Lazy<Mutex<HandleTable<PreKeySignalMessage>>> =
+    Lazy::new(|| Mutex::new(HandleTable::new()));
+
+// -----------------------------------------------------------------------------
+// Helpers
+// -----------------------------------------------------------------------------
+
 pub fn store_prekey_signal_message(msg: PreKeySignalMessage) -> u32 {
-    let mut next = NEXT_HANDLE.lock().unwrap();
-    let handle = *next;
-    *next += 1;
+    PREKEY_SIGNAL_MESSAGES
+        .lock()
+        .unwrap()
+        .insert(msg)
+}
+
+pub fn take_prekey_signal_message(
+    handle: u32,
+) -> Result<PreKeySignalMessage, JsValue> {
+    if handle == 0 {
+        return Err(JsValue::from_str(
+            "Invalid PreKeySignalMessage handle (0)",
+        ));
+    }
 
     PREKEY_SIGNAL_MESSAGES
         .lock()
         .unwrap()
-        .insert(handle, msg);
-
-    handle
+        .take(handle)
+        .ok_or_else(|| {
+            JsValue::from_str("Invalid PreKeySignalMessage handle")
+        })
 }
 
-pub fn with_prekey_signal_message<R>(handle: u32, f: impl FnOnce(&PreKeySignalMessage) -> R) -> R {
-    let map = PREKEY_SIGNAL_MESSAGES.lock().unwrap();
-    let msg = map.get(&handle).expect("Invalid PreKeySignalMessage handle");
-    f(msg)
+pub fn with_prekey_signal_message<R>(
+    handle: u32,
+    f: impl FnOnce(&PreKeySignalMessage) -> R,
+) -> R {
+    PREKEY_SIGNAL_MESSAGES
+        .lock()
+        .unwrap()
+        .with(handle, f)
 }
 
 fn remove_message(handle: u32) {
-    PREKEY_SIGNAL_MESSAGES.lock().unwrap().remove(&handle);
+    PREKEY_SIGNAL_MESSAGES
+        .lock()
+        .unwrap()
+        .remove(handle);
 }
 
 pub fn has_prekey_signal_message(handle: u32) -> bool {
     PREKEY_SIGNAL_MESSAGES
         .lock()
         .unwrap()
-        .contains_key(&handle)
+        .contains(handle)
 }
+
+// -----------------------------------------------------------------------------
+// WASM exports
+// -----------------------------------------------------------------------------
 
 #[wasm_bindgen(js_namespace = preKeySignalMessage)]
 pub fn prekeysignalmessage_deserialize(serialized: &[u8]) -> u32 {
@@ -120,12 +147,9 @@ pub fn prekeysignalmessage_get_signal_message(handle: u32) -> u32 {
         let msg: SignalMessage = m.message().clone();
         store_signal_message(msg)
     })
-} 
+}
 
 #[wasm_bindgen(js_namespace = preKeySignalMessage)]
 pub fn prekeysignalmessage_serialize(handle: u32) -> Vec<u8> {
     with_prekey_signal_message(handle, |m| m.serialized().to_vec())
 }
-
-
-

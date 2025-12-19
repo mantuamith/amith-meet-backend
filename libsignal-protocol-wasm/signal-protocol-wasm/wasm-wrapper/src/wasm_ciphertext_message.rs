@@ -6,10 +6,10 @@ use once_cell::sync::Lazy;
 use web_sys::console;
 use wasm_bindgen::JsValue;
 
-use crate::handle_message_store::{HandleMessageStore};
+use crate::handle_table::{HandleTable};
 
-static CIPHERTEXT_MESSAGES: Lazy<Mutex<HandleMessageStore<CiphertextMessage>>> =
-    Lazy::new(|| Mutex::new(HandleMessageStore::new()));
+static CIPHERTEXT_MESSAGES: Lazy<Mutex<HandleTable<CiphertextMessage>>> =
+    Lazy::new(|| Mutex::new(HandleTable::new()));
 
 
 pub fn store_ciphertext_message(msg: CiphertextMessage) -> u32 {

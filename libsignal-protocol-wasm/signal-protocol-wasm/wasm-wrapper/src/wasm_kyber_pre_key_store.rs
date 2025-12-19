@@ -164,28 +164,30 @@ pub fn kyberprekeystore_mark_kyber_prekey_used(
     signed_prekey_id: u32,
     base_key_handle: u32,
 ) -> Result<(), JsValue> {
-    // Retrieve EC public key from wasm_ec_public_key table
-    let base_key =
-        crate::wasm_ec_public_key::get_public_key_clone(base_key_handle)?;
+    crate::wasm_ec_public_key::with_public_key(base_key_handle, |base_key| {
+        with_kyber_prekey_store_mut(store_handle, |store| {
+            // Mark Kyber prekey as used
+            store.used.insert(kyber_prekey_id);
 
-    with_kyber_prekey_store_mut(store_handle, |store| {
-        store.used.insert(kyber_prekey_id);
+            let entry = store
+                .base_keys_seen
+                .entry((kyber_prekey_id, signed_prekey_id))
+                .or_insert_with(Vec::new);
 
-        let entry = store
-            .base_keys_seen
-            .entry((kyber_prekey_id, signed_prekey_id))
-            .or_insert_with(Vec::new);
+            let base_bytes = base_key.serialize();
 
-        let base_bytes = base_key.serialize();
-
-        for existing in entry.iter() {
-            if existing.serialize() == base_bytes {
-                return Err(JsValue::from_str("ReusedBaseKeyException"));
+            // Reject reused base keys
+            for existing in entry.iter() {
+                if existing.serialize() == base_bytes {
+                    return Err(JsValue::from_str("ReusedBaseKeyException"));
+                }
             }
-        }
 
-        entry.push(base_key);
-        Ok(())
+            // Store a CLONE (ownership required)
+            entry.push(base_key.clone());
+
+            Ok(())
+        })
     })
 }
 

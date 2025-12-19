@@ -6,8 +6,8 @@ use web_sys::console;
 use once_cell::sync::Lazy;
 use std::sync::Mutex;
 
-use crate::wasm_ec_public_key; // assumed module that exposes get_public_key_clone(...) -> Result<PublicKey, JsValue>
-use crate::wasm_kem_public_key; // assumed module that exposes get_kem_public(...) -> Result<kem::PublicKey, JsValue>
+use crate::wasm_ec_public_key::{with_public_key}; 
+use crate::wasm_kem_public_key; 
 
 use libsignal_protocol::{PreKeyBundle, PreKeyBundleContent}; // adjust paths to your crate
 use libsignal_core::curve::{PublicKey, /* ... */};
@@ -78,79 +78,84 @@ pub fn prekeybundle_new(
     kyber_ptr: u32,
     kyber_prekey_signature: &Uint8Array,
 ) -> Result<u32, JsValue> {
-    // Convert signatures to Vec<u8>
     let signed_sig = signed_prekey_signature.to_vec();
     let kyber_sig = kyber_prekey_signature.to_vec();
 
-    // Get public keys from handles (these functions should return Result<PublicKey, JsValue>)
-    // preKey (optional)
-    let pre_key_opt: Option<(u32, PublicKey)> = if pre_key_id == -1 || pre_key_ptr == 0 {
-        None
-    } else {
-        let pubk = crate::wasm_ec_public_key::get_public_key_clone(pre_key_ptr)
-            .map_err(|e| JsValue::from_str(&format!("prekey get_public_key_clone failed: {:?}", e)))?;
-        Some((pre_key_id as u32, pubk))
-    };
+    // DeviceId conversion
+    let device_id = device_id
+        .try_into()
+        .map_err(|_| JsValue::from_str("invalid device id"))?;
 
-    // signed prekey - required
+    // --------------------------
+    // Optional EC pre-key
+    // --------------------------
+    let pre_key_opt: Option<(u32, libsignal_core::curve::PublicKey)> =
+        if pre_key_id == -1 || pre_key_ptr == 0 {
+            None
+        } else {
+            Some((
+                pre_key_id as u32,
+                with_public_key(pre_key_ptr, |pk| Ok(pk.clone()))?,
+            ))
+        };
+
+    // --------------------------
+    // Signed EC pre-key (required)
+    // --------------------------
     if signed_prekey_ptr == 0 {
         return Err(JsValue::from_str("signedPreKey pointer is null"));
     }
-    let signed_pub = crate::wasm_ec_public_key::get_public_key_clone(signed_prekey_ptr)
-        .map_err(|e| JsValue::from_str(&format!("signedPreKey get_public_key_clone failed: {:?}", e)))?;
 
-    // identity key - required
+    let signed_pub =
+        with_public_key(signed_prekey_ptr, |pk| Ok(pk.clone()))?;
+
+    // --------------------------
+    // Identity key (required)
+    // --------------------------
     if identity_ptr == 0 {
         return Err(JsValue::from_str("identity pointer is null"));
     }
-    let identity_pub = crate::wasm_ec_public_key::get_public_key_clone(identity_ptr)
-        .map_err(|e| JsValue::from_str(&format!("identity get_public_key_clone failed: {:?}", e)))?;
 
-    // kyber public - required
+    let identity_pub =
+        with_public_key(identity_ptr, |pk| Ok(pk.clone()))?;
+
+    let identity_key = libsignal_protocol::IdentityKey::new(identity_pub.clone());
+
+    // --------------------------
+    // Kyber public key (required)
+    // --------------------------
     if kyber_ptr == 0 {
         return Err(JsValue::from_str("kyber pointer is null"));
     }
 
     let kyber_pub = crate::wasm_kem_public_key::get_kyber_public_key(kyber_ptr)
-        .ok_or_else(|| JsValue::from_str("kyber get_kyber_public failed: null or invalid pointer"))?;
+        .ok_or_else(|| JsValue::from_str("kyber get_kyber_public failed"))?;
 
-
-    // Convert optional pre_key tuple into types expected by PreKeyBundle::new
-    // NOTE: your PreKeyBundle::new signature expects specific types (PreKeyId, DeviceId, etc.)
-    // We'll assume u32 -> PreKeyId/etc conversions are implemented via `into()`.
-
-    // Convert device id into DeviceId type:
-    let device_id = device_id
-        .try_into()
-        .map_err(|_| JsValue::from_str("invalid device id"))?;
-
-    // Build arguments and call PreKeyBundle::new
-    // YOUR PreKeyBundle::new signature in Rust (from your snippet) is:
-    // PreKeyBundle::new(registration_id, device_id, pre_key, signed_pre_key_id, signed_pre_key_public, signed_pre_key_signature, kyber_pre_key_id, kyber_pre_key_public, kyber_pre_key_signature, identity_key)
-
-    // Convert pre_key_opt from Option<(u32, PublicKey)> -> Option<(PreKeyId, PublicKey)>
-    let pre_key_for_new = pre_key_opt.map(|(id, pk)| (id.into(), pk));
-
-    // Wrap identity_pub into IdentityKey
-    let identity_key = libsignal_protocol::IdentityKey::new(identity_pub);
-
-    // --- DEBUG: verify signed EC pre-key locally ---
-    let ok = identity_pub.verify_signature(
-        &signed_pub.serialize(),
-        &signed_sig,
+    // --------------------------
+    // DEBUG: local signature verification
+    // --------------------------
+    assert!(
+        identity_pub.verify_signature(
+            &signed_pub.serialize(),
+            &signed_sig,
+        ),
+        "LOCAL SIGNED PREKEY SIGNATURE INVALID"
     );
 
-    assert!(ok, "LOCAL SIGNED PREKEY SIGNATURE INVALID");
-
-    // --- DEBUG: verify kyber pre-key locally ---
-    let ok2 = identity_pub.verify_signature(
-        &kyber_pub.serialize(),
-        &kyber_sig,
+    assert!(
+        identity_pub.verify_signature(
+            &kyber_pub.serialize(),
+            &kyber_sig,
+        ),
+        "LOCAL KYBER PREKEY SIGNATURE INVALID"
     );
 
-    assert!(ok2, "LOCAL KYBER PREKEY SIGNATURE INVALID");
+    // --------------------------
+    // Build PreKeyBundle
+    // --------------------------
+    let pre_key_for_new =
+        pre_key_opt.map(|(id, pk)| (id.into(), pk));
 
-    // Call constructor
     let bundle = PreKeyBundle::new(
         registration_id,
         device_id,
@@ -162,10 +167,15 @@ pub fn prekeybundle_new(
         kyber_pub,
         kyber_sig,
         identity_key,
-    ).map_err(|e| JsValue::from_str(&format!("PreKeyBundle::new failed: {:?}", e)))?;
+    )
+    .map_err(|e| {
+        JsValue::from_str(&format!(
+            "PreKeyBundle::new failed: {:?}",
+            e
+        ))
+    })?;
 
-    let handle = store_prekeybundle(bundle);
-    Ok(handle)
+    Ok(store_prekeybundle(bundle))
 }
 
 #[wasm_bindgen(js_namespace = preKeyBundle)]
