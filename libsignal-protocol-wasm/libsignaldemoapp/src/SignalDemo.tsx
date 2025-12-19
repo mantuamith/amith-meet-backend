@@ -21,6 +21,7 @@ import { ECPublicKey } from "./libsignal/protocol/ecc/ECPublicKey";
 import { ECPrivateKey } from "./libsignal/protocol/ecc/ECPrivateKey";
 import { KEMPublicKey } from "./libsignal/protocol/kem/KEMPublicKey";
 import { KEMSecretKey } from "./libsignal/protocol/kem/KEMSecretKey";
+import type { SignalProtocolStore } from "./libsignal/state/SignalProtocolStore";
 
 // base64 helpers
 const b64 = {
@@ -44,6 +45,9 @@ function toBase64(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
+var bobStore: SignalProtocolStore | undefined = undefined;
+var aliceStore: SignalProtocolStore | undefined = undefined;
+
 export default function SignalDemo() {
   const [ready, setReady] = useState(true);
   const [output, setOutput] = useState("");
@@ -62,25 +66,16 @@ export default function SignalDemo() {
   const aliceIdentityKey = new IdentityKey(aliceIdentityKeyECPair.publicKey);
   const aliceIdentityKeyPair = new IdentityKeyPair(aliceIdentityKey, aliceIdentityKeyECPair.privateKey);
   const aliceRegistrationId = KeyHelper.generateRegistrationId();
-
+  
+  // create kyber key
   const  aliceKyberPreKeyPair = KEMKeyPair.generate(KEMKeyType.KYBER_1024);
-  console.log(aliceKyberPreKeyPair);
-  /*
-  console.log("Kyber secretKey: " + toBase64(aliceKyberPreKeyPair.secretKey.serialize()));
-  console.log("Kyber secretKey: " + toBase64(aliceKyberPreKeyPair.publicKey.serialize()));
-  */
+  
+  if(!aliceStore) {
+    aliceStore = new InMemorySignalProtocolStore(aliceIdentityKeyPair, aliceRegistrationId);
+  }
 
-  console.log("------->");
-  const aliceStore = new InMemorySignalProtocolStore(aliceIdentityKeyPair, aliceRegistrationId);
-  console.log(aliceIdentityKeyECPair.publicKey);  
-  console.log("------->");
-  console.log("privateKey: " + toBase64(aliceIdentityKeyECPair.privateKey.serialize()));
-  console.log("publicKey: " + toBase64(aliceIdentityKeyECPair.publicKey.serialize()));
-  console.log("------->");
-
-    // Convert Uint8Array -> base64 for wasm calls that expect base64 strings
-  const aliceIdPrivB64 = b64.encode(aliceIdentityKeyECPair.privateKey.serialize());
-  const aliceIdPubB64 = b64.encode(aliceIdentityKeyECPair.publicKey.serialize());
+  console.log("Alice privateKey: " + toBase64(aliceIdentityKeyECPair.privateKey.serialize()));
+  console.log("Alice publicKey: " + toBase64(aliceIdentityKeyECPair.publicKey.serialize()));
 
   // Inti Bob keys
   var bobIdentityKeyECPair = null;
@@ -161,21 +156,18 @@ export default function SignalDemo() {
                           b64.encode(bobKyberPreKeyPair.secretKey.serialize()));  
   }
   
-  bobKyberPreKeySig = bobIdentityKeyPair.getPrivateKey().calculateSignature(bobKyberPreKeyPair.publicKey.serialize());
-  /*
-  console.log("Kyber secretKey: " + toBase64(bobKyberPreKeyPair.secretKey.serialize()));
-  console.log("Kyber secretKey: " + toBase64(bobKyberPreKeyPair.publicKey.serialize()));
-  */
+  bobKyberPreKeySig = bobIdentityKeyPair.getPrivateKey().calculateSignature(bobKyberPreKeyPair.publicKey.serialize()); 
+  console.log("Bob privateKey: " + toBase64(bobIdentityKeyPair.privateKey.serialize()));
+  console.log("Bob publicKey: " + toBase64(bobIdentityKeyPair.publicKey.serialize()));
  
-  console.log("------->");
-  console.log("privateKey: " + toBase64(bobIdentityKeyPair.privateKey.serialize()));
-  console.log("publicKey: " + toBase64(bobIdentityKeyPair.publicKey.serialize()));
-  console.log("------->");
- 
-  console.log("signed prekey signature: " + b64.encode(bobSignedPreKeySig));
-  console.log("Kyber prekey signature: " + b64.encode(bobKyberPreKeySig));
+  console.log("Bob signed prekey signature: " + b64.encode(bobSignedPreKeySig));
+  console.log("Bob kyber prekey signature: " + b64.encode(bobKyberPreKeySig));
 
-  const bobStore = new InMemorySignalProtocolStore(bobIdentityKeyPair, bobRegistrationId);
+  if (!bobStore) {
+    console.log("INIT STORE---------->")
+    bobStore = new InMemorySignalProtocolStore(bobIdentityKeyPair, bobRegistrationId);
+  }
+  
 
   // Create preKeyBundle
   const bobDeviceId = 1;
@@ -183,26 +175,29 @@ export default function SignalDemo() {
 	const bobSignedPreKeyId = 2;
 	const bobKyberPreKeyId = 5;
 
-  const bobPreKeyBundle = new PreKeyBundle(bobRegistrationId, 
-	      bobDeviceId,
-				bobPreKeyId, 
-				bobPreKeyPair.publicKey,
-				bobSignedPreKeyId, 
-				bobSignedPreKeyPair.publicKey,
-				bobSignedPreKeySig,
-				bobIdentityKey,
-				bobKyberPreKeyId,
-				bobKyberPreKeyPair.publicKey,
-				bobKyberPreKeySig);
-    
-  // Create Alice session builder
-  const aliceSessionBuilder = SessionBuilder.fromStore(aliceStore, bobAddress);
+  if (!(await aliceStore.loadSession(bobAddress))) {
+    const bobPreKeyBundle = new PreKeyBundle(bobRegistrationId, 
+          bobDeviceId,
+          bobPreKeyId, 
+          bobPreKeyPair.publicKey,
+          bobSignedPreKeyId, 
+          bobSignedPreKeyPair.publicKey,
+          bobSignedPreKeySig,
+          bobIdentityKey,
+          bobKyberPreKeyId,
+          bobKyberPreKeyPair.publicKey,
+          bobKyberPreKeySig);
+      
+    // Create Alice session builder
+    const aliceSessionBuilder = SessionBuilder.fromStore(aliceStore, bobAddress);
 
-  // Bob’s PreKeyBundle fetched from server
-  await aliceSessionBuilder.process(bobPreKeyBundle);
+    // Bob’s PreKeyBundle fetched from server
+    await aliceSessionBuilder.process(bobPreKeyBundle);
+  }
    
 	const aliceSessionCipher = SessionCipher.fromStore(aliceStore, bobAddress);
-   
+  
+  // Plain message
   const message = alicePlainMessageToBob;
   const bytes = new TextEncoder().encode(message);
 	const outgoingMessage = await aliceSessionCipher.encrypt(bytes);
@@ -214,13 +209,23 @@ export default function SignalDemo() {
 
   /* Add to Bob's store its prekeys */
   //Add tp store the prekeys
-	bobStore.storePreKey(bobPreKeyId, new PreKeyRecord(bobPreKeyId, bobPreKeyPair));		
-	//Add tp store the signed-prekeys
-	bobStore.storeSignedPreKey(bobSignedPreKeyId, new SignedPreKeyRecord(bobSignedPreKeyId, 
-				Date.now(), bobSignedPreKeyPair, bobSignedPreKeySig));
+  if (!bobStore.containsPreKey(bobPreKeyId)) {
+	  bobStore.storePreKey(bobPreKeyId, new PreKeyRecord(bobPreKeyId, bobPreKeyPair));		
+  }
+	
+  //Add tp store the signed-prekeys
+  console.log("--------------test ----->" + bobStore.containsKyberPreKey(bobKyberPreKeyId));
+  if (!bobStore.containsSignedPreKey(bobSignedPreKeyId)) {
+    bobStore.storeSignedPreKey(bobSignedPreKeyId, new SignedPreKeyRecord(bobSignedPreKeyId, 
+          Date.now(), bobSignedPreKeyPair, bobSignedPreKeySig));
+  }
+  console.log("--------------test ends ----->" + bobStore.containsKyberPreKey(bobKyberPreKeyId));
+
 	//Add tp store the kyber-prekeys
-	bobStore.storeKyberPreKey(bobKyberPreKeyId, new KyberPreKeyRecord(bobKyberPreKeyId, 
-				Date.now(), bobKyberPreKeyPair, bobKyberPreKeySig));
+  if (!bobStore.containsKyberPreKey(bobKyberPreKeyId)) {
+    bobStore.storeKyberPreKey(bobKyberPreKeyId, new KyberPreKeyRecord(bobKyberPreKeyId, 
+          Date.now(), bobKyberPreKeyPair, bobKyberPreKeySig));
+  }
 
   const bobSessionCipher = SessionCipher.fromStore(bobStore, aliceAddress);
   const plaintext = await bobSessionCipher.decrypt(new PreKeySignalMessage(outgoingMessage.serialize()));
@@ -229,21 +234,8 @@ export default function SignalDemo() {
   //Display
   setAliceDecryptedMessageToBob(text);
   console.log("Decrypted message:", text);
-  /*
-  console.log("identity pub:", bobIdentityKey.serialize());
-  console.log("signed prekey pub:", bobSignedPreKeyPair2.publicKey.serialize());
-  
-  console.log("signed prekey sig:", bobSignedPreKeySig);
 
-  console.log("kyber prekey pub:", bobKyberPreKeyPair.publicKey.serialize());
-  console.log("kyber prekey sig:", bobKyberPreKeySig);
-  */
-  // Process preKeyBundle
-  aliceSessionBuilder.process(bobPreKeyBundle);
-
-  setOutput(
-    `Success`
-  );
+  setOutput("Success");
 }
 
 useEffect(() => {
@@ -251,7 +243,7 @@ useEffect(() => {
 
     (async () => {
       try {
-        await initWasm(); // 🔑 THIS IS REQUIRED
+        await initWasm(); // THIS IS REQUIRED
         if (!cancelled) {
           setReady(true);
           console.log("libsignal_wasm_pqxdh initialized");

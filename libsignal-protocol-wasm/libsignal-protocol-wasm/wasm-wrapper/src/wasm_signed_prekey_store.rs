@@ -7,6 +7,7 @@ use std::sync::Mutex;
 use crate::handle_store::HandleStore;
 use libsignal_protocol::GenericSignedPreKey;
 use libsignal_protocol::SignedPreKeyRecord;
+use web_sys::console;
 
 pub type SignedPreKeyStoreMap = HandleStore<u32, SignedPreKeyRecord>;
 
@@ -141,7 +142,8 @@ pub fn signedprekeystore_contains_signed_prekey(
     id: u32,
 ) -> Result<bool, JsValue> {
     with_signed_prekey_store(store_handle, |store| {
-        Ok(store.contains(&id))
+        let exists = store.contains(&id);        
+        Ok(exists)
     })
 }
 
