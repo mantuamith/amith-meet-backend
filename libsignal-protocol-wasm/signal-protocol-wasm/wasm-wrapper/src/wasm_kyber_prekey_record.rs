@@ -74,8 +74,7 @@ pub fn kyber_prekey_new(
 ) -> Result<u32, JsValue> {
     // --- Retrieve Kyber KeyPair safely ---
     let keypair: kem::KeyPair =
-        crate::wasm_kem_key_pair::get_kyber_keypair_clone(keypair_ptr)
-            .ok_or_else(|| JsValue::from_str("Invalid Kyber keypair handle"))?;
+        crate::wasm_kem_key_pair::get_kyber_keypair_clone(keypair_ptr)?;
 
     let record = KyberPreKeyRecord::new(
         KyberPreKeyId::from(id),
@@ -87,6 +86,7 @@ pub fn kyber_prekey_new(
     insert_kyber_prekey(id, record)?;
     Ok(id)
 }
+
 
 #[wasm_bindgen(js_namespace = kyberPreKeyRecord)]
 pub fn kyber_prekey_deserialize(data: Uint8Array) -> Result<u32, JsValue> {

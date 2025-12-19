@@ -4,62 +4,56 @@ use std::sync::Mutex;
 
 use libsignal_core::address::ProtocolAddress;
 
+use crate::HandleTable;
+
 // -------------------------------------------------------
 // Global handle table
 // -------------------------------------------------------
 
-static ADDRESSES: Lazy<Mutex<Vec<Option<Box<ProtocolAddress>>>>> = Lazy::new(|| {
-    let mut v = Vec::new();
-    v.push(None); // handle 0 = null
-    Mutex::new(v)
-});
+static ADDRESSES: Lazy<Mutex<HandleTable<ProtocolAddress>>> =
+    Lazy::new(|| Mutex::new(HandleTable::new()));
+
+// -------------------------------------------------------
+// Internal helpers
+// -------------------------------------------------------
 
 fn store_address(addr: ProtocolAddress) -> u32 {
-    let mut table = ADDRESSES.lock().unwrap();
-    let boxed = Box::new(addr);
-
-    // reuse empty slot
-    for (i, slot) in table.iter_mut().enumerate() {
-        if slot.is_none() {
-            *slot = Some(boxed);
-            return (i + 1) as u32; // return (index + 1)
-        }
-    }
-
-    table.push(Some(boxed));
-    table.len() as u32  // return (index + 1)
+    ADDRESSES.lock().unwrap().insert(addr)
 }
 
-fn load_address(ptr: u32) -> Result<ProtocolAddress, JsValue> {    
-    if ptr == 0 {
+fn load_address(handle: u32) -> Result<ProtocolAddress, JsValue> {
+    if handle == 0 {
         return Err(JsValue::from_str("Null protocol address handle"));
     }
 
-    let table = ADDRESSES.lock().unwrap();
-    table
-        .get((ptr - 1) as usize)
-        .and_then(|opt| opt.as_ref())
-        .map(|boxed| (**boxed).clone())
+    ADDRESSES
+        .lock()
+        .unwrap()
+        .take(handle)
+        .map(|addr| {
+            // put it back immediately (read-only semantics)
+            let h = ADDRESSES.lock().unwrap().insert(addr.clone());
+            debug_assert_eq!(h, handle);
+            addr
+        })
         .ok_or_else(|| JsValue::from_str("Invalid protocol address handle"))
 }
 
-pub fn with_protocol_address<F, R>(ptr: u32, f: F) -> Result<R, JsValue>
+pub fn with_protocol_address<F, R>(handle: u32, f: F) -> Result<R, JsValue>
 where
     F: FnOnce(&ProtocolAddress) -> Result<R, JsValue>,
 {
-    if ptr == 0 {
+    if handle == 0 {
         return Err(JsValue::from_str("Invalid ProtocolAddress pointer"));
     }
 
     let table = ADDRESSES.lock().unwrap();
 
-    let key = table
-        .get((ptr - 1) as usize)
-        .and_then(|slot| slot.as_ref())
-        .ok_or_else(|| JsValue::from_str("Invalid ProtocolAddress pointer"))?;
+    if !table.contains(handle) {
+        return Err(JsValue::from_str("Invalid ProtocolAddress pointer"));
+    }
 
-    // Borrow happens ONLY here
-    f(key)
+    Ok(table.with(handle, f)?)
 }
 
 pub async fn with_protocol_address_async<R, F, Fut>(
@@ -74,20 +68,12 @@ where
         return Err(JsValue::from_str("Invalid ProtocolAddress pointer"));
     }
 
-    // Extract OWNED ProtocolAddress
-    let addr: ProtocolAddress = {
-        let table = ADDRESSES.lock().unwrap();
+    // clone outside async
+    let addr = ADDRESSES
+        .lock()
+        .unwrap()
+        .with(handle, |a| a.clone());
 
-        let boxed = table
-            .get((handle - 1) as usize)
-            .and_then(|slot| slot.as_ref())
-            .ok_or_else(|| JsValue::from_str("Invalid ProtocolAddress pointer"))?;
-
-        (**boxed).clone()
-        // or equivalently: (*boxed).clone()
-    };
-
-    // Safe: owned value, no borrow, no lock
     f(addr).await
 }
 
@@ -95,24 +81,23 @@ pub fn get_protocol_address_clone(handle: u32) -> Result<ProtocolAddress, JsValu
     if handle == 0 {
         return Err(JsValue::from_str("null protocolAddress handle"));
     }
-    let table = ADDRESSES.lock().unwrap();
-    let opt = table.get((handle - 1) as usize).and_then(|opt| opt.as_ref()).ok_or_else(|| JsValue::from_str("invalid protocolAddress handle"))?;
-    // clone the protocolAddress (requires protocolAddress: Clone)
-    Ok((**opt).clone())
-}
 
-fn remove_address(ptr: u32) {    
-    if ptr == 0 {
+    let addr = ADDRESSES
+        .lock()
+        .unwrap()
+        .with(handle, |a| a.clone());
+
+    Ok(addr)
+}
+// destroy helper
+fn remove_address(handle: u32) {
+    if handle == 0 {
         return;
-    } 
-    let mut table = ADDRESSES.lock().unwrap();
-    if let Some(slot) = table.get_mut((ptr - 1) as usize) {
-        *slot = None;
     }
+    let _ = ADDRESSES.lock().unwrap().take(handle);
 }
 
-/// Convert &ProtocolAddress → handle.
-/// This is what your adapters expect.
+/// Convert &ProtocolAddress → handle (adapter use)
 pub fn protocoladdress_to_handle(addr: &ProtocolAddress) -> Result<u32, JsValue> {
     Ok(store_address(addr.clone()))
 }
@@ -123,32 +108,27 @@ pub fn protocoladdress_to_handle(addr: &ProtocolAddress) -> Result<u32, JsValue>
 
 #[wasm_bindgen(js_namespace = protocolAddress)]
 pub fn protocoladdress_new(name: String, device_id: u32) -> Result<u32, JsValue> {
-    // Convert device_id into the internal type (1–127)
-    let converted = device_id.try_into().map_err(|_err| {
+    let device_id = device_id.try_into().map_err(|_| {
         JsValue::from_str(&format!(
             "Invalid device id {} (must be 1–127)",
             device_id
         ))
     })?;
 
-    let addr = ProtocolAddress::new(name.clone(), converted);
-
-    Ok(store_address(addr))
+    Ok(store_address(ProtocolAddress::new(name, device_id)))
 }
 
 #[wasm_bindgen(js_namespace = protocolAddress)]
-pub fn protocoladdress_name(ptr: u32) -> Result<String, JsValue> {
-    let addr = load_address(ptr)?;
-    Ok(addr.name().to_string())
+pub fn protocoladdress_name(handle: u32) -> Result<String, JsValue> {
+    with_protocol_address(handle, |addr| Ok(addr.name().to_string()))
 }
 
 #[wasm_bindgen(js_namespace = protocolAddress)]
-pub fn protocoladdress_device_id(ptr: u32) -> Result<u32, JsValue> {
-    let addr = load_address(ptr)?;
-    Ok(addr.device_id().into())
+pub fn protocoladdress_device_id(handle: u32) -> Result<u32, JsValue> {
+    with_protocol_address(handle, |addr| Ok(addr.device_id().into()))
 }
 
 #[wasm_bindgen(js_namespace = protocolAddress)]
-pub fn protocoladdress_destroy(ptr: u32) {
-    remove_address(ptr);
+pub fn protocoladdress_destroy(handle: u32) {
+    remove_address(handle);
 }

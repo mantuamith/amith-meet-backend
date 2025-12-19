@@ -128,8 +128,17 @@ pub fn prekeybundle_new(
         return Err(JsValue::from_str("kyber pointer is null"));
     }
 
-    let kyber_pub = crate::wasm_kem_public_key::get_kyber_public_key(kyber_ptr)
-        .ok_or_else(|| JsValue::from_str("kyber get_kyber_public failed"))?;
+    // --------------------------
+    // Kyber public key (required)
+    // --------------------------
+    if kyber_ptr == 0 {
+        return Err(JsValue::from_str("kyber pointer is null"));
+    }
+
+    let kyber_pub =
+        crate::wasm_kem_public_key::with_kyber_public_key(kyber_ptr, |pk| {
+            Ok(pk.clone())
+        })?;
 
     // --------------------------
     // DEBUG: local signature verification
