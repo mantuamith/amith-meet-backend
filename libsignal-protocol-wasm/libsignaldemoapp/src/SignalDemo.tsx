@@ -34,17 +34,6 @@ const b64 = {
   },
 };
 
-function toBase64(bytes: Uint8Array): string {
-  let binary = "";
-  const chunk = 0x8000;
-
-  for (let i = 0; i < bytes.length; i += chunk) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
-  }
-
-  return btoa(binary);
-}
-
 var bobStore: SignalProtocolStore | undefined = undefined;
 var aliceStore: SignalProtocolStore | undefined = undefined;
 
@@ -74,8 +63,8 @@ export default function SignalDemo() {
     aliceStore = new InMemorySignalProtocolStore(aliceIdentityKeyPair, aliceRegistrationId);
   }
 
-  console.log("Alice privateKey: " + toBase64(aliceIdentityKeyECPair.privateKey.serialize()));
-  console.log("Alice publicKey: " + toBase64(aliceIdentityKeyECPair.publicKey.serialize()));
+  console.log("Alice privateKey: " + b64.encode(aliceIdentityKeyECPair.privateKey.serialize()));
+  console.log("Alice publicKey: " + b64.encode(aliceIdentityKeyECPair.publicKey.serialize()));
 
   // Inti Bob keys
   var bobIdentityKeyECPair = null;
@@ -157,8 +146,8 @@ export default function SignalDemo() {
   }
   
   bobKyberPreKeySig = bobIdentityKeyPair.getPrivateKey().calculateSignature(bobKyberPreKeyPair.publicKey.serialize()); 
-  console.log("Bob privateKey: " + toBase64(bobIdentityKeyPair.privateKey.serialize()));
-  console.log("Bob publicKey: " + toBase64(bobIdentityKeyPair.publicKey.serialize()));
+  console.log("Bob privateKey: " + b64.encode(bobIdentityKeyPair.privateKey.serialize()));
+  console.log("Bob publicKey: " + b64.encode(bobIdentityKeyPair.publicKey.serialize()));
  
   console.log("Bob signed prekey signature: " + b64.encode(bobSignedPreKeySig));
   console.log("Bob kyber prekey signature: " + b64.encode(bobKyberPreKeySig));
