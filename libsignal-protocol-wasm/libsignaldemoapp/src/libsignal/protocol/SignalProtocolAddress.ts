@@ -1,5 +1,5 @@
 import { ServiceId } from "./ServiceId";
-import { protocolAddress as  protocolAddressWasm } from "../../../../libsignal-protocol-wasm/wasm-wrapper/pkg/libsignal_wasm_pqxdh";
+import { protocolAddress as  protocolAddressWasm } from "libsignal_wasm_pqxdh";
 
 /**
  * TypeScript equivalent of SignalProtocolAddress.

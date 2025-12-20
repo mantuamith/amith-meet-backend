@@ -2,7 +2,7 @@ import { InvalidKeyIdException } from "../../exceptions/InvalidKeyIdException";
 import type { ECPublicKey } from "../../protocol/ecc/ECPublicKey";
 import { KyberPreKeyRecord } from "../KyberPreKeyRecord";
 import type { KyberPreKeyStore } from "../KyberPreKeyStore";
-import { kyberPreKeyStore as kyberPreKeyStoreWasm } from "../../../../../libsignal-protocol-wasm/wasm-wrapper/pkg/libsignal_wasm_pqxdh";
+import { kyberPreKeyStore as kyberPreKeyStoreWasm } from "libsignal_wasm_pqxdh";
 
 export class InMemoryKyberPreKeyStore implements KyberPreKeyStore {
   private readonly storeHandle!: number;

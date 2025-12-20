@@ -34,18 +34,6 @@ impl SenderKeyStore for SenderKeyStoreAdapter {
     ) -> ProtocolResult<Option<SenderKeyRecord>> {
         let dist_id_str = distribution_id.to_string();
 
-        console::log_1(
-            &format!(
-                "[SenderKeyStoreAdapter::load_sender_key] \
-                 store_handle={} sender={} device_id={} distribution_id={}",
-                self.handle,
-                sender.name(),
-                u32::from(sender.device_id()),
-                dist_id_str
-            )
-            .into(),
-        );
-
         let result = wasm_load_sender_key(
             self.handle,
             sender,
@@ -53,10 +41,7 @@ impl SenderKeyStore for SenderKeyStoreAdapter {
         );
 
         match &result {
-            Ok(Some(_)) => {
-                console::log_1(
-                    &"[SenderKeyStoreAdapter::load_sender_key] record FOUND".into(),
-                );
+            Ok(Some(_)) => {                
             }
             Ok(None) => {
                 console::log_1(
@@ -85,19 +70,6 @@ impl SenderKeyStore for SenderKeyStoreAdapter {
     ) -> ProtocolResult<()> {
         let dist_id_str = distribution_id.to_string();
 
-        console::log_1(
-            &format!(
-                "[SenderKeyStoreAdapter::store_sender_key] \
-                 store_handle={} sender={} device_id={} distribution_id={} record_len={}",
-                self.handle,
-                sender.name(),
-                u32::from(sender.device_id()),
-                dist_id_str,
-                record.serialize()?.len()
-            )
-            .into(),
-        );
-
         let result = wasm_store_sender_key(
             self.handle,
             sender,
@@ -113,11 +85,7 @@ impl SenderKeyStore for SenderKeyStoreAdapter {
                 )
                 .into(),
             );
-        } else {
-            console::log_1(
-                &"[SenderKeyStoreAdapter::store_sender_key] stored successfully".into(),
-            );
-        }
+        } 
 
         result
     }

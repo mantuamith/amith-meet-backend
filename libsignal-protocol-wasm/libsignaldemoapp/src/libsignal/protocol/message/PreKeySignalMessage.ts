@@ -5,7 +5,7 @@ import { SignalMessage } from "./SignalMessage";
 import { IdentityKey } from "../IdentityKey";
 import { ECPublicKey } from "../ecc/ECPublicKey";
 
-import {preKeySignalMessage as preKeySignalMessageWasm} from "../../../../../libsignal-protocol-wasm/wasm-wrapper/pkg/libsignal_wasm_pqxdh";
+import {preKeySignalMessage as preKeySignalMessageWasm} from "libsignal_wasm_pqxdh";
 
 /**
  * TypeScript equivalent of Java's PreKeySignalMessage.

@@ -1,4 +1,4 @@
-import { sessionRecord as sessionRecordWasm } from "../../../../libsignal-protocol-wasm/wasm-wrapper/pkg/libsignal_wasm_pqxdh";
+import { sessionRecord as sessionRecordWasm } from "libsignal_wasm_pqxdh";
 import { IdentityKey } from "../protocol/IdentityKey";
 import { InvalidMessageException } from "../exceptions/InvalidMessageException";
 import { ECPublicKey } from "../protocol/ecc/ECPublicKey";

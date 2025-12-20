@@ -3,7 +3,6 @@ import type { IdentityKey } from "../../protocol/IdentityKey";
 import type { Direction } from "../Direction";
 import type { KyberPreKeyRecord } from "../KyberPreKeyRecord";
 import type { PreKeyRecord } from "../PreKeyRecord";
-import type { SenderKeyRecord } from "../SenderKeyRecord";
 import type { SessionRecord } from "../SessionRecord";
 import type { SignalProtocolAddress } from "../../protocol/SignalProtocolAddress";
 import type { SignalProtocolStore } from "../SignalProtocolStore";
@@ -12,10 +11,11 @@ import type { UUID } from "../UUID";
 import { InMemoryIdentityKeyStore } from "./InMemoryIdentityKeyStore";
 import { InMemoryKyberPreKeyStore } from "./InMemoryKyberPreKeyStore";
 import { InMemoryPreKeyStore } from "./InMemoryPreKeyStore";
-import { InMemorySenderKeyStore } from "./InMemorySenderKeyStore";
 import { InMemorySessionStore } from "./InMemorySessionStore.ts";
 import { InMemorySignedPreKeyStore } from "./InMemorySignedPreKeyStore";
 import type { IdentityKeyPair } from "../../protocol/IdentityKeyPair";
+import { InMemorySenderKeyStore } from "../../protocol/groups/state/InMemorySenderKeyStore.ts";
+import type { SenderKeyRecord } from "../../protocol/groups/state/SenderKeyRecord.ts";
 
 /**
  * Full TypeScript equivalent of Signal's InMemorySignalProtocolStore.
@@ -36,7 +36,7 @@ export class InMemorySignalProtocolStore implements SignalProtocolStore {
     this.identityKeyStore = new InMemoryIdentityKeyStore(identityKeyPair, registrationId);
     
   }
-
+ 
   // --------------------------------------------------------------------
   // Identity store
   // --------------------------------------------------------------------
@@ -168,6 +168,10 @@ export class InMemorySignalProtocolStore implements SignalProtocolStore {
     distributionId: UUID
   ): SenderKeyRecord | null {
     return this.senderKeyStore.loadSenderKey(sender, distributionId);
+  }
+
+   getStoreHandle(): number {
+    throw this.senderKeyStore.getStoreHandle();
   }
 
   // --------------------------------------------------------------------

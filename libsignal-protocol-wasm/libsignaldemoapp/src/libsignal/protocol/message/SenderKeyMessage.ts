@@ -1,8 +1,7 @@
 // Copyright 2014-2016 Signal Messenger, LLC.
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import {senderKeyMessage as senderKeyMessageWasm} 
-from "../../../../../libsignal-protocol-wasm/wasm-wrapper/pkg/libsignal_wasm_pqxdh";
+import {senderKeyMessage as senderKeyMessageWasm} from "libsignal_wasm_pqxdh";
 import { InvalidMessageException } from "../../exceptions/InvalidMessageException";
 import type { ECPublicKey } from "../ecc/ECPublicKey";
 import { CiphertextMessageConstants, type CiphertextMessage } from "./CiphertextMessage";

@@ -1,4 +1,4 @@
-import {senderKeyDistributionMessage as senderKeyDistributionMessageWasm} from "../../../../../libsignal-protocol-wasm/wasm-wrapper/pkg/libsignal_wasm_pqxdh";
+import {senderKeyDistributionMessage as senderKeyDistributionMessageWasm} from "libsignal_wasm_pqxdh";
 import { ECPublicKey } from "../ecc/ECPublicKey";
 
 

@@ -2,7 +2,7 @@ import { InvalidKeyException } from "../exceptions/InvalidKeyException";
 import { ECPrivateKey } from "../protocol/ecc/ECPrivateKey";
 import { ECPublicKey } from "../protocol/ecc/ECPublicKey";
 import { IdentityKey } from "../protocol/IdentityKey";
-import { identityKeyPair as identityKeyPairWasm } from "../../../../libsignal-protocol-wasm/wasm-wrapper/pkg/libsignal_wasm_pqxdh";
+import { identityKeyPair as identityKeyPairWasm } from "libsignal_wasm_pqxdh";
 import type { IdentityKeyPairWasm } from "../wasm/IdentityKeyPairWasm";
 
 

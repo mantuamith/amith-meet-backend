@@ -61,7 +61,6 @@ fn with_sender_key_store<F, R>(ptr: u32, f: F) -> Result<R, JsValue>
 where
     F: FnOnce(&SenderKeyStoreMap) -> Result<R, JsValue>,
 {
-    console::log_1(&"[with_sender_key_store] enter".into());
 
     if ptr == 0 {
         return Err(JsValue::from_str(
@@ -116,29 +115,6 @@ where
     f(store)
 }
 
-pub fn with_sender_key_store_mut_blocking<F, R>(
-    ptr: u32,
-    f: F,
-) -> Result<R, JsValue>
-where
-    F: FnOnce(&mut SenderKeyStoreMap) -> Result<R, JsValue>,
-{
-    if ptr == 0 {
-        return Err(JsValue::from_str("Invalid SenderKeyStore handle"));
-    }
-
-    let mut table = SENDER_KEY_STORES
-        .lock()
-        .expect("sender key store table poisoned");
-
-    let store = table
-        .get_mut((ptr - 1) as usize)
-        .and_then(|slot| slot.as_mut())
-        .ok_or_else(|| JsValue::from_str("Invalid SenderKeyStore handle"))?;
-
-    f(store)
-}
-
 fn remove_sender_key_store(ptr: u32) {
     if ptr == 0 {
         return;
@@ -157,56 +133,16 @@ pub fn load_sender_key(
 ) -> ProtocolResult<Option<SenderKeyRecord>> {
     let key = make_key(sender, distribution_id);
 
-    console::log_1(
-        &format!(
-            "[load_sender_key] store_handle={} sender={} device_id={} distribution_id={} key={}",
-            store_handle,
-            sender.name(),
-            u32::from(sender.device_id()),
-            distribution_id,
-            key
-        )
-        .into(),
-    );
-
-    console::log_1(&format!("[load_sender_key] newxt calling: with_sender_key_store").into());
-    let result = with_sender_key_store(store_handle, |store| {
-        let found = store.get(&key).is_some();
-
-        console::log_1(
-            &format!(
-                "[load_sender_key] lookup result: {}",
-                if found { "FOUND" } else { "NOT FOUND" }
-            )
-            .into(),
-        );
-
+    with_sender_key_store(store_handle, |store| {
         Ok(store.get(&key).cloned())
-    });
-
-    console::log_1(&format!("[load_sender_key] newxt calling: with_sender_key_store- END").into());
-    match &result {
-        Ok(Some(_)) => {
-            console::log_1(&"[load_sender_key] returning record".into());
-        }
-        Ok(None) => {
-            console::log_1(&"[load_sender_key] returning None".into());
-        }
-        Err(e) => {
-            console::error_1(
-                &format!("[load_sender_key] ERROR: {:?}", e).into(),
-            );
-        }
-    }
-
-    result.map_err(|e| {
+    })
+    .map_err(|e| {
         SignalProtocolError::InvalidArgument(format!(
             "load_sender_key failed: {:?}",
             e
         ))
     })
 }
-
 
 pub fn store_sender_key(
     store_handle: u32,
@@ -216,48 +152,17 @@ pub fn store_sender_key(
 ) -> ProtocolResult<()> {
     let key = make_key(sender, distribution_id);
 
-    console::log_1(
-        &format!(
-            "[store_sender_key] store_handle={} sender={} device_id={} distribution_id={} key={}",
-            store_handle,
-            sender.name(),
-            u32::from(sender.device_id()),
-            distribution_id,
-            key
-        )
-        .into(),
-    );
-
-    let result = with_sender_key_store_mut(store_handle, |store| {
-        store.insert(key.clone(), record.clone());
-
-        console::log_1(
-            &format!(
-                "[store_sender_key] inserted record under key={}",
-                key
-            )
-            .into(),
-        );
-
+    with_sender_key_store_mut(store_handle, |store| {
+        store.insert(key, record.clone());
         Ok(())
-    });
-
-    if let Err(e) = &result {
-        console::error_1(
-            &format!("[store_sender_key] ERROR: {:?}", e).into(),
-        );
-    } else {
-        console::log_1(&"[store_sender_key] success".into());
-    }
-
-    result.map_err(|e| {
+    })
+    .map_err(|e| {
         SignalProtocolError::InvalidArgument(format!(
             "store_sender_key failed: {:?}",
             e
         ))
     })
 }
-
 
 // ------------------------------------------------------------
 // Utility
@@ -280,12 +185,8 @@ fn make_key(sender: &ProtocolAddress, distribution_id: &str) -> String {
 #[wasm_bindgen(js_namespace = senderKeyStore)]
 pub fn senderkeystore_create() -> u32 {
     let store: SenderKeyStoreMap = HandleStore::new();
-
     
     let ptr = save_sender_key_store(store);
-
-    console::log_1(&format!("[senderkeystore_create] PTR: {}", ptr).into());
-
     return ptr;
 }
 
@@ -308,7 +209,6 @@ pub fn senderkeystore_store_sender_key(
             .map_err(|_| JsValue::from_str("Invalid ProtocolAddress handle"))?;
 
     let key = make_key(&sender, &distribution_id);
-    console::log_1(&format!("[senderkeystore_store_sender_key] success{}", key).into());
 
     // Serialize record defensively
     let bytes = senderkeyrecord_serialize(record_ptr)?;
@@ -334,8 +234,6 @@ pub fn senderkeystore_load_sender_key(
             .map_err(|_| JsValue::from_str("Invalid ProtocolAddress handle"))?;
 
     let key = make_key(&sender, &distribution_id);
-
-    console::log_1(&format!("[senderkeystore_load_sender_key] success{}", key).into());
 
     with_sender_key_store(store_handle, |store| {
         match store.get(&key) {

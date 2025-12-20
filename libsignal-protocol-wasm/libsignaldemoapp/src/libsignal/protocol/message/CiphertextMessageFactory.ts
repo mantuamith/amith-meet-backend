@@ -1,7 +1,7 @@
 import { CiphertextMessageConstants, type CiphertextMessage } from "./CiphertextMessage";
 import { PreKeySignalMessage } from "./PreKeySignalMessage";
 import { SignalMessage } from "./SignalMessage";
-import { ciphertextMessage as ciphertextMessageWasm} from "../../../../../libsignal-protocol-wasm/wasm-wrapper/pkg/libsignal_wasm_pqxdh";
+import { ciphertextMessage as ciphertextMessageWasm} from "libsignal_wasm_pqxdh";
 import { SenderKeyMessage } from "./SenderKeyMessage";
 
 export class CiphertextMessageFactory {

@@ -246,7 +246,7 @@ useEffect(() => {
 
   return (
     <div style={{ padding: 20 }}>
-      <h2>Signal WASM Demo</h2>
+      <h2>LibSignal WASM Direct Demo</h2>
 
       <div style={{ marginTop: 12 }}>
         <label>Alice message to Bob (Plain Text):</label>

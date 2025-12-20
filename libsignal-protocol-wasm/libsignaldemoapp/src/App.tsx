@@ -1,9 +1,9 @@
-import SignalGroupMessageDemo from "./SignalGroupMessageDemo";
+import SignalDirectMessageDemo from "./SignalDirectMessageDemo";
 
 function App() {
   return (
     <div>
-      <SignalGroupMessageDemo />
+      <SignalDirectMessageDemo />
     </div>
   );
 }

@@ -2,7 +2,6 @@ import type { IdentityKey } from "../protocol/IdentityKey";
 import type { Direction } from "./Direction";
 import type { IdentityChange } from "./IdentityChange";
 import type { SignalProtocolAddress } from "../protocol/SignalProtocolAddress";
-import type { IdentityKeyPair } from "../protocol/IdentityKeyPair";
 
 /**
  * TypeScript equivalent of Signal's IdentityKeyStore interface.

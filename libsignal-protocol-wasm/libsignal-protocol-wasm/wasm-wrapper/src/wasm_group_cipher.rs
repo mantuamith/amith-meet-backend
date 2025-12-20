@@ -4,7 +4,6 @@ use js_sys::Uint8Array;
 use uuid::Uuid;
 
 use crate::wasm_protocol_address::get_protocol_address_clone;
-use crate::wasm_sender_key_store::with_sender_key_store_mut_blocking;
 use crate::wasm_sender_key_store_adapter::SenderKeyStoreAdapter;
 use crate::wasm_ciphertext_message::store_ciphertext_message;
 

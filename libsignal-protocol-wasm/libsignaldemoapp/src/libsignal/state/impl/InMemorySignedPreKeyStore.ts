@@ -1,7 +1,7 @@
 import { InvalidKeyIdException } from "../../exceptions/InvalidKeyIdException";
 import { SignedPreKeyRecord } from "../SignedPreKeyRecord";
 import type { SignedPreKeyStore } from "../SignedPreKeyStore";
-import { signedPreKeyStore as signedPreKeyStoreWasm } from "../../../../../libsignal-protocol-wasm/wasm-wrapper/pkg/libsignal_wasm_pqxdh";
+import { signedPreKeyStore as signedPreKeyStoreWasm } from "libsignal_wasm_pqxdh";
 
 export class InMemorySignedPreKeyStore implements SignedPreKeyStore {
   private readonly storeHandle!: number;

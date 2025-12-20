@@ -7,10 +7,9 @@ import type { SignalProtocolStore } from "../state/SignalProtocolStore";
 import type { SignalProtocolAddress } from "./SignalProtocolAddress";
 import {
   sessionCipher as sessionCipherWasm,
-} from "../../../../libsignal-protocol-wasm/wasm-wrapper/pkg/libsignal_wasm_pqxdh";
+} from "libsignal_wasm_pqxdh";
 import type { CiphertextMessage } from "./message/CiphertextMessage";
 import { PreKeySignalMessage } from "./message/PreKeySignalMessage";
-import type { SignalMessage } from "./message/SignalMessage";
 import type { SessionCipherWasm } from "../wasm/SessionCipherWasm";
 import { CiphertextMessageFactory } from "./message/CiphertextMessageFactory";
 

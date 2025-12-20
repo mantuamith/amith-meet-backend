@@ -1,5 +1,5 @@
 import { InvalidKeyException } from "../../exceptions/InvalidKeyException";
-import { ecPublicKey as  ecPublicKeyWasm } from "../../../../../libsignal-protocol-wasm/wasm-wrapper/pkg/libsignal_wasm_pqxdh";
+import { ecPublicKey as  ecPublicKeyWasm } from "libsignal_wasm_pqxdh";
 
 export class ECPublicKey {
   static readonly KEY_SIZE = 33;
@@ -117,9 +117,10 @@ export class ECPublicKey {
     return hash | 0;
   }
 
+  /* TODO:
   compareTo(other: ECPublicKey): number {
     return ecPublicKeyWasm.ec_public_key_compare(this.handle, other.handle);
-  }
+  }*/
 
   // --------------------------------------------------------------------
   // Manual cleanup (Java uses NativeHandleGuard)

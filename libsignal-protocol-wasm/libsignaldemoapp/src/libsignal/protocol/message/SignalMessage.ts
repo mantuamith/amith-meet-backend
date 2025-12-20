@@ -6,7 +6,7 @@ import{
 import { IdentityKey } from "../IdentityKey";
 import { ECPublicKey } from "../ecc/ECPublicKey";
 import { InvalidMessageException } from "../../exceptions/InvalidMessageException";
-import { signalMessage as signalMessageWasm} from "../../../../../libsignal-protocol-wasm/wasm-wrapper/pkg/libsignal_wasm_pqxdh";
+import { signalMessage as signalMessageWasm} from "libsignal_wasm_pqxdh";
 
 
 export interface NativeHandleOwner {

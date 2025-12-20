@@ -1,6 +1,6 @@
 
 import { InvalidKeyException } from "../../exceptions/InvalidKeyException";
-import { kemSecretKey as  kemSecretKeyWasm } from "../../../../../libsignal-protocol-wasm/wasm-wrapper/pkg/libsignal_wasm_pqxdh";
+import { kemSecretKey as  kemSecretKeyWasm } from "libsignal_wasm_pqxdh";
 
 
 /**

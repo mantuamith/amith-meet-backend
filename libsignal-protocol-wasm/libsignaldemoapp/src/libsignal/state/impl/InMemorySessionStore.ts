@@ -2,7 +2,7 @@ import { NoSessionException } from "../../exceptions/NoSessionException";
 import type { SignalProtocolAddress } from "../../protocol/SignalProtocolAddress";
 import { SessionRecord } from "../SessionRecord";
 import type { SessionStore } from "../SessionStore";
-import { sessionStore as  sessionStoreWasm } from "../../../../../libsignal-protocol-wasm/wasm-wrapper/pkg/libsignal_wasm_pqxdh";
+import { sessionStore as  sessionStoreWasm } from "libsignal_wasm_pqxdh";
 
 
 /**

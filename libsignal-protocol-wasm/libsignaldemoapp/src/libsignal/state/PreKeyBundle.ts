@@ -3,7 +3,7 @@ import { IdentityKey } from "../protocol/IdentityKey";
 import { KEMPublicKey } from "../protocol/kem/KEMPublicKey";
 import { InvalidKeyException } from "../exceptions/InvalidKeyException";
 
-import { preKeyBundle as preKeyBundleWasm } from "../../../../libsignal-protocol-wasm/wasm-wrapper/pkg/libsignal_wasm_pqxdh";
+import { preKeyBundle as preKeyBundleWasm } from "libsignal_wasm_pqxdh";
 
 /**
  * TypeScript version of Signal's PreKeyBundle

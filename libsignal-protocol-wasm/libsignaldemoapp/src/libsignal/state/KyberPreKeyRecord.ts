@@ -1,7 +1,7 @@
 import { InvalidKeyException } from "../exceptions/InvalidKeyException";
 import { InvalidMessageException } from "../exceptions/InvalidMessageException";
 import { KEMKeyPair } from "../protocol/kem/KEMKeyPair";
-import { kyberPreKeyRecord as  kyberPreKeyRecordWasm } from "../../../../libsignal-protocol-wasm/wasm-wrapper/pkg/libsignal_wasm_pqxdh";
+import { kyberPreKeyRecord as  kyberPreKeyRecordWasm } from "libsignal_wasm_pqxdh";
 
 export class KyberPreKeyRecord {
   public readonly handle: number;

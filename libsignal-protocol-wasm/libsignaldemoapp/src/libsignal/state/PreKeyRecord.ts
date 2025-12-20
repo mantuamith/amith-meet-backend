@@ -6,7 +6,7 @@ import { InvalidMessageException } from "../exceptions/InvalidMessageException";
 import { ECKeyPair } from "../protocol/ecc/ECKeyPair";
 import { ECPrivateKey } from "../protocol/ecc/ECPrivateKey";
 import { ECPublicKey } from "../protocol/ecc/ECPublicKey";
-import { preKeyRecord as  preKeyRecordWasm } from "../../../../libsignal-protocol-wasm/wasm-wrapper/pkg/libsignal_wasm_pqxdh";
+import { preKeyRecord as  preKeyRecordWasm } from "libsignal_wasm_pqxdh";
 
 /**
  * TypeScript equivalent of Signal's PreKeyRecord.

@@ -8,7 +8,6 @@ import { GroupSessionBuilder } from "./libsignal/protocol/groups/GroupSessionBui
 import { SenderKeyDistributionMessage } from "./libsignal/protocol/message/SenderKeyDistributionMessage";
 import { GroupCipher } from "./libsignal/protocol/groups/GroupCipher";
 
-
 // base64 helpers
 const b64 = {
   encode: (buf: Uint8Array) => btoa(String.fromCharCode(...Array.from(buf))),
@@ -27,9 +26,9 @@ export default function SignalDirectMessageDemo() {
   const [ready, setReady] = useState(true);
   const [output, setOutput] = useState("");
   // keep UI fields around (optional) for debugging or advanced usage
-  const [alicePlainMessageToBob, setAlicePlainMessageToBob] = useState("L'homme est condamné à être libre");
-  const [aliceEncryptedMessageToBob, setAliceEncryptedMessageToBob] = useState("");
-  const [aliceDecryptedMessageToBob, setAliceDecryptedMessageToBob] = useState("");
+  const [alicePlainGroupMessage, setAlicePlainGroupMessage] = useState("L'homme est condamné à être libre");
+  const [aliceEncryptedGroupMessage, setAliceEncryptedGroupMessage] = useState("");
+  const [aliceDecryptedGroupMessage, setAliceDecryptedGroupMessage] = useState("");
 
   async function runDemo() {
   //  Init addresses
@@ -41,36 +40,49 @@ export default function SignalDirectMessageDemo() {
 	const aliceSentDecryptStore = new InMemorySenderKeyStore();
 		
   const bobStore = new InMemorySenderKeyStore();  
-  console.log("Loading2: ");
+
   const aliceSessionBuilder = new GroupSessionBuilder(aliceStore);
 	const aliceSentMessageDecryptorSessionBuilder = new GroupSessionBuilder(aliceSentDecryptStore);
-	console.log("Loading3: ");
+
 	const bobSessionBuilder = new GroupSessionBuilder(bobStore);
 
   const aliceGroupCipher = new GroupCipher(aliceStore, aliceAddress);		
-	const bobGroupCipher = new GroupCipher(bobStore, bobAddress);
-  console.log("Loading4: ");
+	const bobGroupCipher = new GroupCipher(bobStore, aliceAddress);
 
   const sentAliceDistributionMessage = await
 				aliceSessionBuilder.create(aliceAddress, distributionId);
-  console.log("Loading5: ");
+
   console.log("skdm: " + b64.encode(sentAliceDistributionMessage.serialize()));
   
   const receivedAliceDistributionMessage =
 				new SenderKeyDistributionMessage(sentAliceDistributionMessage.serialize());
+  const receivedAliceDistributionMessage2 =
+				new SenderKeyDistributionMessage(sentAliceDistributionMessage.serialize());
   
-  console.log("Loading6: ");      
   // process distribution messsage from alice used for decryting message from Alice
 	bobSessionBuilder.process(aliceAddress, receivedAliceDistributionMessage);
-  console.log("Loading7: ");
-  const bytes = new TextEncoder().encode("smert ze smert");
+
+  const bytes = new TextEncoder().encode(alicePlainGroupMessage);
   const ciphertextFromAlice = await 
 				aliceGroupCipher.encrypt(distributionId, bytes);
-  console.log("Loading8: ");
+
 	console.log("Encrypted: " + b64.encode(ciphertextFromAlice.serialize()));
+  setAliceEncryptedGroupMessage(b64.encode(ciphertextFromAlice.serialize()));
   
   const plaintextFromAlice = await bobGroupCipher.decrypt(ciphertextFromAlice.serialize());
-	console.log("Decrypted: " + new String(plaintextFromAlice));
+  const text = new TextDecoder().decode(plaintextFromAlice);
+	console.log("Decrypted: " + text);
+  setAliceDecryptedGroupMessage(text);
+
+  // Create decryptor for Alice's sent messages
+	aliceSentMessageDecryptorSessionBuilder.process(aliceAddress, receivedAliceDistributionMessage2);
+	// Alice decrypt it's own/sent messages
+	const aliceSentMessagesGroupCipher = new GroupCipher(aliceSentDecryptStore, aliceAddress);
+	const plaintextFromAliceSentMessage =
+		        await aliceSentMessagesGroupCipher.decrypt(ciphertextFromAlice.serialize());
+  
+  const text2 = new TextDecoder().decode(plaintextFromAliceSentMessage);
+	console.log("Decrypted Alice own sent message: " + text2);
 
   setOutput("Success");
 }
@@ -97,7 +109,7 @@ useEffect(() => {
 
   return (
     <div style={{ padding: 20 }}>
-      <h2>Signal WASM Group Message Demo</h2>
+      <h2>LibSignal WASM Group Message Demo</h2>
 
       <div style={{ marginTop: 12 }}>
         <label>Alice message to Group (Plain Text):</label>
@@ -105,8 +117,8 @@ useEffect(() => {
         <textarea
           rows={3}
           cols={80}
-          value={alicePlainMessageToBob}
-          onChange={(e) => setAlicePlainMessageToBob(e.target.value)}
+          value={alicePlainGroupMessage}
+          onChange={(e) => setAlicePlainGroupMessage(e.target.value)}
           placeholder="Raw text"
         />
       </div>
@@ -117,8 +129,8 @@ useEffect(() => {
         <textarea
           rows={3}
           cols={80}
-          value={aliceEncryptedMessageToBob}
-          onChange={(e) => setAliceEncryptedMessageToBob(e.target.value)}
+          value={aliceEncryptedGroupMessage}
+          onChange={(e) => setAliceEncryptedGroupMessage(e.target.value)}
           placeholder="Raw encrypted base64 format"
         />
       </div>
@@ -129,8 +141,8 @@ useEffect(() => {
         <textarea
           rows={3}
           cols={80}
-          value={aliceDecryptedMessageToBob}
-          onChange={(e) => setAliceDecryptedMessageToBob(e.target.value)}
+          value={aliceDecryptedGroupMessage}
+          onChange={(e) => setAliceDecryptedGroupMessage(e.target.value)}
           placeholder="Decrypted message"
         />
       </div>

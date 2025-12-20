@@ -1,6 +1,6 @@
 import { PreKeyRecord } from "../PreKeyRecord";
 import type { PreKeyStore } from "../PreKeyStore";
-import { preKeyStore as preKeyStoreWasm } from "../../../../../libsignal-protocol-wasm/wasm-wrapper/pkg/libsignal_wasm_pqxdh";
+import { preKeyStore as preKeyStoreWasm } from "libsignal_wasm_pqxdh";
 
 export class InMemoryPreKeyStore implements PreKeyStore {
    private readonly storeHandle!: number;

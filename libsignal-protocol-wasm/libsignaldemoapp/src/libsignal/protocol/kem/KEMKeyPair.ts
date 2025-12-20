@@ -4,7 +4,7 @@ import { KEMPublicKey } from "./KEMPublicKey";
 import { KEMSecretKey } from "./KEMSecretKey";
 
 // Import WASM interface
-import { kemKeyPair as kemKeyPairWasm } from "../../../../../libsignal-protocol-wasm/wasm-wrapper/pkg/libsignal_wasm_pqxdh";
+import { kemKeyPair as kemKeyPairWasm } from "libsignal_wasm_pqxdh";
 
 
 /**

@@ -4,7 +4,7 @@ import type { IdentityChange } from "../IdentityChange";
 import type { IdentityKeyStore } from "../IdentityKeyStore";
 import type { SignalProtocolAddress } from "../../protocol/SignalProtocolAddress";
 import type { IdentityKeyPair } from "../../protocol/IdentityKeyPair";
-import { identityKeyStore as  identityKeyStoreWasm } from "../../../../../libsignal-protocol-wasm/wasm-wrapper/pkg/libsignal_wasm_pqxdh";
+import { identityKeyStore as  identityKeyStoreWasm } from "libsignal_wasm_pqxdh";
 
 export class InMemoryIdentityKeyStore implements IdentityKeyStore {
   private readonly storeHandle!: number;

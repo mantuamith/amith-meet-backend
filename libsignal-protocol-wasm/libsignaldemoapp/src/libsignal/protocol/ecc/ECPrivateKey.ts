@@ -1,8 +1,7 @@
 import { InvalidKeyException } from "../../exceptions/InvalidKeyException";
 import { InvalidMessageException } from "../../exceptions/InvalidMessageException";
-import type { ECPrivateKeyWasm } from "../../wasm/ECPrivateKeyWasm";
 import { ECPublicKey } from "./ECPublicKey";
-import { ecPrivateKey as  ecPrivateKeyWasm } from "../../../../../libsignal-protocol-wasm/wasm-wrapper/pkg/libsignal_wasm_pqxdh";
+import { ecPrivateKey as  ecPrivateKeyWasm } from "libsignal_wasm_pqxdh";
 
 /**
  * TypeScript Equivalent of `ECPrivateKey`

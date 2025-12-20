@@ -3,7 +3,7 @@ import { InvalidMessageException } from "../exceptions/InvalidMessageException";
 import { ECKeyPair } from "../protocol/ecc/ECKeyPair";
 import { ECPrivateKey } from "../protocol/ecc/ECPrivateKey";
 import { ECPublicKey } from "../protocol/ecc/ECPublicKey";
-import { signedPreKeyRecord as  signedPreKeyRecordWasm } from "../../../../libsignal-protocol-wasm/wasm-wrapper/pkg/libsignal_wasm_pqxdh";
+import { signedPreKeyRecord as  signedPreKeyRecordWasm } from "libsignal_wasm_pqxdh";
 
 export class SignedPreKeyRecord {
 
