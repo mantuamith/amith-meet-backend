@@ -1,5 +1,8 @@
-import type { SignalProtocolAddress } from "../../SignalProtocolAddress";
-import type { SenderKeyStore } from "./SenderKeyStore";
+import { SenderKeyDistributionMessage } from "../message/SenderKeyDistributionMessage";
+import type { SignalProtocolAddress } from "../SignalProtocolAddress";
+import type { SenderKeyStore } from "./state/SenderKeyStore";
+import {groupSessionBuilder as groupSessionBuilderWasm} from "libsignal_wasm_pqxdh";
+
 
 /**
  * Equivalent of:
@@ -27,16 +30,11 @@ export class GroupSessionBuilder {
     sender: SignalProtocolAddress,
     senderKeyDistributionMessage: SenderKeyDistributionMessage
   ): void {
-    using senderGuard = new NativeHandleGuard(sender);
-    using skdmGuard = new NativeHandleGuard(senderKeyDistributionMessage);
-
-    filterExceptions(() =>
-      Native.groupsessionbuilder_process_sender_key_distribution_message(
-        senderGuard.nativeHandle,
-        skdmGuard.nativeHandle,
-        this.senderKeyStore
-      )
-    );
+      groupSessionBuilderWasm.groupsessionbuilder_process_sender_key_distribution_message(        
+        sender.handle,
+        senderKeyDistributionMessage.handle,
+        this.senderKeyStore.getStoreHandle()
+      );
   }
 
   /**
@@ -46,19 +44,15 @@ export class GroupSessionBuilder {
    * @param distributionId An opaque UUID that uniquely identifies the group
    * @returns SenderKeyDistributionMessage to distribute to group members
    */
-  create(
+  async create(
     sender: SignalProtocolAddress,
     distributionId: string // UUID string
-  ): SenderKeyDistributionMessage {
-    using senderGuard = new NativeHandleGuard(sender);
-
-    const ptr = filterExceptions(() =>
-      Native.groupsessionbuilder_create_sender_key_distribution_message(
-        senderGuard.nativeHandle,
+  ): Promise<SenderKeyDistributionMessage> {
+    const ptr = await groupSessionBuilderWasm.groupsessionbuilder_create_sender_key_distribution_message(
+        sender.handle,
         distributionId,
-        this.senderKeyStore
-      )
-    );
+        this.senderKeyStore.getStoreHandle()
+      );
 
     return new SenderKeyDistributionMessage(ptr);
   }

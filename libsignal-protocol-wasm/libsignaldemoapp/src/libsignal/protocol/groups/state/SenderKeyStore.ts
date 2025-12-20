@@ -43,4 +43,6 @@ export interface SenderKeyStore {
     sender: SignalProtocolAddress,
     distributionId: string
   ): Promise<SenderKeyRecord | null> | SenderKeyRecord | null;
+
+  getStoreHandle(): number;
 }

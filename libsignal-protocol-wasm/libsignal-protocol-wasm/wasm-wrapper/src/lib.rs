@@ -65,6 +65,8 @@ mod wasm_sender_key_store;
 mod wasm_sender_key_distribution_message;
 mod wasm_group_session_builder;
 mod wasm_sender_key_store_adapter;
+mod wasm_group_cipher;
+mod wasm_sender_key_message;
 
 // Re-export each module's wasm_bindgen API
 pub use protocol::*;
@@ -97,3 +99,5 @@ pub use wasm_sender_key_record::*;
 pub use wasm_sender_key_store::*;
 pub use wasm_sender_key_distribution_message::*;
 pub use wasm_group_session_builder::*;
+pub use wasm_group_cipher::*;
+pub use wasm_sender_key_message::*;

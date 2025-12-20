@@ -36,4 +36,8 @@ export class InMemorySenderKeyStore implements SenderKeyStore {
       throw new Error(`AssertionError: ${(e as Error).message}`);
     }
   }
+
+  getStoreHandle(): number {
+    return this.storeHandle;
+  }
 }

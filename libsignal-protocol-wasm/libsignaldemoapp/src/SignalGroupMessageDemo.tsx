@@ -4,6 +4,9 @@ import React, { useEffect, useState } from "react";
 import initWasm from "libsignal_wasm_pqxdh";
 import { SignalProtocolAddress } from "./libsignal/protocol/SignalProtocolAddress";
 import { InMemorySenderKeyStore } from "./libsignal/protocol/groups/state/InMemorySenderKeyStore";
+import { GroupSessionBuilder } from "./libsignal/protocol/groups/GroupSessionBuilder";
+import { SenderKeyDistributionMessage } from "./libsignal/protocol/message/SenderKeyDistributionMessage";
+import { GroupCipher } from "./libsignal/protocol/groups/GroupCipher";
 
 
 // base64 helpers
@@ -38,7 +41,35 @@ export default function SignalDirectMessageDemo() {
 	const aliceSentDecryptStore = new InMemorySenderKeyStore();
 		
   const bobStore = new InMemorySenderKeyStore();  
+
+  const aliceSessionBuilder = new GroupSessionBuilder(aliceStore);
+	const aliceSentMessageDecryptorSessionBuilder = new GroupSessionBuilder(aliceSentDecryptStore);
+		
+	const bobSessionBuilder = new GroupSessionBuilder(bobStore);
+
+  const aliceGroupCipher = new GroupCipher(aliceStore, aliceAddress);		
+	const bobGroupCipher = new GroupCipher(bobStore, bobAddress);
+
+  const sentAliceDistributionMessage = await
+				aliceSessionBuilder.create(aliceAddress, distributionId);
   
+  console.log("skdm: " + b64.encode(sentAliceDistributionMessage.serialize()));
+  
+  const receivedAliceDistributionMessage =
+				new SenderKeyDistributionMessage(sentAliceDistributionMessage.serialize());
+  
+        
+  // process distribution messsage from alice used for decryting message from Alice
+	bobSessionBuilder.process(aliceAddress, receivedAliceDistributionMessage);
+  
+  const bytes = new TextEncoder().encode("smert ze smert");
+  const ciphertextFromAlice = await 
+				aliceGroupCipher.encrypt(distributionId, bytes);
+
+	console.log("Encrypted: " + b64.encode(ciphertextFromAlice.serialize()));
+  
+  const plaintextFromAlice = bobGroupCipher.decrypt(ciphertextFromAlice.serialize());
+	//console.log("Decrypted: " + new String(plaintextFromAlice));
 
   setOutput("Success");
 }

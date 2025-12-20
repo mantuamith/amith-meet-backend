@@ -54,11 +54,8 @@ pub fn ciphertextmessage_get_signal_message(handle: u32) -> u32 {
                 crate::wasm_prekey_signal_message::store_prekey_signal_message(m.clone())
             }
 
-            CiphertextMessage::SenderKeyMessage(_) => {
-                console::error_1(
-                    &"SenderKeyMessage is not supported by SessionCipher".into(),
-                );
-                0
+            CiphertextMessage::SenderKeyMessage(m) => {
+                crate::wasm_sender_key_message::store_sender_key_message(m.clone())
             }
 
             CiphertextMessage::PlaintextContent(_) => {

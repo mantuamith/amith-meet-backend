@@ -2,6 +2,7 @@ import { CiphertextMessageConstants, type CiphertextMessage } from "./Ciphertext
 import { PreKeySignalMessage } from "./PreKeySignalMessage";
 import { SignalMessage } from "./SignalMessage";
 import { ciphertextMessage as ciphertextMessageWasm} from "../../../../../libsignal-protocol-wasm/wasm-wrapper/pkg/libsignal_wasm_pqxdh";
+import { SenderKeyMessage } from "./SenderKeyMessage";
 
 export class CiphertextMessageFactory {
   static fromHandle(handle: number): CiphertextMessage {
@@ -15,6 +16,9 @@ export class CiphertextMessageFactory {
 
       case CiphertextMessageConstants.WHISPER_TYPE:
         return new SignalMessage(innerHandle);
+
+      case CiphertextMessageConstants.SENDERKEY_TYPE:
+        return new SenderKeyMessage(innerHandle);
 
       default:
         throw new Error(`Unsupported CiphertextMessage type: ${type}`);

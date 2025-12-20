@@ -18,6 +18,8 @@ use crate::wasm_sender_key_record::{
     senderkeyrecord_serialize,
 };
 
+use futures::executor::block_on;
+
 // ------------------------------------------------------------
 // Types
 // ------------------------------------------------------------
@@ -91,13 +93,12 @@ where
     f(store)
 }
 
-pub async fn with_sender_key_store_mut_async<F, Fut, R>(
+pub fn with_sender_key_store_mut_blocking<F, R>(
     ptr: u32,
     f: F,
 ) -> Result<R, JsValue>
 where
-    F: FnOnce(&mut SenderKeyStoreMap) -> Fut,
-    Fut: std::future::Future<Output = Result<R, JsValue>>,
+    F: FnOnce(&mut SenderKeyStoreMap) -> Result<R, JsValue>,
 {
     if ptr == 0 {
         return Err(JsValue::from_str("Invalid SenderKeyStore handle"));
@@ -112,10 +113,8 @@ where
         .and_then(|slot| slot.as_mut())
         .ok_or_else(|| JsValue::from_str("Invalid SenderKeyStore handle"))?;
 
-    // await while holding &mut store
-    f(store).await
+    f(store)
 }
-
 
 fn remove_sender_key_store(ptr: u32) {
     if ptr == 0 {

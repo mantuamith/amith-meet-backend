@@ -43,6 +43,20 @@ where
         .with(handle, f)
 }
 
+pub fn get_public_key_clone(handle: u32) -> Result<PublicKey, JsValue> {
+    if handle == 0 {
+        return Err(JsValue::from_str("Invalid EC public key handle (0)"));
+    }
+
+    let table = PUBLIC_KEYS.lock().unwrap();
+
+    if !table.contains(handle) {
+        return Err(JsValue::from_str("Invalid EC public key handle"));
+    }
+
+    Ok(table.with(handle, |pk| pk.clone()))
+}
+
 /// Destroy / consume
 pub fn remove_public_key(handle: u32) {
     if handle == 0 {
