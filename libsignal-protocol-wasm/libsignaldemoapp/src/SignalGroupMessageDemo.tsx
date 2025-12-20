@@ -36,40 +36,41 @@ export default function SignalDirectMessageDemo() {
   const aliceAddress = new SignalProtocolAddress("2fc35cae-e0b7-40a5-b2aa-e86206730e99", 1);
   const bobAddress = new SignalProtocolAddress("ppss00huw-kkd0-0df3-np6a-d84op538mh27", 1);
   const distributionId = "d1d1d1d1-7000-11eb-b32a-33b8a8a487a6";
-  
+  console.log("Loading1: ");
   const aliceStore = new InMemorySenderKeyStore();
 	const aliceSentDecryptStore = new InMemorySenderKeyStore();
 		
   const bobStore = new InMemorySenderKeyStore();  
-
+  console.log("Loading2: ");
   const aliceSessionBuilder = new GroupSessionBuilder(aliceStore);
 	const aliceSentMessageDecryptorSessionBuilder = new GroupSessionBuilder(aliceSentDecryptStore);
-		
+	console.log("Loading3: ");
 	const bobSessionBuilder = new GroupSessionBuilder(bobStore);
 
   const aliceGroupCipher = new GroupCipher(aliceStore, aliceAddress);		
 	const bobGroupCipher = new GroupCipher(bobStore, bobAddress);
+  console.log("Loading4: ");
 
   const sentAliceDistributionMessage = await
 				aliceSessionBuilder.create(aliceAddress, distributionId);
-  
+  console.log("Loading5: ");
   console.log("skdm: " + b64.encode(sentAliceDistributionMessage.serialize()));
   
   const receivedAliceDistributionMessage =
 				new SenderKeyDistributionMessage(sentAliceDistributionMessage.serialize());
   
-        
+  console.log("Loading6: ");      
   // process distribution messsage from alice used for decryting message from Alice
 	bobSessionBuilder.process(aliceAddress, receivedAliceDistributionMessage);
-  
+  console.log("Loading7: ");
   const bytes = new TextEncoder().encode("smert ze smert");
   const ciphertextFromAlice = await 
 				aliceGroupCipher.encrypt(distributionId, bytes);
-
+  console.log("Loading8: ");
 	console.log("Encrypted: " + b64.encode(ciphertextFromAlice.serialize()));
   
-  const plaintextFromAlice = bobGroupCipher.decrypt(ciphertextFromAlice.serialize());
-	//console.log("Decrypted: " + new String(plaintextFromAlice));
+  const plaintextFromAlice = await bobGroupCipher.decrypt(ciphertextFromAlice.serialize());
+	console.log("Decrypted: " + new String(plaintextFromAlice));
 
   setOutput("Success");
 }

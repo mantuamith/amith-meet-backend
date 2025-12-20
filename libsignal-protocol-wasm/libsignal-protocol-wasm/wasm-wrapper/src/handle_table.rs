@@ -23,7 +23,7 @@ impl<T> HandleTable<T> {
         self.slots.push(Some(value));
         self.slots.len() as u32 //(return index + 1)
     }
-
+    
     pub fn with<R>(&self, handle: u32, f: impl FnOnce(&T) -> R) -> R {
         let slot = self
             .slots
@@ -31,7 +31,7 @@ impl<T> HandleTable<T> {
             .and_then(|s| s.as_ref())
             .expect("Invalid handle");
         f(slot)
-    }
+    }    
 
     pub fn contains(&self, handle: u32) -> bool {
         self.slots

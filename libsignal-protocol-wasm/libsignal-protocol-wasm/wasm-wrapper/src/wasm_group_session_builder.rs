@@ -12,12 +12,13 @@ use crate::wasm_sender_key_distribution_message::{
     store_sender_key_distribution_message,
 };
 use crate::wasm_sender_key_store::SENDER_KEY_STORES;
-use crate::wasm_sender_key_store_adapter::WasmSenderKeyStore;
 
 use libsignal_protocol::{
     process_sender_key_distribution_message,
     create_sender_key_distribution_message,
 };
+
+use crate::wasm_sender_key_store_adapter::SenderKeyStoreAdapter;
 
 // ------------------------------------------------------------
 // WASM exports (ASYNC, CORRECT)
@@ -38,17 +39,7 @@ pub async fn groupsessionbuilder_process_sender_key_distribution_message(
         take_sender_key_distribution_message(skdm_ptr)
             .ok_or_else(|| JsValue::from_str("Invalid SenderKeyDistributionMessage handle"))?;
 
-    // 🔒 Lock store synchronously
-    let mut table = SENDER_KEY_STORES
-        .lock()
-        .expect("sender key store table poisoned");
-
-    let store = table
-        .get_mut((sender_key_store_handle - 1) as usize)
-        .and_then(|slot| slot.as_mut())
-        .ok_or_else(|| JsValue::from_str("Invalid SenderKeyStore handle"))?;
-
-    let mut adapter = WasmSenderKeyStore::new(store);
+    let mut adapter = SenderKeyStoreAdapter::new(sender_key_store_handle);
 
     process_sender_key_distribution_message(&sender, &skdm, &mut adapter)
         .await
@@ -86,17 +77,7 @@ pub async fn groupsessionbuilder_create_sender_key_distribution_message(
 
     let mut rng = ChaCha20Rng::from_seed(seed);
 
-    // 🔒 Lock store synchronously
-    let mut table = SENDER_KEY_STORES
-        .lock()
-        .expect("sender key store table poisoned");
-
-    let store = table
-        .get_mut((sender_key_store_handle - 1) as usize)
-        .and_then(|slot| slot.as_mut())
-        .ok_or_else(|| JsValue::from_str("Invalid SenderKeyStore handle"))?;
-
-    let mut adapter = WasmSenderKeyStore::new(store);
+    let mut adapter = SenderKeyStoreAdapter::new(sender_key_store_handle);
 
     let skdm = create_sender_key_distribution_message(
         &sender,

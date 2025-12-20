@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use crate::wasm_protocol_address::get_protocol_address_clone;
 use crate::wasm_sender_key_store::with_sender_key_store_mut_blocking;
-use crate::wasm_sender_key_store_adapter::WasmSenderKeyStore;
+use crate::wasm_sender_key_store_adapter::SenderKeyStoreAdapter;
 use crate::wasm_ciphertext_message::store_ciphertext_message;
 
 use libsignal_protocol::{
@@ -41,41 +41,41 @@ pub async fn groupcipher_encrypt_message(
     plaintext: Uint8Array,
     sender_key_store_handle: u32,
 ) -> Result<u32, JsValue> {
-    let sender =
-        get_protocol_address_clone(sender_ptr)
-            .map_err(|_| JsValue::from_str("Invalid ProtocolAddress handle"))?;
+    // --- Resolve sender ---
+    let sender = get_protocol_address_clone(sender_ptr)
+        .map_err(|_| JsValue::from_str("Invalid ProtocolAddress handle"))?;
 
+    // --- Parse UUID ---
     let distribution_id = Uuid::parse_str(&distribution_id)
         .map_err(|_| JsValue::from_str("Invalid UUID"))?;
 
+    // --- Plaintext ---
     let plaintext = plaintext.to_vec();
 
-    let ciphertext = with_sender_key_store_mut_blocking(
-        sender_key_store_handle,
-        |store| {
-            let mut adapter = WasmSenderKeyStore::new(store);
+    // --- RNG ---
+    let mut seed = [0u8; 32];
+    getrandom::getrandom(&mut seed)
+        .map_err(|_| JsValue::from_str("RNG failure"))?;
+    let mut rng = ChaCha20Rng::from_seed(seed);
 
-            let mut seed = [0u8; 32];
-            getrandom::getrandom(&mut seed)
-                .map_err(|_| JsValue::from_str("RNG failure"))?;
-            let mut rng = ChaCha20Rng::from_seed(seed);
+    // --- SenderKeyStore adapter (NO mutex held here) ---
+    let mut adapter = SenderKeyStoreAdapter::new(sender_key_store_handle);
 
-            let fut = group_encrypt(
-                &mut adapter,
-                &sender,
-                distribution_id,
-                &plaintext,
-                &mut rng,
-            );
+    // --- Encrypt (async, no blocking) ---
+    let msg = group_encrypt(
+        &mut adapter,
+        &sender,
+        distribution_id,
+        &plaintext,
+        &mut rng,
+    )
+    .await
+    .map_err(|e| JsValue::from_str(&format!("{:?}", e)))?;
 
-            let msg = futures::executor::block_on(fut)
-                .map_err(|e| JsValue::from_str(&format!("{:?}", e)))?;
-
-            Ok(CiphertextMessage::SenderKeyMessage(msg))
-        },
-    )?;
-
-    Ok(store_ciphertext_message(ciphertext))
+    // --- Store ciphertext message ---
+    Ok(store_ciphertext_message(
+        CiphertextMessage::SenderKeyMessage(msg),
+    ))
 }
 
 /// Decrypt a SenderKey group message
@@ -92,27 +92,24 @@ pub async fn groupcipher_decrypt_message(
     sender_key_message_bytes: Uint8Array,
     sender_key_store_handle: u32,
 ) -> Result<Uint8Array, JsValue> {
-    let sender =
-        get_protocol_address_clone(sender_ptr)
-            .map_err(|_| JsValue::from_str("Invalid ProtocolAddress handle"))?;
+    // --- Resolve sender ---
+    let sender = get_protocol_address_clone(sender_ptr)
+        .map_err(|_| JsValue::from_str("Invalid ProtocolAddress handle"))?;
 
+    // --- Message bytes ---
     let message_bytes = sender_key_message_bytes.to_vec();
 
-    let plaintext = with_sender_key_store_mut_blocking(
-        sender_key_store_handle,
-        |store| {
-            let mut adapter = WasmSenderKeyStore::new(store);
+    // --- SenderKeyStore adapter (NO mutex, NO blocking) ---
+    let mut adapter = SenderKeyStoreAdapter::new(sender_key_store_handle);
 
-            let fut = group_decrypt(
-                &message_bytes,
-                &mut adapter,
-                &sender,
-            );
-
-            futures::executor::block_on(fut)
-                .map_err(|e| JsValue::from_str(&format!("{:?}", e)))
-        },
-    )?;
+    // --- Decrypt (async) ---
+    let plaintext = group_decrypt(
+        &message_bytes,
+        &mut adapter,
+        &sender,
+    )
+    .await
+    .map_err(|e| JsValue::from_str(&format!("{:?}", e)))?;
 
     Ok(Uint8Array::from(plaintext.as_slice()))
 }
