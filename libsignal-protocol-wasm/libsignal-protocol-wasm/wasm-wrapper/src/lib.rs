@@ -28,6 +28,12 @@ use libsignal_protocol::kem::wasm_helpers::{
 };
 
 mod protocol;
+mod wasm_session_store_adapter;
+mod wasm_identity_key_store_adapter;
+mod wasm_prekey_store_adpter;
+mod wasm_signed_prekey_store_adapter;
+mod wasm_kyber_prekey_store_adapter;
+
 mod wasm_ec_public_key;
 mod wasm_ec_private_key;
 mod wasm_protocol_address;
@@ -54,6 +60,11 @@ mod wasm_kyber_prekey_record;
 mod wasm_prekey_store;
 mod wasm_signed_prekey_store;
 mod wasm_kyber_prekey_store;
+mod wasm_sender_key_record;
+mod wasm_sender_key_store;
+mod wasm_sender_key_distribution_message;
+mod wasm_group_session_builder;
+mod wasm_sender_key_store_adapter;
 
 // Re-export each module's wasm_bindgen API
 pub use protocol::*;
@@ -82,3 +93,7 @@ pub use wasm_kyber_prekey_record::*;
 pub use wasm_prekey_store::*;
 pub use wasm_signed_prekey_store::*;
 pub use wasm_kyber_prekey_store::*;
+pub use wasm_sender_key_record::*;
+pub use wasm_sender_key_store::*;
+pub use wasm_sender_key_distribution_message::*;
+pub use wasm_group_session_builder::*;

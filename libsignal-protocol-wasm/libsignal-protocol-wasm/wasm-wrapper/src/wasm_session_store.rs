@@ -85,40 +85,6 @@ fn remove_key(ptr: u32) {
     }
 }
 
-/*
-fn store_session(
-    store_handle: u32,
-    addr_handle: u32,
-    record: &SessionRecord,
-) -> Result<u32, JsValue> {
-    // Resolve ProtocolAddress FIRST
-    let address = crate::wasm_protocol_address::get_protocol_address_clone(addr_handle)
-        .map_err(|_| JsValue::from_str("Invalid ProtocolAddress handle"))?;
-
-    // Build a stable key (string is safest across WASM boundary)
-    let session_key = format!("{}.{}", address.name(), u32::from(address.device_id()));
-
-    // Create or retrieve SessionStore
-    let store_handle = if store_handle == 0 {
-        // Create a new store
-        let mut store: HandleStore<String, SessionRecord> = HandleStore::new();
-        store.insert(session_key.clone(), record.clone());
-
-        save_session_store(store)
-    } else {
-        // Mutate existing store
-        with_session_store_mut(store_handle, |store| {
-            store.insert(session_key.clone(), record.clone());
-            Ok(())
-        });
-
-        store_handle
-    };
-
-    // Return both handles
-    Ok(store_handle)
-}*/
-
 pub fn store_session(
     store_handle: u32,
     address: &ProtocolAddress,
@@ -170,8 +136,6 @@ pub fn load_session(
         ))
     })
 }
-
-
 
 /// Create a new empty SessionStore and return its handle
 #[wasm_bindgen(js_namespace = sessionStore)]

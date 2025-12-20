@@ -16,10 +16,6 @@ use rand_chacha::rand_core::{SeedableRng, RngCore};
 use getrandom;
 use web_sys::console;
 
-pub mod adapters;
-
-use adapters::{JsSessionStoreAdapter, JsIdentityStoreAdapter};
-
 use libsignal_protocol::error::Result as ProtocolResult;
 use libsignal_protocol::{SignalProtocolError};
 
@@ -77,8 +73,8 @@ pub fn sessionbuilder_process_prekey_bundle(
         )
         .map_err(|e| JsValue::from_str(&format!("{:?}", e)))?;
 
-        let mut session_store = JsSessionStoreAdapter::new(session_store_handle);
-        let mut identity_store = JsIdentityStoreAdapter::new(identity_key_store_handle);
+        let mut session_store = crate::wasm_session_store_adapter::SessionStoreAdapter::new(session_store_handle);
+        let mut identity_store = crate::wasm_identity_key_store_adapter::IdentityStoreAdapter::new(identity_key_store_handle);
         
         // --- Generate 32 bytes of strong randomness ---
         let mut seed = [0u8; 32];

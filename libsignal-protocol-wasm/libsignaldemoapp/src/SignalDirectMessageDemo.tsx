@@ -1,4 +1,4 @@
-// src/SignalDemo.tsx
+// src/SignalDirectMessageDemo.tsx
 import React, { useEffect, useState } from "react";
 import { InMemorySignalProtocolStore } from "./libsignal/state/impl/InMemorySignalProtocolStore";
 
@@ -16,7 +16,7 @@ import { PreKeyRecord } from "./libsignal/state/PreKeyRecord";
 import { SignedPreKeyRecord } from "./libsignal/state/SignedPreKeyRecord";
 import { KyberPreKeyRecord } from "./libsignal/state/KyberPreKeyRecord";
 import { PreKeySignalMessage } from "./libsignal/protocol/message/PreKeySignalMessage";
-import initWasm from "../../libsignal-protocol-wasm/wasm-wrapper/pkg/libsignal_wasm_pqxdh";
+import initWasm from "libsignal_wasm_pqxdh";
 import { ECPublicKey } from "./libsignal/protocol/ecc/ECPublicKey";
 import { ECPrivateKey } from "./libsignal/protocol/ecc/ECPrivateKey";
 import { KEMPublicKey } from "./libsignal/protocol/kem/KEMPublicKey";
@@ -37,7 +37,7 @@ const b64 = {
 var bobStore: SignalProtocolStore | undefined = undefined;
 var aliceStore: SignalProtocolStore | undefined = undefined;
 
-export default function SignalDemo() {
+export default function SignalDirectMessageDemo() {
   const [ready, setReady] = useState(true);
   const [output, setOutput] = useState("");
   // keep UI fields around (optional) for debugging or advanced usage
@@ -250,6 +250,7 @@ useEffect(() => {
 
       <div style={{ marginTop: 12 }}>
         <label>Alice message to Bob (Plain Text):</label>
+        <br />
         <textarea
           rows={3}
           cols={80}
@@ -261,6 +262,7 @@ useEffect(() => {
 
       <div style={{ marginTop: 8 }}>
         <label>Alice encrypted message to Bob (base64):</label>
+        <br />
         <textarea
           rows={3}
           cols={80}

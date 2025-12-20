@@ -2,25 +2,12 @@ use wasm_bindgen::prelude::*;
 use js_sys::Uint8Array;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::wasm_session_builder::adapters::{
-    JsSessionStoreAdapter,
-    JsIdentityStoreAdapter,
-    JsPreKeyStoreAdapter,
-    JsSignedPreKeyStoreAdapter,
-    JsKyberPreKeyStoreAdapter,
-};
-
-use crate::wasm_prekey_signal_message::{
-    store_prekey_signal_message
-};
-
 use web_sys::console;
 use rand_chacha::ChaCha20Rng;
 use rand_chacha::rand_core::{SeedableRng, RngCore};
 use base64::engine::general_purpose::STANDARD as B64;
 use getrandom;
 
-use libsignal_protocol::CiphertextMessage;
 use crate::wasm_protocol_address::{get_protocol_address_clone};
 
 use libsignal_protocol::error::Result as ProtocolResult;
@@ -63,8 +50,6 @@ pub async fn sessioncipher_encrypt_message(
             let clonedAddress = get_protocol_address_clone(remote_address_handle)
                 .map_err(|e| JsValue::from_str(&format!("Invalid ProtocolAddress: {:?}", e)))?;
 
-            //let js_addr = crate::adapters::protocol_address_to_js(&clonedAddress);
-
             // Guard — MUST propagate with conversion
             require_store_handle(
                 "sessioncipher_encrypt_message (session_store_handle)",
@@ -79,10 +64,10 @@ pub async fn sessioncipher_encrypt_message(
             .map_err(|e| JsValue::from_str(&format!("{:?}", e)))?;
 
             let mut session_store =
-                JsSessionStoreAdapter::new(session_store_handle);
+                crate::wasm_session_store_adapter::SessionStoreAdapter::new(session_store_handle);
 
             let mut identity_key_store =
-                JsIdentityStoreAdapter::new(identity_key_store_handle);
+                crate::wasm_identity_key_store_adapter::IdentityStoreAdapter::new(identity_key_store_handle);
 
             let mut seed = [0u8; 32];
             getrandom::getrandom(&mut seed)
@@ -138,15 +123,15 @@ pub async fn sessioncipher_decrypt_prekey_signal_message(
 
     // 3. Create JS-backed store adapters
     let mut session_store =
-        JsSessionStoreAdapter::new(session_store_handle);
+        crate::wasm_session_store_adapter::SessionStoreAdapter::new(session_store_handle);
     let mut identity_key_store =
-        JsIdentityStoreAdapter::new(identity_key_store_handle);
+        crate::wasm_identity_key_store_adapter::IdentityStoreAdapter::new(identity_key_store_handle);
     let mut prekey_store =
-        JsPreKeyStoreAdapter::new(prekey_store_handle);
+        crate::wasm_prekey_store_adpter::PreKeyStoreAdapter::new(prekey_store_handle);
     let signed_prekey_store =
-        JsSignedPreKeyStoreAdapter::new(signed_prekey_store_handle);
+        crate::wasm_signed_prekey_store_adapter::SignedPreKeyStoreAdapter::new(signed_prekey_store_handle);
     let mut kyber_prekey_store =
-        JsKyberPreKeyStoreAdapter::new(kyber_prekey_store_handle);
+        crate::wasm_kyber_prekey_store_adapter::KyberPreKeyStoreAdapter::new(kyber_prekey_store_handle);
 
     // 4. RNG
     let mut seed = [0u8; 32];
