@@ -1,7 +1,7 @@
 Guide on how to build and run the "libsignaldemoapp" demo app.
 
 Pre-requesites:
- - Install Rust SDK
+ - Install Rust SDK (1.85 or above)
 
 Steps:
   1. Using CLI/ Command prompt navigate to "libsignal-protocol-wasm/wasm-wrapper".
