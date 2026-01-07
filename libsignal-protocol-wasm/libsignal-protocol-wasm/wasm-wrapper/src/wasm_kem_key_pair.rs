@@ -138,3 +138,120 @@ pub fn kyberkeypair_get_secret_key(handle: u32) -> Result<u32, JsValue> {
         Ok(store_kyber_secret_key(kp.secret_key.clone()))
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use wasm_bindgen_test::*;
+    use wasm_bindgen::JsValue;
+    use js_sys::Uint8Array;
+
+    use libsignal_protocol::kem::KeyPair as KyberKeyPair;
+    use rand_chacha::ChaCha20Rng;
+    use rand_chacha::rand_core::{RngCore, CryptoRng};
+    use rand::Rng; // needed for KyberKeyPair::generate
+
+    use crate::wasm_kem_key_pair::*; // adjust as needed for wasm helpers
+
+    const KYBER1024_PUBLIC_KEY_LEN: usize = 1568;
+    const KYBER1024_SECRET_KEY_LEN: usize = 3168;
+
+    wasm_bindgen_test_configure!(run_in_browser);
+
+    /// Deterministic keypair generator for testing
+    fn kyberkeypair_generate_with_rng<R>(rng: &mut R) -> Result<u32, JsValue>
+    where
+        R: RngCore + CryptoRng, // must implement both
+    {
+        let keypair = KyberKeyPair::generate(KYBER_KEY_TYPE, rng);
+        Ok(store_kem_keypair(keypair))
+    }
+
+    /// Helper: create a deterministic RNG for testing
+    fn make_test_rng() -> ChaCha20Rng {
+        let mut seed = [0u8; 32];
+        getrandom::getrandom(&mut seed).unwrap();
+        ChaCha20Rng::from_seed(seed)
+    }
+
+    #[wasm_bindgen_test]
+    fn generate_and_clone_keypair() {
+        let mut rng = make_test_rng();
+        let handle = kyberkeypair_generate_with_rng(&mut rng).expect("generate keypair");
+        assert!(handle != 0);
+
+        let kp_clone = get_kyber_keypair_clone(handle).expect("clone keypair");
+
+        assert_eq!(
+            kp_clone.public_key.serialize()[1..].len(),
+            KYBER1024_PUBLIC_KEY_LEN
+        );
+        assert_eq!(
+            kp_clone.secret_key.serialize()[1..].len(),
+            KYBER1024_SECRET_KEY_LEN
+        );
+    }
+
+    #[wasm_bindgen_test]
+    fn public_and_secret_keys() {
+        let mut rng = make_test_rng();
+        let handle = kyberkeypair_generate_with_rng(&mut rng).unwrap();
+        let pub_handle = kyberkeypair_get_public_key(handle).unwrap();
+        let sec_handle = kyberkeypair_get_secret_key(handle).unwrap();
+
+        with_kyber_public_key(pub_handle, |pk| {
+            assert_eq!(
+                pk.serialize()[1..].len(),
+                KYBER1024_PUBLIC_KEY_LEN
+
+            );
+            Ok(())
+        }).unwrap();
+
+        with_kyber_secret_key(sec_handle, |sk| {
+            assert_eq!(
+                sk.serialize()[1..].len(),
+                KYBER1024_SECRET_KEY_LEN
+            );
+            Ok(())
+        }).unwrap();
+    }
+
+    #[wasm_bindgen_test]
+    fn reconstruct_from_keys() {
+        let mut rng = make_test_rng();
+        let handle = kyberkeypair_generate_with_rng(&mut rng).unwrap();
+        let pub_handle = kyberkeypair_get_public_key(handle).unwrap();
+        let sec_handle = kyberkeypair_get_secret_key(handle).unwrap();
+
+        let new_handle = kyberkeypair_from_keys(pub_handle, sec_handle).unwrap();
+
+        let original = get_kyber_keypair_clone(handle).unwrap();
+        let reconstructed = get_kyber_keypair_clone(new_handle).unwrap();
+
+        assert_eq!(
+            original.public_key.serialize(),
+            reconstructed.public_key.serialize()
+        );
+        assert_eq!(
+            original.secret_key.serialize(),
+            reconstructed.secret_key.serialize()
+        );
+    }
+
+    #[wasm_bindgen_test]
+    fn destroy_keypair() {
+        let mut rng = make_test_rng();
+        let handle = kyberkeypair_generate_with_rng(&mut rng).unwrap();
+        kyberkeypair_destroy(handle);
+
+        assert!(get_kyber_keypair_clone(handle).is_err());
+    }
+
+    #[wasm_bindgen_test]
+    fn handle_zero_invalid() {
+        assert!(get_kyber_keypair_clone(0).is_err());
+        assert!(with_kyber_keypair(0, |_| Ok(())).is_err());
+        assert!(take_kem_keypair(0).is_none());
+    }
+}
