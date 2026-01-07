@@ -67,3 +67,114 @@ pub fn ciphertextmessage_get_signal_message(handle: u32) -> u32 {
         }
     })
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use wasm_bindgen_test::*;
+    use wasm_bindgen::JsValue;
+
+    use libsignal_protocol::{
+        CiphertextMessage,
+        CiphertextMessageType,
+        DecryptionErrorMessage,
+        PlaintextContent,
+        Timestamp,
+    };
+
+    wasm_bindgen_test_configure!(run_in_browser);
+
+    fn assert_js_ok<T>(res: Result<T, JsValue>) -> T {
+        match res {
+            Ok(v) => v,
+            Err(e) => panic!("Unexpected JsValue error: {:?}", e),
+        }
+    }
+
+    fn make_plaintext() -> PlaintextContent {
+        // Create a *valid* PlaintextContent via DecryptionErrorMessage
+        let error = DecryptionErrorMessage::for_original(
+            b"\x01\x02\x03",                    // dummy original ciphertext
+            CiphertextMessageType::SenderKey,   // avoids ratchet dependency
+            Timestamp::from_epoch_millis(0),
+            1,
+        )
+        .expect("create DecryptionErrorMessage");
+
+        PlaintextContent::from(error)
+    }
+
+    // ------------------------------------------------------------
+    // PlaintextContent storage / take
+    // ------------------------------------------------------------
+
+    #[wasm_bindgen_test]
+    fn store_and_take_plaintext_ciphertext_message() {
+        let msg = CiphertextMessage::PlaintextContent(make_plaintext());
+
+        let handle = store_ciphertext_message(msg);
+        assert!(handle != 0);
+
+        let taken = assert_js_ok(take_ciphertext_message(handle));
+
+        match taken {
+            CiphertextMessage::PlaintextContent(pt) => {
+                // body() is protocol-defined content, not arbitrary bytes
+                assert!(!pt.body().is_empty());
+            }
+            _ => panic!("Expected PlaintextContent"),
+        }
+    }
+
+    #[wasm_bindgen_test]
+    fn take_ciphertext_message_consumes_handle() {
+        let msg = CiphertextMessage::PlaintextContent(make_plaintext());
+        let handle = store_ciphertext_message(msg);
+
+        let _ = assert_js_ok(take_ciphertext_message(handle));
+        let res = take_ciphertext_message(handle);
+
+        assert!(res.is_err(), "Handle must be consumed");
+    }
+
+    // ------------------------------------------------------------
+    // Type detection
+    // ------------------------------------------------------------
+
+    #[wasm_bindgen_test]
+    fn ciphertextmessage_get_type_plaintext() {
+        let msg = CiphertextMessage::PlaintextContent(make_plaintext());
+        let handle = store_ciphertext_message(msg);
+
+        let ty = ciphertextmessage_get_type(handle);
+        assert_eq!(ty, 8, "PlaintextContent must map to type 8");
+    }
+
+    // ------------------------------------------------------------
+    // Plaintext rejection path
+    // ------------------------------------------------------------
+
+    #[wasm_bindgen_test]
+    fn get_signal_message_from_plaintext_returns_zero() {
+        let msg = CiphertextMessage::PlaintextContent(make_plaintext());
+        let handle = store_ciphertext_message(msg);
+
+        let inner = ciphertextmessage_get_signal_message(handle);
+
+        assert_eq!(
+            inner, 0,
+            "PlaintextContent must not produce a SignalMessage handle"
+        );
+    }
+
+    // ------------------------------------------------------------
+    // Invalid handle behavior
+    // ------------------------------------------------------------
+
+    #[wasm_bindgen_test]
+    fn take_invalid_handle_fails() {
+        let res = take_ciphertext_message(0);
+        assert!(res.is_err());
+    }
+}

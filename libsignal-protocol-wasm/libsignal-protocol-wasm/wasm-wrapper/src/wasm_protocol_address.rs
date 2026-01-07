@@ -17,7 +17,7 @@ static ADDRESSES: Lazy<Mutex<HandleTable<ProtocolAddress>>> =
 // Internal helpers
 // -------------------------------------------------------
 
-fn store_address(addr: ProtocolAddress) -> u32 {
+pub fn store_address(addr: ProtocolAddress) -> u32 {
     ADDRESSES.lock().unwrap().insert(addr)
 }
 
