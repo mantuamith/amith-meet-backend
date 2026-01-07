@@ -13,6 +13,7 @@ use std::sync::Mutex;
 
 use crate::handle_table::HandleTable;
 use crate::wasm_ec_public_key::{store_public_key, with_public_key};
+use std::panic::{catch_unwind, AssertUnwindSafe};
 
 // ------------------------------
 // Utility
@@ -36,7 +37,6 @@ pub fn store_key(pk: PrivateKey) -> u32 {
     PRIVATE_KEYS.lock().unwrap().insert(pk)
 }
 
-
 pub fn with_private_key<F, R>(ptr: u32, f: F) -> Result<R, JsValue>
 where
     F: FnOnce(&PrivateKey) -> Result<R, JsValue>,
@@ -45,10 +45,17 @@ where
         return Err(JsValue::from_str("Invalid EC private key handle (0)"));
     }
 
-    PRIVATE_KEYS
-        .lock()
-        .unwrap()
-        .with(ptr, f)
+    let guard = PRIVATE_KEYS.lock().unwrap();
+
+    // Check if handle exists
+    if !guard.contains(ptr) {
+        return Err(JsValue::from_str(
+            "EC private key handle is invalid or has been destroyed",
+        ));
+    }
+
+    // Safe to call with() because handle exists
+    guard.with(ptr, f)
 }
 
 fn remove_key(ptr: u32) {
@@ -159,3 +166,112 @@ pub fn ecprivatekey_hpke_open(
         "HPKE is not supported in libsignal_protocol::PrivateKey",
     ))
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use wasm_bindgen::JsValue;
+    use wasm_bindgen_test::*;
+
+    wasm_bindgen_test_configure!(run_in_browser);
+
+    fn assert_js_ok<T>(res: Result<T, JsValue>) -> T {
+        match res {
+            Ok(v) => v,
+            Err(e) => panic!("Unexpected JsValue error: {:?}", e),
+        }
+    }
+
+    #[wasm_bindgen_test]
+    fn generate_private_key() {
+        let ptr = ecprivatekey_generate();
+        assert!(ptr != 0);
+    }
+
+    #[wasm_bindgen_test]
+    fn serialize_and_deserialize_private_key() {
+        let ptr1 = ecprivatekey_generate();
+        let bytes = assert_js_ok(ecprivatekey_serialize(ptr1));
+
+        let ptr2 = ecprivatekey_deserialize(&bytes.to_vec());
+        assert!(ptr2 != 0, "Deserialized private key handle must not be 0");
+
+        // Serialize again to ensure key is valid
+        let _ = assert_js_ok(ecprivatekey_serialize(ptr2));
+    }
+
+    #[wasm_bindgen_test]
+    fn sign_message_success() {
+        let ptr = ecprivatekey_generate();
+        let msg = b"hello world";
+
+        let sig = assert_js_ok(ecprivatekey_sign(ptr, msg));
+        assert!(sig.length() > 0, "Signature must not be empty");
+    }
+
+    #[wasm_bindgen_test]
+    fn sign_message_empty_fails() {
+        let ptr = ecprivatekey_generate();
+        let msg: &[u8] = &[];
+
+        let res = ecprivatekey_sign(ptr, msg);
+        assert!(res.is_err(), "Signing empty message must fail");
+    }
+
+    #[wasm_bindgen_test]
+    fn get_public_key() {
+        let priv_ptr = ecprivatekey_generate();
+        let pub_ptr = assert_js_ok(ecprivatekey_get_public_key(priv_ptr));
+
+        assert!(pub_ptr != 0, "Public key handle must not be 0");
+    }
+
+    #[wasm_bindgen_test]
+    fn ecdh_agreement_success() {
+        // Party A
+        let priv_a = ecprivatekey_generate();
+        let pub_a = assert_js_ok(ecprivatekey_get_public_key(priv_a));
+
+        // Party B
+        let priv_b = ecprivatekey_generate();
+        let pub_b = assert_js_ok(ecprivatekey_get_public_key(priv_b));
+
+        let shared_ab =
+            assert_js_ok(ecprivatekey_agree(priv_a, pub_b)).to_vec();
+        let shared_ba =
+            assert_js_ok(ecprivatekey_agree(priv_b, pub_a)).to_vec();
+
+        assert_eq!(
+            shared_ab, shared_ba,
+            "ECDH shared secrets must match"
+        );
+    }
+
+    
+    #[wasm_bindgen_test]
+    fn destroy_private_key_invalidates_handle() {
+        let ptr = ecprivatekey_generate();
+        ecprivatekey_destroy(ptr);
+
+        let res = ecprivatekey_serialize(ptr);
+        assert!(res.is_err(), "Destroyed key must be invalid");
+    }
+   
+    #[wasm_bindgen_test]
+    fn serialize_invalid_handle_fails() {
+        let res = ecprivatekey_serialize(0);
+        assert!(res.is_err(), "Handle 0 must be rejected");
+    }
+
+    #[wasm_bindgen_test]
+    fn hpke_open_not_supported() {
+        let ptr = ecprivatekey_generate();
+
+        let res = ecprivatekey_hpke_open(ptr, b"ct", b"info", b"aad");
+        assert!(res.is_err(), "HPKE open must return error");
+    }
+}
+
+
+
