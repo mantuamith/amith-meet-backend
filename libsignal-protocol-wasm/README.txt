@@ -21,5 +21,10 @@ Steps:
 
   6. Run the demo app using the command.
      npm run dev
+
+
+
+Notes:
+ - To run/execute RUST unit test  use cmmand "wasm-pack test --chrome", then open "http://127.0.0.1:8000" in your browser.
   
 
