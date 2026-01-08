@@ -129,21 +129,35 @@ pub fn signalmessage_verify_mac(
     receiver_identity_handle: u32,
     mac_key: &[u8],
 ) -> bool {
-    with_signal_message(handle, |msg| {
-        with_public_key(sender_identity_handle, |sender_pk| {
-            with_public_key(receiver_identity_handle, |receiver_pk| {
-                Ok(
-                    msg.verify_mac(
-                        &IdentityKey::new(*sender_pk),
-                        &IdentityKey::new(*receiver_pk),
-                        mac_key,
-                    )
-                    .unwrap_or(false),
-                )
-            })
-        })
-        .unwrap_or(false)
-    })
+    // ---- Extract SignalMessage ----
+    let msg = {
+        let table = SIGNAL_MESSAGES.lock().unwrap();
+
+        if !table.contains(handle) {
+            return false;
+        }
+
+        table.with(handle, |m| m.clone())
+    };
+
+    // ---- Extract public keys (no SignalMessage lock held) ----
+    let sender_pk = match with_public_key(sender_identity_handle, |pk| Ok(*pk)) {
+        Ok(pk) => pk,
+        Err(_) => return false,
+    };
+
+    let receiver_pk = match with_public_key(receiver_identity_handle, |pk| Ok(*pk)) {
+        Ok(pk) => pk,
+        Err(_) => return false,
+    };
+
+    // ---- Verify MAC with NO locks held ----
+    msg.verify_mac(
+        &IdentityKey::new(sender_pk),
+        &IdentityKey::new(receiver_pk),
+        mac_key,
+    )
+    .unwrap_or(false)
 }
 
 #[wasm_bindgen(js_namespace = signalMessage)]
