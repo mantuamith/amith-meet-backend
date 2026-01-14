@@ -1,5 +1,6 @@
 package com.algomeet.authservice.controller;
 
+import com.algomeet.authservice.config.LocalizationConfig;
 import com.algomeet.authservice.dto.SecurityQuestionRequest;
 import com.algomeet.authservice.dto.SecurityQuestionResponse;
 import com.algomeet.authservice.enums.ResponseCode;
@@ -9,12 +10,17 @@ import com.algomeet.authservice.otp.PendingRegistrationRepository;
 import com.algomeet.authservice.service.SecurityQuestionService;
 import com.algomeet.authservice.session.SidCache;
 import com.algomeet.authservice.util.JwtUtil;
+import com.algomeet.authservice.util.MessageUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.MessageSource;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
@@ -35,6 +41,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(controllers = SecurityQuestionController.class)
 @AutoConfigureMockMvc(addFilters = false) // don't build SecurityFilterChain/JWT filter
 @ActiveProfiles("test")
+@Import(LocalizationConfig.class) // include your config
 class SecurityQuestionControllerTest {
 
     @Autowired MockMvc mvc;
@@ -52,6 +59,13 @@ class SecurityQuestionControllerTest {
     PendingPasswordResetRepository pendingPasswordResetRepository;
     @MockBean
     PendingRegistrationRepository pendingRegistrationRepository;
+    @Autowired MessageSource messageSource;
+    
+	@BeforeEach
+	void init() {
+		// Initialize messageSource into the MessageUtil constructor
+		new MessageUtil(messageSource);
+	}
 
     @Test
     void create_whenIdExists_returns400() throws Exception {

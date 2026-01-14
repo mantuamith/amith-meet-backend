@@ -1,5 +1,6 @@
 package com.algomeet.authservice.controller;
 
+import com.algomeet.authservice.config.LocalizationConfig;
 import com.algomeet.authservice.dto.UserProfileResponse;
 import com.algomeet.authservice.dto.UserProfileUpdateRequest;
 import com.algomeet.authservice.enums.ResponseCode;
@@ -11,12 +12,16 @@ import com.algomeet.authservice.service.UserProfileService;
 import com.algomeet.authservice.session.SidCache;
 import com.algomeet.authservice.support.UserProfileTestData;
 import com.algomeet.authservice.util.JwtUtil;
+import com.algomeet.authservice.util.MessageUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentMatchers;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.MessageSource;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithAnonymousUser;
@@ -34,7 +39,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(UserProfileController.class)
-@Import(GlobalExceptionHandler.class)
+@Import({GlobalExceptionHandler.class, LocalizationConfig.class})
 class UserProfileControllerTest {
 
     @Autowired
@@ -52,6 +57,14 @@ class UserProfileControllerTest {
     @MockBean OtpRepository otpRepository;
     @MockBean PendingPasswordResetRepository pendingPasswordResetRepository;
     @MockBean PendingRegistrationRepository pendingRegistrationRepository;
+    
+    @Autowired MessageSource messageSource;
+    
+	@BeforeEach
+	void init() {
+		// Initialize messageSource into the MessageUtil constructor
+		new MessageUtil(messageSource);
+	}
 
     @Test
     @WithMockUser(username = "admin")
