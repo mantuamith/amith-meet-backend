@@ -1,18 +1,25 @@
 package com.algomeet.authservice.service;
 
 import com.algomeet.authservice.client.UserClient;
+import com.algomeet.authservice.config.LocalizationConfig;
 import com.algomeet.authservice.dto.UserResponse;
 import com.algomeet.authservice.enums.ResponseCode;
 import com.algomeet.authservice.session.SidCache;
 import com.algomeet.authservice.token.RefreshTokenStore;
 import com.algomeet.authservice.util.JwtUtil;
+import com.algomeet.authservice.util.MessageUtil;
 import com.algomeet.notificationservice.service.NotificationService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.MessageSource;
+import org.springframework.context.annotation.Import;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.nio.charset.StandardCharsets;
@@ -22,6 +29,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class) // <-- IMPORTANT
+@Import(LocalizationConfig.class) // include your config
 class AuthServiceTest {
 
     @Mock
@@ -40,6 +48,14 @@ class AuthServiceTest {
     NotificationService notifications;
 
     @InjectMocks AuthService svc;
+    
+    @Mock MessageSource messageSource;
+    
+	@BeforeEach
+	void init() {
+		// Initialize messageSource into the MessageUtil constructor
+		new MessageUtil(messageSource);
+	}
 
     @Test
     void validatePassword_success() {

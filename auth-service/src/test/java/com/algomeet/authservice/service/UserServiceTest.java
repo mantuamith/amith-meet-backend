@@ -2,15 +2,20 @@
 package com.algomeet.authservice.service;
 
 import com.algomeet.authservice.client.UserClient;
+import com.algomeet.authservice.config.LocalizationConfig;
 import com.algomeet.authservice.dto.PageResponse;
 import com.algomeet.authservice.dto.SearchUsersFilter;
 import com.algomeet.authservice.dto.UserResponse;
 import com.algomeet.authservice.support.PageResponses;
 import com.algomeet.authservice.support.TestFilters;
 import com.algomeet.authservice.support.TestUsers;
+import com.algomeet.authservice.util.MessageUtil;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.*;
+import org.springframework.context.MessageSource;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.ResponseEntity;
 
 import java.util.List;
@@ -20,17 +25,23 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+@Import(LocalizationConfig.class) // include your config
 class UserServiceTest {
 
     @Mock
     private UserClient userClient;
 
     private UserService userService;
+    
+    @Mock MessageSource messageSource;
 
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
         userService = new UserService(userClient);
+        
+        // Initialize messageSource into the MessageUtil constructor
+     	new MessageUtil(messageSource);
     }
 
     @Test

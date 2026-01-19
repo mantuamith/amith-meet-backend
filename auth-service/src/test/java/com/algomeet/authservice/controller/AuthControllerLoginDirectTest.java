@@ -3,6 +3,7 @@ package com.algomeet.authservice.controller;
 import com.algomeet.authservice.client.UserClient;
 import com.algomeet.authservice.config.AuthProperties;
 import com.algomeet.authservice.config.JwtAuthenticationFilter;
+import com.algomeet.authservice.config.LocalizationConfig;
 import com.algomeet.authservice.dto.*;
 import com.algomeet.authservice.enums.DeviceType;
 import com.algomeet.authservice.enums.LoginPolicy;
@@ -16,8 +17,11 @@ import com.algomeet.authservice.session.SidCache;
 import com.algomeet.authservice.support.TestData;
 import com.algomeet.authservice.token.RefreshTokenStore;
 import com.algomeet.authservice.util.JwtUtil;
+import com.algomeet.authservice.util.MessageUtil;
 import com.algomeet.notificationservice.service.NotificationService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -28,8 +32,10 @@ import org.springframework.boot.autoconfigure.mongo.MongoAutoConfiguration;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.MessageSource;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.FilterType;
+import org.springframework.context.annotation.Import;
 import org.springframework.data.mongodb.repository.config.EnableMongoRepositories;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
@@ -61,10 +67,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "jwt.secret=c2VjcmV0c2VjcmV0c2VjcmV0c2VjcmV0c2VjcmV0c2VjcmV0c2U="
 })
 
+@Import(LocalizationConfig.class) // include your config
 class AuthControllerLoginDirectTest {
 
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper om;
+    @Autowired MessageSource messageSource;
 
     // controller deps
     @MockBean AuthService authService;
@@ -89,7 +97,14 @@ class AuthControllerLoginDirectTest {
     PendingRegistrationRepository pendingRegistrationRepository;
     @MockBean
     OtpRepository otpRepository;
+    
+    @MockBean UserProfileService userProfileService;
 
+	@BeforeEach
+	void init() {
+		// Initialize messageSource into the MessageUtil constructor
+		new MessageUtil(messageSource);
+	}
 
     // ---------- happy path: DIRECT policy issues tokens immediately ----------
     @Test @DisplayName("/auth/login/init — DIRECT policy → tokens issued")

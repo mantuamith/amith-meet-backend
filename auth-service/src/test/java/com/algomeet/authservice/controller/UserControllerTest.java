@@ -1,6 +1,7 @@
 // src/test/java/com/algomeet/authservice/controller/UserControllerTest.java
 package com.algomeet.authservice.controller;
 
+import com.algomeet.authservice.config.LocalizationConfig;
 import com.algomeet.authservice.dto.PageResponse;
 import com.algomeet.authservice.dto.UserResponse;
 import com.algomeet.authservice.otp.OtpRepository;
@@ -11,10 +12,15 @@ import com.algomeet.authservice.session.SidCache;
 import com.algomeet.authservice.support.PageResponses;
 import com.algomeet.authservice.support.TestUsers;
 import com.algomeet.authservice.util.JwtUtil;
+import com.algomeet.authservice.util.MessageUtil;
+
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.*;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.MessageSource;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.*;
 
@@ -28,6 +34,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @WebMvcTest(controllers = UserController.class)
 @AutoConfigureMockMvc(addFilters = false)
+@Import(LocalizationConfig.class) // include your config
 class UserControllerTest {
 
     @Autowired
@@ -47,6 +54,14 @@ class UserControllerTest {
     PendingPasswordResetRepository pendingPasswordResetRepository;
     @MockBean
     PendingRegistrationRepository pendingRegistrationRepository;
+    
+    @Autowired MessageSource messageSource;
+    
+	@BeforeEach
+	void init() {
+		// Initialize messageSource into the MessageUtil constructor
+		new MessageUtil(messageSource);
+	}
 
     @Test
     void getUsers_returnsPagedUsers() throws Exception {
