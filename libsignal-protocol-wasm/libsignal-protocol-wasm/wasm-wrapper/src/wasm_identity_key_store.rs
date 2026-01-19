@@ -25,6 +25,8 @@ use libsignal_protocol::error::Result as ProtocolResult;
 use crate::wasm_ec_public_key::{with_public_key};
 use crate::wasm_ec_private_key::{with_private_key};
 
+use rand_chacha::ChaCha20Rng;
+use rand_chacha::rand_core::{RngCore, SeedableRng};
 
 pub type IdentityStoreMap = HandleIdentityStore<String, IdentityKey>;
 
@@ -302,4 +304,124 @@ pub fn identitykeystore_get_identity(
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use wasm_bindgen_test::*;
+    use wasm_bindgen::JsValue;
+    use js_sys::Uint8Array;
 
+    use libsignal_protocol::{IdentityKeyPair, IdentityKey, KeyPair};
+    use libsignal_core::address::ProtocolAddress;
+    use libsignal_core::address::DeviceId;
+
+    wasm_bindgen_test_configure!(run_in_browser);
+
+    /// Helper: create a dummy keypair for testing
+    fn make_test_identity_keypair() -> IdentityKeyPair {
+        let mut seed = [0u8; 32];
+        getrandom::getrandom(&mut seed).unwrap();
+        let mut rng = rand_chacha::ChaCha20Rng::from_seed(seed);
+        let kp = KeyPair::generate(&mut rng);
+
+        IdentityKeyPair::new(IdentityKey::new(kp.public_key), kp.private_key)
+    }
+
+    /// Helper: create a dummy ProtocolAddress
+    fn make_test_address() -> ProtocolAddress {
+        let device_id = DeviceId::new(1).unwrap();
+        ProtocolAddress::new("user".to_string(), device_id)
+    }
+
+    #[wasm_bindgen_test]
+    fn create_identity_key_store_and_verify_handles() {
+        let ikp = make_test_identity_keypair();
+        let pub_handle = crate::wasm_ec_public_key::store_public_key(ikp.public_key().clone());
+        let priv_handle = crate::wasm_ec_private_key::store_key(ikp.private_key().clone());
+        let registration_id = 42;
+
+        let store_handle = identitykeystore_create_identity_key_store(pub_handle, priv_handle, registration_id)
+            .expect("Failed to create identity key store");
+
+        assert!(store_handle != 0, "Store handle must be non-zero");
+    }
+
+    #[wasm_bindgen_test]
+    fn get_identity_key_pair_returns_serialized_bytes() {
+        let ikp = make_test_identity_keypair();
+        let pub_handle = crate::wasm_ec_public_key::store_public_key(ikp.public_key().clone());
+        let priv_handle = crate::wasm_ec_private_key::store_key(ikp.private_key().clone());
+        let store_handle = identitykeystore_create_identity_key_store(pub_handle, priv_handle, 42).unwrap();
+
+        let serialized = identitykeystore_get_identity_key_pair(store_handle)
+            .expect("Failed to get identity key pair");
+
+        assert!(serialized.length() > 0, "Serialized identity keypair must be non-empty");
+    }
+
+    #[wasm_bindgen_test]
+    fn save_and_load_identity() {
+        let ikp = make_test_identity_keypair();
+        let pub_handle = crate::wasm_ec_public_key::store_public_key(ikp.public_key().clone());
+        let priv_handle = crate::wasm_ec_private_key::store_key(ikp.private_key().clone());
+        let store_handle = identitykeystore_create_identity_key_store(pub_handle, priv_handle, 123).unwrap();
+
+        let address = make_test_address();
+        let identity_bytes = Uint8Array::from(ikp.public_key().serialize().as_ref());
+
+        let addr_handle = crate::wasm_protocol_address::store_address(address.clone());
+        let save_result = identitykeystore_save_identity(store_handle, addr_handle, identity_bytes.clone())
+            .expect("Failed to save identity");
+
+        // First save should be 'new or unchanged'
+        assert_eq!(save_result, 0);
+
+        let loaded = identitykeystore_get_identity(store_handle, addr_handle)
+            .expect("Failed to load identity")
+            .expect("Identity should exist");
+
+        assert_eq!(loaded.length(), identity_bytes.length(), "Loaded identity must match saved bytes");
+    }
+
+    #[wasm_bindgen_test]
+    fn trusted_identity_detection() {
+        let ikp = make_test_identity_keypair();
+        let pub_handle = crate::wasm_ec_public_key::store_public_key(ikp.public_key().clone());
+        let priv_handle = crate::wasm_ec_private_key::store_key(ikp.private_key().clone());
+        let store_handle = identitykeystore_create_identity_key_store(pub_handle, priv_handle, 321).unwrap();
+
+        let address = make_test_address();
+        let addr_handle = crate::wasm_protocol_address::store_address(address.clone());
+
+        let identity_bytes = Uint8Array::from(ikp.public_key().serialize().as_ref());
+
+        // First contact → should be trusted (TOFU)
+        let is_trusted = identitykeystore_is_trusted_identity(store_handle, addr_handle, identity_bytes.clone(), 0)
+            .expect("Failed trust check");
+
+        assert!(is_trusted, "First contact should be trusted");
+
+        // Save identity and check again
+        identitykeystore_save_identity(store_handle, addr_handle, identity_bytes.clone()).unwrap();
+        let is_trusted_again = identitykeystore_is_trusted_identity(store_handle, addr_handle, identity_bytes, 0)
+            .expect("Failed second trust check");
+
+        assert!(is_trusted_again, "Saved identity should still be trusted");
+    }
+
+    #[wasm_bindgen_test]
+    fn load_missing_identity_returns_none() {
+        let ikp = make_test_identity_keypair();
+        let pub_handle = crate::wasm_ec_public_key::store_public_key(ikp.public_key().clone());
+        let priv_handle = crate::wasm_ec_private_key::store_key(ikp.private_key().clone());
+        let store_handle = identitykeystore_create_identity_key_store(pub_handle, priv_handle, 999).unwrap();
+
+        let address = make_test_address();
+        let addr_handle = crate::wasm_protocol_address::store_address(address.clone());
+
+        let result = identitykeystore_get_identity(store_handle, addr_handle)
+            .expect("Failed to get identity");
+
+        assert!(result.is_none(), "Non-existent identity must return None");
+    }
+}

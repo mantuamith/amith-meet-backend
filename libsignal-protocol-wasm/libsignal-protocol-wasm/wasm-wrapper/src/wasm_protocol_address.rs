@@ -17,7 +17,7 @@ static ADDRESSES: Lazy<Mutex<HandleTable<ProtocolAddress>>> =
 // Internal helpers
 // -------------------------------------------------------
 
-fn store_address(addr: ProtocolAddress) -> u32 {
+pub fn store_address(addr: ProtocolAddress) -> u32 {
     ADDRESSES.lock().unwrap().insert(addr)
 }
 
@@ -131,4 +131,89 @@ pub fn protocoladdress_device_id(handle: u32) -> Result<u32, JsValue> {
 #[wasm_bindgen(js_namespace = protocolAddress)]
 pub fn protocoladdress_destroy(handle: u32) {
     remove_address(handle);
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use wasm_bindgen_test::*;
+    use libsignal_core::DeviceId;
+
+    wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
+
+    #[wasm_bindgen_test]
+    fn test_store_and_with_protocol_address() {
+        let device_id: DeviceId = 42_u32.try_into().unwrap();
+        let addr = ProtocolAddress::new("alice".into(), device_id);
+        let handle = store_address(addr.clone());
+
+        let read_addr = with_protocol_address(handle, |a| Ok(a.clone())).unwrap();
+        assert_eq!(read_addr.name(), "alice");
+        assert_eq!(<u32>::from(read_addr.device_id()), 42);
+
+        remove_address(handle);
+        assert!(with_protocol_address(handle, |_| Ok(())).is_err());
+    }
+
+    #[wasm_bindgen_test]
+    fn test_protocoladdress_destroy() {
+        let device_id: DeviceId = 7_u32.try_into().unwrap();
+        let addr = ProtocolAddress::new("bob".into(), device_id);
+        let handle = store_address(addr);
+
+        remove_address(handle);
+
+        let result = with_protocol_address(handle, |_| Ok(()));
+        assert!(result.is_err());
+    }
+
+    #[wasm_bindgen_test]
+    fn test_get_protocol_address_clone() {
+        let device_id: DeviceId = 10_u32.try_into().unwrap();
+        let addr = ProtocolAddress::new("carol".into(), device_id);
+        let handle = store_address(addr.clone());
+
+        let cloned = with_protocol_address(handle, |a| Ok(a.clone())).unwrap();
+        assert_eq!(cloned.name(), "carol");
+        assert_eq!(<u32>::from(cloned.device_id()), 10);
+    }
+
+    #[wasm_bindgen_test]
+    fn test_multiple_addresses() {
+        let addr1 = ProtocolAddress::new("dave".into(), 5_u32.try_into().unwrap());
+        let addr2 = ProtocolAddress::new("eve".into(), 1_u32.try_into().unwrap());
+
+        let handle1 = store_address(addr1.clone());
+        let handle2 = store_address(addr2.clone());
+
+        let read1 = with_protocol_address(handle1, |a| Ok(a.clone())).unwrap();
+        let read2 = with_protocol_address(handle2, |a| Ok(a.clone())).unwrap();
+
+        assert_eq!(read1.name(), "dave");
+        assert_eq!(<u32>::from(read1.device_id()), 5);
+        assert_eq!(read2.name(), "eve");
+        assert_eq!(<u32>::from(read2.device_id()), 1);
+
+        remove_address(handle1);
+        remove_address(handle2);
+
+        assert!(with_protocol_address(handle1, |_| Ok(())).is_err());
+        assert!(with_protocol_address(handle2, |_| Ok(())).is_err());
+    }
+
+    #[wasm_bindgen_test]
+    fn test_format_address_string() {
+        let addr = ProtocolAddress::new("frank".into(), 12_u32.try_into().unwrap());
+        let handle = store_address(addr.clone());
+
+        let formatted = with_protocol_address(handle, |addr| {
+            Ok(format!("{}-{}", addr.name(), <u32>::from(addr.device_id())))
+        })
+        .unwrap();
+
+        assert_eq!(formatted, "frank-12");
+
+        remove_address(handle);
+    }
 }
