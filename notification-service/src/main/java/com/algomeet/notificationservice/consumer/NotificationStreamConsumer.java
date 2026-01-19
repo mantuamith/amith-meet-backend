@@ -1,11 +1,13 @@
 package com.algomeet.notificationservice.consumer;
 
-import jakarta.annotation.PostConstruct;
-import lombok.extern.slf4j.Slf4j;
+import java.time.Duration;
+import java.util.UUID;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
-import org.springframework.data.redis.connection.stream.*;
+import org.springframework.data.redis.connection.stream.Consumer;
+import org.springframework.data.redis.connection.stream.MapRecord;
+import org.springframework.data.redis.connection.stream.ReadOffset;
+import org.springframework.data.redis.connection.stream.StreamOffset;
 import org.springframework.data.redis.stream.StreamListener;
 import org.springframework.data.redis.stream.StreamMessageListenerContainer;
 import org.springframework.data.redis.stream.Subscription;
@@ -14,26 +16,29 @@ import org.springframework.stereotype.Service;
 import com.algomeet.notificationservice.constant.Constants;
 import com.algomeet.notificationservice.properties.RedisStreamConfigProperties;
 
-import java.time.Duration;
-import java.util.UUID;
+import jakarta.annotation.PostConstruct;
+import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Service
 public class NotificationStreamConsumer implements StreamListener<String, MapRecord<String, String, String>> {
-	@Autowired
 	private RedisStreamConfigProperties redisStreamConfigProperties;
 
 	private static final String GROUP_NAME = "consumer-group-" + UUID.randomUUID();
 	private final String consumerName = "consumer-" + System.currentTimeMillis();
 
-	@Autowired
 	private NotificationMessageHandler notificationConsumer;
-
 	private final RedisConnectionFactory connectionFactory;
 
-	public NotificationStreamConsumer(RedisConnectionFactory connectionFactory) {
-		this.connectionFactory = connectionFactory;
-	}
+    public NotificationStreamConsumer(
+            RedisConnectionFactory connectionFactory,
+            RedisStreamConfigProperties redisStreamConfigProperties,
+            NotificationMessageHandler notificationConsumer
+    ) {
+        this.connectionFactory = connectionFactory;
+        this.redisStreamConfigProperties = redisStreamConfigProperties;
+        this.notificationConsumer = notificationConsumer;
+    }
 
 	@PostConstruct
 	public void init() {

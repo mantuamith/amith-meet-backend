@@ -25,7 +25,9 @@ public class PingMessageProcessor implements WebSocketMessageProcessor{
 
 		//Acknowledge message
 		PingMessage ping = convertToObject(payload, PingMessage.class);
-		log.info("Ping: {}",  ping.getTimestamp());
+		if (ping != null) {
+			log.info("Ping: {}",  ping.getTimestamp());
+		}
 	}
 	
 	private <T> T convertToObject(String json, Class<T> t) {
