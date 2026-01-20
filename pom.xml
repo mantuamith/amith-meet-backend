@@ -26,6 +26,7 @@
     <module>control-service</module>
     <module>signal-service</module>
     <module>opaque-service</module>
+    <module>subscription-service</module>
   </modules>
 
   <properties>

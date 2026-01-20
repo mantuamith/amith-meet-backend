@@ -1,0 +1,36 @@
+server:
+  port: 8096   # choose a free port for subscription-service
+
+spring:
+  application:
+    name: subscription-service
+
+  datasource:
+    url: jdbc:postgresql://192.168.0.156:5432/clorameet_db
+    username: clorameet_sandro
+    password: algo@123
+    driver-class-name: org.postgresql.Driver
+
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      idle-timeout: 30000
+      connection-timeout: 30000
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate   # VERY IMPORTANT: never update/create
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        default_schema: public
+
+  flyway:
+    enabled: false   # DB already managed manually
+
+logging:
+  level:
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
