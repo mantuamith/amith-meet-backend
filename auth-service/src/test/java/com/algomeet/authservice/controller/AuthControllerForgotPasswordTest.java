@@ -3,6 +3,7 @@ package com.algomeet.authservice.controller;
 import com.algomeet.authservice.client.UserClient;
 import com.algomeet.authservice.config.AuthProperties;
 import com.algomeet.authservice.config.JwtAuthenticationFilter;
+import com.algomeet.authservice.config.LocalizationConfig;
 import com.algomeet.authservice.dto.*;
 import com.algomeet.authservice.enums.DeviceType;
 import com.algomeet.authservice.exception.ResetTicketInvalidException;
@@ -16,14 +17,19 @@ import com.algomeet.authservice.session.SidCache;
 import com.algomeet.authservice.support.TestData;
 import com.algomeet.authservice.token.RefreshTokenStore;
 import com.algomeet.authservice.util.JwtUtil;
+import com.algomeet.authservice.util.MessageUtil;
 import com.algomeet.notificationservice.service.NotificationService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.MessageSource;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -47,6 +53,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "spring.data.mongodb.repositories.enabled=false",
         "jwt.secret=c2VjcmV0c2VjcmV0c2VjcmV0c2VjcmV0c2VjcmV0c2VjcmV0c2U="
 })
+
+@Import(LocalizationConfig.class) // include your config
 class AuthControllerForgotPasswordTest {
 
     @Autowired MockMvc mvc;
@@ -64,7 +72,10 @@ class AuthControllerForgotPasswordTest {
     @MockBean RegistrationService registration;
     @MockBean PasswordResetService passwordResetService;
     @MockBean NotificationService notificationService;
-    @MockBean UserClient userClient;
+    @MockBean UserClient userClient;    
+    @MockBean UserProfileService userProfileService;
+    @Autowired MessageSource messageSource;
+    
     @MockBean
     SidCache sidCache;
     @MockBean
@@ -75,6 +86,12 @@ class AuthControllerForgotPasswordTest {
     PendingRegistrationRepository pendingRegistrationRepository;
     @MockBean
     OtpRepository otpRepository;
+    
+	@BeforeEach
+	void init() {
+		// Initialize messageSource into the MessageUtil constructor
+		new MessageUtil(messageSource);
+	}
 
     // ===== /auth/password/forgot/init (EMAIL path) =====
     @Test
