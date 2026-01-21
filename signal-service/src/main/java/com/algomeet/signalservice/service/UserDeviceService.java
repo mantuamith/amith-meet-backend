@@ -91,6 +91,7 @@ public class UserDeviceService {
 		return UserDeviceMapper.toResponse(updated);
 	}
 
+	@Transactional
 	public void deleteDevice(UUID userKey, Integer deviceId) {
 		UserDeviceId id = new UserDeviceId(userKey, deviceId);		
 		if (repository.findById(id).isEmpty()) {
