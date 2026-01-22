@@ -61,7 +61,7 @@ public class AlgomeetJwtService {
         userCtx.put("id", userId);
         if (displayName != null && !displayName.isBlank()) userCtx.put("name", displayName);
         if (email != null && !email.isBlank())             userCtx.put("email", email);
-        userCtx.put("moderator", moderator);
+        userCtx.put("affiliation", moderator ? "owner" : "member");
 
         // ---- context ----
         Map<String, Object> context = new LinkedHashMap<>();
@@ -97,7 +97,9 @@ public class AlgomeetJwtService {
             String email,
             boolean moderator
     ) {
-        String room = meeting.getRoom().getRoomId();
+        // TODO: Revert hardcoded Room logic for fixing JWT
+        // Right now meeting id and jwt room id needs to be same
+        String room = meeting.getId();
         JwtBundle b = generateForRoom(room, userKey, displayName, email, moderator);
         return new GeneratedAlgomeetToken(b.token(), b.room(), b.exp(), b.jti());
     }
