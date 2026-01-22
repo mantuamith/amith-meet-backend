@@ -10,6 +10,10 @@ import java.util.UUID;
 public interface FeaturePropertyRepository
         extends JpaRepository<FeatureProperty, UUID> {
 
+    boolean existsByFeature_IdAndPropKey(UUID featureId, String propKey);
+
+    List<FeatureProperty> findByFeature_Id(UUID featureId);
+
     @Query("""
         SELECT fp
         FROM FeatureProperty fp
