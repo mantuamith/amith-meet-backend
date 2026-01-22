@@ -93,30 +93,41 @@
     </dependencies>
 
     <build>
-        <pluginManagement>
-            <plugins>
+        <plugins>
 
-                <!-- SPRING BOOT -->
-                <plugin>
-                    <groupId>org.springframework.boot</groupId>
-                    <artifactId>spring-boot-maven-plugin</artifactId>
-                </plugin>
+            <!-- SPRING BOOT (THIS IS CRITICAL) -->
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>repackage</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
 
-                <!-- JAVA VERSION (CRITICAL FIX) -->
-                <plugin>
-                    <groupId>org.apache.maven.plugins</groupId>
-                    <artifactId>maven-compiler-plugin</artifactId>
-                    <version>3.11.0</version>
-                    <configuration>
-                        <source>17</source>
-                        <target>17</target>
-                        <release>17</release>
-                    </configuration>
-                </plugin>
+            <!-- JAVA + LOMBOK -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.11.0</version>
+                <configuration>
+                    <release>17</release>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                            <version>1.18.32</version>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
+            </plugin>
 
-            </plugins>
-        </pluginManagement>
+        </plugins>
     </build>
+
 
 
 </project>
