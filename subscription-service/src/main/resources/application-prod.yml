@@ -1,0 +1,48 @@
+server:
+  port: 8096 # Choose a free port for subscription-service
+
+jwt:
+  secret: ${SPRING_JWT_SECRET}
+
+spring:
+  application:
+    name: subscription-service
+
+  config:
+    activate:
+      on-profile: prod
+
+  datasource:
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      idle-timeout: 30000
+      connection-timeout: 30000
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate   # VERY IMPORTANT: never update/create
+
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        default_schema: public
+
+  jackson:
+    serialization:
+      INDENT_OUTPUT: true
+
+  flyway:
+    enabled: false   # DB already managed manually
+
+logging:
+  level:
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE

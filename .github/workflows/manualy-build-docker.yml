@@ -38,8 +38,8 @@ on:
         required: true
         default: 'true'
         type: boolean
-      signaling-service:
-        description: 'Build signaling-service?'
+      subscription-service:
+        description: 'Build Subscription-service?'
         required: true
         default: 'true'
         type: boolean
@@ -75,7 +75,7 @@ jobs:
           if [ "${{ github.event.inputs.user-service }}" == "true" ]; then SERVICES+=("\"user-service\""); fi
           if [ "${{ github.event.inputs.notification-service }}" == "true" ]; then SERVICES+=("\"notification-service\""); fi
           if [ "${{ github.event.inputs.control-service }}" == "true" ]; then SERVICES+=("\"control-service\""); fi
-          if [ "${{ github.event.inputs.signaling-service }}" == "true" ]; then SERVICES+=("\"signaling-service\""); fi
+          if [ "${{ github.event.inputs.subscription-service }}" == "true" ]; then SERVICES+=("\"subscription-service\""); fi
           if [ "${{ github.event.inputs.signal-service }}" == "true" ]; then SERVICES+=("\"signal-service\""); fi
           
           # join with commas, not spaces
