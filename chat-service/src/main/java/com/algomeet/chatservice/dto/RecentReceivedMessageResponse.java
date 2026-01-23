@@ -1,7 +1,10 @@
 package com.algomeet.chatservice.dto;
 
+import com.algomeet.chatservice.document.EncrytionMetadata;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+
+import java.util.List;
 
 @Data
 @AllArgsConstructor
@@ -10,6 +13,7 @@ public class RecentReceivedMessageResponse {
     private String newMessage;
     private Long timestamp;
     private Integer nMessages; // Nullable count of unread messages
+    private List<EncrytionMetadata> encryptionMetadata;
 }
 
 //TODO(migration):

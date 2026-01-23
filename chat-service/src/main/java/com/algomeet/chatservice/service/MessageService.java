@@ -164,7 +164,7 @@ public class MessageService {
                     .filter(m -> m.getStatus() != MessageStatus.READ)
                     .count();
 
-            result.add(new RecentReceivedMessageResponse(contactId, lastText, ts, unread));
+            result.add(new RecentReceivedMessageResponse(contactId, lastText, ts, unread,latest.getEncryptionMetadata()));
             log.trace("[Recent] user={} contact={} latestId={} unread={}",
                     userId, contactId, latest.getId(), unread);
         }
