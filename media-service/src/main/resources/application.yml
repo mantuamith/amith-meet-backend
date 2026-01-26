@@ -45,7 +45,7 @@ jwt:
   secret: Y0h4TkFxWkd6Um9TTktOVlFobU9naFN3SzY5cWhVY08=
 
 storage:
-  active-upload-storage: s3
+  active-upload-storage: local
   local: 
     dir: /tmp/media/
 
