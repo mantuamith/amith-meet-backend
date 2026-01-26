@@ -38,11 +38,6 @@ spring:
     serialization:
       INDENT_OUTPUT: true
 
-server:
-  port: 8095
-
-jwt:
-  secret: Y0h4TkFxWkd6Um9TTktOVlFobU9naFN3SzY5cWhVY08=
 
 storage:
   active-upload-storage: local
@@ -63,4 +58,10 @@ storage:
     access-key-id: LTAI5tHZ6boW8n832Q6PWS2S
     access-key-secret: 54IjrqeluGXxA3G2sVRw5ooljeiowk
     download-max-duration-in-minutes: 30
+
+server:
+  port: 8095
+
+jwt:
+  secret: Y0h4TkFxWkd6Um9TTktOVlFobU9naFN3SzY5cWhVY08=
 
