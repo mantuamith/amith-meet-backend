@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.algomeet.mediaservice.config.StorageProperties;
+import com.algomeet.mediaservice.controller.swagger.FileControllerDoc;
 import com.algomeet.mediaservice.document.FilePermission;
 import com.algomeet.mediaservice.document.UserFileDocument;
 import com.algomeet.mediaservice.dto.CommonResponse;
@@ -40,7 +41,7 @@ import lombok.extern.slf4j.Slf4j;
 @RestController
 @RequestMapping("/media")
 @RequiredArgsConstructor
-public class FileController {
+public class FileController implements FileControllerDoc {
 	private final MediaServiceLocal mediaServiceLocal;
 	private final MediaServiceS3 mediaServiceS3;
 	private final MediaServiceOss mediaServiceOss;
