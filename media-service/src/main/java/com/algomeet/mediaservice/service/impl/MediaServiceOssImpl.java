@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -66,9 +67,21 @@ public class MediaServiceOssImpl implements MediaServiceOss {
             userFile.setStorage(Storage.OSS.name());
 
             List<FileAccessEntry> acl = new ArrayList<>();
-
+            
+            Set<String> permittedUserKeys = new HashSet<>();
+            
             if (!CollectionUtils.isEmpty(sharedWithUserKeys)) {
-                for (String sharedUser : sharedWithUserKeys) {
+            	sharedWithUserKeys.forEach(uKey -> {
+            		permittedUserKeys.add(uKey);
+            	});
+            }  
+            
+        	// Add permission to owner itself 
+            permittedUserKeys.add(userKey);
+            
+
+            if (!CollectionUtils.isEmpty(permittedUserKeys)) {
+                for (String sharedUser : permittedUserKeys) {
                     acl.add(new FileAccessEntry(
                             sharedUser,
                             1,

@@ -95,10 +95,9 @@ public class MediaServiceS3Impl implements MediaServiceS3 {
             	sharedWithUserKeys.forEach(uKey -> {
             		permittedUserKeys.add(uKey);
             	});
-            	
-            	// Add permission to owner itself if list id not empty, else it is ordinary upload
-                permittedUserKeys.add(userKey);
-            }    
+            } 
+        	// Add permission to owner itself
+            permittedUserKeys.add(userKey);
                         
             if (sharedWithUserKeys != null) {
 	            for(String sharedWithUserKey : sharedWithUserKeys) {
