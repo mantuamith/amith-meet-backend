@@ -16,6 +16,7 @@ public class StorageProperties {
 
     private LocalStorage local = new LocalStorage();
     private S3Storage s3 = new S3Storage();
+    private Oss oss;
 
     @Data
     public static class LocalStorage {
@@ -24,10 +25,21 @@ public class StorageProperties {
 
     @Data
     public static class S3Storage {
+    	private String accessKey;
+    	private String secretKey;
         private String bucket;          // algomeet-demo
         private String region;          // ap-southeast-1
         private String endpoint;        // optional (MinIO, Wasabi)
         private boolean pathStyleAccess;
         private Integer downloadMaxDurationInMinutes;
+    }
+
+    @Data
+    public static class Oss {
+        private String endpoint;          // https://oss-ap-southeast-1.aliyuncs.com
+        private String bucket;
+        private String accessKeyId;
+        private String accessKeySecret;
+        private int downloadMaxDurationInMinutes = 15;
     }
 }

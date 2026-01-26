@@ -127,7 +127,7 @@ public class MediaServiceS3Impl implements MediaServiceS3 {
                     )
                     .size(file.getSize())
                     .encrypted(encrypted)
-                    .downloadUrl("/media/download/" + mediaId + "/s3")
+                    .downloadUrl("/media/" + mediaId)
                     .build();
 
         } catch (IOException e) {

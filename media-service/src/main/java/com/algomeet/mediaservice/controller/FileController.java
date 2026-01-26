@@ -6,7 +6,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
-import org.apache.commons.io.IOUtils;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -20,7 +19,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
-import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 import com.algomeet.mediaservice.config.StorageProperties;
 import com.algomeet.mediaservice.document.FilePermission;
@@ -30,14 +28,13 @@ import com.algomeet.mediaservice.dto.MediaUploadResponse;
 import com.algomeet.mediaservice.enums.ResponseCode;
 import com.algomeet.mediaservice.enums.Storage;
 import com.algomeet.mediaservice.service.MediaServiceLocal;
+import com.algomeet.mediaservice.service.MediaServiceOss;
 import com.algomeet.mediaservice.service.MediaServiceS3;
 import com.algomeet.mediaservice.service.UserFileService;
 import com.algomeet.mediaservice.util.SecurityUtil;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import software.amazon.awssdk.core.ResponseInputStream;
-import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 
 @Slf4j
 @RestController
@@ -46,13 +43,14 @@ import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 public class FileController {
 	private final MediaServiceLocal mediaServiceLocal;
 	private final MediaServiceS3 mediaServiceS3;
+	private final MediaServiceOss mediaServiceOss;
 	private final StorageProperties storageProperties;	
 	private final UserFileService userFileService;
 
 	/**
 	 * Upload media file
 	 */
-	@PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+	@PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
 	public ResponseEntity<CommonResponse<MediaUploadResponse>> upload(@RequestPart("file") MultipartFile file,
 			@RequestParam(required = false) List<String> sharedWithUserKeys,
 			@RequestParam(required = false) String contentType, @RequestParam(required = false) Boolean encrypted) {
@@ -71,12 +69,17 @@ public class FileController {
 			
 			response = mediaServiceS3.upload(SecurityUtil.getUserKey(), sharedWithUserKeys, file, contentType,
 					encrypted != null && encrypted);
-		}
+		} else if (storageProperties.getActiveUploadStorage() != null
+					&& Storage.OSS.name().equalsIgnoreCase(storageProperties.getActiveUploadStorage().trim())) {
+				
+				response = mediaServiceOss.upload(SecurityUtil.getUserKey(), sharedWithUserKeys, file, contentType,
+						encrypted != null && encrypted);
+			}
 
 		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, response));
 	}
 
-	@GetMapping("/download/{mediaId}")
+	@GetMapping("/{mediaId}")
 	public ResponseEntity<?> download(@PathVariable String mediaId) {
 		try {
 			UserFileDocument fileDoc = userFileService.getFile(mediaId, SecurityUtil.getUserKey(), FilePermission.DOWNLOAD);
@@ -97,6 +100,15 @@ public class FileController {
 		                .location(URI.create(presignedUrl))
 		                .build();
 		    }
+		    
+		    case OSS -> {
+		        String presignedUrl = mediaServiceOss.getDownloadUrl(SecurityUtil.getUserKey(), mediaId);
+		        yield ResponseEntity.status(HttpStatus.FOUND)
+		                .location(URI.create(presignedUrl))
+		                .build();
+		    }
+		    
+			default -> throw new IllegalArgumentException("Unexpected value: " + Storage.valueOf(fileDoc.getStorage()));
 		};	
 
 		} catch (IOException e) {
@@ -104,7 +116,7 @@ public class FileController {
 		}
 	}
 		
-	@DeleteMapping("/delete/{mediaId}")
+	@DeleteMapping("/{mediaId}")
 	public ResponseEntity<CommonResponse<?>> delete(@PathVariable String mediaId, @RequestParam(required = false) List<String> deleteWithUserKeys) {
         try {
             userFileService.softDeleteAndMarkForCleanupIfOrphaned(mediaId, SecurityUtil.getUserKey(), deleteWithUserKeys);
@@ -119,7 +131,7 @@ public class FileController {
         }
     }	
 	
-	@PostMapping("/share/{mediaId}")
+	@PostMapping("/{mediaId}/share")
 	public ResponseEntity<?> share(@PathVariable String mediaId, @RequestParam List<String> shareWithUserKeys) {
         try {
             userFileService.shareFile(mediaId, SecurityUtil.getUserKey(), shareWithUserKeys);

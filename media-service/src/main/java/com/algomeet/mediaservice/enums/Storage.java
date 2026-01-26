@@ -2,5 +2,6 @@ package com.algomeet.mediaservice.enums;
 
 public enum Storage {
 	LOCAL,
-	S3
+	S3,
+	OSS
 }

@@ -104,7 +104,7 @@ public class MediaServiceLocalImpl implements MediaServiceLocal {
                     )
                     .size(file.getSize())
                     .encrypted(encrypted)
-                    .downloadUrl("/media/download/" + mediaId)
+                    .downloadUrl("/media/" + mediaId)
                     .build();
 
         } catch (IOException e) {

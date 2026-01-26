@@ -4,6 +4,7 @@ import com.algomeet.mediaservice.document.UserFileDocument;
 import com.algomeet.mediaservice.enums.Storage;
 import com.algomeet.mediaservice.repository.UserFileRepository;
 import com.algomeet.mediaservice.service.MediaServiceLocal;
+import com.algomeet.mediaservice.service.MediaServiceOss;
 import com.algomeet.mediaservice.service.MediaServiceS3;
 
 import lombok.RequiredArgsConstructor;
@@ -20,12 +21,13 @@ import java.util.List;
 public class UserFileCleanupScheduler {
 	private final MediaServiceLocal mediaServiceLocal;
 	private final MediaServiceS3 mediaServiceS3;
+	private final MediaServiceOss mediaServiceOss;
 	private final UserFileRepository userFileRepository;
 
 	/**
 	 * Runs every 30 minutes
 	 */
-	@Scheduled(cron = "0 */5 * * * *")
+	@Scheduled(cron = "0 */59 * * * *")
 	public void cleanupExpiredUserFiles() {
 		Instant now = Instant.now();
 
@@ -47,7 +49,10 @@ public class UserFileCleanupScheduler {
 
 				} else if(Storage.S3.name().equals(file.getStorage())) {
 					mediaServiceS3.deleteIfExists(file.getAbsolutePath());
-				}
+					
+				} else if(Storage.OSS.name().equals(file.getStorage())) {
+					mediaServiceOss.deleteIfExists(file.getAbsolutePath());
+				}							
 
 				userFileRepository.deleteById(file.getId());
 

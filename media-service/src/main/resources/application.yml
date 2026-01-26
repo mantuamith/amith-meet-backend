@@ -50,7 +50,17 @@ storage:
     dir: /tmp/media/
 
   s3:
-    bucket: algomeet-demo
+    access-key: AKIA4MF4OWJ6C7GUQVV2
+    secret-key: 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
     region: ap-southeast-2
+    bucket: algomeet-demo
     path-style-access: false
     download-max-duration-in-minutes: 30
+  
+  oss:
+    endpoint: https://oss-ap-southeast-6.aliyuncs.com
+    bucket: algomeet-demo
+    access-key-id: LTAI5tHZ6boW8n832Q6PWS2S
+    access-key-secret: 54IjrqeluGXxA3G2sVRw5ooljeiowk
+    download-max-duration-in-minutes: 30
+
