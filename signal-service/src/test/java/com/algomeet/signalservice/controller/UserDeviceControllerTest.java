@@ -264,7 +264,7 @@ class UserDeviceControllerTest {
 		kyberPreKeyRequest.setSignature("MEUCIFakeSignatureBase64Example==");
 		
 		OneTimePreKeyRequest oneTimePreKeyRequest = new OneTimePreKeyRequest();
-		oneTimePreKeyRequest.setPreKeyId(1);
+		oneTimePreKeyRequest.setPreKeyId(1L);
 		oneTimePreKeyRequest.setPublicKey("BBOGJp8xYQm+ZqY2X8V5w0a2N7r9A1F2E3D4C5B6A7=");
 		
 		req.setSignedPreKey(signedPreKeyRequest);
@@ -302,7 +302,7 @@ class UserDeviceControllerTest {
 		kyberPreKeyRequest.setSignature("MEUCIFakeSignatureBase64Example==");
 		
 		OneTimePreKeyRequest oneTimePreKeyRequest = new OneTimePreKeyRequest();
-		oneTimePreKeyRequest.setPreKeyId(1);
+		oneTimePreKeyRequest.setPreKeyId(1L);
 		oneTimePreKeyRequest.setPublicKey("BBOGJp8xYQm+ZqY2X8V5w0a2N7r9A1F2E3D4C5B6A7=");
 		
 		req.setSignedPreKey(signedPreKeyRequest);
@@ -335,7 +335,7 @@ class UserDeviceControllerTest {
 		kyberPreKeyRequest.setSignature("MEUCIFakeSignatureBase64Example==");
 		
 		OneTimePreKeyRequest oneTimePreKeyRequest = new OneTimePreKeyRequest();
-		oneTimePreKeyRequest.setPreKeyId(1);
+		oneTimePreKeyRequest.setPreKeyId(1L);
 		oneTimePreKeyRequest.setPublicKey("BBOGJp8xYQm+ZqY2X8V5w0a2N7r9A1F2E3D4C5B6A7=");
 		
 		req.setSignedPreKey(signedPreKeyRequest);

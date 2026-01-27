@@ -106,7 +106,7 @@ class OneTimePreKeyControllerTest {
         OneTimePreKeysRequest request = new OneTimePreKeysRequest();
         
         OneTimePreKeyRequest otpkRequest = new OneTimePreKeyRequest();
-        otpkRequest.setPreKeyId(1); // must be >= 1
+        otpkRequest.setPreKeyId(1L); // must be >= 1
         otpkRequest.setPublicKey("BBOGJp8xYQm+ZqY2X8V5w0a2N7r9A1F2E3D4C5B6A7="); // sample Base64 public key        
         request.setPreKeys(List.of(otpkRequest));
         
@@ -114,7 +114,7 @@ class OneTimePreKeyControllerTest {
                 1L, // id
                 UUID.fromString("11111111-1111-1111-1111-111111111111"), // userKey
                 1, // deviceId
-                1, // preKeyId
+                1L, // preKeyId
                 "BBOGJp8xYQm+ZqY2X8V5w0a2N7r9A1F2E3D4C5B6A7=", // publicKey
                 false, // used
                 Instant.now() // createdAt
@@ -137,7 +137,7 @@ class OneTimePreKeyControllerTest {
         OneTimePreKeysRequest request = new OneTimePreKeysRequest();
         
         OneTimePreKeyRequest otpkRequest = new OneTimePreKeyRequest();
-        otpkRequest.setPreKeyId(1); // must be >= 1
+        otpkRequest.setPreKeyId(1L); // must be >= 1
         otpkRequest.setPublicKey("BBOGJp8xYQm+ZqY2X8V5w0a2N7r9A1F2E3D4C5B6A7="); // sample Base64 public key
         
         request.setPreKeys(List.of(otpkRequest));
@@ -162,7 +162,7 @@ class OneTimePreKeyControllerTest {
                 1L, // id
                 UUID.fromString("11111111-1111-1111-1111-111111111111"), // userKey
                 1, // deviceId
-                1, // preKeyId
+                1L, // preKeyId
                 "BBOGJp8xYQm+ZqY2X8V5w0a2N7r9A1F2E3D4C5B6A7=", // publicKey
                 false, // used
                 Instant.now() // createdAt
