@@ -5,21 +5,74 @@ spring:
 ---
 
 spring:
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 50MB
+      
   config:
     activate:
       on-profile: local
+
   datasource:
-    url: jdbc:postgresql://localhost:5432/chatdb
-    username: chatuser
-    password: chatpass
+    url: jdbc:postgresql://localhost:5432/clorameet_db
+    username: postgres
+    password: root
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+       
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
   data:
     mongodb:
-      uri: mongodb://localhost:27017/chatdb
-  redis:
-    host: localhost
-    port: 6379
+      uri: mongodb://admin:yoursecurepassword@localhost:27017/chatdb?authSource=admin
+      auto-index-creation: true
+
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: 6379
+      password: ${REDIS_PASSWORD}
+
   jackson:
     serialization:
       INDENT_OUTPUT: true
+
+storage:
+  active-upload-storage: local
+  local: 
+    dir: /tmp/media/
+
+  s3:
+    access-key: AKIA4MF4OWXJ6C7GUQVV2
+    secret-key: AlOYvi6eicmZKIWg1afdZagNkKKbIKD7LGoqN0Mo
+    region: ap-southeast-2
+    bucket: algomeet-demo
+    path-style-access: false
+    download-max-duration-in-minutes: 30
+  
+  oss:
+    access-key-id: LTAI5tHZ6boW8nX832Q6PWS2S
+    access-key-secret: 54IjrqeluGXxA3G2sVRw5ooljeiowk
+    endpoint: https://oss-ap-southeast-6.aliyuncs.com
+    bucket: algomeet-demo
+    download-max-duration-in-minutes: 30
+
+media:
+  file:
+    image-extensions: [jpg, jpeg, png, webp, gif, bmp, tiff, tif, heic, heif, svg, ico]
+    video-extensions: [mp4, m4v, mkv, webm, avi, mov, wmv, flv, f4v, mpeg, mpg, 3gp, 3g2, ogv]
+    audio-extensions: [mp3, wav, m4a, aac, ogg, opus, flac, amr, wma, aiff, aif, au]
+    document-extensions: [pdf, doc, docx, xls, xlsx, ppt, pptx, txt, rtf, csv, odt, ods, odp, epub, md]
+
 server:
-  port: 8080
+  port: 8095
+
+jwt:
+  secret: Y0h4TkFxWkd6Um9TTktOVlFobU9naFN3SzY5cWhVY08=
+
