@@ -1,7 +1,5 @@
 package com.algomeet.mediaservice.util;
 
-import java.io.IOException;
-
 import org.apache.commons.io.FilenameUtils;
 import org.apache.tika.Tika;
 import org.springframework.stereotype.Component;
