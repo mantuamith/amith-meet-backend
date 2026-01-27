@@ -7,7 +7,8 @@ public enum ResponseCode {
     SUCCESS("SUCCESS", "success"),
     
     MEDIA_NOT_FOUND("MEDIA_NOT_FOUND", "media.not.found"),
-    MEDIA_ACCESS_DENIED("MEDIA_ACCESS_DENIED", "media.access.denied")
+    MEDIA_ACCESS_DENIED("MEDIA_ACCESS_DENIED", "media.access.denied"),
+    MEDIA_FILE_TYPE_NOT_SUPPORTED("MEDIA_FILE_TYPE_NOT_SUPPORTED", "media.file.type.not-supported")
     ;
 	
     private final String code;

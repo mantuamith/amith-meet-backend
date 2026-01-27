@@ -28,6 +28,7 @@ import com.algomeet.mediaservice.dto.CommonResponse;
 import com.algomeet.mediaservice.dto.MediaUploadResponse;
 import com.algomeet.mediaservice.enums.ResponseCode;
 import com.algomeet.mediaservice.enums.Storage;
+import com.algomeet.mediaservice.exceptions.FileTypeNotSupportedException;
 import com.algomeet.mediaservice.service.MediaServiceLocal;
 import com.algomeet.mediaservice.service.MediaServiceOss;
 import com.algomeet.mediaservice.service.MediaServiceS3;
@@ -57,12 +58,17 @@ public class FileController implements FileControllerDoc {
 	@PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
 	public ResponseEntity<CommonResponse<MediaUploadResponse>> upload(@RequestPart("file") MultipartFile file,
 			@RequestParam(required = false) List<String> sharedWithUserKeys,
-			@RequestParam(required = false) String contentType, @RequestParam(required = false) Boolean encrypted) throws IOException {
+			@RequestParam(required = false) String contentType, @RequestParam(required = false) Boolean encrypted) throws Exception {
 
 		log.info("Uploading media: name={}, size={} bytes", file.getOriginalFilename(), file.getSize());
 		
-		// Validate file
-		fileValidator.validate(file);
+		try {
+			// Validate file
+			fileValidator.validate(file);
+		} catch (FileTypeNotSupportedException ex) {
+			return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE)
+					.body(CommonResponse.from(ResponseCode.MEDIA_FILE_TYPE_NOT_SUPPORTED));
+		}
 
 		MediaUploadResponse response = null;
 		if (storageProperties.getActiveUploadStorage() != null
