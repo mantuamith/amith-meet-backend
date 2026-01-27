@@ -63,6 +63,7 @@ public class MediaServiceLocalImpl implements MediaServiceLocal {
             userFile.setContentType(contentType != null ? contentType : file.getContentType());
             userFile.setSize(file.getSize());
             userFile.setAbsolutePath(target.toUri().getPath());
+            userFile.setEncrypted(encrypted);
             
             userFile.setOwner(userKey);
             List<FileAccessEntry> accessControlList = new ArrayList<>();
@@ -93,6 +94,7 @@ public class MediaServiceLocalImpl implements MediaServiceLocal {
             
             userFile.setAccessControlList(accessControlList);      
             userFile.setStorage(Storage.LOCAL.name());
+            
             
             userFileService.create(userFile);
 

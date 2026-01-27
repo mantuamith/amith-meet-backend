@@ -70,4 +70,7 @@ public class UserFileDocument {
     @Indexed
     @Field("cleanupEligibleAt")
     private Instant cleanupEligibleAt;
+    
+    @Field("isEncrypted")
+    private boolean isEncrypted;
 }

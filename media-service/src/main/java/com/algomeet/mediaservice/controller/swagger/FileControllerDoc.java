@@ -1,5 +1,6 @@
 package com.algomeet.mediaservice.controller.swagger;
 
+import java.io.IOException;
 import java.util.List;
 
 import org.springframework.http.ResponseEntity;
@@ -50,7 +51,7 @@ public interface FileControllerDoc {
             @Parameter(description = "Whether file is encrypted")
             @RequestParam(required = false)
             Boolean encrypted
-    );
+    ) throws IOException;
 
     // ========================= DOWNLOAD =========================
 

@@ -65,6 +65,7 @@ public class MediaServiceOssImpl implements MediaServiceOss {
             userFile.setAbsolutePath(objectKey);
             userFile.setOwner(userKey);
             userFile.setStorage(Storage.OSS.name());
+            userFile.setEncrypted(encrypted);
 
             List<FileAccessEntry> acl = new ArrayList<>();
             

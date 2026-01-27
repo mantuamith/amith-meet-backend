@@ -32,6 +32,7 @@ import com.algomeet.mediaservice.service.MediaServiceLocal;
 import com.algomeet.mediaservice.service.MediaServiceOss;
 import com.algomeet.mediaservice.service.MediaServiceS3;
 import com.algomeet.mediaservice.service.UserFileService;
+import com.algomeet.mediaservice.util.FileValidator;
 import com.algomeet.mediaservice.util.SecurityUtil;
 
 import lombok.RequiredArgsConstructor;
@@ -47,16 +48,21 @@ public class FileController implements FileControllerDoc {
 	private final MediaServiceOss mediaServiceOss;
 	private final StorageProperties storageProperties;	
 	private final UserFileService userFileService;
+	private final FileValidator fileValidator;
 
 	/**
 	 * Upload media file
+	 * @throws IOException 
 	 */
 	@PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
 	public ResponseEntity<CommonResponse<MediaUploadResponse>> upload(@RequestPart("file") MultipartFile file,
 			@RequestParam(required = false) List<String> sharedWithUserKeys,
-			@RequestParam(required = false) String contentType, @RequestParam(required = false) Boolean encrypted) {
+			@RequestParam(required = false) String contentType, @RequestParam(required = false) Boolean encrypted) throws IOException {
 
 		log.info("Uploading media: name={}, size={} bytes", file.getOriginalFilename(), file.getSize());
+		
+		// Validate file
+		fileValidator.validate(file);
 
 		MediaUploadResponse response = null;
 		if (storageProperties.getActiveUploadStorage() != null

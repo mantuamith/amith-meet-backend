@@ -85,6 +85,7 @@ public class MediaServiceS3Impl implements MediaServiceS3 {
             userFile.setContentType(contentType != null ? contentType : file.getContentType());
             userFile.setSize(file.getSize());
             userFile.setAbsolutePath(filename);
+            userFile.setEncrypted(encrypted);
             
             userFile.setOwner(userKey);
             List<FileAccessEntry> accessControlList = new ArrayList<>();
