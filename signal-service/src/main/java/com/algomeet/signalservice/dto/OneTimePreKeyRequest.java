@@ -7,7 +7,7 @@ import lombok.Data;
 @Data
 public class OneTimePreKeyRequest {	
 	@Min(value = 1, message = "preKeyId must be greater than 0")
-	private Integer preKeyId;
+	private Long preKeyId;
 	
 	@NotEmpty
 	private String publicKey;
