@@ -68,7 +68,7 @@ media:
     image-extensions: [jpg, jpeg, png, webp, gif, bmp, tiff, tif, heic, heif, svg, ico]
     video-extensions: [mp4, m4v, mkv, webm, avi, mov, wmv, flv, f4v, mpeg, mpg, 3gp, 3g2, ogv]
     audio-extensions: [mp3, wav, m4a, aac, ogg, opus, flac, amr, wma, aiff, aif, au]
-    document-extensions: [pdf, doc, docx, xls, xlsx, ppt, pptx, txt, rtf, csv, odt, ods, odp, epub, md]
+    document-extensions: [pdf, doc, docx, xls, xlsx, ppt, pptx, txt, rtf, csv, odt, ods, odp, epub, md, zip, rar, 7z, tar, gz, tgz, bz2, tbz, xz, txz, lz, lzma, zst]
 
 server:
   port: 8095

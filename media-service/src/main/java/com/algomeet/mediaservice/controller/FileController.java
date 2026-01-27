@@ -64,7 +64,7 @@ public class FileController implements FileControllerDoc {
 		
 		try {
 			// Validate file
-			fileValidator.validate(file);
+			fileValidator.validate(file, encrypted != null && encrypted);
 		} catch (FileTypeNotSupportedException ex) {
 			return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE)
 					.body(CommonResponse.from(ResponseCode.MEDIA_FILE_TYPE_NOT_SUPPORTED));

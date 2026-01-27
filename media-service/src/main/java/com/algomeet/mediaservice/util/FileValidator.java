@@ -1,5 +1,8 @@
 package com.algomeet.mediaservice.util;
 
+import java.io.IOException;
+import java.util.Set;
+
 import org.apache.commons.io.FilenameUtils;
 import org.apache.tika.Tika;
 import org.springframework.stereotype.Component;
@@ -15,39 +18,61 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 @Slf4j
 public class FileValidator {
-    private final AcceptedFileProperties props;
+	private final AcceptedFileProperties props;
 
-    public void validate(MultipartFile file) throws Exception  { 
-    	Tika tika = new Tika();
-    	String detectedType = tika.detect(file.getInputStream());
-    	
-    	String filename = file.getOriginalFilename();
-    	String extension = FilenameUtils.getExtension(filename).toLowerCase();
-    	
-    	String declaredType = file.getContentType();
+	public void validate(MultipartFile file, boolean isEncrypted) throws Exception {
+		if (file == null || file.isEmpty()) {
+			throw new IllegalArgumentException("File is empty");
+		}
 
-    	if (!detectedType.equals(declaredType)) {
-    	    log.warn("MIME mismatch: declared={} detected={}", declaredType, detectedType);
-    	}
-    	
-    	if (detectedType.startsWith("image")) {
-    		if (!props.getImageExtensions().contains(extension)) {
-    			throw new FileTypeNotSupportedException("File type not supported " + extension);
-    		}
-    	} else if (detectedType.startsWith("video")) {
-    		if (!props.getVideoExtensions().contains(extension)) {
-    			throw new FileTypeNotSupportedException("File type not supported " + extension);
-    		}
-    	} else if (detectedType.startsWith("audio")) {
-    		if (!props.getAudioExtensions().contains(extension)) {
-    			throw new FileTypeNotSupportedException("File type not supported " + extension);
-    		}
-    	} else if (detectedType.startsWith("application") || detectedType.startsWith("text")) {
-    		if (!props.getDocumentExtensions().contains(extension)) {
-    			throw new FileTypeNotSupportedException("File type not supported " + extension);
-    		}
-    	} else{
-    		throw new FileTypeNotSupportedException("File type not supported " + extension);
-    	}
-    }
+		String filename = file.getOriginalFilename();
+		if (filename == null || filename.isBlank()) {
+			throw new FileTypeNotSupportedException("Missing filename");
+		}
+
+		String extension = FilenameUtils.getExtension(filename).toLowerCase();
+
+		// Encrypted files: treat as opaque binary
+		if (isEncrypted) {
+			log.debug("Encrypted file detected, skipping MIME/type validation. filename={}", filename);
+
+			// Optional: block executable-looking extensions even if encrypted
+			if (isDangerousExtension(extension)) {
+				throw new FileTypeNotSupportedException("Encrypted executable files are not allowed");
+			}
+
+			return;
+		}
+
+		// Plain (non-encrypted) file validation
+		Tika tika = new Tika();
+		String detectedType = tika.detect(file.getInputStream());
+		String declaredType = file.getContentType();
+
+		if (declaredType != null && !declaredType.equals(detectedType)) {
+			log.warn("MIME mismatch: declared={} detected={}", declaredType, detectedType);
+		}
+
+		if (detectedType.startsWith("image/")) {
+			validateExtension(extension, props.getImageExtensions());
+		} else if (detectedType.startsWith("video/")) {
+			validateExtension(extension, props.getVideoExtensions());
+		} else if (detectedType.startsWith("audio/")) {
+			validateExtension(extension, props.getAudioExtensions());
+		} else if (detectedType.startsWith("application/") || detectedType.startsWith("text/")) {
+			validateExtension(extension, props.getDocumentExtensions());
+		} else {
+			throw new FileTypeNotSupportedException("Unsupported MIME type: " + detectedType);
+		}
+	}
+
+	private void validateExtension(String extension, Set<String> allowed) {
+		if (!allowed.contains(extension)) {
+			throw new FileTypeNotSupportedException("File type not supported: ." + extension);
+		}
+	}
+	
+	private boolean isDangerousExtension(String ext) {
+		return Set.of("exe", "sh", "bat", "cmd", "js", "jar").contains(ext);
+	}
 }
