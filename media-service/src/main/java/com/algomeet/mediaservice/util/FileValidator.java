@@ -35,13 +35,16 @@ public class FileValidator {
 		// Encrypted files: treat as opaque binary
 		if (isEncrypted) {
 			log.debug("Encrypted file detected, skipping MIME/type validation. filename={}", filename);
-
-			// Optional: block executable-looking extensions even if encrypted
-			if (isDangerousExtension(extension)) {
-				throw new FileTypeNotSupportedException("Encrypted executable files are not allowed");
+			
+			if (props.getImageExtensions().contains(extension)
+					|| props.getVideoExtensions().contains(extension)
+					|| props.getAudioExtensions().contains(extension)
+					|| props.getDocumentExtensions().contains(extension)) {
+				return;
+				
 			}
-
-			return;
+			
+			throw new FileTypeNotSupportedException("Encrypted executable files are not allowed");			
 		}
 
 		// Plain (non-encrypted) file validation
@@ -70,9 +73,5 @@ public class FileValidator {
 		if (!allowed.contains(extension)) {
 			throw new FileTypeNotSupportedException("File type not supported: ." + extension);
 		}
-	}
-	
-	private boolean isDangerousExtension(String ext) {
-		return Set.of("exe", "sh", "bat", "cmd", "js", "jar").contains(ext);
 	}
 }
