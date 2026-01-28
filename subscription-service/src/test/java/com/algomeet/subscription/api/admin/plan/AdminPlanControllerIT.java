@@ -33,7 +33,7 @@ class AdminPlanControllerIT {
 
         ResponseEntity<String> create =
                 restTemplate.postForEntity(
-                        "/api/admin/plans",
+                        "/api/subscription/admin/plans",
                         request,
                         String.class
                 );
@@ -42,7 +42,7 @@ class AdminPlanControllerIT {
 
         ResponseEntity<String> list =
                 restTemplate.getForEntity(
-                        "/api/admin/plans",
+                        "/api/subscription/admin/plans",
                         String.class
                 );
 

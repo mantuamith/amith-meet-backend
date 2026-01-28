@@ -24,7 +24,7 @@ class PlanComparisonControllerIT  {
 
         ResponseEntity<String> response =
                 restTemplate.getForEntity(
-                        "/api/public/plans/comparison",
+                        "/api/subscription/public/plans/comparison",
                         String.class
                 );
 

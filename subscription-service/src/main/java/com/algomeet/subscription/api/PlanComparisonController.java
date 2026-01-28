@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/public/plans")
+@RequestMapping("/api/subscription/public/plans")
 @RequiredArgsConstructor
 public class PlanComparisonController implements PlanComparisonControllerDoc {
 

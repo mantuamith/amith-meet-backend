@@ -13,7 +13,7 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/admin/plans")
+@RequestMapping("/api/subscription/admin/plans")
 @RequiredArgsConstructor
 public class AdminPlanController implements AdminPlanControllerDoc {
 
