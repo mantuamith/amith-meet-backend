@@ -95,7 +95,7 @@ class KyberPreKeyControllerTest {
         KyberPreKeyResponse response = new KyberPreKeyResponse(
             UUID.randomUUID().toString(),          // userKey
             1,                                      // deviceId
-            123,                                    // kyberPreKeyId
+            123L,                                    // kyberPreKeyId
             "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAnSampleKyberPublicKeyBase64==", // publicKey
             "MEUCIFakeSignatureBase64Example==",   // signature
             Instant.now(),                          // createdAt
@@ -134,7 +134,7 @@ class KyberPreKeyControllerTest {
     @Test
     void update_success() throws Exception {
         KyberPreKeyRequest request = new KyberPreKeyRequest();
-        request.setKyberPreKeyId(1);
+        request.setKyberPreKeyId(1L);
         request.setPublicKey("MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAnSampleKyberPublicKeyBase64==");
         request.setSignature("MEUCIFakeSignatureBase64Example==");
 
@@ -153,7 +153,7 @@ class KyberPreKeyControllerTest {
     @Test
     void update_notFound() throws Exception {
         KyberPreKeyRequest request = new KyberPreKeyRequest();
-        request.setKyberPreKeyId(1);
+        request.setKyberPreKeyId(1L);
         request.setPublicKey("MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAnSampleKyberPublicKeyBase64==");
         request.setSignature("MEUCIFakeSignatureBase64Example==");
 

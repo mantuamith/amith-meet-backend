@@ -49,7 +49,7 @@ class KyberPreKeyServiceTest {
 
         KyberPreKey entity = new KyberPreKey();
         entity.setId(id);
-        entity.setKyberPreKeyId(10);
+        entity.setKyberPreKeyId(10L);
         entity.setPublicKey("Base64PublicKey==");
         entity.setSignature("Base64Signature==");
         entity.setCreatedAt(Instant.now());
@@ -87,12 +87,12 @@ class KyberPreKeyServiceTest {
 
         KyberPreKey entity = new KyberPreKey();
         entity.setId(id);
-        entity.setKyberPreKeyId(10);
+        entity.setKyberPreKeyId(10L);
         entity.setPublicKey("OldPublicKey==");
         entity.setSignature("OldSignature==");
 
         KyberPreKeyRequest request = new KyberPreKeyRequest();
-        request.setKyberPreKeyId(20);
+        request.setKyberPreKeyId(20L);
         request.setPublicKey("NewPublicKey==");
         request.setSignature("NewSignature==");
 
@@ -116,7 +116,7 @@ class KyberPreKeyServiceTest {
         KyberPreKeyId id = new KyberPreKeyId(USER_KEY, 1);
 
         KyberPreKeyRequest request = new KyberPreKeyRequest();
-        request.setKyberPreKeyId(20);
+        request.setKyberPreKeyId(20L);
         request.setPublicKey("NewPublicKey==");
         request.setSignature("NewSignature==");
 
