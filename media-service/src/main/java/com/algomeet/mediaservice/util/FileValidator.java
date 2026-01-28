@@ -40,11 +40,10 @@ public class FileValidator {
 					|| props.getVideoExtensions().contains(extension)
 					|| props.getAudioExtensions().contains(extension)
 					|| props.getDocumentExtensions().contains(extension)) {
-				return;
-				
+				return;				
 			}
 			
-			throw new FileTypeNotSupportedException("Encrypted executable files are not allowed");			
+			throw new FileTypeNotSupportedException("File type not supported: ." + extension);			
 		}
 
 		// Plain (non-encrypted) file validation
