@@ -9,7 +9,7 @@ import lombok.Data;
 public class SignedPreKeyResponse {
     private UUID userKey;
     private Integer deviceId;
-    private Long signedPreKeyId;
+    private String signedPreKeyId;
     private String publicKey;
     private String signature;
     private Instant createdAt;

@@ -9,7 +9,7 @@ import lombok.Data;
 public class SignedPreKeyRequest {
 	@NotNull
 	@Min(value = 1, message = "signedPreKeyId must be greater than 0")
-	private Long signedPreKeyId;
+	private String signedPreKeyId;
 
 	@NotEmpty
 	private String publicKey;

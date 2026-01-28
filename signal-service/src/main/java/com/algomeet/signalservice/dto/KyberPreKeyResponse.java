@@ -10,7 +10,7 @@ import lombok.Data;
 public class KyberPreKeyResponse {
 	private String userKey;
 	private Integer deviceId;
-	private Long kyberPreKeyId;
+	private String kyberPreKeyId;
 	private String publicKey;
 	private String signature;
 	private Instant createdAt;

@@ -23,7 +23,7 @@ public class SignedPreKey {
 	@EmbeddedId
 	private SignedPreKeyId id;
 	
-	private Long signedPreKeyId;
+	private String signedPreKeyId;
 	
 	/** Signed prekey public Key */
     @Column(nullable = false, length = 200)
