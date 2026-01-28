@@ -1,0 +1,78 @@
+package com.algomeet.subscription.config;
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
+import org.springframework.security.config.Customizer;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
+import java.util.List;
+
+@Configuration
+//@EnableWebSecurity
+
+public class SecurityConfig {
+
+
+
+
+
+    @Bean
+    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+        http
+                .cors(Customizer.withDefaults())
+                .csrf(csrf -> csrf.disable())
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/auth/**").permitAll()
+                        .requestMatchers("/api/subscription/**").permitAll()   // allow open as of now...
+
+
+                        // Swagger - start
+                        .requestMatchers("/swagger-ui.html").permitAll()
+                        .requestMatchers("/swagger-ui/index.html").permitAll()
+                        .requestMatchers("/swagger-ui/swagger-ui.css").permitAll()
+                        .requestMatchers("/swagger-ui/index.css").permitAll()
+                        .requestMatchers("/swagger-ui/swagger-ui-bundle.js").permitAll()
+                        .requestMatchers("/swagger-ui/swagger-ui-standalone-preset.js").permitAll()
+                        .requestMatchers("/swagger-ui/swagger-initializer.js").permitAll()
+                        .requestMatchers("/swagger-ui/favicon-32x32.png").permitAll()
+                        .requestMatchers("/swagger-ui/favicon-16x16.png").permitAll()
+                        .requestMatchers("/v3/api-docs/swagger-config").permitAll()
+                        .requestMatchers("/v3/api-docs").permitAll()
+                        // Swagger - end
+                        .anyRequest().denyAll()
+                )
+                .sessionManagement(sm -> sm
+                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                );
+                //.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+
+        return http.build();
+    }
+
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration cors = new CorsConfiguration();
+        cors.setAllowedOrigins(List.of("*")); // any origin
+        cors.setAllowedMethods(List.of("GET","POST","PUT","PATCH","DELETE","OPTIONS","HEAD"));
+        cors.setAllowedHeaders(List.of("*"));                 // allow all request headers
+        cors.setAllowCredentials(false);                      // keep false with '*'
+        cors.setExposedHeaders(List.of("Authorization"));     // optional: if you read it from responses
+        cors.setMaxAge(3600L);
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", cors);
+        return source;
+    }
+
+
+
+}
+//TODO: Add role-based restrictions (e.g., only ADMIN can delete users)
