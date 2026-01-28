@@ -47,7 +47,7 @@ class OneTimePreKeyServiceTest {
         entity.setId(1L);
         entity.setUserKey(USER_KEY);
         entity.setDeviceId(1);
-        entity.setPreKeyId(100L);
+        entity.setPreKeyId(String.valueOf(100));
         entity.setPublicKey("BBOGJp8xYQm+ZqY2X8V5w0a2N7r9A1F2E3D4C5B6A7=");
         entity.setUsed(false);
     }
@@ -59,7 +59,7 @@ class OneTimePreKeyServiceTest {
     @Test
     void update_success() {
         OneTimePreKeyRequest request = new OneTimePreKeyRequest();
-        request.setPreKeyId(200L);
+        request.setPreKeyId(String.valueOf(200));
         request.setPublicKey("QkFTRTY0VVBERVRFRF9LRVk=");
 
         when(repository.findById(1L))
@@ -93,7 +93,7 @@ class OneTimePreKeyServiceTest {
     @Test
     void create_success() {
         OneTimePreKeyRequest preKeyRequest = new OneTimePreKeyRequest();
-        preKeyRequest.setPreKeyId(100L);
+        preKeyRequest.setPreKeyId(String.valueOf(100));
         preKeyRequest.setPublicKey("QkFTRTY0UFJFS0VZ");
 
         OneTimePreKeysRequest request = new OneTimePreKeysRequest();
