@@ -30,8 +30,8 @@ class UserFileServiceImplTest {
     private UserFileServiceImpl service;
 
     private static final String FILE_ID = "file1";
-    private static final String OWNER = "owner";
-    private static final String USER = "user1";
+    private static final String OWNER = "22222222-2222-2222-2222-222222222222";
+    private static final String USER = "11111111-1111-1111-1111-111111111111";
 
     @BeforeEach
     void setup() {

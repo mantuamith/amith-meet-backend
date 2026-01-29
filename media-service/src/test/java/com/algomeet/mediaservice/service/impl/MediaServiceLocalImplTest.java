@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -61,13 +62,15 @@ class MediaServiceLocalImplTest {
                 "hello world".getBytes()
         );
 
-        String ownerKey = "user-1";
-        List<String> sharedWith = List.of("user-2", "user-3");
+        final String OWNER_KEY = UUID.fromString("11111111-1111-1111-1111-111111111111").toString();
+        final List<String> SHARED_WITH = List.of(
+                UUID.fromString("22222222-2222-2222-2222-222222222222").toString(),
+                UUID.fromString("33333333-3333-3333-3333-333333333333").toString());
 
         // when
         MediaUploadResponse response = mediaService.upload(
-                ownerKey,
-                sharedWith,
+        		OWNER_KEY,
+        		SHARED_WITH,
                 file,
                 null,
                 false
@@ -91,7 +94,7 @@ class MediaServiceLocalImplTest {
         verify(userFileService).create(captor.capture());
 
         UserFileDocument saved = captor.getValue();
-        assertEquals(ownerKey, saved.getOwner());
+        assertEquals(OWNER_KEY, saved.getOwner());
         assertEquals(response.getMediaId(), saved.getId());
         assertEquals(file.getSize(), saved.getSize());
         assertFalse(saved.isEncrypted());
@@ -110,12 +113,12 @@ class MediaServiceLocalImplTest {
 
         when(userFileService.getFile(
                 eq("media-id"),
-                eq("user-1"),
+                eq("11111111-1111-1111-1111-111111111111"),
                 eq(FilePermission.DOWNLOAD))
         ).thenReturn(doc);
 
         // when
-        Path result = mediaService.download("user-1", "media-id");
+        Path result = mediaService.download("11111111-1111-1111-1111-111111111111", "media-id");
 
         // then
         assertEquals(filePath, result);
@@ -135,7 +138,7 @@ class MediaServiceLocalImplTest {
         // then
         RuntimeException ex = assertThrows(
                 RuntimeException.class,
-                () -> mediaService.download("user-1", "media-id")
+                () -> mediaService.download("11111111-1111-1111-1111-111111111111", "media-id")
         );
 
         assertTrue(ex.getMessage().contains("File not found"));

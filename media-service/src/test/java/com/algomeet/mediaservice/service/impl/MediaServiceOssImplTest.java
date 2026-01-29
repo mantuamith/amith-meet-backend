@@ -7,6 +7,7 @@ import static org.mockito.Mockito.*;
 import java.io.InputStream;
 import java.net.URL;
 import java.util.List;
+import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -66,13 +67,15 @@ class MediaServiceOssImplTest {
                 "hello oss".getBytes()
         );
 
-        String ownerKey = "user-1";
-        List<String> sharedWith = List.of("user-2", "user-3");
+        final String OWNER_KEY = UUID.fromString("11111111-1111-1111-1111-111111111111").toString();
+        final List<String> SHARED_WITH = List.of(
+                UUID.fromString("22222222-2222-2222-2222-222222222222").toString(),
+                UUID.fromString("33333333-3333-3333-3333-333333333333").toString());
 
         // when
         MediaUploadResponse response = mediaService.upload(
-                ownerKey,
-                sharedWith,
+        		OWNER_KEY,
+        		SHARED_WITH,
                 file,
                 null,
                 false
@@ -99,7 +102,7 @@ class MediaServiceOssImplTest {
         verify(userFileService).create(captor.capture());
 
         UserFileDocument saved = captor.getValue();
-        assertEquals(ownerKey, saved.getOwner());
+        assertEquals(OWNER_KEY, saved.getOwner());
         assertEquals(file.getSize(), saved.getSize());
         assertEquals("OSS", saved.getStorage());
         assertFalse(saved.isEncrypted());
@@ -124,7 +127,7 @@ class MediaServiceOssImplTest {
 
         when(userFileService.getFile(
                 eq("media-id"),
-                eq("user-1"),
+                eq("11111111-1111-1111-1111-111111111111"),
                 eq(FilePermission.DOWNLOAD))
         ).thenReturn(doc);
 
@@ -137,7 +140,7 @@ class MediaServiceOssImplTest {
         )).thenReturn(signedUrl);
 
         // when
-        String url = mediaService.getDownloadUrl("user-1", "media-id");
+        String url = mediaService.getDownloadUrl("11111111-1111-1111-1111-111111111111", "media-id");
 
         // then
         assertEquals("https://oss-signed-url", url);

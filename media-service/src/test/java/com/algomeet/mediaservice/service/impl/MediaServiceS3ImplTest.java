@@ -15,6 +15,7 @@ import static org.mockito.Mockito.when;
 
 import java.net.URL;
 import java.util.List;
+import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -69,12 +70,12 @@ class MediaServiceS3ImplTest {
 	void upload_shouldUploadToS3AndPersistMetadata() throws Exception {
 		when(storageProperties.getS3()).thenReturn(s3Storage);
 		when(s3Storage.getBucket()).thenReturn("test-bucket");
-		
+	        
 		// given
 		MultipartFile file = new MockMultipartFile("file", "hello.txt", "text/plain", "hello s3".getBytes());
 
 		// when
-		MediaUploadResponse response = mediaService.upload("user-1", List.of("user-2"), file, null, false);
+		MediaUploadResponse response = mediaService.upload("11111111-1111-1111-1111-111111111111", List.of("22222222-2222-2222-2222-222222222222"), file, null, false);
 
 		// then
 		assertNotNull(response.getMediaId());
@@ -89,7 +90,7 @@ class MediaServiceS3ImplTest {
 		verify(userFileService).create(captor.capture());
 
 		UserFileDocument saved = captor.getValue();
-		assertEquals("user-1", saved.getOwner());
+		assertEquals("11111111-1111-1111-1111-111111111111", saved.getOwner());
 		assertEquals("S3", saved.getStorage());
 		assertEquals(file.getSize(), saved.getSize());
 		assertFalse(saved.isEncrypted());
@@ -112,7 +113,7 @@ class MediaServiceS3ImplTest {
 
 	    when(userFileService.getFile(
 	            eq("media-id"),
-	            eq("user-1"),
+	            eq("11111111-1111-1111-1111-111111111111"),
 	            eq(FilePermission.DOWNLOAD)))
 	        .thenReturn(doc);
 
@@ -137,7 +138,7 @@ class MediaServiceS3ImplTest {
 	        mocked.when(S3Presigner::builder).thenReturn(builder);
 
 	        // when
-	        String url = mediaService.getDownloadUrl("user-1", "media-id");
+	        String url = mediaService.getDownloadUrl("11111111-1111-1111-1111-111111111111", "media-id");
 
 	        // then
 	        assertEquals("https://signed-url", url);
