@@ -12,7 +12,7 @@ public class OneTimePreKeyResponse {
 	private long id;
 	private UUID userKey;
 	private Integer deviceId;
-	private Integer preKeyId;
+	private String preKeyId;
 	private String publicKey;
 	private Boolean used;
 	private Instant createdAt;

@@ -10,7 +10,7 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/admin/plan-feature-values")
+@RequestMapping("/api/subscription/admin/plan-feature-values")
 @RequiredArgsConstructor
 public class AdminPlanFeatureValueController implements AdminPlanFeatureValueControllerDoc {
 

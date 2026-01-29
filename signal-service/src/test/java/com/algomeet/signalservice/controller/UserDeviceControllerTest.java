@@ -254,17 +254,17 @@ class UserDeviceControllerTest {
 	void createDevicePreKeyBundle_success() throws Exception {
 		DevicePreKeyBundleRequest req = new DevicePreKeyBundleRequest();
 		SignedPreKeyRequest signedPreKeyRequest = new SignedPreKeyRequest();
-		signedPreKeyRequest.setSignedPreKeyId(1);
+		signedPreKeyRequest.setSignedPreKeyId("1");
 		signedPreKeyRequest.setPublicKey("BBSm1xQ4kLzZrPp8Vw9xY2R1c0ZfQw==");
 		signedPreKeyRequest.setSignature("MEUCIQD3yZy9yK0Z7KkqXx9b8cYxZpQzX7f1e9xQwIDA==");
 		
 		KyberPreKeyRequest kyberPreKeyRequest = new KyberPreKeyRequest();
-		kyberPreKeyRequest.setKyberPreKeyId(1);
+		kyberPreKeyRequest.setKyberPreKeyId(String.valueOf(1L));
 		kyberPreKeyRequest.setPublicKey("MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAnSampleKyberPublicKeyBase64==");
 		kyberPreKeyRequest.setSignature("MEUCIFakeSignatureBase64Example==");
 		
 		OneTimePreKeyRequest oneTimePreKeyRequest = new OneTimePreKeyRequest();
-		oneTimePreKeyRequest.setPreKeyId(1);
+		oneTimePreKeyRequest.setPreKeyId(String.valueOf(1L));
 		oneTimePreKeyRequest.setPublicKey("BBOGJp8xYQm+ZqY2X8V5w0a2N7r9A1F2E3D4C5B6A7=");
 		
 		req.setSignedPreKey(signedPreKeyRequest);
@@ -292,17 +292,17 @@ class UserDeviceControllerTest {
 		
 		DevicePreKeyBundleRequest req = new DevicePreKeyBundleRequest();
 		SignedPreKeyRequest signedPreKeyRequest = new SignedPreKeyRequest();
-		signedPreKeyRequest.setSignedPreKeyId(1);
+		signedPreKeyRequest.setSignedPreKeyId(String.valueOf(1L));
 		signedPreKeyRequest.setPublicKey("BBSm1xQ4kLzZrPp8Vw9xY2R1c0ZfQw==");
 		signedPreKeyRequest.setSignature("MEUCIQD3yZy9yK0Z7KkqXx9b8cYxZpQzX7f1e9xQwIDA==");
 		
 		KyberPreKeyRequest kyberPreKeyRequest = new KyberPreKeyRequest();
-		kyberPreKeyRequest.setKyberPreKeyId(1);
+		kyberPreKeyRequest.setKyberPreKeyId(String.valueOf(1L));
 		kyberPreKeyRequest.setPublicKey("MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAnSampleKyberPublicKeyBase64==");
 		kyberPreKeyRequest.setSignature("MEUCIFakeSignatureBase64Example==");
 		
 		OneTimePreKeyRequest oneTimePreKeyRequest = new OneTimePreKeyRequest();
-		oneTimePreKeyRequest.setPreKeyId(1);
+		oneTimePreKeyRequest.setPreKeyId(String.valueOf(1L));
 		oneTimePreKeyRequest.setPublicKey("BBOGJp8xYQm+ZqY2X8V5w0a2N7r9A1F2E3D4C5B6A7=");
 		
 		req.setSignedPreKey(signedPreKeyRequest);
@@ -325,17 +325,17 @@ class UserDeviceControllerTest {
 		
 		DevicePreKeyBundleRequest req = new DevicePreKeyBundleRequest();
 		SignedPreKeyRequest signedPreKeyRequest = new SignedPreKeyRequest();
-		signedPreKeyRequest.setSignedPreKeyId(1);
+		signedPreKeyRequest.setSignedPreKeyId(String.valueOf(1L));
 		signedPreKeyRequest.setPublicKey("BBSm1xQ4kLzZrPp8Vw9xY2R1c0ZfQw==");
 		signedPreKeyRequest.setSignature("MEUCIQD3yZy9yK0Z7KkqXx9b8cYxZpQzX7f1e9xQwIDA==");
 		
 		KyberPreKeyRequest kyberPreKeyRequest = new KyberPreKeyRequest();
-		kyberPreKeyRequest.setKyberPreKeyId(1);
+		kyberPreKeyRequest.setKyberPreKeyId(String.valueOf(1L));
 		kyberPreKeyRequest.setPublicKey("MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAnSampleKyberPublicKeyBase64==");
 		kyberPreKeyRequest.setSignature("MEUCIFakeSignatureBase64Example==");
 		
 		OneTimePreKeyRequest oneTimePreKeyRequest = new OneTimePreKeyRequest();
-		oneTimePreKeyRequest.setPreKeyId(1);
+		oneTimePreKeyRequest.setPreKeyId(String.valueOf(1L));
 		oneTimePreKeyRequest.setPublicKey("BBOGJp8xYQm+ZqY2X8V5w0a2N7r9A1F2E3D4C5B6A7=");
 		
 		req.setSignedPreKey(signedPreKeyRequest);

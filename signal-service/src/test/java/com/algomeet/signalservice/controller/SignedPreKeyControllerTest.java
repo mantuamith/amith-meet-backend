@@ -143,7 +143,7 @@ class SignedPreKeyControllerTest {
     @Test
     void updateSignedPreKey_success() throws Exception {
         SignedPreKeyRequest request = new SignedPreKeyRequest();
-        request.setSignedPreKeyId(1);
+        request.setSignedPreKeyId(String.valueOf(1));
         request.setPublicKey("BBSignedPreKeyPublicKeyBase64==");
         request.setSignature("MEUCIExampleSignatureBase64==");
 
@@ -164,7 +164,7 @@ class SignedPreKeyControllerTest {
     @Test
     void updateSignedPreKey_notFound() throws Exception {
         SignedPreKeyRequest request = new SignedPreKeyRequest();
-        request.setSignedPreKeyId(1);
+        request.setSignedPreKeyId(String.valueOf(1));
         request.setPublicKey("BBSignedPreKeyPublicKeyBase64==");
         request.setSignature("MEUCIExampleSignatureBase64==");
 

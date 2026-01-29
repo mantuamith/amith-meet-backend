@@ -18,7 +18,7 @@ public class KyberPreKey {
 	private KyberPreKeyId id;
 	
 	@Column(nullable = false)
-	private Integer kyberPreKeyId;	
+	private String kyberPreKeyId;
 	
 	/** Kyber prekey public Key */
     @Column(nullable = false, length = 2100)

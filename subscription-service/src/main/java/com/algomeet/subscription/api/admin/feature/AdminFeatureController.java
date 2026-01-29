@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/admin/features")
+@RequestMapping("/api/subscription/admin/features")
 @RequiredArgsConstructor
 public class AdminFeatureController implements AdminFeatureControllerDoc {
 

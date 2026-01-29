@@ -39,7 +39,7 @@ public class OneTimePreKey {
 	private Integer deviceId;
 
 	@Column(nullable = false)
-	private Integer preKeyId;	
+	private String preKeyId;
 
 	/** Prekey public Key */
 	@Column(nullable = false, length = 200)

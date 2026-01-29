@@ -43,7 +43,7 @@ class SignedPreKeyServiceTest {
     void setup() {
         entity = new SignedPreKey();
         entity.setId(new SignedPreKeyId(USER_KEY, 1));
-        entity.setSignedPreKeyId(10);
+        entity.setSignedPreKeyId(String.valueOf(10L));
         entity.setPublicKey("BBSignedPreKeyPublicBase64==");
         entity.setSignature("MEUCIQSignedSignatureBase64==");
     }
@@ -87,7 +87,7 @@ class SignedPreKeyServiceTest {
         SignedPreKeyId id = new SignedPreKeyId(USER_KEY, 1);
 
         SignedPreKeyRequest request = new SignedPreKeyRequest();
-        request.setSignedPreKeyId(20);
+        request.setSignedPreKeyId(String.valueOf(20L));
         request.setPublicKey("BBUpdatedPublicKeyBase64==");
         request.setSignature("MEUCUpdatedSignatureBase64==");
 
@@ -118,7 +118,7 @@ class SignedPreKeyServiceTest {
         SignedPreKeyId id = new SignedPreKeyId(USER_KEY, 1);
 
         SignedPreKeyRequest request = new SignedPreKeyRequest();
-        request.setSignedPreKeyId(20);
+        request.setSignedPreKeyId(String.valueOf(20L));
         request.setPublicKey("BBUpdatedPublicKeyBase64==");
         request.setSignature("MEUCUpdatedSignatureBase64==");
 
