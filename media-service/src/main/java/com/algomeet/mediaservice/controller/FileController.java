@@ -6,6 +6,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
+import org.springframework.core.io.InputStreamResource;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -99,12 +101,24 @@ public class FileController implements FileControllerDoc {
 			
 			return switch (Storage.valueOf(fileDoc.getStorage())) {
 		    case LOCAL -> {
-		        Path filePath = mediaServiceLocal.download(SecurityUtil.getUserKey(), mediaId);
-		        byte[] fileBytes = Files.readAllBytes(filePath);
+		    	Path filePath = mediaServiceLocal.download(SecurityUtil.getUserKey(), mediaId);
 
-		        yield ResponseEntity.ok()
-		                .header("Content-Disposition", "attachment; filename=\"" + filePath.getFileName() + "\"")
-		                .body(fileBytes);
+		    	String contentType = Files.probeContentType(filePath);
+		    	if (contentType == null) {
+		    	    contentType = MediaType.APPLICATION_OCTET_STREAM_VALUE;
+		    	}
+
+		    	InputStreamResource resource =
+		    	        new InputStreamResource(Files.newInputStream(filePath));
+
+		    	yield ResponseEntity.ok()
+		    	        .contentType(MediaType.parseMediaType(contentType))
+		    	        .contentLength(Files.size(filePath))
+		    	        .header(
+		    	            HttpHeaders.CONTENT_DISPOSITION,
+		    	            "inline; filename=\"" + filePath.getFileName() + "\""
+		    	        )
+		    	        .body(resource);
 		    }
 
 		    case S3 -> {
