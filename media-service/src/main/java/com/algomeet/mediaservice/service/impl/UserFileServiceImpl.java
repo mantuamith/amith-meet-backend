@@ -4,7 +4,6 @@ import java.time.Instant;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 
 import org.springframework.security.access.AccessDeniedException;
@@ -54,9 +53,9 @@ public class UserFileServiceImpl implements UserFileService {
 	}
 
 	@Override
-	public void updateLastDownloaded(String fileId) {
+	public void updateLastRead(String fileId) {
 		repository.findById(fileId).ifPresent(file -> {
-			file.setDateLastDownloaded(Instant.now());
+			file.setDateLastRead(Instant.now());
 			repository.save(file);
 		});
 	}
@@ -126,9 +125,8 @@ public class UserFileServiceImpl implements UserFileService {
 			
 			if (!isFound) {
             	Set<FilePermission> permissions = new HashSet<>();
-            	permissions.add(FilePermission.DOWNLOAD);
             	permissions.add(FilePermission.SHARE);
-            	permissions.add(FilePermission.VIEW);
+            	permissions.add(FilePermission.READ);
             	permissions.add(FilePermission.DELETE);
             	
             	Integer refCount = 1;

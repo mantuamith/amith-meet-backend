@@ -103,9 +103,8 @@ public class MediaServiceS3Impl implements MediaServiceS3 {
             if (sharedWithUserKeys != null) {
 	            for(String sharedWithUserKey : sharedWithUserKeys) {
 	            	Set<FilePermission> permissions = new HashSet<>();
-	            	permissions.add(FilePermission.DOWNLOAD);
 	            	permissions.add(FilePermission.SHARE);
-	            	permissions.add(FilePermission.VIEW);
+	            	permissions.add(FilePermission.READ);
 	            	permissions.add(FilePermission.DELETE);
 	            	
 	            	Integer refCount = 1;
@@ -127,7 +126,7 @@ public class MediaServiceS3Impl implements MediaServiceS3 {
                     )
                     .size(file.getSize())
                     .encrypted(encrypted)
-                    .downloadUrl("/media/" + mediaId)
+                    .url("/media/" + mediaId)
                     .build();
 
         } catch (IOException e) {
@@ -135,13 +134,13 @@ public class MediaServiceS3Impl implements MediaServiceS3 {
         }
     }
       
-    public String getDownloadUrl(String userKey, String mediaId) {
+    public String getReadUrl(String userKey, String mediaId) {
 
         if (!StringUtils.hasText(mediaId)) {
             throw new RuntimeException("Media Id is required");
         }
         // ️Verify the user has download permission
-        UserFileDocument fileDoc = userFileService.getFile(mediaId, userKey, FilePermission.DOWNLOAD);        
+        UserFileDocument fileDoc = userFileService.getFile(mediaId, userKey, FilePermission.READ);        
 
         //  Build S3 key (absolute path)
         String objectKey = fileDoc.getAbsolutePath();
@@ -158,7 +157,7 @@ public class MediaServiceS3Impl implements MediaServiceS3 {
                 .build();
 
         GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
-                .signatureDuration(Duration.ofMinutes(s3Props.getS3().getDownloadMaxDurationInMinutes()))
+                .signatureDuration(Duration.ofMinutes(s3Props.getS3().getSigExpirationInMinutes()))
                 .getObjectRequest(getObjectRequest)
                 .build();
 

@@ -20,7 +20,7 @@ public class FileAccessEntry {
     private Integer refCount;
 
     /**
-     * VIEW, DOWNLOAD, SHARE
+     * READ, DOWNLOAD, SHARE
      */
     @Field("permissions")
     private Set<FilePermission> permissions;

@@ -82,9 +82,8 @@ public class MediaServiceLocalImpl implements MediaServiceLocal {
             if (sharedWithUserKeys != null) {
 	            for(String sharedWithUserKey : sharedWithUserKeys) {
 	            	Set<FilePermission> permissions = new HashSet<>();
-	            	permissions.add(FilePermission.DOWNLOAD);
 	            	permissions.add(FilePermission.SHARE);
-	            	permissions.add(FilePermission.VIEW);
+	            	permissions.add(FilePermission.READ);
 	            	permissions.add(FilePermission.DELETE);
 	            	
 	            	Integer refCount = 1;
@@ -106,7 +105,7 @@ public class MediaServiceLocalImpl implements MediaServiceLocal {
                     )
                     .size(file.getSize())
                     .encrypted(encrypted)
-                    .downloadUrl("/media/" + mediaId)
+                    .url("/media/" + mediaId)
                     .build();
 
         } catch (IOException e) {
@@ -120,8 +119,8 @@ public class MediaServiceLocalImpl implements MediaServiceLocal {
      * @param mediaId the stored db
      * @return Path of the file
      */
-    public Path download(String userKey, String mediaId) {
-    	UserFileDocument file = userFileService.getFile(mediaId, userKey, FilePermission.DOWNLOAD);
+    public Path read(String userKey, String mediaId) {
+    	UserFileDocument file = userFileService.getFile(mediaId, userKey, FilePermission.READ);
     	
         Path filePath = Paths.get(file.getAbsolutePath());
         if (!Files.exists(filePath) || !Files.isReadable(filePath)) {

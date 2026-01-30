@@ -87,8 +87,7 @@ public class MediaServiceOssImpl implements MediaServiceOss {
                             sharedUser,
                             1,
                             Set.of(
-                                    FilePermission.VIEW,
-                                    FilePermission.DOWNLOAD,
+                                    FilePermission.READ,
                                     FilePermission.SHARE,
                                     FilePermission.DELETE
                             )
@@ -105,7 +104,7 @@ public class MediaServiceOssImpl implements MediaServiceOss {
                     .contentType(userFile.getContentType())
                     .size(file.getSize())
                     .encrypted(encrypted)
-                    .downloadUrl("/media/" + mediaId)
+                    .url("/media/" + mediaId)
                     .build();
 
         } catch (IOException e) {
@@ -113,17 +112,17 @@ public class MediaServiceOssImpl implements MediaServiceOss {
         }
     }
 
-    // ---------------- DOWNLOAD (SIGNED URL) ----------------
-    public String getDownloadUrl(String userKey, String mediaId) {
+    // ---------------- READ (SIGNED URL) ----------------
+    public String getReadUrl(String userKey, String mediaId) {
 
         UserFileDocument fileDoc =
-                userFileService.getFile(mediaId, userKey, FilePermission.DOWNLOAD);
+                userFileService.getFile(mediaId, userKey, FilePermission.READ);
 
         String objectKey = fileDoc.getAbsolutePath();
 
         Date expiration = new Date(
                 System.currentTimeMillis()
-                        + ossProps.getOss().getDownloadMaxDurationInMinutes() * 60_000L
+                        + ossProps.getOss().getSigExpirationInMinutes() * 60_000L
         );
 
         URL signedUrl = ossClient.generatePresignedUrl(

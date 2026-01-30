@@ -82,7 +82,7 @@ class MediaServiceLocalImplTest {
         assertEquals("text/plain", response.getContentType());
         assertEquals(file.getSize(), response.getSize());
         assertFalse(response.isEncrypted());
-        assertTrue(response.getDownloadUrl().contains(response.getMediaId()));
+        assertTrue(response.getUrl().contains(response.getMediaId()));
 
         // verify file persisted on disk
         Path storedFile = Files.list(tempDir).findFirst().orElseThrow();
@@ -103,7 +103,7 @@ class MediaServiceLocalImplTest {
     }
 
     @Test
-    void download_shouldReturnFilePath_whenAuthorized() throws Exception {
+    void read_shouldReturnFilePath_whenAuthorized() throws Exception {
         // given
         Path filePath = Files.createTempFile(tempDir, "media-", ".bin");
 
@@ -114,11 +114,11 @@ class MediaServiceLocalImplTest {
         when(userFileService.getFile(
                 eq("media-id"),
                 eq("11111111-1111-1111-1111-111111111111"),
-                eq(FilePermission.DOWNLOAD))
+                eq(FilePermission.READ))
         ).thenReturn(doc);
 
         // when
-        Path result = mediaService.download("11111111-1111-1111-1111-111111111111", "media-id");
+        Path result = mediaService.read("11111111-1111-1111-1111-111111111111", "media-id");
 
         // then
         assertEquals(filePath, result);
@@ -126,7 +126,7 @@ class MediaServiceLocalImplTest {
     }
 
     @Test
-    void download_shouldThrowException_whenFileMissing() {
+    void read_shouldThrowException_whenFileMissing() {
         // given
         UserFileDocument doc = new UserFileDocument();
         doc.setAbsolutePath(tempDir.resolve("missing.file").toString());
@@ -138,7 +138,7 @@ class MediaServiceLocalImplTest {
         // then
         RuntimeException ex = assertThrows(
                 RuntimeException.class,
-                () -> mediaService.download("11111111-1111-1111-1111-111111111111", "media-id")
+                () -> mediaService.read("11111111-1111-1111-1111-111111111111", "media-id")
         );
 
         assertTrue(ex.getMessage().contains("File not found"));

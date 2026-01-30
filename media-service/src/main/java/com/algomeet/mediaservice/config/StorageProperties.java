@@ -31,7 +31,7 @@ public class StorageProperties {
         private String region;          // ap-southeast-1
         private String endpoint;        // optional (MinIO, Wasabi)
         private boolean pathStyleAccess;
-        private Integer downloadMaxDurationInMinutes;
+        private Integer sigExpirationInMinutes;
     }
 
     @Data
@@ -40,6 +40,6 @@ public class StorageProperties {
         private String bucket;
         private String accessKeyId;
         private String accessKeySecret;
-        private int downloadMaxDurationInMinutes = 15;
+        private Integer sigExpirationInMinutes;
     }
 }

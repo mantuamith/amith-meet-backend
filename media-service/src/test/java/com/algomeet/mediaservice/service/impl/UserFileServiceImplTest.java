@@ -1,18 +1,18 @@
 package com.algomeet.mediaservice.service.impl;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
-
-import com.algomeet.mediaservice.document.FileAccessEntry;
-import com.algomeet.mediaservice.document.FilePermission;
-import com.algomeet.mediaservice.document.UserFileDocument;
-import com.algomeet.mediaservice.repository.UserFileRepository;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -20,6 +20,11 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.springframework.security.access.AccessDeniedException;
+
+import com.algomeet.mediaservice.document.FileAccessEntry;
+import com.algomeet.mediaservice.document.FilePermission;
+import com.algomeet.mediaservice.document.UserFileDocument;
+import com.algomeet.mediaservice.repository.UserFileRepository;
 
 class UserFileServiceImplTest {
 
@@ -65,7 +70,7 @@ class UserFileServiceImplTest {
 
         when(repository.findById(FILE_ID)).thenReturn(Optional.of(file));
 
-        UserFileDocument result = service.getFile(FILE_ID, OWNER, FilePermission.DOWNLOAD);
+        UserFileDocument result = service.getFile(FILE_ID, OWNER, FilePermission.READ);
 
         assertEquals(file, result);
     }
@@ -75,7 +80,7 @@ class UserFileServiceImplTest {
         when(repository.findById(FILE_ID)).thenReturn(Optional.empty());
 
         assertThrows(IllegalArgumentException.class,
-                () -> service.getFile(FILE_ID, OWNER, FilePermission.DOWNLOAD));
+                () -> service.getFile(FILE_ID, OWNER, FilePermission.READ));
     }
 
     @Test
@@ -117,9 +122,9 @@ class UserFileServiceImplTest {
 
         when(repository.findById(FILE_ID)).thenReturn(Optional.of(file));
 
-        service.updateLastDownloaded(FILE_ID);
+        service.updateLastRead(FILE_ID);
 
-        assertNotNull(file.getDateLastDownloaded());
+        assertNotNull(file.getDateLastRead());
         verify(repository).save(file);
     }
 
@@ -165,11 +170,11 @@ class UserFileServiceImplTest {
         file.setOwner(OWNER);
 
         FileAccessEntry entry = new FileAccessEntry(
-                USER, 1, Set.of(FilePermission.DOWNLOAD));
+                USER, 1, Set.of(FilePermission.READ));
 
         file.getAccessControlList().add(entry);
 
-        assertTrue(service.hasPermission(file, USER, FilePermission.DOWNLOAD));
+        assertTrue(service.hasPermission(file, USER, FilePermission.READ));
         assertFalse(service.hasPermission(file, USER, FilePermission.DELETE));
     }
 
@@ -244,9 +249,8 @@ class UserFileServiceImplTest {
         return new FileAccessEntry(
                 OWNER,
                 1,
-                Set.of(FilePermission.DOWNLOAD,
-                       FilePermission.SHARE,
-                       FilePermission.VIEW,
+                Set.of(FilePermission.SHARE,
+                       FilePermission.READ,
                        FilePermission.DELETE)
         );
     }

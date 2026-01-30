@@ -133,27 +133,27 @@ class FileControllerTest {
 	 */
 
 	@Test
-	void download_localStorage_success() throws Exception {
+	void read_localStorage_success() throws Exception {
 		UserFileDocument doc = new UserFileDocument();
 		doc.setStorage(Storage.LOCAL.name());
 
 		Path tempFile = Files.createTempFile("media-", ".txt");
 		Files.write(tempFile, "hello".getBytes());
 
-		when(userFileService.getFile("media1", USER_KEY, FilePermission.DOWNLOAD)).thenReturn(doc);
-		when(mediaServiceLocal.download(USER_KEY, "media1")).thenReturn(tempFile);
+		when(userFileService.getFile("media1", USER_KEY, FilePermission.READ)).thenReturn(doc);
+		when(mediaServiceLocal.read(USER_KEY, "media1")).thenReturn(tempFile);
 
 		mockMvc.perform(get("/media/media1")).andExpect(status().isOk()).andExpect(
-				header().string("Content-Disposition", "attachment; filename=\"" + tempFile.getFileName() + "\""));
+				header().string("Content-Disposition", "inline; filename=\"" + tempFile.getFileName() + "\""));
 	}
 
 	@Test
-	void download_s3_redirect() throws Exception {
+	void read_s3_redirect() throws Exception {
 		UserFileDocument doc = new UserFileDocument();
 		doc.setStorage(Storage.S3.name());
 
 		when(userFileService.getFile(any(), any(), any())).thenReturn(doc);
-		when(mediaServiceS3.getDownloadUrl(any(), any())).thenReturn("https://s3/presigned-url");
+		when(mediaServiceS3.getReadUrl(any(), any())).thenReturn("https://s3/presigned-url");
 
 		mockMvc.perform(get("/media/media1")).andExpect(status().isFound())
 				.andExpect(header().string("Location", "https://s3/presigned-url"));

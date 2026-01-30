@@ -56,20 +56,20 @@ public interface FileControllerDoc {
     // ========================= DOWNLOAD =========================
 
     @Operation(
-        summary = "Download media file",
+        summary = "Get/Read media file",
         description = """
-            Downloads a media file.
+            Gets/Reads a media file.
             - LOCAL: returns file bytes
             - S3 / OSS: returns HTTP 302 redirect to a presigned URL
             """,
         responses = {
-            @ApiResponse(responseCode = "200", description = "File downloaded (LOCAL)"),
+            @ApiResponse(responseCode = "200", description = "File get/read (LOCAL)"),
             @ApiResponse(responseCode = "302", description = "Redirect to presigned URL (S3 / OSS)"),
             @ApiResponse(responseCode = "403", description = "Access denied"),
             @ApiResponse(responseCode = "404", description = "Media not found")
         }
     )
-    public ResponseEntity<?> download(
+    public ResponseEntity<?> getMedia(
             @Parameter(description = "Media ID", required = true)
             @PathVariable String mediaId
     );

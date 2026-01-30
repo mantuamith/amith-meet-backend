@@ -1,8 +1,16 @@
 package com.algomeet.mediaservice.service.impl;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.contains;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import java.io.InputStream;
 import java.net.URL;
@@ -87,7 +95,7 @@ class MediaServiceOssImplTest {
         assertEquals("text/plain", response.getContentType());
         assertEquals(file.getSize(), response.getSize());
         assertFalse(response.isEncrypted());
-        assertTrue(response.getDownloadUrl().contains(response.getMediaId()));
+        assertTrue(response.getUrl().contains(response.getMediaId()));
 
         // verify OSS upload
         verify(ossClient).putObject(
@@ -116,10 +124,10 @@ class MediaServiceOssImplTest {
        ========================= */
 
     @Test
-    void getDownloadUrl_shouldReturnSignedUrl() throws Exception {
+    void getReadUrl_shouldReturnSignedUrl() throws Exception {
         when(storageProperties.getOss()).thenReturn(ossStorage);
         when(ossStorage.getBucket()).thenReturn("test-bucket");
-        when(ossStorage.getDownloadMaxDurationInMinutes()).thenReturn(15);
+        when(ossStorage.getSigExpirationInMinutes()).thenReturn(15);
         
         // given
         UserFileDocument doc = new UserFileDocument();
@@ -128,7 +136,7 @@ class MediaServiceOssImplTest {
         when(userFileService.getFile(
                 eq("media-id"),
                 eq("11111111-1111-1111-1111-111111111111"),
-                eq(FilePermission.DOWNLOAD))
+                eq(FilePermission.READ))
         ).thenReturn(doc);
 
         URL signedUrl = new URL("https://oss-signed-url");
@@ -140,7 +148,7 @@ class MediaServiceOssImplTest {
         )).thenReturn(signedUrl);
 
         // when
-        String url = mediaService.getDownloadUrl("11111111-1111-1111-1111-111111111111", "media-id");
+        String url = mediaService.getReadUrl("11111111-1111-1111-1111-111111111111", "media-id");
 
         // then
         assertEquals("https://oss-signed-url", url);

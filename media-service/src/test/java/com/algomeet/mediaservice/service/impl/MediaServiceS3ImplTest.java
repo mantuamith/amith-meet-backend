@@ -15,7 +15,6 @@ import static org.mockito.Mockito.when;
 
 import java.net.URL;
 import java.util.List;
-import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -98,13 +97,13 @@ class MediaServiceS3ImplTest {
 	}
 
 	@Test
-	void getDownloadUrl_shouldReturnPresignedUrl() throws Exception {
+	void getReadUrl_shouldReturnPresignedUrl() throws Exception {
 		when(storageProperties.getS3()).thenReturn(s3Storage);
 		when(s3Storage.getBucket()).thenReturn("test-bucket");
 		
 	    // storage config
 	    when(s3Storage.getRegion()).thenReturn("ap-southeast-1");
-	    when(s3Storage.getDownloadMaxDurationInMinutes()).thenReturn(15);
+	    when(s3Storage.getSigExpirationInMinutes()).thenReturn(15);
 	    when(s3Storage.getBucket()).thenReturn("test-bucket");
 
 	    // file permission check
@@ -114,7 +113,7 @@ class MediaServiceS3ImplTest {
 	    when(userFileService.getFile(
 	            eq("media-id"),
 	            eq("11111111-1111-1111-1111-111111111111"),
-	            eq(FilePermission.DOWNLOAD)))
+	            eq(FilePermission.READ)))
 	        .thenReturn(doc);
 
 	    // presigned URL
@@ -138,7 +137,7 @@ class MediaServiceS3ImplTest {
 	        mocked.when(S3Presigner::builder).thenReturn(builder);
 
 	        // when
-	        String url = mediaService.getDownloadUrl("11111111-1111-1111-1111-111111111111", "media-id");
+	        String url = mediaService.getReadUrl("11111111-1111-1111-1111-111111111111", "media-id");
 
 	        // then
 	        assertEquals("https://signed-url", url);
@@ -148,7 +147,7 @@ class MediaServiceS3ImplTest {
 
 	@Test
 	void getDownloadUrl_shouldFail_whenMediaIdMissing() {
-		RuntimeException ex = assertThrows(RuntimeException.class, () -> mediaService.getDownloadUrl("user-1", ""));
+		RuntimeException ex = assertThrows(RuntimeException.class, () -> mediaService.getReadUrl("user-1", ""));
 		assertTrue(ex.getMessage().contains("Media Id"));
 	}
 

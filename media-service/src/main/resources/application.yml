@@ -7,8 +7,8 @@ spring:
 spring:
   servlet:
     multipart:
-      max-file-size: 10MB
-      max-request-size: 50MB
+      max-file-size: 150MB
+      max-request-size: 350MB
       
   config:
     activate:
@@ -44,24 +44,24 @@ spring:
       INDENT_OUTPUT: true
 
 storage:
-  active-upload-storage: local
+  active-upload-storage: s3
   local: 
     dir: /tmp/media/
 
   s3:
-    access-key: AKIA4MF4OWXJ6C7GUQVV2
+    access-key: AKIA4MF4XOWJ6C7GUQVV2
     secret-key: AlOYvi6eicmZKIWg1afdZagNkKKbIKD7LGoqN0Mo
     region: ap-southeast-2
     bucket: algomeet-demo
     path-style-access: false
-    download-max-duration-in-minutes: 30
+    sig-expiration-in-minutes: 1
   
   oss:
-    access-key-id: LTAI5tHZ6boW8nX832Q6PWS2S
+    access-key-id: LTAXI5tHZ6boW8n832Q6PWS2S
     access-key-secret: 54IjrqeluGXxA3G2sVRw5ooljeiowk
     endpoint: https://oss-ap-southeast-6.aliyuncs.com
     bucket: algomeet-demo
-    download-max-duration-in-minutes: 30
+    sig-expiration-in-minutes: 1
 
 media:
   file:

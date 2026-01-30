@@ -1,8 +1,7 @@
 package com.algomeet.mediaservice.document;
 
 public enum FilePermission {
-    VIEW,
-    DOWNLOAD,
+    READ,
     SHARE,
     DELETE
 }
