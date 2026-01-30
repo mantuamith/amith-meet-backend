@@ -44,7 +44,7 @@ spring:
       INDENT_OUTPUT: true
 
 storage:
-  active-upload-storage: s3
+  active-upload-storage: local
   local: 
     dir: /tmp/media/
 
