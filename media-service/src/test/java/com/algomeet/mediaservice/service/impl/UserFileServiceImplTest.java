@@ -192,6 +192,8 @@ class UserFileServiceImplTest {
         service.shareFile(FILE_ID, OWNER, List.of(USER));
 
         assertEquals(2, file.getAccessControlList().size());
+        assertEquals(null, file.getCleanupEligibleAt());
+        
         verify(repository).save(file);
     }
 

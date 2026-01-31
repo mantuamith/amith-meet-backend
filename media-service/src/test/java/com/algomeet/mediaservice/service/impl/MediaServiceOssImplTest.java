@@ -14,7 +14,6 @@ import static org.mockito.Mockito.when;
 
 import java.io.InputStream;
 import java.net.URL;
-import java.util.List;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -76,14 +75,10 @@ class MediaServiceOssImplTest {
         );
 
         final String OWNER_KEY = UUID.fromString("11111111-1111-1111-1111-111111111111").toString();
-        final List<String> SHARED_WITH = List.of(
-                UUID.fromString("22222222-2222-2222-2222-222222222222").toString(),
-                UUID.fromString("33333333-3333-3333-3333-333333333333").toString());
 
         // when
         MediaUploadResponse response = mediaService.upload(
         		OWNER_KEY,
-        		SHARED_WITH,
                 file,
                 null,
                 false
@@ -114,9 +109,8 @@ class MediaServiceOssImplTest {
         assertEquals(file.getSize(), saved.getSize());
         assertEquals("OSS", saved.getStorage());
         assertFalse(saved.isEncrypted());
-
-        // owner + shared users
-        assertEquals(3, saved.getAccessControlList().size());
+        assertEquals(null, saved.getAccessControlList());
+        assertEquals(true, saved.getCleanupEligibleAt() != null);
     }
 
     /* =========================

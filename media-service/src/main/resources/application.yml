@@ -45,6 +45,8 @@ spring:
 
 storage:
   active-upload-storage: local
+  unshared-file-expiration-hours: 1
+  
   local: 
     dir: /tmp/media/
 

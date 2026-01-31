@@ -14,7 +14,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.net.URL;
-import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -74,7 +73,7 @@ class MediaServiceS3ImplTest {
 		MultipartFile file = new MockMultipartFile("file", "hello.txt", "text/plain", "hello s3".getBytes());
 
 		// when
-		MediaUploadResponse response = mediaService.upload("11111111-1111-1111-1111-111111111111", List.of("22222222-2222-2222-2222-222222222222"), file, null, false);
+		MediaUploadResponse response = mediaService.upload("11111111-1111-1111-1111-111111111111", file, null, false);
 
 		// then
 		assertNotNull(response.getMediaId());
@@ -93,7 +92,8 @@ class MediaServiceS3ImplTest {
 		assertEquals("S3", saved.getStorage());
 		assertEquals(file.getSize(), saved.getSize());
 		assertFalse(saved.isEncrypted());
-		assertEquals(1, saved.getAccessControlList().size());
+		assertEquals(null, saved.getAccessControlList());
+        assertEquals(true, saved.getCleanupEligibleAt() != null);
 	}
 
 	@Test

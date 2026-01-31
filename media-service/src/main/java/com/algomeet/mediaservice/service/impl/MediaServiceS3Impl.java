@@ -1,20 +1,15 @@
 package com.algomeet.mediaservice.service.impl;
 import java.io.IOException;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
+import java.time.Instant;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
-import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.algomeet.mediaservice.config.StorageProperties;
-import com.algomeet.mediaservice.document.FileAccessEntry;
 import com.algomeet.mediaservice.document.FilePermission;
 import com.algomeet.mediaservice.document.UserFileDocument;
 import com.algomeet.mediaservice.dto.MediaUploadResponse;
@@ -41,12 +36,11 @@ import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignReques
 public class MediaServiceS3Impl implements MediaServiceS3 {
     private final S3Client s3Client;
     private UserFileService userFileService;
-    private final StorageProperties s3Props;
+    private final StorageProperties storageProperties;
 
     @Override
     public MediaUploadResponse upload(
             String userKey,
-    		List<String> sharedWithUserKeys,
             MultipartFile file,
             String contentType,
             boolean encrypted
@@ -57,7 +51,7 @@ public class MediaServiceS3Impl implements MediaServiceS3 {
             String filename = mediaId + "_" + file.getOriginalFilename();
 
             PutObjectRequest request = PutObjectRequest.builder()
-                    .bucket(s3Props.getS3().getBucket())
+                    .bucket(storageProperties.getS3().getBucket())
                     .key(filename)
                     .contentType(
                         contentType != null ? contentType : file.getContentType()
@@ -77,7 +71,7 @@ public class MediaServiceS3Impl implements MediaServiceS3 {
                     )
             );
 
-            log.info("Media uploaded to s3://{}/{}", s3Props.getS3().getBucket(), filename);            
+            log.info("Media uploaded to s3://{}/{}", storageProperties.getS3().getBucket(), filename);            
             
             UserFileDocument userFile = new UserFileDocument();
             userFile.setId(mediaId);
@@ -85,36 +79,13 @@ public class MediaServiceS3Impl implements MediaServiceS3 {
             userFile.setContentType(contentType != null ? contentType : file.getContentType());
             userFile.setSize(file.getSize());
             userFile.setAbsolutePath(filename);
-            userFile.setEncrypted(encrypted);
-            
+            userFile.setEncrypted(encrypted);            
             userFile.setOwner(userKey);
-            List<FileAccessEntry> accessControlList = new ArrayList<>();
-            
-            Set<String> permittedUserKeys = new HashSet<>();
-            
-            if (!CollectionUtils.isEmpty(sharedWithUserKeys)) {
-            	sharedWithUserKeys.forEach(uKey -> {
-            		permittedUserKeys.add(uKey);
-            	});
-            } 
-        	// Add permission to owner itself
-            permittedUserKeys.add(userKey);
-                        
-            if (sharedWithUserKeys != null) {
-	            for(String sharedWithUserKey : sharedWithUserKeys) {
-	            	Set<FilePermission> permissions = new HashSet<>();
-	            	permissions.add(FilePermission.SHARE);
-	            	permissions.add(FilePermission.READ);
-	            	permissions.add(FilePermission.DELETE);
-	            	
-	            	Integer refCount = 1;
-	            	accessControlList.add(new FileAccessEntry(sharedWithUserKey, refCount, permissions));
-	            }
-            }
-            
-            userFile.setAccessControlList(accessControlList);      
+            userFile.setCleanupEligibleAt(
+            Instant.now().plus(Duration.ofHours(storageProperties.getUnsharedFileExpirationHours())));
+
             userFile.setStorage(Storage.S3.name());
-            
+                        
             userFileService.create(userFile);
             
 
@@ -147,17 +118,17 @@ public class MediaServiceS3Impl implements MediaServiceS3 {
 
         //  Build the GetObjectRequest
         GetObjectRequest getObjectRequest = GetObjectRequest.builder()
-                .bucket(s3Props.getS3().getBucket())
+                .bucket(storageProperties.getS3().getBucket())
                 .key(objectKey)
                 .build();
 
         //  Create a pre-signed URL valid for 15 minutes
         S3Presigner presigner = S3Presigner.builder()
-                .region(Region.of(s3Props.getS3().getRegion())) // ⚡ bucket region
+                .region(Region.of(storageProperties.getS3().getRegion())) // ⚡ bucket region
                 .build();
 
         GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
-                .signatureDuration(Duration.ofMinutes(s3Props.getS3().getSigExpirationInMinutes()))
+                .signatureDuration(Duration.ofMinutes(storageProperties.getS3().getSigExpirationInMinutes()))
                 .getObjectRequest(getObjectRequest)
                 .build();
 
@@ -175,11 +146,11 @@ public class MediaServiceS3Impl implements MediaServiceS3 {
 
         try {
             s3Client.deleteObject(DeleteObjectRequest.builder()
-                    .bucket(s3Props.getS3().getBucket())
+                    .bucket(storageProperties.getS3().getBucket())
                     .key(objectKey)
                     .build());
 
-            log.info("Deleted S3 object: s3://{}/{}", s3Props.getS3().getBucket(), objectKey);
+            log.info("Deleted S3 object: s3://{}/{}", storageProperties.getS3().getBucket(), objectKey);
             return true;
 
         } catch (S3Exception e) {

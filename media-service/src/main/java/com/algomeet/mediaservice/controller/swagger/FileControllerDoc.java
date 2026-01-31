@@ -1,6 +1,5 @@
 package com.algomeet.mediaservice.controller.swagger;
 
-import java.io.IOException;
 import java.util.List;
 
 import org.springframework.http.ResponseEntity;
@@ -14,7 +13,6 @@ import com.algomeet.mediaservice.dto.MediaUploadResponse;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.media.ArraySchema;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -38,11 +36,6 @@ public interface FileControllerDoc {
     public ResponseEntity<CommonResponse<MediaUploadResponse>> upload(
             @Parameter(description = "File to upload", required = true)
             @RequestPart("file") MultipartFile file,
-
-            @Parameter(description = "User keys to share file with")
-            @RequestParam(required = false)
-            @ArraySchema(schema = @Schema(type = "string"))
-            List<String> sharedWithUserKeys,
 
             @Parameter(description = "Override content type")
             @RequestParam(required = false)

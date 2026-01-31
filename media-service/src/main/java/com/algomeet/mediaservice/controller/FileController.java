@@ -60,7 +60,6 @@ public class FileController implements FileControllerDoc {
 	 */
 	@PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
 	public ResponseEntity<CommonResponse<MediaUploadResponse>> upload(@RequestPart("file") MultipartFile file,
-			@RequestParam(required = false) List<String> sharedWithUserKeys,
 			@RequestParam(required = false) String contentType, @RequestParam(required = false) Boolean encrypted)
 			throws Exception {
 
@@ -78,18 +77,18 @@ public class FileController implements FileControllerDoc {
 		if (storageProperties.getActiveUploadStorage() != null
 				&& Storage.LOCAL.name().equalsIgnoreCase(storageProperties.getActiveUploadStorage().trim())) {
 
-			response = mediaServiceLocal.upload(SecurityUtil.getUserKey(), sharedWithUserKeys, file, contentType,
+			response = mediaServiceLocal.upload(SecurityUtil.getUserKey(), file, contentType,
 					encrypted != null && encrypted);
 
 		} else if (storageProperties.getActiveUploadStorage() != null
 				&& Storage.S3.name().equalsIgnoreCase(storageProperties.getActiveUploadStorage().trim())) {
 
-			response = mediaServiceS3.upload(SecurityUtil.getUserKey(), sharedWithUserKeys, file, contentType,
+			response = mediaServiceS3.upload(SecurityUtil.getUserKey(), file, contentType,
 					encrypted != null && encrypted);
 		} else if (storageProperties.getActiveUploadStorage() != null
 				&& Storage.OSS.name().equalsIgnoreCase(storageProperties.getActiveUploadStorage().trim())) {
 
-			response = mediaServiceOss.upload(SecurityUtil.getUserKey(), sharedWithUserKeys, file, contentType,
+			response = mediaServiceOss.upload(SecurityUtil.getUserKey(), file, contentType,
 					encrypted != null && encrypted);
 		} else {
 			throw new IllegalArgumentException("Unexpected configuration active upload storage value: "

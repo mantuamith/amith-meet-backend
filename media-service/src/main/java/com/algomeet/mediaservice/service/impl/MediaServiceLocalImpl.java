@@ -5,18 +5,14 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
-import org.springframework.util.CollectionUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.algomeet.mediaservice.config.StorageProperties;
-import com.algomeet.mediaservice.document.FileAccessEntry;
 import com.algomeet.mediaservice.document.FilePermission;
 import com.algomeet.mediaservice.document.UserFileDocument;
 import com.algomeet.mediaservice.dto.MediaUploadResponse;
@@ -38,7 +34,6 @@ public class MediaServiceLocalImpl implements MediaServiceLocal {
     @Override
     public MediaUploadResponse upload(
     		String userKey,
-    		List<String> sharedWithUserKeys,
             MultipartFile file,
             String contentType,
             boolean encrypted
@@ -63,35 +58,11 @@ public class MediaServiceLocalImpl implements MediaServiceLocal {
             userFile.setContentType(contentType != null ? contentType : file.getContentType());
             userFile.setSize(file.getSize());
             userFile.setAbsolutePath(target.toUri().getPath());
-            userFile.setEncrypted(encrypted);
-            
+            userFile.setEncrypted(encrypted);            
             userFile.setOwner(userKey);
-            List<FileAccessEntry> accessControlList = new ArrayList<>();
-            
-            Set<String> permittedUserKeys = new HashSet<>();
-            
-            if (!CollectionUtils.isEmpty(sharedWithUserKeys)) {
-            	sharedWithUserKeys.forEach(uKey -> {
-            		permittedUserKeys.add(uKey);
-            	});
-            }  
-            
-        	// Add permission to owner itself 
-            permittedUserKeys.add(userKey);
-                        
-            if (sharedWithUserKeys != null) {
-	            for(String sharedWithUserKey : sharedWithUserKeys) {
-	            	Set<FilePermission> permissions = new HashSet<>();
-	            	permissions.add(FilePermission.SHARE);
-	            	permissions.add(FilePermission.READ);
-	            	permissions.add(FilePermission.DELETE);
-	            	
-	            	Integer refCount = 1;
-	            	accessControlList.add(new FileAccessEntry(sharedWithUserKey, refCount, permissions));
-	            }
-            }
-            
-            userFile.setAccessControlList(accessControlList);      
+			userFile.setCleanupEligibleAt(
+					Instant.now().plus(Duration.ofHours(storageProperties.getUnsharedFileExpirationHours())));
+ 
             userFile.setStorage(Storage.LOCAL.name());
             
             

@@ -108,13 +108,13 @@ class FileControllerTest {
 		MediaUploadResponse uploadResponse = MediaUploadResponse.builder().build();
 
 		when(storageProperties.getActiveUploadStorage()).thenReturn(Storage.LOCAL.name());
-		when(mediaServiceLocal.upload(any(), any(), any(), any(), anyBoolean())).thenReturn(uploadResponse);
+		when(mediaServiceLocal.upload(any(), any(), any(), anyBoolean())).thenReturn(uploadResponse);
 
 		mockMvc.perform(multipart("/media").file(file).param("contentType", "text/plain")).andExpect(status().isOk())
 				.andExpect(jsonPath("$.code").value("SUCCESS"));
 
 		verify(fileValidator).validate(file, false);
-		verify(mediaServiceLocal).upload(eq(USER_KEY), isNull(), eq(file), eq("text/plain"), eq(false));
+		verify(mediaServiceLocal).upload(eq(USER_KEY), eq(file), eq("text/plain"), eq(false));
 	}
 
 	@Test

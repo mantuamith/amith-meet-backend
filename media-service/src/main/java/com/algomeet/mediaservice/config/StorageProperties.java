@@ -16,7 +16,8 @@ public class StorageProperties {
 
     private LocalStorage local = new LocalStorage();
     private S3Storage s3 = new S3Storage();
-    private Oss oss;
+    private Oss oss;    
+    private Integer unsharedFileExpirationHours;
 
     @Data
     public static class LocalStorage {

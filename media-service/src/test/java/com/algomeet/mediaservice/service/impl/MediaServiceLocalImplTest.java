@@ -63,14 +63,10 @@ class MediaServiceLocalImplTest {
         );
 
         final String OWNER_KEY = UUID.fromString("11111111-1111-1111-1111-111111111111").toString();
-        final List<String> SHARED_WITH = List.of(
-                UUID.fromString("22222222-2222-2222-2222-222222222222").toString(),
-                UUID.fromString("33333333-3333-3333-3333-333333333333").toString());
 
         // when
         MediaUploadResponse response = mediaService.upload(
         		OWNER_KEY,
-        		SHARED_WITH,
                 file,
                 null,
                 false
@@ -99,7 +95,8 @@ class MediaServiceLocalImplTest {
         assertEquals(file.getSize(), saved.getSize());
         assertFalse(saved.isEncrypted());
         assertEquals("LOCAL", saved.getStorage());
-        assertEquals(2, saved.getAccessControlList().size());
+        assertEquals(null, saved.getAccessControlList());
+        assertEquals(true, saved.getCleanupEligibleAt() != null);
     }
 
     @Test

@@ -99,6 +99,9 @@ public class UserFileServiceImpl implements UserFileService {
 		if (!file.getOwner().equals(userKey) || !hasPermission(file, userKey, FilePermission.DELETE)) {
 			throw new AccessDeniedException("Only owner can delete file");
 		}
+		
+		// Set clean up date to null to disable auto deletion
+		file.setCleanupEligibleAt(null);
 
 		Set<String> forShareUserKeys = new HashSet<>();
 
