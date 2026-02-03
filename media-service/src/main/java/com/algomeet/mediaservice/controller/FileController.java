@@ -69,6 +69,7 @@ public class FileController implements FileControllerDoc {
 			// Validate file
 			fileValidator.validate(file, encrypted != null && encrypted);
 		} catch (FileTypeNotSupportedException ex) {
+			log.error("Error ", ex.getMessage(), ex);
 			return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE)
 					.body(CommonResponse.from(ResponseCode.MEDIA_FILE_TYPE_NOT_SUPPORTED));
 		}
@@ -134,6 +135,7 @@ public class FileController implements FileControllerDoc {
 			};
 
 		} catch (IOException e) {
+			log.error("Error ", e.getMessage(), e);
 			return ResponseEntity.status(404).body(null);
 		}
 	}
@@ -147,8 +149,10 @@ public class FileController implements FileControllerDoc {
 
 			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
 		} catch (IllegalArgumentException e) {
+			log.error("Error ", e.getMessage(), e);
 			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.MEDIA_NOT_FOUND));
 		} catch (AccessDeniedException e) {
+			log.error("Error ", e.getMessage(), e);
 			return ResponseEntity.status(HttpStatus.FORBIDDEN)
 					.body(CommonResponse.from(ResponseCode.MEDIA_ACCESS_DENIED));
 		}
@@ -161,8 +165,10 @@ public class FileController implements FileControllerDoc {
 
 			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
 		} catch (IllegalArgumentException e) {
+			log.error("Error ", e.getMessage(), e);
 			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.MEDIA_NOT_FOUND));
 		} catch (AccessDeniedException e) {
+			log.error("Error ", e.getMessage(), e);
 			return ResponseEntity.status(HttpStatus.FORBIDDEN)
 					.body(CommonResponse.from(ResponseCode.MEDIA_ACCESS_DENIED));
 		}

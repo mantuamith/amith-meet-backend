@@ -85,7 +85,7 @@ public class MediaServiceLocalImpl implements MediaServiceLocal {
     }
     
     /**
-     * Download media file as Path
+     * READ media file as Path
      *
      * @param mediaId the stored db
      * @return Path of the file

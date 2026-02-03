@@ -110,7 +110,7 @@ public class MediaServiceS3Impl implements MediaServiceS3 {
         if (!StringUtils.hasText(mediaId)) {
             throw new RuntimeException("Media Id is required");
         }
-        // ️Verify the user has download permission
+        // ️Verify the user has read/get permission
         UserFileDocument fileDoc = userFileService.getFile(mediaId, userKey, FilePermission.READ);        
 
         //  Build S3 key (absolute path)

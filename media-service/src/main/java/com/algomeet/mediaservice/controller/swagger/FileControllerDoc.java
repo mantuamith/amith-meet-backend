@@ -19,7 +19,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 
-@Tag(name = "Media API", description = "Upload, download, share, and delete media files")
+@Tag(name = "Media API", description = "Upload, read, share, and delete media files")
 public interface FileControllerDoc {
     // ========================= UPLOAD =========================
 
@@ -46,7 +46,7 @@ public interface FileControllerDoc {
             Boolean encrypted
     ) throws Exception;
 
-    // ========================= DOWNLOAD =========================
+    // ========================= GET/READ =========================
 
     @Operation(
         summary = "Get/Read media file",

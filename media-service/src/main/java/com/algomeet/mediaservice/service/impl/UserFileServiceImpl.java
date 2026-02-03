@@ -1,6 +1,7 @@
 package com.algomeet.mediaservice.service.impl;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -74,34 +75,29 @@ public class UserFileServiceImpl implements UserFileService {
 
 	@Override
 	public boolean hasPermission(UserFileDocument file, String userKey, FilePermission permission) {
-		// Owner has full access
-		if (file.getOwner().equals(userKey) && file.getCleanupEligibleAt() == null) {
+		
+		// Owner has full access but don't show the file that is already eligible for cleanup
+		if ((file.getOwner().equals(userKey) && file.getCleanupEligibleAt() == null)
+				|| (file.getOwner().equals(userKey) && file.getCleanupEligibleAt().isAfter(Instant.now()))) {
 			return true;
 		}
 
 		if (file.getAccessControlList() == null) {
 			return false;
 		}
-		
+
 		return file.getAccessControlList().stream().filter(entry -> entry.getUserKey().equals(userKey))
 				.map(FileAccessEntry::getPermissions).anyMatch(perms -> perms.contains(permission));
 	}
-	
+
 	@Override
 	public void shareFile(String fileId, String userKey, List<String> shareWithUserKeys) {
 		UserFileDocument file = repository.findById(fileId)
 				.orElseThrow(() -> new IllegalArgumentException("File not found"));
 
-		if (file.getCleanupEligibleAt() != null) {
-			throw new RuntimeException("Invalid file state, the file is in eligible for cleanup state");
+		if (!hasPermission(file, userKey, FilePermission.SHARE)) {
+			throw new AccessDeniedException("User is not allowed to share the media/file");
 		}
-		
-		if (!file.getOwner().equals(userKey) || !hasPermission(file, userKey, FilePermission.DELETE)) {
-			throw new AccessDeniedException("Only owner can delete file");
-		}
-		
-		// Set clean up date to null to disable auto deletion
-		file.setCleanupEligibleAt(null);
 
 		Set<String> forShareUserKeys = new HashSet<>();
 
@@ -113,36 +109,43 @@ public class UserFileServiceImpl implements UserFileService {
 
 		// Add owner it self
 		forShareUserKeys.add(userKey);
-		
-		for (String uKey : forShareUserKeys) {
-			Iterator<FileAccessEntry> itAccControl = file.getAccessControlList().iterator();
 
+		for (String uKey : forShareUserKeys) {
 			boolean isFound = false;
-			while (itAccControl.hasNext()) {
-				FileAccessEntry accControl = itAccControl.next();
-				if (uKey.equalsIgnoreCase(accControl.getUserKey())) {
-					accControl.setRefCount((accControl.getRefCount() + 1));
-					isFound = true;
-				} 
+
+			if (!CollectionUtils.isEmpty(file.getAccessControlList())) {
+				Iterator<FileAccessEntry> itAccControl = file.getAccessControlList().iterator();
+
+				while (itAccControl.hasNext()) {
+					FileAccessEntry accControl = itAccControl.next();
+					if (uKey.equalsIgnoreCase(accControl.getUserKey())) {
+						accControl.setRefCount((accControl.getRefCount() + 1));
+						isFound = true;
+					}
+				}
 			}
-			
+
 			if (!isFound) {
-            	Set<FilePermission> permissions = new HashSet<>();
-            	permissions.add(FilePermission.SHARE);
-            	permissions.add(FilePermission.READ);
-            	permissions.add(FilePermission.DELETE);
-            	
-            	Integer refCount = 1;
-            	file.getAccessControlList().add(new FileAccessEntry(uKey, refCount, permissions));
+				Set<FilePermission> permissions = new HashSet<>();
+				permissions.add(FilePermission.SHARE);
+				permissions.add(FilePermission.READ);
+				permissions.add(FilePermission.DELETE);
+
+				Integer refCount = 1;
+			
+				// Check if empty
+				if (CollectionUtils.isEmpty(file.getAccessControlList())) {
+					file.setAccessControlList(new ArrayList<>());
+				} 
+
+				file.getAccessControlList().add(new FileAccessEntry(uKey, refCount, permissions));
+
 			}
 		}
-		
-		if (file.getAccessControlList().isEmpty()) {
-			// set eligible for batch job clean up
-			file.setCleanupEligibleAt(Instant.now());
-		}
-		
-		repository.save(file);		
+
+		// Set clean up date to null to disable auto deletion
+		file.setCleanupEligibleAt(null);
+		repository.save(file);
 	}
 
 	@Override
@@ -150,8 +153,8 @@ public class UserFileServiceImpl implements UserFileService {
 		UserFileDocument file = repository.findById(fileId)
 				.orElseThrow(() -> new IllegalArgumentException("File not found"));
 
-		if (!file.getOwner().equals(userKey) || !hasPermission(file, userKey, FilePermission.DELETE)) {
-			throw new AccessDeniedException("Only owner can delete file");
+		if (!hasPermission(file, userKey, FilePermission.DELETE)) {
+			throw new AccessDeniedException("User is not allowed to delete the media/file");
 		}
 
 		Set<String> forDeleteUserKeys = new HashSet<>();
@@ -178,13 +181,13 @@ public class UserFileServiceImpl implements UserFileService {
 				if (accControl.getRefCount() <= 0) {
 					itAccControl.remove();
 				}
-			}			
+			}
 		}
 		if (file.getAccessControlList().isEmpty()) {
 			// set eligible for batch job clean up
 			file.setCleanupEligibleAt(Instant.now());
 		}
-		
+
 		repository.save(file);
 	}
 }
