@@ -262,7 +262,8 @@ public class MeetingController implements MeetingControllerDoc  {
         try {
             var ud = userDirectoryClient.exact(email);
             userId = ud.userKey() != null ? ud.userKey().toString() : email;
-            display = ud.displayName() != null ? ud.displayName() : email;
+            display = ud.username() != null ? ud.username() : email;
+            log.info("User directory lookup for {} returned userId={}, display={}", email, userId, display);
         } catch (Exception e) {
             // Safe fallback if directory is down or not provisioned
             userId = email;
