@@ -15,7 +15,7 @@ public interface UserFileService {
 
     List<UserFileDocument> listFilesSharedWithMe(String userKey);
 
-    void updateLastDownloaded(String fileId);
+    void updateLastRead(String fileId);
 
     void deleteFile(String fileId, String userKey);
 

@@ -1,6 +1,5 @@
 package com.algomeet.mediaservice.controller.swagger;
 
-import java.io.IOException;
 import java.util.List;
 
 import org.springframework.http.ResponseEntity;
@@ -14,14 +13,13 @@ import com.algomeet.mediaservice.dto.MediaUploadResponse;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.media.ArraySchema;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 
-@Tag(name = "Media API", description = "Upload, download, share, and delete media files")
+@Tag(name = "Media API", description = "Upload, read, share, and delete media files")
 public interface FileControllerDoc {
     // ========================= UPLOAD =========================
 
@@ -39,11 +37,6 @@ public interface FileControllerDoc {
             @Parameter(description = "File to upload", required = true)
             @RequestPart("file") MultipartFile file,
 
-            @Parameter(description = "User keys to share file with")
-            @RequestParam(required = false)
-            @ArraySchema(schema = @Schema(type = "string"))
-            List<String> sharedWithUserKeys,
-
             @Parameter(description = "Override content type")
             @RequestParam(required = false)
             String contentType,
@@ -53,23 +46,23 @@ public interface FileControllerDoc {
             Boolean encrypted
     ) throws Exception;
 
-    // ========================= DOWNLOAD =========================
+    // ========================= GET/READ =========================
 
     @Operation(
-        summary = "Download media file",
+        summary = "Get/Read media file",
         description = """
-            Downloads a media file.
+            Gets/Reads a media file.
             - LOCAL: returns file bytes
             - S3 / OSS: returns HTTP 302 redirect to a presigned URL
             """,
         responses = {
-            @ApiResponse(responseCode = "200", description = "File downloaded (LOCAL)"),
+            @ApiResponse(responseCode = "200", description = "File get/read (LOCAL)"),
             @ApiResponse(responseCode = "302", description = "Redirect to presigned URL (S3 / OSS)"),
             @ApiResponse(responseCode = "403", description = "Access denied"),
             @ApiResponse(responseCode = "404", description = "Media not found")
         }
     )
-    public ResponseEntity<?> download(
+    public ResponseEntity<?> getMedia(
             @Parameter(description = "Media ID", required = true)
             @PathVariable String mediaId
     );
