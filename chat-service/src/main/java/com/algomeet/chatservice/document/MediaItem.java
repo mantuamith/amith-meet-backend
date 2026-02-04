@@ -8,6 +8,9 @@ import org.springframework.data.mongodb.core.mapping.Field;
 @NoArgsConstructor
 public class MediaItem {
 
+	@Field("mediaId")
+    private String mediaId;
+	
     @Field("url")
     private String url;
 

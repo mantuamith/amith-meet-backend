@@ -11,7 +11,9 @@
     import com.algomeet.chatservice.repository.MessageRepository;
     import com.algomeet.chatservice.service.MessageDeleteService;
     import com.algomeet.chatservice.service.MessageService;
-    import jakarta.validation.Valid;
+import com.algomeet.chatservice.util.SecurityUtil;
+
+import jakarta.validation.Valid;
     import lombok.AllArgsConstructor;
     import org.springframework.data.domain.PageRequest;
     import org.springframework.data.domain.Pageable;
@@ -44,7 +46,8 @@
         @PostMapping("/delete")
         public ResponseEntity<MessageDeleteResult> deleteMessages(@Valid @RequestBody MessageDeleteRequest req) {
             String requester = SecurityContextHolder.getContext().getAuthentication().getName();
-            MessageDeleteResult result = deleteService.deleteMessages(req.getMessageIds(), requester, req.isDeleteForEveryone());
+            
+            MessageDeleteResult result = deleteService.deleteMessages(req.getMessageIds(), requester, SecurityUtil.getUserKey(), req.isDeleteForEveryone());
             return ResponseEntity.ok(result);
         }
 
