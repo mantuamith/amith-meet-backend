@@ -48,8 +48,8 @@ public class UserFileDocument {
     @Field("dateLastModified")
     private Instant dateLastModified;
 
-    @Field("dateLastDownloaded")
-    private Instant dateLastDownloaded;
+    @Field("dateLastRead")
+    private Instant dateLastRead;
 
     /**
      * Owner userId
