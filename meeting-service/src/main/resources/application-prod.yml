@@ -59,6 +59,12 @@ algomeet:
     sub: meet.algoframe.in         # -> sub (your Algomeet)
     secret-base64: ${ALGOMEET_JWT_SECRET_BASE64}
     ttl-seconds: 300
+  idgen:
+    timezone: UTC          # default; can set to Asia/Kolkata, etc.
+    key-prefix: "meet:id:seq:"
+    ttl-days: 10
+  links:
+    base: ${SPRING_MEETING_BASE_URL}
 
 feign:
   client:
