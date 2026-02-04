@@ -106,7 +106,7 @@ class MessageActionServiceTest {
         req.setReplyToMessageId("orig");
         req.setReceiver("bob");
         req.setContent("reply");
-        MessageDocument saved = service.replyTo(req, "alice", "null");
+        MessageDocument saved = service.replyTo(req, "alice");
 
         assertThat(saved.getId()).isEqualTo("replyId");
         verify(simp).convertAndSendToUser(eq("bob"), eq("/queue/messages"), any());
@@ -115,7 +115,7 @@ class MessageActionServiceTest {
 
     @Test
     void forward_missingOriginal_returnsNull() {
-        MessageDocument result = service.forward(makeForward("missing","bob", null), "alice", null);
+        MessageDocument result = service.forward(makeForward("missing","bob", null), "alice");
         assertThat(result).isNull();
         verify(repo, never()).save(any());
     }
@@ -134,7 +134,7 @@ class MessageActionServiceTest {
             return d;
         });
 
-        MessageDocument saved = service.forward(makeForward("orig1", "charlie", null), "alice", null);
+        MessageDocument saved = service.forward(makeForward("orig1", "charlie", null), "alice");
         assertThat(saved.getId()).isEqualTo("fwdId");
         assertThat(saved.getForwarded()).isNotNull();
         assertThat(saved.getForwarded().getOriginalMessageId()).isEqualTo("orig1");

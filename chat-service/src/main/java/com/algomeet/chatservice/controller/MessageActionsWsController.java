@@ -39,12 +39,12 @@ public class MessageActionsWsController {
 
     @MessageMapping("/actions/reply")
     public void wsReply(@Payload ReplyRequest req, Principal principal) {
-        MessageDocument saved = actions.replyTo(req, principal.getName(), null);
+        MessageDocument saved = actions.replyTo(req, principal.getName());
         // service dispatches as a new message event to participants
     }
 
     @MessageMapping("/actions/forward")
     public void wsForward(@Payload ForwardRequest req, Principal principal) {
-        actions.forward(req, principal.getName(), null);
+        actions.forward(req, principal.getName());
     }
 }

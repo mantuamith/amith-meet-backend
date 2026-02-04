@@ -67,10 +67,10 @@ class MessageActionsWsControllerTest {
         req.setReceiver("bob");
         req.setContent("reply");
 
-        when(actions.replyTo(any(ReplyRequest.class), eq("alice"), isNull())).thenReturn(new MessageDocument());
+        when(actions.replyTo(any(ReplyRequest.class), eq("alice"))).thenReturn(new MessageDocument());
 
         controller.wsReply(req, principal);
-        verify(actions).replyTo(any(ReplyRequest.class), eq("alice"), isNull());
+        verify(actions).replyTo(any(ReplyRequest.class), eq("alice"));
     }
 
     @Test
@@ -80,6 +80,6 @@ class MessageActionsWsControllerTest {
         req.setReceiver("bob");
 
         controller.wsForward(req, principal);
-        verify(actions).forward(any(ForwardRequest.class), eq("alice"), isNull());
+        verify(actions).forward(any(ForwardRequest.class), eq("alice"));
     }
 }
