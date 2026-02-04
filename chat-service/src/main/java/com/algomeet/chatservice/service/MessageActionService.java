@@ -76,10 +76,12 @@ public class MessageActionService {
         return updated;
     }
 
-    public MessageDocument replyTo(ReplyRequest req, String sender, String senderKey) {
+    public MessageDocument replyTo(ReplyRequest req, String sender) {
         MessageDocument reply = new MessageDocument();
-        reply.setSender(sender);
-        reply.setSenderKey(senderKey);
+        reply.setSender(sender); //TO Deprecate this field :: TODO
+        reply.setSenderKey(req.getFromKey());
+        reply.setReceiverKey(req.getToKey());
+        reply.setEncryptionMetadata(req.getEncryptionMetadata());
         reply.setContent(req.getContent());
         reply.setStatus(MessageStatus.SENT);
         reply.setClientMessageId(req.getClientMessageId());
@@ -100,7 +102,7 @@ public class MessageActionService {
         return saved;
     }
 
-    public MessageDocument forward(ForwardRequest req, String sender, String senderKey) {
+    public MessageDocument forward(ForwardRequest req, String sender) {
         MessageDocument original = messageRepository.findById(req.getOriginalMessageId()).orElse(null);
         if (original == null) return null;
 
@@ -108,7 +110,9 @@ public class MessageActionService {
         fwd.setTimestamp(Instant.ofEpochSecond(req.getMsgForwardTimeStamp()));
         fwd.setClientMessageId(req.getClientMessageId());
         fwd.setSender(sender);
-        fwd.setSenderKey(senderKey);
+        fwd.setSenderKey(req.getFromKey());
+        fwd.setReceiverKey(req.getToKey());
+        fwd.setEncryptionMetadata(req.getEncryptionMetadata());
         fwd.setContent(original.getContent());
         fwd.setType(original.getType());
         fwd.setMessageMediaType(original.getMessageMediaType());

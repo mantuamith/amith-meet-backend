@@ -51,13 +51,13 @@ public class MessageActionsController {
 
     @PostMapping("/reply-message")
     public ResponseEntity<MessageResponse> reply(@Valid @RequestBody ReplyRequest req) {
-        MessageDocument saved = actions.replyTo(req, currentUser(), null);
+        MessageDocument saved = actions.replyTo(req, currentUser());
         return ResponseEntity.ok(messageMapper.toResponse(saved));
     }
 
     @PostMapping("/forward-message")
     public ResponseEntity<MessageResponse> forward(@Valid @RequestBody ForwardRequest req) {
-        MessageDocument saved = actions.forward(req, currentUser(), null);
+        MessageDocument saved = actions.forward(req, currentUser());
         if (saved == null)
             return ResponseEntity.badRequest().build();
         return ResponseEntity.ok(messageMapper.toResponse(saved));

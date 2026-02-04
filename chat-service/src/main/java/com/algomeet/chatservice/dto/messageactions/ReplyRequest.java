@@ -1,7 +1,10 @@
 package com.algomeet.chatservice.dto.messageactions;
 
+import com.algomeet.chatservice.document.EncrytionMetadata;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
+
+import java.util.List;
 
 @Data
 public class ReplyRequest {
@@ -18,4 +21,9 @@ public class ReplyRequest {
     private String clientMessageId;
 
     private Long msgReplyTimeStamp;
+
+    private List<EncrytionMetadata> encryptionMetadata;
+
+    private String fromKey;  // UUID string
+    private String toKey;    // UUID string
 }
