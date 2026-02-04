@@ -52,6 +52,11 @@ spring:
 group:
     service:
       url: http://localhost:8083
+      
+media:
+    service:
+      url: http://localhost:8095
+
 jwt:
    secret: Y0h4TkFxWkd6Um9TTktOVlFobU9naFN3SzY5cWhVY08=
 

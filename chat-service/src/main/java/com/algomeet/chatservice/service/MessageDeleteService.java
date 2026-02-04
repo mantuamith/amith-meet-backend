@@ -21,12 +21,13 @@ public class MessageDeleteService {
 
     private final MessageRepository messageRepository;
     private final SimpMessagingSyncTemplate messagingSyncTemplate;
+    private final MediaService mediaService;
 
     /**
      * Bulk delete. If deleteForEveryone = true → only the sender of each message can do this.
      * If false → delete only for requester (add requester to deletedForUsers).
      */
-    public MessageDeleteResult deleteMessages(List<String> messageIds, String requester, boolean deleteForEveryone) {
+    public MessageDeleteResult deleteMessages(List<String> messageIds, String requester, String requesterKey, boolean deleteForEveryone) {
         long now = Instant.now().getEpochSecond();
 
         List<String> deletedForEveryoneIds = new ArrayList<>();
@@ -81,6 +82,9 @@ public class MessageDeleteService {
                 // notify both participants of this id
                 notifyForEveryoneByUser.computeIfAbsent(msg.getSender(), k -> new ArrayList<>()).add(id);
                 notifyForEveryoneByUser.computeIfAbsent(msg.getReceiver(), k -> new ArrayList<>()).add(id);
+                
+                // Delete/remove sender and receivers from media permissions
+                mediaService.deleteAll(msg, requesterKey);
 
             } else {
                 // Delete "for me" = add requester to deletedForUsers
@@ -94,6 +98,9 @@ public class MessageDeleteService {
                     messageRepository.save(msg);
                 }
                 deletedForMeIds.add(id);
+                
+                // Delete/remove requester from media permissions
+                mediaService.delete(msg, requesterKey);
             }
         }
 

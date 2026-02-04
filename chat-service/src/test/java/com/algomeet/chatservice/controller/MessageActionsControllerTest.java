@@ -145,7 +145,7 @@ class MessageActionsControllerTest {
         resp.setId("newReplyId");
         resp.setContent("reply text");
 
-        when(actions.replyTo(any(ReplyRequest.class), eq("alice"))).thenReturn(saved);
+        when(actions.replyTo(any(ReplyRequest.class), eq("alice"), isNull())).thenReturn(saved);
         when(messageMapper.toResponse(saved)).thenReturn(resp);
 
         mockMvc.perform(post("/api/messages/reply-message")
@@ -170,7 +170,7 @@ class MessageActionsControllerTest {
         MessageResponse resp = new MessageResponse();
         resp.setId("fwdId");
 
-        when(actions.forward(any(ForwardRequest.class), eq("alice"))).thenReturn(saved);
+        when(actions.forward(any(ForwardRequest.class), eq("alice"), isNull())).thenReturn(saved);
         when(messageMapper.toResponse(saved)).thenReturn(resp);
 
         mockMvc.perform(
@@ -192,7 +192,7 @@ class MessageActionsControllerTest {
         req.setOriginalMessageId("missing");
         req.setReceiver("bob");
 
-        when(actions.forward(any(ForwardRequest.class), eq("alice"))).thenReturn(null);
+        when(actions.forward(any(ForwardRequest.class), eq("alice"), isNull())).thenReturn(null);
 
         mockMvc.perform(post("/api/messages/forward-message")
                         .with(csrf())

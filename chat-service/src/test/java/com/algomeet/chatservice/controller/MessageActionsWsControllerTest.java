@@ -1,5 +1,6 @@
 package com.algomeet.chatservice.controller;
 
+import com.algomeet.chatservice.config.StompUserPrincipal;
 import com.algomeet.chatservice.document.MessageDocument;
 import com.algomeet.chatservice.dto.*;
 import com.algomeet.chatservice.dto.messageactions.*;
@@ -17,7 +18,7 @@ class MessageActionsWsControllerTest {
 
     @Mock private MessageActionService actions;
     @Mock private MessageMapper messageMapper;
-    @Mock private Principal principal;
+    @Mock private StompUserPrincipal principal;
 
     @InjectMocks private MessageActionsWsController controller;
 
@@ -67,10 +68,10 @@ class MessageActionsWsControllerTest {
         req.setReceiver("bob");
         req.setContent("reply");
 
-        when(actions.replyTo(any(ReplyRequest.class), eq("alice"))).thenReturn(new MessageDocument());
+        when(actions.replyTo(any(ReplyRequest.class), eq("alice"), isNull())).thenReturn(new MessageDocument());
 
         controller.wsReply(req, principal);
-        verify(actions).replyTo(any(ReplyRequest.class), eq("alice"));
+        verify(actions).replyTo(any(ReplyRequest.class), eq("alice"), isNull());
     }
 
     @Test
@@ -80,6 +81,6 @@ class MessageActionsWsControllerTest {
         req.setReceiver("bob");
 
         controller.wsForward(req, principal);
-        verify(actions).forward(any(ForwardRequest.class), eq("alice"));
+        verify(actions).forward(any(ForwardRequest.class), eq("alice"), isNull());
     }
 }
