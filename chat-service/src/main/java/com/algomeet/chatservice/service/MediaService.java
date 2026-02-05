@@ -81,9 +81,15 @@ public class MediaService {
 	}
 
 	public void share(MessageDocument message, GroupDto group) {
-		Set<String> shareWithUserKeys = new HashSet<>();
 		if (!mediaServiceSupport) {return;}
-		// Check if message has media group
+		
+		// Check if is media group empty
+		if (CollectionUtils.isEmpty(message.getMediaGroup())) {
+			return;
+		}
+				
+		Set<String> shareWithUserKeys = new HashSet<>();
+		// Check if group message
 		if (group != null) {
 			// Add logic for group message
 			shareWithUserKeys = group.members.stream().map(m -> m.getUserKey()).collect(Collectors.toSet());
@@ -99,31 +105,38 @@ public class MediaService {
 
 	public void delete(MessageDocument message, String requesterKey) {
 		if (!mediaServiceSupport) {return;}
-		// Check if has media group
-		if (!CollectionUtils.isEmpty(message.getMediaGroup())) {
-			for (MediaItem item : message.getMediaGroup()) {
-				delete(item.getMediaId(), requesterKey, List.of(requesterKey));
-			}
+		
+		// Check if media group is empty
+		if (CollectionUtils.isEmpty(message.getMediaGroup())) {
+			return;
+		}
+		
+		for (MediaItem item : message.getMediaGroup()) {
+			delete(item.getMediaId(), requesterKey, List.of(requesterKey));
 		}
 	}
 
 	public void deleteAll(MessageDocument message, String requesterKey) {
-		// Check if message has media group
-		if (!CollectionUtils.isEmpty(message.getMediaGroup())) {
-			Set<String> deleteWithUserKeys = new HashSet<>();
-
-			if (message.isGroupMessage()) {
-				// Add logic for group message
-				GroupDto group = groupClient.getGroupById(Long.parseLong(message.getGroupId()));
-				deleteWithUserKeys = group.members.stream().map(m -> m.getUserKey()).collect(Collectors.toSet());
-			} else {
-				deleteWithUserKeys = Set.of(message.getSenderKey(), message.getReceiverKey());
-			}
-
-			// Delete
-			for (MediaItem item : message.getMediaGroup()) {
-				delete(item.getMediaId(), requesterKey, new ArrayList<>(deleteWithUserKeys));
-			}
+		if (!mediaServiceSupport) {return;}
+		
+		// Check if media group is empty
+		if (CollectionUtils.isEmpty(message.getMediaGroup())) {
+			return;
 		}
+		
+		Set<String> deleteWithUserKeys = new HashSet<>();
+
+		if (message.isGroupMessage()) {
+			// Add logic for group message
+			GroupDto group = groupClient.getGroupById(Long.parseLong(message.getGroupId()));
+			deleteWithUserKeys = group.members.stream().map(m -> m.getUserKey()).collect(Collectors.toSet());
+		} else {
+			deleteWithUserKeys = Set.of(message.getSenderKey(), message.getReceiverKey());
+		}
+
+		// Delete
+		for (MediaItem item : message.getMediaGroup()) {
+			delete(item.getMediaId(), requesterKey, new ArrayList<>(deleteWithUserKeys));
+		}		
 	}
 }
