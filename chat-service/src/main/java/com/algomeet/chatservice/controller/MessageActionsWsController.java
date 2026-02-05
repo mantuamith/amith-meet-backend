@@ -1,5 +1,6 @@
 package com.algomeet.chatservice.controller;
 
+import com.algomeet.chatservice.config.StompUserPrincipal;
 import com.algomeet.chatservice.document.MessageDocument;
 import com.algomeet.chatservice.dto.*;
 import com.algomeet.chatservice.dto.messageactions.*;
@@ -39,12 +40,12 @@ public class MessageActionsWsController {
 
     @MessageMapping("/actions/reply")
     public void wsReply(@Payload ReplyRequest req, Principal principal) {
-        MessageDocument saved = actions.replyTo(req, principal.getName(), null);
+        MessageDocument saved = actions.replyTo(req, principal.getName(), ((StompUserPrincipal) principal).userKey());
         // service dispatches as a new message event to participants
     }
 
     @MessageMapping("/actions/forward")
     public void wsForward(@Payload ForwardRequest req, Principal principal) {
-        actions.forward(req, principal.getName(), null);
+        actions.forward(req, principal.getName(), ((StompUserPrincipal) principal).userKey());
     }
 }

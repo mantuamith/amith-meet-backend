@@ -1,5 +1,6 @@
 package com.algomeet.chatservice.controller;
 
+import com.algomeet.chatservice.config.StompUserPrincipal;
 import com.algomeet.chatservice.document.MessageDocument;
 import com.algomeet.chatservice.dto.*;
 import com.algomeet.chatservice.dto.messageactions.*;
@@ -17,7 +18,7 @@ class MessageActionsWsControllerTest {
 
     @Mock private MessageActionService actions;
     @Mock private MessageMapper messageMapper;
-    @Mock private Principal principal;
+    @Mock private StompUserPrincipal principal;
 
     @InjectMocks private MessageActionsWsController controller;
 

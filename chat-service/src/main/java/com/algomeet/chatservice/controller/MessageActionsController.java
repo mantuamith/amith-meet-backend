@@ -6,6 +6,7 @@ import com.algomeet.chatservice.dto.*;
 import com.algomeet.chatservice.dto.messageactions.*;
 import com.algomeet.chatservice.mapper.MessageMapper;
 import com.algomeet.chatservice.service.MessageActionService;
+import com.algomeet.chatservice.util.SecurityUtil;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -51,13 +52,13 @@ public class MessageActionsController {
 
     @PostMapping("/reply-message")
     public ResponseEntity<MessageResponse> reply(@Valid @RequestBody ReplyRequest req) {
-        MessageDocument saved = actions.replyTo(req, currentUser(), null);
+        MessageDocument saved = actions.replyTo(req, currentUser(), SecurityUtil.getUserKey());
         return ResponseEntity.ok(messageMapper.toResponse(saved));
     }
 
     @PostMapping("/forward-message")
     public ResponseEntity<MessageResponse> forward(@Valid @RequestBody ForwardRequest req) {
-        MessageDocument saved = actions.forward(req, currentUser(), null);
+        MessageDocument saved = actions.forward(req, currentUser(), SecurityUtil.getUserKey());
         if (saved == null)
             return ResponseEntity.badRequest().build();
         return ResponseEntity.ok(messageMapper.toResponse(saved));

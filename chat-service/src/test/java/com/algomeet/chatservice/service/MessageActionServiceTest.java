@@ -16,8 +16,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.data.mongodb.core.query.UpdateDefinition;
 
-
-
+import java.time.Instant;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -32,6 +31,7 @@ class MessageActionServiceTest {
     @Mock private SimpMessagingSyncTemplate simp;
     @Mock private GroupClient groupClient;
     @Mock private MessageMapper mapper;
+    @Mock private MediaService mediaService;
 
     @InjectMocks private MessageActionService service;
 
@@ -101,11 +101,18 @@ class MessageActionServiceTest {
             d.setId("replyId");
             return d;
         });
-
+        
+        when(repo.findById(any())).thenAnswer(inv -> {
+            MessageDocument d = new MessageDocument();
+            d.setId("replyId");
+            return Optional.of(d);
+        });
+        
         ReplyRequest req = new ReplyRequest();
         req.setReplyToMessageId("orig");
         req.setReceiver("bob");
         req.setContent("reply");
+        req.setMsgReplyTimeStamp(Instant.now().toEpochMilli());
         MessageDocument saved = service.replyTo(req, "alice", "null");
 
         assertThat(saved.getId()).isEqualTo("replyId");
@@ -148,6 +155,7 @@ class MessageActionServiceTest {
         fr.setOriginalMessageId(origId);
         fr.setReceiver(receiver);
         fr.setGroupId(groupId);
+        fr.setMsgForwardTimeStamp(Instant.now().toEpochMilli());
         return fr;
     }
 }

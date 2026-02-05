@@ -19,9 +19,11 @@ import org.springframework.web.bind.annotation.RestController;
 import com.algomeet.chatservice.client.GroupClient;
 import com.algomeet.chatservice.config.StompUserPrincipal;
 import com.algomeet.chatservice.document.GroupDto;
+import com.algomeet.chatservice.document.MediaItem;
 import com.algomeet.chatservice.document.MessageDocument;
 import com.algomeet.chatservice.document.MessageResponse;
 import com.algomeet.chatservice.dto.AppStatusMessage;
+import com.algomeet.chatservice.dto.Member;
 import com.algomeet.chatservice.dto.MessageStatusUpdate;
 import com.algomeet.chatservice.dto.SessionMetadata;
 import com.algomeet.chatservice.dto.UnreadCountResponse;
@@ -33,6 +35,7 @@ import com.algomeet.chatservice.mapper.MessageMapper;
 import com.algomeet.chatservice.model.AppStatus;
 import com.algomeet.chatservice.model.MessageStatus;
 import com.algomeet.chatservice.repository.MessageRepository;
+import com.algomeet.chatservice.service.MediaService;
 import com.algomeet.chatservice.service.MessageDeleteService;
 import com.algomeet.chatservice.service.MessageService;
 import com.algomeet.chatservice.service.UserSessionService;
@@ -60,6 +63,7 @@ public class ChatWebSocketController {
     private final NotificationService notificationService;
     private final UserSessionService userSessionService;
     private final SimpMessagingSyncTemplate messagingSyncTemplate;
+    private final MediaService mediaService;
 
     @MessageMapping("/chat")
     public void handleChatMessage(MessageDocument message, Principal principal) {
@@ -67,6 +71,7 @@ public class ChatWebSocketController {
         StompUserPrincipal up = (StompUserPrincipal) principal;
         String userKey = up.userKey();   // <-- UUID string (may be null on old tokens)
         String username = up.username();
+        message.setSenderKey(userKey);
         message.setSender(username);
         message.setTimestamp(message.getTimestamp());
         if (message.getStatus() == null) {
@@ -78,21 +83,26 @@ public class ChatWebSocketController {
             MessageResponse response = messageMapper.toResponse(savedMessage);
             List<String> failedMembers = new ArrayList<>();
             if (message.isGroupMessage()) {
-                GroupDto group = groupClient.getGroupById(Long.parseLong(message.getGroupId()));
-                for (String member : group.members) {
+                GroupDto group = groupClient.getGroupById(Long.parseLong(message.getGroupId()));   
+                
+                // If a message has media files, grant media access permissions to the
+                // message recipients.
+                mediaService.share(message, group);
+                
+                for (Member member : group.members) {
                     try {
-                        if (!member.equals(message.getSender())) {
-                        	messagingSyncTemplate.convertAndSendToUser(member, "/queue/messages", response);
-                            messageService.sendUnreadCountUpdate(member); // real-time update
+                        if (!member.getUsername().equals(message.getSender())) {
+                        	messagingSyncTemplate.convertAndSendToUser(member.getUsername(), "/queue/messages", response);
+                            messageService.sendUnreadCountUpdate(member.getUsername()); // real-time update
 
                             // Send push notification
                             // Todo: get the member user key
-                            sendPushNotification(member, message.getContent(), NotificationType.GROUP_MESSAGE, member);
+                            sendPushNotification(member.getUserKey(), message.getContent(), NotificationType.GROUP_MESSAGE, member.getUsername());
                         }
                     } catch (Exception e) {
                         // Fallback if one group member fails
                         // log.error("Failed to deliver to group member {}: {}", member, e.getMessage());
-                        failedMembers.add(member);
+                        failedMembers.add(member.getUsername());
                     }
                     if (!failedMembers.isEmpty()) {
                         savedMessage.setStatus(MessageStatus.FAILED);
@@ -107,6 +117,11 @@ public class ChatWebSocketController {
                     }
                 }
             } else {
+            	
+            	// If a message has media files, grant media access permissions to the
+    			// message recipients.
+    			mediaService.share(message);
+            	            	
                 //Send the new message to the receiver
             	messagingSyncTemplate.convertAndSendToUser(message.getReceiver(), "/queue/messages", response);
                 // Update receiver’s unread counts
@@ -181,7 +196,9 @@ public class ChatWebSocketController {
     @MessageMapping("/message-delete")
     public void wsDeleteMessage(@Payload MessageDeleteCommand cmd, Principal principal) {
         String requester = principal.getName();
-        deleteService.deleteMessages(cmd.getMessageIds(), requester, cmd.isDeleteForEveryone());
+        StompUserPrincipal up = (StompUserPrincipal) principal;
+
+        deleteService.deleteMessages(cmd.getMessageIds(), requester, up.userKey(), cmd.isDeleteForEveryone());
         // No return; events are pushed to the appropriate queues inside the service.
     }
 

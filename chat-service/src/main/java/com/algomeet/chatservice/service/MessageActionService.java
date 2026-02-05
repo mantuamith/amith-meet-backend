@@ -18,6 +18,7 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -29,6 +30,7 @@ public class MessageActionService {
     private final SimpMessagingSyncTemplate messagingSyncTemplate;
     private final GroupClient groupClient;
     private final MessageMapper messageMapper;
+    private final MediaService mediaService;
 
     /* -------- Core mutations -------- */
 
@@ -143,8 +145,8 @@ public class MessageActionService {
         if (doc.isGroupMessage()) {
             try {
                 GroupDto group = groupClient.getGroupById(Long.parseLong(doc.getGroupId()));
-                for (String member : group.members) {
-                    messagingSyncTemplate.convertAndSendToUser(member, "/queue/update_message", resp);
+                for (Member member : group.members) {
+                    messagingSyncTemplate.convertAndSendToUser(member.getUsername(), "/queue/update_message", resp);
                 }
             } catch (Exception ignored) {}
         } else {
@@ -159,19 +161,29 @@ public class MessageActionService {
 
     public void dispatchNewMessage(MessageDocument doc) {
         var resp = messageMapper.toResponse(doc);
+		                
         if (doc.isGroupMessage()) {
             try {
+                
                 GroupDto group = groupClient.getGroupById(Long.parseLong(doc.getGroupId()));
-                for (String member : group.members) {
+                // If a message includes media files, grant media access permissions to the
+                // message recipients.
+                mediaService.share(doc, group);
+        		
+                for (Member member : group.members) {
                     if (!member.equals(doc.getSender())) {
-                        messagingSyncTemplate.convertAndSendToUser(member, "/queue/messages", resp);
-                        messageService.sendUnreadCountUpdate(member);
+                        messagingSyncTemplate.convertAndSendToUser(member.getUsername(), "/queue/messages", resp);
+                        messageService.sendUnreadCountUpdate(member.getUsername());
                     }
                 }
             } catch (Exception ignored) {
 
             }
         } else {
+        	// If a message includes media files, grant media access permissions to the
+            // message recipients.
+            mediaService.share(doc);
+            
             // receiver side
             messagingSyncTemplate.convertAndSendToUser(doc.getReceiver(), "/queue/messages", resp);
             messageService.sendUnreadCountUpdate(doc.getReceiver());
