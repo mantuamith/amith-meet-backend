@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
@@ -27,6 +28,8 @@ public class MediaService {
 
 	private final MediaClient mediaClient;
 	private final GroupClient groupClient;
+	@Value("${mediaservice.support:false}")
+	private boolean mediaServiceSupport;
 
 	private void share(String mediaId, String userKey, List<String> shareWithUserKeys) {
 		if (!StringUtils.hasText(mediaId)) {
@@ -73,11 +76,13 @@ public class MediaService {
 	}
 
 	public void share(MessageDocument message) {
+		if (!mediaServiceSupport) {return;}
 		share(message, null);
 	}
 
 	public void share(MessageDocument message, GroupDto group) {
 		Set<String> shareWithUserKeys = new HashSet<>();
+		if (!mediaServiceSupport) {return;}
 		// Check if message has media group
 		if (group != null) {
 			// Add logic for group message
@@ -93,6 +98,7 @@ public class MediaService {
 	}
 
 	public void delete(MessageDocument message, String requesterKey) {
+		if (!mediaServiceSupport) {return;}
 		// Check if has media group
 		if (!CollectionUtils.isEmpty(message.getMediaGroup())) {
 			for (MediaItem item : message.getMediaGroup()) {

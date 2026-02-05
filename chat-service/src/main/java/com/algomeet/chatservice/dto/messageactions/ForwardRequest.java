@@ -23,4 +23,6 @@ public class ForwardRequest {
 
     private String fromKey;  // UUID string
     private String toKey;    // UUID string
+
+    private String content;
 }

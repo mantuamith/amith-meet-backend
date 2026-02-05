@@ -12,5 +12,5 @@ public class MediaUploadResponse {
     private String contentType;
     private long size;
     private boolean encrypted;
-    private String downloadUrl;
+    private String url;
 }

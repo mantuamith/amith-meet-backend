@@ -50,6 +50,9 @@ spring:
 group:
   service:
     url: http://localhost:8083
+media:
+  service:
+    url: http://localhost:8095
 jwt:
   secret: ${SPRING_JWT_SECRET}
 
@@ -66,3 +69,7 @@ logging:
     root: ${DEFAULT_LOG_LEVEL}
     com.algomeet.chatservice.controller: ${CHAT_LOG_LEVEL}
     com.algomeet.chatservice.service: ${CHAT_LOG_LEVEL}
+
+mediaservice:
+  support: false
+

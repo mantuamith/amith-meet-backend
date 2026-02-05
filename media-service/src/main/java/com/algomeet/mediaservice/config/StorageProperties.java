@@ -16,7 +16,8 @@ public class StorageProperties {
 
     private LocalStorage local = new LocalStorage();
     private S3Storage s3 = new S3Storage();
-    private Oss oss;
+    private Oss oss;    
+    private Integer unsharedFileExpirationHours;
 
     @Data
     public static class LocalStorage {
@@ -31,7 +32,7 @@ public class StorageProperties {
         private String region;          // ap-southeast-1
         private String endpoint;        // optional (MinIO, Wasabi)
         private boolean pathStyleAccess;
-        private Integer downloadMaxDurationInMinutes;
+        private Integer sigExpirationInMinutes;
     }
 
     @Data
@@ -40,6 +41,6 @@ public class StorageProperties {
         private String bucket;
         private String accessKeyId;
         private String accessKeySecret;
-        private int downloadMaxDurationInMinutes = 15;
+        private Integer sigExpirationInMinutes;
     }
 }

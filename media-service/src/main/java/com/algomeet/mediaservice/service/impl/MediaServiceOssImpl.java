@@ -2,20 +2,16 @@ package com.algomeet.mediaservice.service.impl;
 
 import java.io.IOException;
 import java.net.URL;
-import java.util.ArrayList;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Date;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
-import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.algomeet.mediaservice.config.StorageProperties;
-import com.algomeet.mediaservice.document.FileAccessEntry;
 import com.algomeet.mediaservice.document.FilePermission;
 import com.algomeet.mediaservice.document.UserFileDocument;
 import com.algomeet.mediaservice.dto.MediaUploadResponse;
@@ -34,12 +30,11 @@ public class MediaServiceOssImpl implements MediaServiceOss {
 
     private final OSS ossClient;
     private final UserFileService userFileService;
-    private final StorageProperties ossProps;
+    private final StorageProperties storageProperties;
 
     @Override
     public MediaUploadResponse upload(
             String userKey,
-            List<String> sharedWithUserKeys,
             MultipartFile file,
             String contentType,
             boolean encrypted
@@ -49,12 +44,12 @@ public class MediaServiceOssImpl implements MediaServiceOss {
             String objectKey = mediaId + "_" + file.getOriginalFilename();
 
             ossClient.putObject(
-                    ossProps.getOss().getBucket(),
+            		storageProperties.getOss().getBucket(),
                     objectKey,
                     file.getInputStream()
             );
 
-            log.info("Media uploaded to oss://{}/{}", ossProps.getOss().getBucket(), objectKey);
+            log.info("Media uploaded to oss://{}/{}", storageProperties.getOss().getBucket(), objectKey);
 
             // ---- DB metadata ----
             UserFileDocument userFile = new UserFileDocument();
@@ -66,37 +61,9 @@ public class MediaServiceOssImpl implements MediaServiceOss {
             userFile.setOwner(userKey);
             userFile.setStorage(Storage.OSS.name());
             userFile.setEncrypted(encrypted);
-
-            List<FileAccessEntry> acl = new ArrayList<>();
+			userFile.setCleanupEligibleAt(
+					Instant.now().plus(Duration.ofHours(storageProperties.getUnsharedFileExpirationHours())));
             
-            Set<String> permittedUserKeys = new HashSet<>();
-            
-            if (!CollectionUtils.isEmpty(sharedWithUserKeys)) {
-            	sharedWithUserKeys.forEach(uKey -> {
-            		permittedUserKeys.add(uKey);
-            	});
-            }  
-            
-        	// Add permission to owner itself 
-            permittedUserKeys.add(userKey);
-            
-
-            if (!CollectionUtils.isEmpty(permittedUserKeys)) {
-                for (String sharedUser : permittedUserKeys) {
-                    acl.add(new FileAccessEntry(
-                            sharedUser,
-                            1,
-                            Set.of(
-                                    FilePermission.VIEW,
-                                    FilePermission.DOWNLOAD,
-                                    FilePermission.SHARE,
-                                    FilePermission.DELETE
-                            )
-                    ));
-                }
-            }
-
-            userFile.setAccessControlList(acl);
             userFileService.create(userFile);
 
             return MediaUploadResponse.builder()
@@ -105,7 +72,7 @@ public class MediaServiceOssImpl implements MediaServiceOss {
                     .contentType(userFile.getContentType())
                     .size(file.getSize())
                     .encrypted(encrypted)
-                    .downloadUrl("/media/" + mediaId)
+                    .url("/media/" + mediaId)
                     .build();
 
         } catch (IOException e) {
@@ -113,21 +80,21 @@ public class MediaServiceOssImpl implements MediaServiceOss {
         }
     }
 
-    // ---------------- DOWNLOAD (SIGNED URL) ----------------
-    public String getDownloadUrl(String userKey, String mediaId) {
+    // ---------------- READ (SIGNED URL) ----------------
+    public String getReadUrl(String userKey, String mediaId) {
 
         UserFileDocument fileDoc =
-                userFileService.getFile(mediaId, userKey, FilePermission.DOWNLOAD);
+                userFileService.getFile(mediaId, userKey, FilePermission.READ);
 
         String objectKey = fileDoc.getAbsolutePath();
 
         Date expiration = new Date(
                 System.currentTimeMillis()
-                        + ossProps.getOss().getDownloadMaxDurationInMinutes() * 60_000L
+                        + storageProperties.getOss().getSigExpirationInMinutes() * 60_000L
         );
 
         URL signedUrl = ossClient.generatePresignedUrl(
-                ossProps.getOss().getBucket(),
+        		storageProperties.getOss().getBucket(),
                 objectKey,
                 expiration
         );
@@ -143,7 +110,7 @@ public class MediaServiceOssImpl implements MediaServiceOss {
 
         try {
             boolean exists = ossClient.doesObjectExist(
-                    ossProps.getOss().getBucket(),
+            		storageProperties.getOss().getBucket(),
                     objectKey
             );
 
@@ -153,12 +120,12 @@ public class MediaServiceOssImpl implements MediaServiceOss {
             }
 
             ossClient.deleteObject(
-                    ossProps.getOss().getBucket(),
+            		storageProperties.getOss().getBucket(),
                     objectKey
             );
 
             log.info("Deleted OSS object: oss://{}/{}",
-                    ossProps.getOss().getBucket(),
+            		storageProperties.getOss().getBucket(),
                     objectKey
             );
 
