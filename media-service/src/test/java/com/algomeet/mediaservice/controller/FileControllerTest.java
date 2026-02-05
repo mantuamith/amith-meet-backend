@@ -78,7 +78,7 @@ class FileControllerTest {
 
 	private MockedStatic<SecurityUtil> securityUtilMock;
 
-	@Autowired
+	@MockBean
 	private MessageSource messageSource;
 
 	@BeforeEach
