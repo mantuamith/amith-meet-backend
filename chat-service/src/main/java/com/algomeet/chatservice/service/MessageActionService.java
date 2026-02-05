@@ -111,7 +111,7 @@ public class MessageActionService {
         fwd.setClientMessageId(req.getClientMessageId());
         fwd.setSender(sender);
         fwd.setSenderKey(senderKey);
-        fwd.setContent(original.getContent());
+        fwd.setContent(req.getContent());
         fwd.setType(original.getType());
         fwd.setMessageMediaType(original.getMessageMediaType());
         fwd.setMediaGroup(original.getMediaGroup());
@@ -120,6 +120,7 @@ public class MessageActionService {
             fwd.setGroupId(req.getGroupId());
         } else {
             fwd.setReceiver(req.getReceiver());
+            fwd.setReceiverKey(req.getToKey());
         }
 
         ForwardInfo fi = new ForwardInfo();
