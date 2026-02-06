@@ -10,6 +10,7 @@ import java.util.Set;
 @Entity
 @Table(name = "chat_groups")
 public class Group {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -17,5 +18,9 @@ public class Group {
     private String name;
 
     @ElementCollection
-    private Set<String> members = new HashSet<>();
+    @CollectionTable(
+        name = "chat_group_members",
+        joinColumns = @JoinColumn(name = "group_id")
+    )
+    private Set<Member> members = new HashSet<>();
 }
