@@ -9,13 +9,14 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.algomeet.groupservice.controller.swagger.InternalGroupControllerDoc;
 import com.algomeet.groupservice.mapper.GroupMapper;
 import com.algomeet.groupservice.model.Group;
 import com.algomeet.groupservice.repository.GroupRepository;
 
 @RestController
 @RequestMapping("/internal/groups")
-public class InternalGroupController {
+public class InternalGroupController implements InternalGroupControllerDoc{
     @Autowired
     private GroupRepository groupRepository;
 
@@ -24,7 +25,7 @@ public class InternalGroupController {
         Optional<Group> group = groupRepository.findById(groupId);
         
         if(group.isPresent()) {
-        	return GroupMapper.toDto(group.get());
+        	return GroupMapper.toResponse(group.get());
         } else {
         	return ResponseEntity.notFound().build(); 
         }

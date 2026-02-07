@@ -1,13 +1,14 @@
 package com.algomeet.groupservice.dto;
 
-import lombok.Data;
-
 import java.util.HashSet;
 import java.util.Set;
 
+import lombok.Data;
+
 @Data
-public class GroupDto {
+public class GroupResponse {
     private Long id;
     private String name;
-    private Set<MemberDto> members = new HashSet<>();
+    private Set<MemberResponse> members = new HashSet<>();
+
 }

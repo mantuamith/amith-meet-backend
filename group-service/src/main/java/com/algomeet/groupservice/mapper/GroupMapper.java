@@ -1,7 +1,9 @@
 package com.algomeet.groupservice.mapper;
 
-import com.algomeet.groupservice.dto.GroupDto;
-import com.algomeet.groupservice.dto.MemberDto;
+import com.algomeet.groupservice.dto.GroupRequest;
+import com.algomeet.groupservice.dto.GroupResponse;
+import com.algomeet.groupservice.dto.MemberRequest;
+import com.algomeet.groupservice.dto.MemberResponse;
 import com.algomeet.groupservice.model.Group;
 import com.algomeet.groupservice.model.Member;
 
@@ -14,21 +16,20 @@ public class GroupMapper {
 		// utility class
 	}
 
-	public static Group toEntity(GroupDto dto) {
-		if (dto == null) {
+	public static Group toEntity(GroupRequest req) {
+		if (req == null) {
 			return null;
 		}
 
 		Group group = new Group();
-		group.setId(dto.getId());
-		group.setName(dto.getName());
+		group.setName(req.getName());
 
 		Set<Member> members = new HashSet<>();
-		if (dto.getMembers() != null) {
-			for (MemberDto memberDto : dto.getMembers()) {
+		if (req.getMembers() != null) {
+			for (MemberRequest memberReq : req.getMembers()) {
 				Member member = new Member();
-				member.setUserKey(memberDto.getUserKey());
-				member.setUsername(memberDto.getUsername());
+				member.setUserKey(memberReq.getUserKey());
+				member.setUsername(memberReq.getUsername());
 				members.add(member);
 			}
 		}
@@ -38,21 +39,21 @@ public class GroupMapper {
 	}
 
 	/*
-	 * ========================= Entity → DTO =========================
+	 * ========================= Entity → Response =========================
 	 */
-	public static GroupDto toDto(Group entity) {
+	public static GroupResponse toResponse(Group entity) {
 		if (entity == null) {
 			return null;
 		}
 
-		GroupDto dto = new GroupDto();
+		GroupResponse dto = new GroupResponse();
 		dto.setId(entity.getId());
 		dto.setName(entity.getName());
 
-		Set<MemberDto> members = new HashSet<>();
+		Set<MemberResponse> members = new HashSet<>();
 		if (entity.getMembers() != null) {
 			for (Member member : entity.getMembers()) {
-				MemberDto memberDto = new MemberDto();
+				MemberResponse memberDto = new MemberResponse();
 				memberDto.setUserKey(member.getUserKey());
 				memberDto.setUsername(member.getUsername());
 				members.add(memberDto);

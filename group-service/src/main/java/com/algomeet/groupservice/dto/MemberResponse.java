@@ -3,7 +3,7 @@ package com.algomeet.groupservice.dto;
 import lombok.Data;
 
 @Data
-public class MemberDto {
+public class MemberResponse {
     private String userKey;
     private String username;
 }
