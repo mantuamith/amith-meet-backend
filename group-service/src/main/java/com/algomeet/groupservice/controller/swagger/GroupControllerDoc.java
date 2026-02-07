@@ -53,8 +53,7 @@ public interface GroupControllerDoc {
     				example = "1",
     				required = true
     				)
-    		@PathVariable Long groupId,
-    		Authentication authentication);
+    		@PathVariable Long groupId);
 
     @Operation(
         summary = "Join a group",
@@ -67,7 +66,7 @@ public interface GroupControllerDoc {
     })
     public ResponseEntity<CommonResponse<?>> joinGroup(
             @Parameter(description = "Group ID", example = "1")
-            @PathVariable String groupId,
+            @PathVariable Long groupId,
             Authentication authentication);
 
     @Operation(
@@ -90,9 +89,7 @@ public interface GroupControllerDoc {
                     schema = @Schema(implementation = AddGroupMembersRequest.class)
                 )
             )
-            @Valid @RequestBody AddGroupMembersRequest request,
-
-            Authentication authentication);
+            @Valid @RequestBody AddGroupMembersRequest request);
     
     @Operation(
         summary = "Leave a group",
@@ -104,7 +101,7 @@ public interface GroupControllerDoc {
     })
     public ResponseEntity<CommonResponse<?>> leaveGroup(
             @Parameter(description = "Group ID", example = "1")
-            @PathVariable String groupId,
+            @PathVariable Long groupId,
             Authentication authentication);
 
     @Operation(
@@ -132,14 +129,12 @@ public interface GroupControllerDoc {
     				example = "1",
     				required = true
     				)
-    		@PathVariable String groupId,
+    		@PathVariable Long groupId,
 
     		@Parameter(
     				description = "User key (UUID) of the member to remove",
     				example = "550e8400-e29b-41d4-a716-446655440000",
     				required = true
     				)
-    		@RequestParam String userKey,
-
-    		Authentication authentication);
+    		@RequestParam String userKey);
 }
