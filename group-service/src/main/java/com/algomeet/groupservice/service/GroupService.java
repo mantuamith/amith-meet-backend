@@ -104,10 +104,8 @@ public class GroupService {
                         new GroupNotFoundException("Group Id not found"));
     }
     
-
     public GroupResponse getGroupById(Long groupId) {
-        Group group = groupRepository.findById(groupId)
-                .orElseThrow(() -> new GroupNotFoundException("Group not found"));
+        Group group = getGroupOrThrow(groupId);
 
         return GroupMapper.toResponse(group);
     }
