@@ -268,10 +268,10 @@ class GroupControllerTest {
 
 	@Test
 	void getMyGroups_success() throws Exception {
-		when(groupService.getMyGroups(USERNAME))
+		when(groupService.getMyGroups(USER_KEY))
 		.thenReturn(List.of(new GroupResponse()));
 
-		mockMvc.perform(get("/groups/groups/mine")
+		mockMvc.perform(get("/groups/mine")
 				.principal(authentication))
 		.andExpect(status().isOk())
 		.andExpect(jsonPath("$.code").value(ResponseCode.SUCCESS.name()));

@@ -168,7 +168,7 @@ public class GroupController implements GroupControllerDoc {
 	@GetMapping("/mine")
 	public ResponseEntity<CommonResponse<?>> getMyGroups(Authentication authentication) {
 		List<GroupResponse> groups =
-				groupService.getMyGroups(authentication.getName());
+				groupService.getMyGroups(SecurityUtil.getUserKey());
 
 		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, groups));
 	}

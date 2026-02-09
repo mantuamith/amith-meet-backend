@@ -88,8 +88,8 @@ public class GroupService {
         leaveGroup(groupId, userKey);
     }
 
-    public List<GroupResponse> getMyGroups(String username) {
-        List<Group> groups = groupRepository.findByMembersContaining(username);
+    public List<GroupResponse> getMyGroups(String userKey) {
+        List<Group> groups = groupRepository.findByMembers_UserKey(userKey);
 
         if (CollectionUtils.isEmpty(groups)) {
             return List.of();
