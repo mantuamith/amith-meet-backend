@@ -143,7 +143,7 @@ public class GroupController implements GroupControllerDoc {
 		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
 	}
 
-	@GetMapping("/groups/mine")
+	@GetMapping("/mine")
 	public ResponseEntity<CommonResponse<?>> getMyGroups(Authentication authentication) {
 		List<GroupResponse> groups =
 				groupService.getMyGroups(authentication.getName());
