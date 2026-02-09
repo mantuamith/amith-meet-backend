@@ -48,6 +48,16 @@ public class GroupController implements GroupControllerDoc {
 		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, response));
 	}
 
+	@GetMapping("/{groupId}")
+	public ResponseEntity<CommonResponse<GroupResponse>> getGroup(@PathVariable Long groupId) {
+		try {
+			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, groupService.getGroupById(groupId)));
+		} catch(GroupNotFoundException ex) {
+			return ResponseEntity.status(HttpStatus.NOT_FOUND)
+					.body(CommonResponse.from(ResponseCode.GROUP_ID_NOT_FOUND));
+		}
+	}
+
 	@DeleteMapping("/{groupId}")
 	public ResponseEntity<CommonResponse<?>> removeGroup(@PathVariable Long groupId) {
 		try {
