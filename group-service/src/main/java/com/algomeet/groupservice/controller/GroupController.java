@@ -1,76 +1,153 @@
 package com.algomeet.groupservice.controller;
 
-import com.algomeet.groupservice.model.Group;
-import com.algomeet.groupservice.repository.GroupRepository;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-
-import java.security.Principal;
 import java.util.List;
-import java.util.Optional;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.algomeet.groupservice.controller.swagger.GroupControllerDoc;
+import com.algomeet.groupservice.dto.AddGroupMembersRequest;
+import com.algomeet.groupservice.dto.CommonResponse;
+import com.algomeet.groupservice.dto.GroupRequest;
+import com.algomeet.groupservice.dto.GroupResponse;
+import com.algomeet.groupservice.enums.ResponseCode;
+import com.algomeet.groupservice.exceptions.GroupNotFoundException;
+import com.algomeet.groupservice.service.GroupService;
+import com.algomeet.groupservice.util.SecurityUtil;
+
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/groups")
-public class GroupController {
+@RequiredArgsConstructor
+public class GroupController implements GroupControllerDoc {
 
-    @Autowired
-    private GroupRepository groupRepository;
+	private final GroupService groupService;
 
-    @PostMapping("/create")
-    public ResponseEntity<?> createGroup(@RequestBody Group group, Principal principal) {
-        group.getMembers().add(principal.getName());
-        return ResponseEntity.ok(groupRepository.save(group));
-    }
+	@PostMapping("/create")
+	public ResponseEntity<CommonResponse<GroupResponse>> createGroup(
+			@Valid @RequestBody GroupRequest request,
+			Authentication authentication) {
 
-    @PostMapping("/{groupId}/join")
-    public ResponseEntity<?> joinGroup(@PathVariable String groupId, Principal principal) {
-        Optional<Group> groupOpt = groupRepository.findById(Long.valueOf(groupId));
-        if (groupOpt.isEmpty()) {
-            return ResponseEntity.badRequest().body("Group not found");
-        }
+		GroupResponse response = groupService.createGroup(
+				request,
+				authentication.getName(),
+				SecurityUtil.getUserKey()
+				);
 
-        Group group = groupOpt.get();
-        String userId = principal.getName();
+		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, response));
+	}
 
-        if (group.getMembers().contains(userId)) {
-            return ResponseEntity.status(409).body("User already a member of the group");
-        }
+	@DeleteMapping("/{groupId}")
+	public ResponseEntity<CommonResponse<?>> removeGroup(@PathVariable Long groupId) {
+		try {
+			groupService.removeGroup(groupId);
+		} catch(GroupNotFoundException ex) {
+			return ResponseEntity.status(HttpStatus.NOT_FOUND)
+					.body(CommonResponse.from(ResponseCode.GROUP_ID_NOT_FOUND));
+		}
 
-        group.getMembers().add(userId);
-        return ResponseEntity.ok(groupRepository.save(group));
-    }
+		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
+	}
 
-    @GetMapping("/{groupName}")
-    public ResponseEntity<?> getGroup(@PathVariable String groupName) {
-        return groupRepository.findByName(groupName)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
-    }
+	@PostMapping("/{groupId}/join")
+	public ResponseEntity<CommonResponse<?>> joinGroup(
+			@PathVariable Long groupId,
+			Authentication authentication) {
 
-    @DeleteMapping("/{groupId}/leave")
-    public ResponseEntity<?> leaveGroup(@PathVariable String groupId, Principal principal) {
-        Optional<Group> groupOpt = groupRepository.findById(Long.valueOf(groupId));
-        if (groupOpt.isEmpty()) {
-            return ResponseEntity.badRequest().body("Group not found");
-        }
+		GroupResponse response = null;
 
-        Group group = groupOpt.get();
-        String userId = principal.getName();
+		try {
+			response = groupService.joinGroup(
+					groupId,
+					authentication.getName(),
+					SecurityUtil.getUserKey()
+					);
+		} catch(GroupNotFoundException ex) {
+			return ResponseEntity.status(HttpStatus.NOT_FOUND)
+					.body(CommonResponse.from(ResponseCode.GROUP_ID_NOT_FOUND));
+		} catch(IllegalStateException ex) {
+			return ResponseEntity.status(HttpStatus.CONFLICT)
+					.body(CommonResponse.from(ResponseCode.USER_ALREADY_GROUP_MEMBER));
+		} 
 
-        if (!group.getMembers().contains(userId)) {
-            return ResponseEntity.status(404).body("User is not a member of the group");
-        }
+		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, response));
+	}
 
-        group.getMembers().remove(userId);
-        groupRepository.save(group);
+	@PostMapping("/{groupId}/add")
+	public ResponseEntity<CommonResponse<?>> addGroupMembers(
+			@PathVariable Long groupId,
+			@Valid @RequestBody AddGroupMembersRequest request) {
 
-        return ResponseEntity.ok("User removed from group");
-    }
+		GroupResponse response = null;
 
-    @GetMapping("/groups/mine")
-    public ResponseEntity<List<Group>> getMyGroups(Principal principal) {
-        List<Group> myGroups = groupRepository.findByMembersContaining(principal.getName());
-        return ResponseEntity.ok(myGroups);
-    }
+		try {
+			response = groupService.addGroupMembers(groupId, request);
+
+		} catch(GroupNotFoundException ex) {
+			return ResponseEntity.status(HttpStatus.NOT_FOUND)
+					.body(CommonResponse.from(ResponseCode.GROUP_ID_NOT_FOUND));
+		} catch(IllegalStateException ex) {
+			return ResponseEntity.status(HttpStatus.CONFLICT)
+					.body(CommonResponse.from(ResponseCode.USER_ALREADY_GROUP_MEMBER));
+		} 
+
+		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, response));
+	}
+
+	@DeleteMapping("/{groupId}/leave")
+	public ResponseEntity<CommonResponse<?>> leaveGroup(
+			@PathVariable Long groupId,
+			Authentication authentication) {     
+
+		try {
+			groupService.leaveGroup(groupId, SecurityUtil.getUserKey());
+
+		} catch(GroupNotFoundException ex) {
+			return ResponseEntity.status(HttpStatus.NOT_FOUND)
+					.body(CommonResponse.from(ResponseCode.GROUP_ID_NOT_FOUND));
+		} catch(IllegalStateException ex) {
+			return ResponseEntity.status(HttpStatus.CONFLICT)
+					.body(CommonResponse.from(ResponseCode.GROUP_MEMBER_NOT_FOUND));
+		} 
+
+		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
+	}
+
+	@DeleteMapping("/{groupId}/remove")
+	public ResponseEntity<CommonResponse<?>> removeGroupMember(
+			@PathVariable Long groupId,
+			@RequestParam String userKey) {
+
+		try {
+			groupService.removeGroupMember(groupId, userKey);
+
+		} catch(GroupNotFoundException ex) {
+			return ResponseEntity.status(HttpStatus.NOT_FOUND)
+					.body(CommonResponse.from(ResponseCode.GROUP_ID_NOT_FOUND));
+		} catch(IllegalStateException ex) {
+			return ResponseEntity.status(HttpStatus.CONFLICT)
+					.body(CommonResponse.from(ResponseCode.GROUP_MEMBER_NOT_FOUND));
+		} 
+
+		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
+	}
+
+	@GetMapping("/mine")
+	public ResponseEntity<CommonResponse<?>> getMyGroups(Authentication authentication) {
+		List<GroupResponse> groups =
+				groupService.getMyGroups(authentication.getName());
+
+		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, groups));
+	}
 }
