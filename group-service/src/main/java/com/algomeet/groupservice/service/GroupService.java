@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
@@ -11,6 +12,7 @@ import com.algomeet.groupservice.dto.AddGroupMembersRequest;
 import com.algomeet.groupservice.dto.GroupRequest;
 import com.algomeet.groupservice.dto.GroupResponse;
 import com.algomeet.groupservice.dto.MemberRequest;
+import com.algomeet.groupservice.dto.UpdateGroupRequest;
 import com.algomeet.groupservice.enums.ResponseCode;
 import com.algomeet.groupservice.exceptions.GroupNotFoundException;
 import com.algomeet.groupservice.mapper.GroupMapper;
@@ -109,4 +111,14 @@ public class GroupService {
 
         return GroupMapper.toResponse(group);
     }
+    
+    public GroupResponse updateGroup(Long groupId, UpdateGroupRequest request) {
+    	Group group = getGroupOrThrow(groupId);
+    	
+    	if (StringUtils.isNotBlank(request.getName())) {
+    		group.setName(request.getName());
+    	}
+    	
+    	return GroupMapper.toResponse(groupRepository.save(group));    	    	
+    }     
 }
