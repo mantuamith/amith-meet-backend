@@ -61,7 +61,7 @@ public class GroupController implements GroupControllerDoc {
 	}
 	
 	@PutMapping("/{groupId}")
-	public ResponseEntity<CommonResponse<GroupResponse>> getUpdate(@PathVariable Long groupId, @Valid @RequestBody UpdateGroupRequest request) {
+	public ResponseEntity<CommonResponse<GroupResponse>> updateGroup(@PathVariable Long groupId, @Valid @RequestBody UpdateGroupRequest request) {
 		try {
 			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, groupService.updateGroup(groupId, request)));
 		} catch(GroupNotFoundException ex) {
