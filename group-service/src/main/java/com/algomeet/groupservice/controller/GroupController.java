@@ -68,7 +68,7 @@ public class GroupController {
         return ResponseEntity.ok("User removed from group");
     }
 
-    @GetMapping("/mine")
+    @GetMapping("/groups/mine")
     public ResponseEntity<List<Group>> getMyGroups(Principal principal) {
         List<Group> myGroups = groupRepository.findByMembersContaining(principal.getName());
         return ResponseEntity.ok(myGroups);
