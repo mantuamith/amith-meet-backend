@@ -43,7 +43,7 @@ public class GroupService {
     		group.getMembers().add(owner);
     	}
        
-    	// Assigned owner, this allowed to assigned group owner even if the group is empty.
+    	// Assigned owner, this allowed us to assign group owner even if the group is empty.
     	if (StringUtils.hasText(request.getOwnerUserKey())) {
     		group.setOwnerUserKey(request.getOwnerUserKey());   
     	} else {
