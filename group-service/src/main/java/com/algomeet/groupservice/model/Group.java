@@ -36,7 +36,7 @@ public class Group {
     private Set<Member> members = new HashSet<>();
     
     // owner is always a member
-    @Column(name = "owner_user_key", nullable = false, updatable = false)
+    @Column(name = "owner_user_key", updatable = false)
     private String ownerUserKey;
     
     private String createdBy;

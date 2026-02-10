@@ -32,23 +32,27 @@ public class GroupService {
     public GroupResponse createGroup(GroupRequest request, String username, String userKey) {
     	Group group = GroupMapper.toEntity(request);
     	 
-    	if(!request.isEmptyGroup()) {
+    	if(request.isEmptyGroup()) {
+    		//Ignore member list
+    		group.setMembers(null);
+    		
+    		// Assigned owner, this allowed us to assign group owner even if the group is empty.
+    		if (StringUtils.hasText(request.getOwnerUserKey())) {
+    			group.setOwnerUserKey(request.getOwnerUserKey());   
+    		} else {
+    			group.setOwnerUserKey(userKey);  
+    		}
+    	} else {
+    		// Add group owner
     		Member owner = new Member(userKey, username);
     		owner.setRole(GroupRole.OWNER);
 
     		if(group.getMembers() == null) {
     			group.setMembers(new HashSet<>());
     		}
-    		
+
     		group.getMembers().add(owner);
-    	}
-       
-    	// Assigned owner, this allowed us to assign group owner even if the group is empty.
-    	if (StringUtils.hasText(request.getOwnerUserKey())) {
-    		group.setOwnerUserKey(request.getOwnerUserKey());   
-    	} else {
-    		group.setOwnerUserKey(userKey);  
-    	}
+    	}           	
         
     	// Use for audit
     	group.setCreatedBy(userKey);
