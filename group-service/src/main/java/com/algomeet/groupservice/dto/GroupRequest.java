@@ -10,4 +10,5 @@ public class GroupRequest {
 	private String name;
 	
 	private Set<MemberRequest> members = new HashSet<>();
+    private boolean emptyGroup;
 }

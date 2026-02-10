@@ -30,13 +30,17 @@ public class GroupService {
 
     public GroupResponse createGroup(GroupRequest request, String username, String userKey) {
 
-        MemberRequest creator = new MemberRequest();
-        creator.setUsername(username);
-        creator.setUserKey(userKey);
+    	if(!request.isEmptyGroup()) {
+    		MemberRequest creator = new MemberRequest();
+    		creator.setUsername(username);
+    		creator.setUserKey(userKey);
 
-        request.getMembers().add(creator);
+    		request.getMembers().add(creator);
+    	}
 
         Group group = GroupMapper.toEntity(request);
+        group.setCreatedBy(userKey);
+        
         return GroupMapper.toResponse(groupRepository.save(group));
     }
 
