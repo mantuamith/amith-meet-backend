@@ -1,5 +1,6 @@
 package com.algomeet.groupservice.service;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -13,6 +14,7 @@ import com.algomeet.groupservice.dto.GroupRequest;
 import com.algomeet.groupservice.dto.GroupResponse;
 import com.algomeet.groupservice.dto.MemberRequest;
 import com.algomeet.groupservice.dto.UpdateGroupRequest;
+import com.algomeet.groupservice.enums.GroupRole;
 import com.algomeet.groupservice.enums.ResponseCode;
 import com.algomeet.groupservice.exceptions.GroupNotFoundException;
 import com.algomeet.groupservice.mapper.GroupMapper;
@@ -29,18 +31,20 @@ public class GroupService {
     private final GroupRepository groupRepository;
 
     public GroupResponse createGroup(GroupRequest request, String username, String userKey) {
-
+    	Group group = GroupMapper.toEntity(request);
+    	 
     	if(!request.isEmptyGroup()) {
-    		MemberRequest creator = new MemberRequest();
-    		creator.setUsername(username);
-    		creator.setUserKey(userKey);
+    		Member owner = new Member(userKey, username);
+    		owner.setRole(GroupRole.OWNER);
 
-    		request.getMembers().add(creator);
+    		if(group.getMembers() == null) {
+    			group.setMembers(new HashSet<>());
+    		}
+    		
+    		group.getMembers().add(owner);
     	}
-
-        Group group = GroupMapper.toEntity(request);
-        group.setCreatedBy(userKey);
-        
+       
+        group.setCreatedBy(userKey);        
         return GroupMapper.toResponse(groupRepository.save(group));
     }
 
