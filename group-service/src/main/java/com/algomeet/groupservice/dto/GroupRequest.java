@@ -8,6 +8,7 @@ import lombok.Data;
 @Data
 public class GroupRequest {
 	private String name;
+	private String ownerUserKey;
 	
 	private Set<MemberRequest> members = new HashSet<>();
     private boolean emptyGroup;

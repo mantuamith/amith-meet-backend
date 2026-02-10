@@ -5,14 +5,13 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
+import org.springframework.util.StringUtils;
 
 import com.algomeet.groupservice.dto.AddGroupMembersRequest;
 import com.algomeet.groupservice.dto.GroupRequest;
 import com.algomeet.groupservice.dto.GroupResponse;
-import com.algomeet.groupservice.dto.MemberRequest;
 import com.algomeet.groupservice.dto.UpdateGroupRequest;
 import com.algomeet.groupservice.enums.GroupRole;
 import com.algomeet.groupservice.enums.ResponseCode;
@@ -44,7 +43,15 @@ public class GroupService {
     		group.getMembers().add(owner);
     	}
        
-        group.setCreatedBy(userKey);        
+    	// Assigned owner, this allowed to assigned group owner even if the group is empty.
+    	if (StringUtils.hasText(request.getOwnerUserKey())) {
+    		group.setOwnerUserKey(request.getOwnerUserKey());   
+    	} else {
+    		group.setOwnerUserKey(userKey);  
+    	}
+        
+    	// Use for audit
+    	group.setCreatedBy(userKey);
         return GroupMapper.toResponse(groupRepository.save(group));
     }
 
@@ -123,7 +130,7 @@ public class GroupService {
     public GroupResponse updateGroup(Long groupId, UpdateGroupRequest request) {
     	Group group = getGroupOrThrow(groupId);
     	
-    	if (StringUtils.isNotBlank(request.getName())) {
+    	if (StringUtils.hasText(request.getName())) {
     		group.setName(request.getName());
     	}
     	

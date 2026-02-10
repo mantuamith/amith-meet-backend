@@ -47,6 +47,7 @@ public class GroupMapper {
 		GroupResponse dto = new GroupResponse();
 		dto.setId(entity.getId());
 		dto.setName(entity.getName());
+		dto.setOwnerUserKey(entity.getOwnerUserKey());
 
 		Set<MemberResponse> members = new HashSet<>();
 		if (entity.getMembers() != null) {
