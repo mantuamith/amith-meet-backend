@@ -27,9 +27,7 @@ public class GroupMapper {
 		Set<Member> members = new HashSet<>();
 		if (req.getMembers() != null) {
 			for (MemberRequest memberReq : req.getMembers()) {
-				Member member = new Member();
-				member.setUserKey(memberReq.getUserKey());
-				member.setUsername(memberReq.getUsername());
+				Member member = new Member(memberReq.getUserKey(), memberReq.getUsername());
 				members.add(member);
 			}
 		}
@@ -49,14 +47,16 @@ public class GroupMapper {
 		GroupResponse dto = new GroupResponse();
 		dto.setId(entity.getId());
 		dto.setName(entity.getName());
+		dto.setOwnerUserKey(entity.getOwnerUserKey());
 
 		Set<MemberResponse> members = new HashSet<>();
 		if (entity.getMembers() != null) {
 			for (Member member : entity.getMembers()) {
-				MemberResponse memberDto = new MemberResponse();
-				memberDto.setUserKey(member.getUserKey());
-				memberDto.setUsername(member.getUsername());
-				members.add(memberDto);
+				MemberResponse memberResp = new MemberResponse();
+				memberResp.setUserKey(member.getUserKey());
+				memberResp.setUsername(member.getUsername());
+				memberResp.setRole(member.getRole());
+				members.add(memberResp);
 			}
 		}
 

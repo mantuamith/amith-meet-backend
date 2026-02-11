@@ -1,16 +1,19 @@
 package com.algomeet.groupservice.service;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
+import org.springframework.util.StringUtils;
 
 import com.algomeet.groupservice.dto.AddGroupMembersRequest;
 import com.algomeet.groupservice.dto.GroupRequest;
 import com.algomeet.groupservice.dto.GroupResponse;
-import com.algomeet.groupservice.dto.MemberRequest;
+import com.algomeet.groupservice.dto.UpdateGroupRequest;
+import com.algomeet.groupservice.enums.GroupRole;
 import com.algomeet.groupservice.enums.ResponseCode;
 import com.algomeet.groupservice.exceptions.GroupNotFoundException;
 import com.algomeet.groupservice.mapper.GroupMapper;
@@ -27,14 +30,32 @@ public class GroupService {
     private final GroupRepository groupRepository;
 
     public GroupResponse createGroup(GroupRequest request, String username, String userKey) {
+    	Group group = GroupMapper.toEntity(request);
+    	 
+    	if(request.isEmptyGroup()) {
+    		//Ignore member list
+    		group.setMembers(null);
+    		
+    		// Assigned owner, this allowed us to assign group owner even if the group is empty.
+    		if (StringUtils.hasText(request.getOwnerUserKey())) {
+    			group.setOwnerUserKey(request.getOwnerUserKey());   
+    		} else {
+    			group.setOwnerUserKey(userKey);  
+    		}
+    	} else {
+    		// Add group owner
+    		Member owner = new Member(userKey, username);
+    		owner.setRole(GroupRole.OWNER);
 
-        MemberRequest creator = new MemberRequest();
-        creator.setUsername(username);
-        creator.setUserKey(userKey);
+    		if(group.getMembers() == null) {
+    			group.setMembers(new HashSet<>());
+    		}
 
-        request.getMembers().add(creator);
-
-        Group group = GroupMapper.toEntity(request);
+    		group.getMembers().add(owner);
+    	}           	
+        
+    	// Use for audit
+    	group.setCreatedBy(userKey);
         return GroupMapper.toResponse(groupRepository.save(group));
     }
 
@@ -86,8 +107,8 @@ public class GroupService {
         leaveGroup(groupId, userKey);
     }
 
-    public List<GroupResponse> getMyGroups(String username) {
-        List<Group> groups = groupRepository.findByMembersContaining(username);
+    public List<GroupResponse> getMyGroups(String userKey) {
+        List<Group> groups = groupRepository.findByMembers_UserKey(userKey);
 
         if (CollectionUtils.isEmpty(groups)) {
             return List.of();
@@ -109,4 +130,14 @@ public class GroupService {
 
         return GroupMapper.toResponse(group);
     }
+    
+    public GroupResponse updateGroup(Long groupId, UpdateGroupRequest request) {
+    	Group group = getGroupOrThrow(groupId);
+    	
+    	if (StringUtils.hasText(request.getName())) {
+    		group.setName(request.getName());
+    	}
+    	
+    	return GroupMapper.toResponse(groupRepository.save(group));    	    	
+    }     
 }

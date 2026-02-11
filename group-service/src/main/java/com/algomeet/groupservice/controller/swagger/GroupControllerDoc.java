@@ -10,6 +10,7 @@ import com.algomeet.groupservice.dto.AddGroupMembersRequest;
 import com.algomeet.groupservice.dto.CommonResponse;
 import com.algomeet.groupservice.dto.GroupRequest;
 import com.algomeet.groupservice.dto.GroupResponse;
+import com.algomeet.groupservice.dto.UpdateGroupRequest;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -37,6 +38,78 @@ public interface GroupControllerDoc {
     public ResponseEntity<CommonResponse<GroupResponse>> createGroup(
             @Valid @RequestBody GroupRequest groupRequest,
             Authentication authentication);
+    
+    
+    @Operation(
+            summary = "Get group by ID",
+            description = "Retrieve a group and its details using the group ID"
+        )
+        @ApiResponses(value = {
+            @ApiResponse(
+                responseCode = "200",
+                description = "Group retrieved successfully",
+                content = @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(implementation = GroupResponse.class)
+                )
+            ),
+            @ApiResponse(
+                responseCode = "404",
+                description = "Group ID not found",
+                content = @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(implementation = CommonResponse.class)
+                )
+            )
+        })
+        public ResponseEntity<CommonResponse<GroupResponse>> getGroup(
+                @Parameter(description = "Unique ID of the group", example = "1")
+                @PathVariable Long groupId);
+
+        @Operation(
+            summary = "Update group",
+            description = "Update group details such as name or members using the group ID"
+        )
+        @ApiResponses(value = {
+            @ApiResponse(
+                responseCode = "200",
+                description = "Group updated successfully",
+                content = @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(implementation = GroupResponse.class)
+                )
+            ),
+            @ApiResponse(
+                responseCode = "400",
+                description = "Invalid request body",
+                content = @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(implementation = CommonResponse.class)
+                )
+            ),
+            @ApiResponse(
+                responseCode = "404",
+                description = "Group ID not found",
+                content = @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(implementation = CommonResponse.class)
+                )
+            )
+        })
+        public ResponseEntity<CommonResponse<GroupResponse>> updateGroup(
+                @Parameter(description = "Unique ID of the group", example = "1")
+                @PathVariable Long groupId,
+
+                @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                    description = "Group update request payload",
+                    required = true,
+                    content = @Content(
+                        mediaType = "application/json",
+                        schema = @Schema(implementation = UpdateGroupRequest.class)
+                    )
+                )
+                @Valid @RequestBody UpdateGroupRequest request);
+        
     
     @Operation(
     		summary = "Delete a group",

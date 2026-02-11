@@ -9,5 +9,5 @@ import java.util.Optional;
 public interface GroupRepository extends JpaRepository<Group, Long> {
     Optional<Group> findByName(String name);
 
-    List<Group> findByMembersContaining(String name);
+    List<Group> findByMembers_UserKey(String userKey);
 }

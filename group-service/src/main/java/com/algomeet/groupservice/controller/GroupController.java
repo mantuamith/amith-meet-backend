@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -19,6 +20,7 @@ import com.algomeet.groupservice.dto.AddGroupMembersRequest;
 import com.algomeet.groupservice.dto.CommonResponse;
 import com.algomeet.groupservice.dto.GroupRequest;
 import com.algomeet.groupservice.dto.GroupResponse;
+import com.algomeet.groupservice.dto.UpdateGroupRequest;
 import com.algomeet.groupservice.enums.ResponseCode;
 import com.algomeet.groupservice.exceptions.GroupNotFoundException;
 import com.algomeet.groupservice.service.GroupService;
@@ -46,6 +48,26 @@ public class GroupController implements GroupControllerDoc {
 				);
 
 		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, response));
+	}
+	
+	@GetMapping("/{groupId}")
+	public ResponseEntity<CommonResponse<GroupResponse>> getGroup(@PathVariable Long groupId) {
+		try {
+			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, groupService.getGroupById(groupId)));
+		} catch(GroupNotFoundException ex) {
+			return ResponseEntity.status(HttpStatus.NOT_FOUND)
+					.body(CommonResponse.from(ResponseCode.GROUP_ID_NOT_FOUND));
+		}
+	}
+	
+	@PutMapping("/{groupId}")
+	public ResponseEntity<CommonResponse<GroupResponse>> updateGroup(@PathVariable Long groupId, @Valid @RequestBody UpdateGroupRequest request) {
+		try {
+			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, groupService.updateGroup(groupId, request)));
+		} catch(GroupNotFoundException ex) {
+			return ResponseEntity.status(HttpStatus.NOT_FOUND)
+					.body(CommonResponse.from(ResponseCode.GROUP_ID_NOT_FOUND));
+		}
 	}
 
 	@DeleteMapping("/{groupId}")
@@ -146,7 +168,7 @@ public class GroupController implements GroupControllerDoc {
 	@GetMapping("/mine")
 	public ResponseEntity<CommonResponse<?>> getMyGroups(Authentication authentication) {
 		List<GroupResponse> groups =
-				groupService.getMyGroups(authentication.getName());
+				groupService.getMyGroups(SecurityUtil.getUserKey());
 
 		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, groups));
 	}
