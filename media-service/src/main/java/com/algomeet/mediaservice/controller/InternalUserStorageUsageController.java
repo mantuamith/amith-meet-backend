@@ -16,7 +16,6 @@ import com.algomeet.mediaservice.dto.StorageUsageResponse;
 import com.algomeet.mediaservice.enums.ResponseCode;
 import com.algomeet.mediaservice.service.impl.UserStorageUsageService;
 
-import jakarta.websocket.server.PathParam;
 import lombok.RequiredArgsConstructor;
 
 @RestController
