@@ -50,6 +50,9 @@ class MediaServiceOssImplTest {
 
     @InjectMocks
     private MediaServiceOssImpl mediaService;
+    
+	@Mock
+	private UserStorageUsageService userStorageUsageService;
 
     @BeforeEach
     void setup() {
@@ -81,7 +84,8 @@ class MediaServiceOssImplTest {
         		OWNER_KEY,
                 file,
                 null,
-                false
+                false,
+                true
         );
 
         // then

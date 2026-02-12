@@ -16,7 +16,9 @@ import com.algomeet.mediaservice.config.StorageProperties;
 import com.algomeet.mediaservice.document.FilePermission;
 import com.algomeet.mediaservice.document.UserFileDocument;
 import com.algomeet.mediaservice.dto.MediaUploadResponse;
+import com.algomeet.mediaservice.dto.StorageUsageAdjustmentRequest;
 import com.algomeet.mediaservice.enums.Storage;
+import com.algomeet.mediaservice.repository.UserStorageUsageRepository;
 import com.algomeet.mediaservice.service.MediaServiceLocal;
 import com.algomeet.mediaservice.service.UserFileService;
 
@@ -30,13 +32,15 @@ import lombok.extern.slf4j.Slf4j;
 public class MediaServiceLocalImpl implements MediaServiceLocal {
 	private StorageProperties storageProperties;
 	private UserFileService userFileService;
+	private UserStorageUsageService userStorageUsageService;
 
     @Override
     public MediaUploadResponse upload(
     		String userKey,
             MultipartFile file,
             String contentType,
-            boolean encrypted
+            boolean encrypted,
+            boolean autoExpire
     ) {
         try {
         	String storageDir = storageProperties.getLocal().getDir() + 
@@ -60,8 +64,16 @@ public class MediaServiceLocalImpl implements MediaServiceLocal {
             userFile.setAbsolutePath(target.toUri().getPath());
             userFile.setEncrypted(encrypted);            
             userFile.setOwner(userKey);
-			userFile.setCleanupEligibleAt(
-					Instant.now().plus(Duration.ofHours(storageProperties.getUnsharedFileExpirationHours())));
+            if (autoExpire) {
+            	userFile.setCleanupEligibleAt(
+            			Instant.now().plus(Duration.ofHours(storageProperties.getUnsharedFileExpirationHours())));
+            } else {
+            	// Update user storage usage            	
+            	StorageUsageAdjustmentRequest storageUsageAdjustment = new StorageUsageAdjustmentRequest();
+            	storageUsageAdjustment.setMediaFileCountDelta(1L);
+            	storageUsageAdjustment.setMediaStorageBytesDelta(file.getSize());
+            	userStorageUsageService.adjustUsage(UUID.fromString(userKey), storageUsageAdjustment);
+            }
  
             userFile.setStorage(Storage.LOCAL.name());
             

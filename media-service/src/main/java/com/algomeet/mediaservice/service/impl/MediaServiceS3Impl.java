@@ -13,6 +13,7 @@ import com.algomeet.mediaservice.config.StorageProperties;
 import com.algomeet.mediaservice.document.FilePermission;
 import com.algomeet.mediaservice.document.UserFileDocument;
 import com.algomeet.mediaservice.dto.MediaUploadResponse;
+import com.algomeet.mediaservice.dto.StorageUsageAdjustmentRequest;
 import com.algomeet.mediaservice.enums.Storage;
 import com.algomeet.mediaservice.service.MediaServiceS3;
 import com.algomeet.mediaservice.service.UserFileService;
@@ -37,13 +38,15 @@ public class MediaServiceS3Impl implements MediaServiceS3 {
     private final S3Client s3Client;
     private UserFileService userFileService;
     private final StorageProperties storageProperties;
-
+    private UserStorageUsageService userStorageUsageService;
+    
     @Override
     public MediaUploadResponse upload(
             String userKey,
             MultipartFile file,
             String contentType,
-            boolean encrypted
+            boolean encrypted,
+            boolean autoExpire
     ) {
 
         try {
@@ -81,8 +84,16 @@ public class MediaServiceS3Impl implements MediaServiceS3 {
             userFile.setAbsolutePath(filename);
             userFile.setEncrypted(encrypted);            
             userFile.setOwner(userKey);
-            userFile.setCleanupEligibleAt(
-            Instant.now().plus(Duration.ofHours(storageProperties.getUnsharedFileExpirationHours())));
+            if (autoExpire) {
+            	userFile.setCleanupEligibleAt(
+            			Instant.now().plus(Duration.ofHours(storageProperties.getUnsharedFileExpirationHours())));
+            } else {
+            	// Update user storage usage            	
+            	StorageUsageAdjustmentRequest storageUsageAdjustment = new StorageUsageAdjustmentRequest();
+            	storageUsageAdjustment.setMediaFileCountDelta(1L);
+            	storageUsageAdjustment.setMediaStorageBytesDelta(file.getSize());
+            	userStorageUsageService.adjustUsage(UUID.fromString(userKey), storageUsageAdjustment);
+            }
 
             userFile.setStorage(Storage.S3.name());
                         

@@ -6,6 +6,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -14,6 +15,7 @@ import org.springframework.util.CollectionUtils;
 import com.algomeet.mediaservice.document.FileAccessEntry;
 import com.algomeet.mediaservice.document.FilePermission;
 import com.algomeet.mediaservice.document.UserFileDocument;
+import com.algomeet.mediaservice.dto.StorageUsageAdjustmentRequest;
 import com.algomeet.mediaservice.repository.UserFileRepository;
 import com.algomeet.mediaservice.service.UserFileService;
 
@@ -23,6 +25,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class UserFileServiceImpl implements UserFileService {
 	private final UserFileRepository repository;
+	private final UserStorageUsageService userStorageUsageService;
 
 	@Override
 	public UserFileDocument create(UserFileDocument file) {
@@ -139,6 +142,14 @@ public class UserFileServiceImpl implements UserFileService {
 				} 
 
 				file.getAccessControlList().add(new FileAccessEntry(uKey, refCount, permissions));
+				
+            	// Update user storage usage, add the shared file count and file size            	
+            	StorageUsageAdjustmentRequest storageUsageAdjustment = new StorageUsageAdjustmentRequest();
+            	storageUsageAdjustment.setMediaFileCountDelta(1L);
+            	storageUsageAdjustment.setMediaStorageBytesDelta(file.getSize());
+            	System.out.println(uKey);
+            	System.out.println(UUID.fromString(uKey));
+            	userStorageUsageService.adjustUsage(UUID.fromString(uKey), storageUsageAdjustment);
 
 			}
 		}
@@ -180,6 +191,12 @@ public class UserFileServiceImpl implements UserFileService {
 
 				if (accControl.getRefCount() <= 0) {
 					itAccControl.remove();
+					
+	            	// Update user storage usage, subtract the deleted file count and file size     	
+	            	StorageUsageAdjustmentRequest storageUsageAdjustment = new StorageUsageAdjustmentRequest();
+	            	storageUsageAdjustment.setMediaFileCountDelta(-1L);
+	            	storageUsageAdjustment.setMediaStorageBytesDelta(-file.getSize());
+	            	userStorageUsageService.adjustUsage(UUID.fromString(uKey), storageUsageAdjustment);
 				}
 			}
 		}

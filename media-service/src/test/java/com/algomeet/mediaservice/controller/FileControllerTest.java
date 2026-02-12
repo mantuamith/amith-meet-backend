@@ -20,6 +20,7 @@ import com.algomeet.mediaservice.service.MediaServiceLocal;
 import com.algomeet.mediaservice.service.MediaServiceOss;
 import com.algomeet.mediaservice.service.MediaServiceS3;
 import com.algomeet.mediaservice.service.UserFileService;
+import com.algomeet.mediaservice.service.impl.UserStorageUsageService;
 import com.algomeet.mediaservice.util.FileValidator;
 import com.algomeet.mediaservice.util.MessageUtil;
 import com.algomeet.mediaservice.util.SecurityUtil;
@@ -70,6 +71,9 @@ class FileControllerTest {
 
 	@MockBean
 	private UserFileService userFileService;
+	
+	@MockBean
+	private UserStorageUsageService userStorageUsageService;
 
 	@MockBean
 	private FileValidator fileValidator;
@@ -108,13 +112,13 @@ class FileControllerTest {
 		MediaUploadResponse uploadResponse = MediaUploadResponse.builder().build();
 
 		when(storageProperties.getActiveUploadStorage()).thenReturn(Storage.LOCAL.name());
-		when(mediaServiceLocal.upload(any(), any(), any(), anyBoolean())).thenReturn(uploadResponse);
+		when(mediaServiceLocal.upload(any(), any(), any(), anyBoolean(), anyBoolean())).thenReturn(uploadResponse);
 
 		mockMvc.perform(multipart("/media").file(file).param("contentType", "text/plain")).andExpect(status().isOk())
 				.andExpect(jsonPath("$.code").value("SUCCESS"));
 
 		verify(fileValidator).validate(file, false);
-		verify(mediaServiceLocal).upload(eq(USER_KEY), eq(file), eq("text/plain"), eq(false));
+		verify(mediaServiceLocal).upload(eq(USER_KEY), eq(file), eq("text/plain"), eq(false), eq(true));
 	}
 
 	@Test

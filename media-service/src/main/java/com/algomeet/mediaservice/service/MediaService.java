@@ -12,7 +12,8 @@ public interface MediaService {
 			String userKey,
 			MultipartFile file,
 			String contentType,
-			boolean encrypted
+			boolean encrypted,
+			boolean autoExpire
 			);
 	
     boolean deleteIfExists(String fileLocation) throws IOException;
