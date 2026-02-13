@@ -3,6 +3,7 @@ package com.algomeet.mediaservice.controller;
 import java.util.UUID;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -26,7 +27,7 @@ public class InternalUserStorageUsageController {
     private final UserStorageUsageService service;
     
     @GetMapping("/{userKey}/storage-usage")
-	public ResponseEntity<CommonResponse<StorageUsageResponse>> getUserStorage(@PathVariable("userKey") UUID userKey) {
+	public ResponseEntity<CommonResponse<StorageUsageResponse>> getUserStorageUsage(@PathVariable("userKey") UUID userKey) {
 		StorageUsageResponse response = service.getUsage(userKey);
 
         return ResponseEntity.ok(
@@ -38,7 +39,7 @@ public class InternalUserStorageUsageController {
      * Adjusts user storage counters (increase/decrease).
      */
     @PatchMapping("/{userKey}/storage-usage")
-    public ResponseEntity<CommonResponse<StorageUsageResponse>> adjustStorage(
+    public ResponseEntity<CommonResponse<StorageUsageResponse>> adjustStorageUsage(
             @PathVariable UUID userKey,
             @RequestBody StorageUsageAdjustmentRequest request) {
 
@@ -48,4 +49,13 @@ public class InternalUserStorageUsageController {
                 CommonResponse.from(ResponseCode.SUCCESS, response)
         );
     }
+    
+    @DeleteMapping("/{userKey}/storage-usage")
+	public ResponseEntity<CommonResponse<?>> deleteUserStorageUsage(@PathVariable("userKey") UUID userKey) {
+		service.deleteUsage(userKey);
+
+        return ResponseEntity.ok(
+                CommonResponse.from(ResponseCode.SUCCESS)
+        );
+	}	
 }

@@ -27,7 +27,7 @@ public class UserStorageUsageController {
     private final UserStorageUsageService service;
 	
 	@GetMapping("/me/storage-usage")
-	public ResponseEntity<CommonResponse<StorageUsageResponse>> getUserStorage() {
+	public ResponseEntity<CommonResponse<StorageUsageResponse>> getUserStorageUsage() {
 		StorageUsageResponse response = service.getUsage(UUID.fromString(SecurityUtil.getUserKey()));
 
         return ResponseEntity.ok(
@@ -37,7 +37,7 @@ public class UserStorageUsageController {
 		
 	@PreAuthorize("hasAnyRole('SA','ADMIN')")
 	@GetMapping("/{userKey}/storage-usage")
-	public ResponseEntity<CommonResponse<StorageUsageResponse>> getUserStorage(@PathVariable UUID userKey) {
+	public ResponseEntity<CommonResponse<StorageUsageResponse>> getUserStorageUsage(@PathVariable UUID userKey) {
 		StorageUsageResponse response = service.getUsage(userKey);
 
         return ResponseEntity.ok(

@@ -20,9 +20,9 @@ public class UserStorageUsageService {
     private final UserStorageUsageRepository repository;
     
     @Transactional
-    public StorageUsageResponse getUsage(UUID userId) {
-    	 UserStorageUsage usage = repository.findByUserKeyForUpdate(userId)
-                 .orElseGet(() -> createNew(userId));
+    public StorageUsageResponse getUsage(UUID userKey) {
+    	 UserStorageUsage usage = repository.findByUserKeyForUpdate(userKey)
+                 .orElseGet(() -> createNew(userKey));
          return mapToResponse(usage);
     }
 
@@ -43,6 +43,10 @@ public class UserStorageUsageService {
         log.info("Storage updated for userKey={} ref={}", userKey, request.getReferenceId());
 
         return mapToResponse(usage);
+    }
+    
+    public void deleteUsage(UUID userKey) {
+    	 repository.deleteById(userKey);
     }
 
     private UserStorageUsage createNew(UUID userKey) {
