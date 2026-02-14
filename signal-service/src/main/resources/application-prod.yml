@@ -37,3 +37,7 @@ server:
 
 jwt:
   secret: ${SPRING_JWT_SECRET}
+
+media:
+    service:
+      url: http://localhost:8095
