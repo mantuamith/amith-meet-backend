@@ -19,8 +19,8 @@ import lombok.NoArgsConstructor;
 @Document(collection = "message_backups")
 @CompoundIndexes({
         // For queries: {userKey: A, senderKey: B} sorted by timestamp/_id
-        @CompoundIndex(name = "idx_user_key_sender_key_ts_id",
-                def  = "{'userKey': 1, 'senderKey': 1, 'timestamp': -1, '_id': -1}")
+        @CompoundIndex(name = "idx_user_key_sender_key_receiver_key_ts_id",
+                def  = "{'userKey': 1, 'senderKey': 1, 'receiverKey': 1, 'timestamp': -1, '_id': -1}")
 })
 public class MessageBackupDocument {
 	@Id
