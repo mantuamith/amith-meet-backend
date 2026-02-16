@@ -66,6 +66,7 @@ public class SecurityConfig {
                 "https://localhost:8080",
                 "http://localhost:8080",   // all localhost ports
                 "https://*.algoframe.in",
+                "https://*.algomeet.app",
                 "https://meet.algoframe.local" // any subdomain of algoframe.in
         ));
 
