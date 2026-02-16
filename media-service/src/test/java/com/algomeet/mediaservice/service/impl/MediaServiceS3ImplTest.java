@@ -59,6 +59,9 @@ class MediaServiceS3ImplTest {
 
 	@InjectMocks
 	private MediaServiceS3Impl mediaService;
+	
+	@Mock
+	private UserStorageUsageService userStorageUsageService;
 
 	@BeforeEach
 	void setup() {
@@ -73,7 +76,7 @@ class MediaServiceS3ImplTest {
 		MultipartFile file = new MockMultipartFile("file", "hello.txt", "text/plain", "hello s3".getBytes());
 
 		// when
-		MediaUploadResponse response = mediaService.upload("11111111-1111-1111-1111-111111111111", file, null, false);
+		MediaUploadResponse response = mediaService.upload("11111111-1111-1111-1111-111111111111", file, null, false, true);
 
 		// then
 		assertNotNull(response.getMediaId());

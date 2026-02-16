@@ -42,7 +42,7 @@ import lombok.RequiredArgsConstructor;
  * @since 1.0
  */
 @RestController
-@RequestMapping("/signaling/backup/chat-messages")
+@RequestMapping("/signal/backup/chat-messages")
 @RequiredArgsConstructor
 public class MessageBackupController implements MessageBackupControllerDoc{
 	private final MessageBackupService messageBackupService;

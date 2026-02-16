@@ -53,6 +53,8 @@ public class ExampleGroupAliceToBob {
 		// Retrieve recipient SKDM and decrypt using 1:1 session from BE using API endpoint: GET /signal/v2/devices/{receiverDeviceId}/groups/{groupId}/sender-keys/poll	
 		SenderKeyDistributionMessage receivedAliceDistributionMessage =
 				new SenderKeyDistributionMessage(sentAliceDistributionMessage.serialize());
+		SenderKeyDistributionMessage receivedAliceDistributionMessage2 =
+				new SenderKeyDistributionMessage(sentAliceDistributionMessage.serialize());
 
 		bobSessionBuilder.process(SENDER_ADDRESS, receivedAliceDistributionMessage);
 				
@@ -63,7 +65,7 @@ public class ExampleGroupAliceToBob {
 		byte[] plaintextFromAlice = bobGroupCipher.decrypt(ciphertextFromAlice.serialize());
 		System.out.println("Decrypted: " + new String(plaintextFromAlice));
 
-		
+				
 		// Create decryptor for Alice's sent messages
 		aliceSentMessageDecryptorSessionBuilder.process(SENDER_ADDRESS, receivedAliceDistributionMessage);
 		// Alice decrypt it's own/sent messages

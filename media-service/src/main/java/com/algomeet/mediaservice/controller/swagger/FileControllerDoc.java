@@ -43,7 +43,14 @@ public interface FileControllerDoc {
 
             @Parameter(description = "Whether file is encrypted")
             @RequestParam(required = false)
-            Boolean encrypted
+            Boolean encrypted,
+            
+            @Parameter(
+            		description = "Whether the uploaded file should automatically expire based on system TTL policy. " +
+            				"Defaults to true when not provided.",
+            				schema = @Schema(type = "boolean", defaultValue = "true", example = "true")
+            		)
+            @RequestParam(defaultValue = "true") Boolean autoExpire
     ) throws Exception;
 
     // ========================= GET/READ =========================
