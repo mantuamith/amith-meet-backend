@@ -43,3 +43,7 @@ server:
 
 jwt:
   secret: Y0h4TkFxWkd6Um9TTktOVlFobU9naFN3SzY5cWhVY08=
+  
+media:
+    service:
+      url: http://localhost:8095

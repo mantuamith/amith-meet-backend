@@ -60,7 +60,8 @@ public class FileController implements FileControllerDoc {
 	 */
 	@PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
 	public ResponseEntity<CommonResponse<MediaUploadResponse>> upload(@RequestPart("file") MultipartFile file,
-			@RequestParam(required = false) String contentType, @RequestParam(required = false) Boolean encrypted)
+			@RequestParam(required = false) String contentType, @RequestParam(required = false) Boolean encrypted,
+			@RequestParam(required = false, defaultValue = "true") Boolean autoExpire)
 			throws Exception {
 
 		log.info("Uploading media: name={}, size={} bytes", file.getOriginalFilename(), file.getSize());
@@ -79,18 +80,18 @@ public class FileController implements FileControllerDoc {
 				&& Storage.LOCAL.name().equalsIgnoreCase(storageProperties.getActiveUploadStorage().trim())) {
 
 			response = mediaServiceLocal.upload(SecurityUtil.getUserKey(), file, contentType,
-					encrypted != null && encrypted);
+					encrypted != null && encrypted, autoExpire != null && autoExpire);
 
 		} else if (storageProperties.getActiveUploadStorage() != null
 				&& Storage.S3.name().equalsIgnoreCase(storageProperties.getActiveUploadStorage().trim())) {
 
 			response = mediaServiceS3.upload(SecurityUtil.getUserKey(), file, contentType,
-					encrypted != null && encrypted);
+					encrypted != null && encrypted, autoExpire != null && autoExpire);
 		} else if (storageProperties.getActiveUploadStorage() != null
 				&& Storage.OSS.name().equalsIgnoreCase(storageProperties.getActiveUploadStorage().trim())) {
 
 			response = mediaServiceOss.upload(SecurityUtil.getUserKey(), file, contentType,
-					encrypted != null && encrypted);
+					encrypted != null && encrypted, autoExpire != null && autoExpire);
 		} else {
 			throw new IllegalArgumentException("Unexpected configuration active upload storage value: "
 					+ Storage.valueOf(storageProperties.getActiveUploadStorage()));
