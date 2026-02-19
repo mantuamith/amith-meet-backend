@@ -10,7 +10,7 @@ import com.algomeet.subscription.entity.PlanFeatureValue;
 import com.algomeet.subscription.repository.FeaturePropertyRepository;
 import com.algomeet.subscription.repository.PlanFeatureValueRepository;
 import com.algomeet.subscription.repository.PlanRepository;
-import jakarta.persistence.Cacheable;
+import org.springframework.cache.annotation.Cacheable;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -26,7 +26,7 @@ public class PlanComparisonService {
     private final FeaturePropertyRepository featurePropertyRepository;
     private final PlanFeatureValueRepository planFeatureValueRepository;
 
-    @Cacheable(value = "plan-comparison")
+    @Cacheable(cacheNames = "plan-comparison")
     public PlanComparisonResponse getComparison() {
 
         List<Plan> plans = planRepository.findByIsActiveTrueOrderByIdAsc();

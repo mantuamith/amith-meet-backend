@@ -26,7 +26,7 @@ public class AdminPlanFeatureValueService {
 
     /* ---------------- CREATE ---------------- */
 
-    @CacheEvict(value = "plan-comparison", allEntries = true)
+    @CacheEvict(cacheNames = "plan-comparison", allEntries = true)
     public AdminPlanFeatureValueResponse create(
             AdminPlanFeatureValueCreateRequest request
     ) {
@@ -64,7 +64,7 @@ public class AdminPlanFeatureValueService {
 
     /* ---------------- UPDATE ---------------- */
 
-    @CacheEvict(value = "plan-comparison", allEntries = true)
+    @CacheEvict(cacheNames = "plan-comparison", allEntries = true)
     public AdminPlanFeatureValueResponse update(
             UUID id,
             AdminPlanFeatureValueUpdateRequest request
@@ -96,7 +96,7 @@ public class AdminPlanFeatureValueService {
 
     /* ---------------- DELETE ---------------- */
 
-    @CacheEvict(value = "plan-comparison", allEntries = true)
+    @CacheEvict(cacheNames = "plan-comparison", allEntries = true)
     public void delete(UUID id) {
 
         log.info("Evicting plan-comparison cache (DELETE)");
@@ -132,7 +132,7 @@ public class AdminPlanFeatureValueService {
 
     /* ---------------- BULK UPSERT ---------------- */
 
-    @CacheEvict(value = "plan-comparison", allEntries = true)
+    @CacheEvict(cacheNames = "plan-comparison", allEntries = true)
     public AdminPlanFeatureValueBulkUpsertResponse bulkUpsert(
             UUID planId,
             AdminPlanFeatureValueBulkUpsertRequest request
