@@ -4,6 +4,8 @@ import com.algomeet.subscription.dto.admin.planfeaturevalue.*;
 import com.algomeet.subscription.entity.*;
 import com.algomeet.subscription.repository.*;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -12,6 +14,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -23,9 +26,12 @@ public class AdminPlanFeatureValueService {
 
     /* ---------------- CREATE ---------------- */
 
+    @CacheEvict(value = "plan-comparison", allEntries = true)
     public AdminPlanFeatureValueResponse create(
             AdminPlanFeatureValueCreateRequest request
     ) {
+
+        log.info("Evicting plan-comparison cache (CREATE)");
 
         if (planFeatureValueRepository
                 .findByPlanIdAndFeaturePropertyId(
@@ -58,10 +64,13 @@ public class AdminPlanFeatureValueService {
 
     /* ---------------- UPDATE ---------------- */
 
+    @CacheEvict(value = "plan-comparison", allEntries = true)
     public AdminPlanFeatureValueResponse update(
             UUID id,
             AdminPlanFeatureValueUpdateRequest request
     ) {
+
+        log.info("Evicting plan-comparison cache (UPDATE)");
 
         PlanFeatureValue pfv = planFeatureValueRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Value not found"));
@@ -87,7 +96,11 @@ public class AdminPlanFeatureValueService {
 
     /* ---------------- DELETE ---------------- */
 
+    @CacheEvict(value = "plan-comparison", allEntries = true)
     public void delete(UUID id) {
+
+        log.info("Evicting plan-comparison cache (DELETE)");
+
         planFeatureValueRepository.deleteById(id);
     }
 
@@ -117,10 +130,15 @@ public class AdminPlanFeatureValueService {
         }
     }
 
+    /* ---------------- BULK UPSERT ---------------- */
+
+    @CacheEvict(value = "plan-comparison", allEntries = true)
     public AdminPlanFeatureValueBulkUpsertResponse bulkUpsert(
             UUID planId,
             AdminPlanFeatureValueBulkUpsertRequest request
     ) {
+
+        log.info("Evicting plan-comparison cache (BULK UPSERT)");
 
         Plan plan = planRepository.findById(planId)
                 .orElseThrow(() -> new IllegalArgumentException("Plan not found"));
@@ -181,6 +199,8 @@ public class AdminPlanFeatureValueService {
                 results
         );
     }
+
+    /* ---------------- DTO ---------------- */
 
     private AdminPlanFeatureValueResponse toDto(PlanFeatureValue pfv) {
 
