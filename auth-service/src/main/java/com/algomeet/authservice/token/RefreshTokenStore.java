@@ -81,13 +81,13 @@ public class RefreshTokenStore {
     @Value("${auth.refresh-token.ttl-days:7}")
     private long refreshTokenTtlDays;
 
-    private static final String REFRESH_TOKEN_PREFIX = "RT:";
-    private static final String USER_KEY_PREFIX  = "RTE:";
+    private static final String REFRESH_TOKEN_KEY_PREFIX = "RT:";
+    private static final String USER_EMAIL_KEY_PREFIX  = "RTE:";
 
     /** Save a refresh token and bind it to a user (email). */
     public void save(String token, String email) {
-        String tokenToEmailKey = REFRESH_TOKEN_PREFIX + token;
-        String emailToTokensKey = USER_KEY_PREFIX + email;
+        String tokenToEmailKey = REFRESH_TOKEN_KEY_PREFIX + token;
+        String emailToTokensKey = USER_EMAIL_KEY_PREFIX + email;
 
         // Save token -> email with TTL
         redisTemplate.opsForValue().set(tokenToEmailKey, email, refreshTokenTtlDays, TimeUnit.DAYS);
@@ -103,30 +103,30 @@ public class RefreshTokenStore {
     
     /** Does this refresh token exist? */
     public boolean exists(String token) {
-        return Boolean.TRUE.equals(redisTemplate.hasKey(REFRESH_TOKEN_PREFIX + token));
+        return Boolean.TRUE.equals(redisTemplate.hasKey(REFRESH_TOKEN_KEY_PREFIX + token));
     }
 
     /** Remove a single refresh token (e.g., on logout). */
     public void remove(String token) {
-        String tokenKey = REFRESH_TOKEN_PREFIX + token;
+        String tokenKey = REFRESH_TOKEN_KEY_PREFIX + token;
         String email = redisTemplate.opsForValue().get(tokenKey);
 
         if (email != null) {
             redisTemplate.delete(tokenKey);
-            redisTemplate.opsForSet().remove(USER_KEY_PREFIX + email, token);
+            redisTemplate.opsForSet().remove(USER_EMAIL_KEY_PREFIX + email, token);
             log.debug("Removed refresh token for user={}", email);
         }
     }
 
     /** Remove all refresh tokens for a given email. */
     public void revokeAllForUser(String email) {
-        String emailToTokensKey = USER_KEY_PREFIX + email;
+        String emailToTokensKey = USER_EMAIL_KEY_PREFIX + email;
         Set<String> tokens = redisTemplate.opsForSet().members(emailToTokensKey);
 
         if (tokens != null && !tokens.isEmpty()) {
             // Remove each individual token key
             for (String token : tokens) {
-                redisTemplate.delete(REFRESH_TOKEN_PREFIX + token);
+                redisTemplate.delete(REFRESH_TOKEN_KEY_PREFIX + token);
             }
             // Remove the user's token set
             redisTemplate.delete(emailToTokensKey);
@@ -141,6 +141,6 @@ public class RefreshTokenStore {
 
     /** Look up the user email for a given refresh token. */
     public String getEmailForToken(String token) {
-        return redisTemplate.opsForValue().get(REFRESH_TOKEN_PREFIX + token);
+        return redisTemplate.opsForValue().get(REFRESH_TOKEN_KEY_PREFIX + token);
     }
 }
