@@ -1,11 +1,13 @@
 package com.algomeet.authservice.token;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
-import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 
 /**
  * In-memory refresh token store (dev/test).
@@ -68,62 +70,77 @@ import java.util.concurrent.ConcurrentHashMap;
  *    - Concurrency test for save/remove/revokeAllForUser.
  *    - TTL expiry test confirms GET returns null after expiry.
  */
+
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class RefreshTokenStore {
 
-    // refreshToken -> email
-    private final Map<String, String> tokenToEmail = new ConcurrentHashMap<>();
+    private final StringRedisTemplate redisTemplate;
 
-    // email -> set of refreshTokens
-    private final Map<String, Set<String>> emailToTokens = new ConcurrentHashMap<>();
+    @Value("${auth.refresh-token.ttl-days:7}")
+    private long refreshTokenTtlDays;
+
+    private static final String REFRESH_TOKEN_PREFIX = "RT:";
+    private static final String USER_KEY_PREFIX  = "RTE:";
 
     /** Save a refresh token and bind it to a user (email). */
     public void save(String token, String email) {
-        tokenToEmail.put(token, email);
-        emailToTokens
-                .computeIfAbsent(email, k -> ConcurrentHashMap.newKeySet())
-                .add(token);
-    }
+        String tokenToEmailKey = REFRESH_TOKEN_PREFIX + token;
+        String emailToTokensKey = USER_KEY_PREFIX + email;
 
+        // Save token -> email with TTL
+        redisTemplate.opsForValue().set(tokenToEmailKey, email, refreshTokenTtlDays, TimeUnit.DAYS);
+        
+        // Add token to the user's set of active tokens
+        redisTemplate.opsForSet().add(emailToTokensKey, token);
+        
+        // Optional: Set TTL on the user set to eventually clean up abandoned sets
+        redisTemplate.expire(emailToTokensKey, refreshTokenTtlDays, TimeUnit.DAYS);
+        
+        log.debug("Saved refresh token for user={}", email);
+    }
+    
     /** Does this refresh token exist? */
     public boolean exists(String token) {
-        return tokenToEmail.containsKey(token);
+        return Boolean.TRUE.equals(redisTemplate.hasKey(REFRESH_TOKEN_PREFIX + token));
     }
 
     /** Remove a single refresh token (e.g., on logout). */
     public void remove(String token) {
-        String email = tokenToEmail.remove(token);
+        String tokenKey = REFRESH_TOKEN_PREFIX + token;
+        String email = redisTemplate.opsForValue().get(tokenKey);
+
         if (email != null) {
-            Set<String> tokens = emailToTokens.get(email);
-            if (tokens != null) {
-                tokens.remove(token);
-                if (tokens.isEmpty()) {
-                    emailToTokens.remove(email);
-                }
-            }
+            redisTemplate.delete(tokenKey);
+            redisTemplate.opsForSet().remove(USER_KEY_PREFIX + email, token);
+            log.debug("Removed refresh token for user={}", email);
         }
     }
 
-    /** Remove all refresh tokens for a given email (used when overriding sessions). */
+    /** Remove all refresh tokens for a given email. */
     public void revokeAllForUser(String email) {
-        Set<String> tokens = emailToTokens.remove(email);
-        int count = 0;
-        if (tokens != null) {
-            for (String t : tokens) {
-                if (tokenToEmail.remove(t) != null) count++;
+        String emailToTokensKey = USER_KEY_PREFIX + email;
+        Set<String> tokens = redisTemplate.opsForSet().members(emailToTokensKey);
+
+        if (tokens != null && !tokens.isEmpty()) {
+            // Remove each individual token key
+            for (String token : tokens) {
+                redisTemplate.delete(REFRESH_TOKEN_PREFIX + token);
             }
+            // Remove the user's token set
+            redisTemplate.delete(emailToTokensKey);
+            log.info("Revoked {} refresh token(s) for user={}", tokens.size(), email);
         }
-        log.info("Revoked {} refresh token(s) for user={}", count, email);
     }
 
-    /** Legacy alias if other spots still call this name. */
+    /** Legacy alias. */
     public void clearAllForEmail(String email) {
         revokeAllForUser(email);
     }
 
-    /** Look up the user email for a given refresh token (used in /logout). */
+    /** Look up the user email for a given refresh token. */
     public String getEmailForToken(String token) {
-        return tokenToEmail.get(token);
+        return redisTemplate.opsForValue().get(REFRESH_TOKEN_PREFIX + token);
     }
 }

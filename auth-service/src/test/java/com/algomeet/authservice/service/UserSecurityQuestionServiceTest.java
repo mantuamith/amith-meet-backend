@@ -74,6 +74,7 @@ class UserSecurityQuestionServiceTest {
     @Test
     void create_passThrough() {
         var req = new UserSecurityQuestionRequest();
+        req.setAnswer("test");
         var body = new UserSecurityQuestionResponse();
         when(client.create(req)).thenReturn(ResponseEntity.ok(body));
 
@@ -93,6 +94,7 @@ class UserSecurityQuestionServiceTest {
     void updateAnswer_passThrough() {
         UUID id = UUID.randomUUID();
         var req = new UserSecurityQuestionRequest();
+        req.setAnswer("test");
         var body = new UserSecurityQuestionResponse();
         when(client.updateAnswer(eq(id), eq("Q1"), eq(req))).thenReturn(ResponseEntity.ok(body));
 
