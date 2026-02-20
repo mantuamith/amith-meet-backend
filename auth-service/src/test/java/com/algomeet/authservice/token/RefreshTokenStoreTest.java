@@ -61,7 +61,7 @@ class RefreshTokenStoreTest {
         verify(setOperations).add(eq("RTE:" + testEmail), eq(testToken));
         
         // Verify TTL on the set
-        verify(redisTemplate).expire(eq("RTE:" + testEmail), eq(ttlDays + 1), eq(TimeUnit.DAYS));
+        verify(redisTemplate).expire(eq("RTE:" + testEmail), eq(ttlDays), eq(TimeUnit.DAYS));
     }
 
     @Test
