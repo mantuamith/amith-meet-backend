@@ -39,6 +39,21 @@ public class JwtUtil {
                 .signWith(secretKey, SignatureAlgorithm.HS256)
                 .compact();
     }
+    public String generateToken(UserResponse user, String sid, String planCode) {
+        return Jwts.builder()
+                .setSubject(user.getEmail())
+                .claim("username", user.getUsername())
+                .claim("role", user.getRole())
+                .claim("sid", sid)
+                .claim("plan", planCode)
+                .claim("user_key", safeUserKey(user))
+                .claim("tenantId", user.getTenantId())
+                .setIssuedAt(new Date())
+                .setExpiration(Date.from(Instant.now().plus(ACCESS_TTL)))
+                .signWith(secretKey, SignatureAlgorithm.HS256)
+                .compact();
+    }
+
 
     public String generateToken(UserResponse user, String sid) {
         return Jwts.builder()

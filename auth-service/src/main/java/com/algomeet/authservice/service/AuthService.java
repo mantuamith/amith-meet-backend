@@ -1,17 +1,15 @@
 package com.algomeet.authservice.service;
 
+import com.algomeet.authservice.client.SubscriptionClient;
 import com.algomeet.authservice.client.UserClient;
 import com.algomeet.authservice.dto.AuthResponse;
-import com.algomeet.authservice.dto.UserRequest;
 import com.algomeet.authservice.dto.UserResponse;
-import com.algomeet.authservice.exception.UserAlreadyExistsException;
 import com.algomeet.authservice.session.SidCache;
 import com.algomeet.authservice.token.RefreshTokenStore;
 import com.algomeet.authservice.util.JwtUtil;
 import com.algomeet.notificationservice.service.NotificationService;
 import com.algomeet.authservice.enums.ResponseCode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import feign.FeignException;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -19,10 +17,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 
-import static com.algomeet.authservice.util.FeignErrorUtil.extractCode;
-import static com.algomeet.authservice.util.FeignErrorUtil.extractDuplicateFields;
 @Slf4j
 @Service
 @AllArgsConstructor
@@ -36,6 +31,7 @@ public class AuthService {
     private final ObjectMapper objectMapper; // for mapping user object
     private final SidCache sidCache;
     private final NotificationService notificationService;
+    private final SubscriptionClient subscriptionClient;
 
     public AuthResponse issueTokensFor(UserResponse user, String deviceId, boolean overrideExisting) {
         // 1) Start/rotate server-side session to get sid
@@ -51,8 +47,14 @@ public class AuthService {
             refreshTokenStore.revokeAllForUser(user.getEmail());
         }
 
+        Map<String, String> planResponse =
+                subscriptionClient.getUserPlan(user.getId());
+
+        String planCode = planResponse.getOrDefault("planCode", "FREE");
+
         // 3) Mint tokens WITH sid
-        String accessToken  = jwtUtil.generateToken(user, sid);
+        //String accessToken  = jwtUtil.generateToken(user, sid);
+        String accessToken  = jwtUtil.generateToken(user, sid, planCode);
         String refreshToken = jwtUtil.generateRefreshToken(user, sid);
 
         // 4) Persist refresh token ↔ user binding
@@ -141,9 +143,13 @@ public class AuthService {
             // either revoked or another login rotated SID
             return AuthResponse.from(ResponseCode.AUTH_SESSION_REVOKED, user);
         }
+        Map<String, String> planResponse =
+                subscriptionClient.getUserPlan(user.getId());
+
+        String latestPlan = planResponse.getOrDefault("planCode", "FREE");
 
         // 5) issue new ACCESS token with SAME sid; optionally extend/rotate refresh here
-        String newAccess = jwtUtil.generateToken(user, currentSid);
+        String newAccess = jwtUtil.generateToken(user, currentSid, latestPlan);
         // You can choose to reuse the same RT (until it nears expiry) or rotate it every time:
         String newRefresh = jwtUtil.generateRefreshToken(user, currentSid);
 

@@ -57,6 +57,8 @@ feign:
   client:
     user-service:
       url: http://user-service:8082
+    subscription-service:
+      url: http://subscription-service:8096
 
 # === App mail defaults for From header ====
 app:

@@ -84,3 +84,5 @@ feign:
   client:
     user-service:
       url: http://localhost:8082
+    subscription-service:
+      url: http://localhost:8096
