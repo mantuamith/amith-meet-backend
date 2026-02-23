@@ -32,8 +32,6 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/auth/**").permitAll()
                         .requestMatchers("/api/subscription/**").permitAll()   // allow open as of now...
-
-
                         // Swagger - start
                         .requestMatchers("/swagger-ui.html").permitAll()
                         .requestMatchers("/swagger-ui/index.html").permitAll()
