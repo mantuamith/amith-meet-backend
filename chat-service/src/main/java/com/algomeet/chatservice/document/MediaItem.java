@@ -7,7 +7,9 @@ import org.springframework.data.mongodb.core.mapping.Field;
 @Data
 @NoArgsConstructor
 public class MediaItem {
-
+	@Field("isEncrypted")
+    private Boolean encrypted = false;  // true if media content is ciphertext
+	
 	@Field("mediaId")
     private String mediaId;
 	

@@ -147,8 +147,6 @@ public class UserFileServiceImpl implements UserFileService {
             	StorageUsageAdjustmentRequest storageUsageAdjustment = new StorageUsageAdjustmentRequest();
             	storageUsageAdjustment.setMediaFileCountDelta(1L);
             	storageUsageAdjustment.setMediaStorageBytesDelta(file.getSize());
-            	System.out.println(uKey);
-            	System.out.println(UUID.fromString(uKey));
             	userStorageUsageService.adjustUsage(UUID.fromString(uKey), storageUsageAdjustment);
 
 			}

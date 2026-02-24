@@ -27,5 +27,8 @@ public class EncrytionMetadata {
     
     // Optional: store actual ciphertext separately if you want plaintext 'content' to remain empty
     @Field("ciphertext")
-    private String ciphertext;          
+    private String ciphertext;   
+    
+    // Key material required to decrypt attached media
+    private MediaKeyMaterial mediaKeyMaterial;
 }

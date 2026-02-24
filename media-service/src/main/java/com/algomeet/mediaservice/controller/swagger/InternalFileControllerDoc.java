@@ -2,11 +2,8 @@ package com.algomeet.mediaservice.controller.swagger;
 
 import java.util.List;
 
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
-
-import com.algomeet.mediaservice.dto.CommonResponse;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -28,7 +25,7 @@ public interface InternalFileControllerDoc {
             @ApiResponse(responseCode = "404", description = "Media not found")
         }
     )
-    public ResponseEntity<?> share(
+    public void share(
             @Parameter(description = "Media ID", required = true)
             @PathVariable String mediaId,
 
@@ -51,7 +48,7 @@ public interface InternalFileControllerDoc {
             @ApiResponse(responseCode = "404", description = "Media not found")
         }
     )
-    public ResponseEntity<CommonResponse<?>> delete(
+    public void delete(
             @Parameter(description = "Media ID", required = true)
             @PathVariable String mediaId,
             
