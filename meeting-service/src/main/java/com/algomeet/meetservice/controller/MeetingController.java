@@ -178,10 +178,14 @@ public class MeetingController implements MeetingControllerDoc  {
 
                     var existing = tokenRegistry.getIfActive(m.getId(), guestKey);
                     existing.ifPresent(t -> tokenRegistry.revoke(m.getId(), guestKey));
-
-                    var gen = algomeetJwtService.generateForMeeting(
-                            m, guestKey, (req.name() == null ? "" : req.name().trim()), null, false);
-
+                    AlgomeetJwtService.GeneratedAlgomeetToken gen = null;
+                    if(req.moderatorPassword() != null && !req.moderatorPassword().isBlank() && !req.moderatorPassword().trim().equals(m.getModeratorPassword())){
+                         gen = algomeetJwtService.generateForMeeting(
+                                m, guestKey, (req.name() == null ? "" : req.name().trim()), null, true);
+                    }else{
+                        algomeetJwtService.generateForMeeting(
+                                m, guestKey, (req.name() == null ? "" : req.name().trim()), null, false);
+                    }
                     tokenRegistry.save(m.getId(), guestKey, gen.token(), Duration.ofSeconds(300));
 
                     var dto = mapper.toDto(m);

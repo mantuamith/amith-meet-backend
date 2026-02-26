@@ -147,9 +147,11 @@ public class MeetingService {
         meeting.setToken(token);
         meeting.setCreatedAt(Instant.now());
         meeting.setExpiresAt(expiry);
+        meeting.setModeratorPassword(hostName + "@" + "algo");//TODO: generate password
 
         meeting.setHostEmail(hostEmail);
         meeting.setHostName(hostName);
+
         // if your Meeting entity has this column + setter:
         try {
             meeting.getClass().getMethod("setHostUserKey", UUID.class);

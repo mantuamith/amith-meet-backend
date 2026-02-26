@@ -22,5 +22,6 @@ public record MeetingDto(
     List<String> invitedParticipants,
     String joinUrl,
     Boolean passwordEnabled,
-    String passwordHash
+    String passwordHash,
+    String moderatorPassword
 ) {}

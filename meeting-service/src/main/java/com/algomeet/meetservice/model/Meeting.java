@@ -24,6 +24,7 @@ public class Meeting {
 
     private String hostEmail;
     private String hostName;// Added field
+    private String moderatorPassword;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "room_id", nullable = false)
