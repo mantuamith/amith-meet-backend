@@ -38,7 +38,7 @@ public  class MeetingMapper {
             m.getAttendees() == null ? null : new ArrayList<>(m.getAttendees()),
             m.getInvitedParticipants() == null ? null : new ArrayList<>(m.getInvitedParticipants()),
                 url,
-                m.isPasswordEnabled(), m.getPasswordHash()
+                m.isPasswordEnabled(), m.getPasswordHash(), m.getModeratorPassword()
 
         );
     }
