@@ -122,77 +122,118 @@ public class MeetingController implements MeetingControllerDoc  {
     ) {
         final String guestKey = GuestIdentity.resolve(request, response);
 
-        return (ResponseEntity<?>) meetingService.getOpenMeetingById(id, req.token())
+        return meetingService.getOpenMeetingById(id, req.token())
                 .map(m -> {
+
+                    /* -------------------------------------------------
+                     * 1️⃣ HARD STOPS — Meeting lifecycle validation
+                     * ------------------------------------------------- */
                     if (m.getStatus() == MeetingStatus.COMPLETED) {
                         return ResponseEntity.status(HttpStatus.GONE)
                                 .body(MeetingResponse.error(ResponseCodes.MEETING_COMPLETED, i18n("meeting.completed")));
                     }
+
                     if (m.getStatus() == MeetingStatus.EXPIRED) {
                         return ResponseEntity.status(HttpStatus.GONE)
                                 .body(MeetingResponse.error(ResponseCodes.MEETING_EXPIRED, i18n("meeting.expired")));
                     }
-                    // If not started yet and user is not the host, don’t mint a token
-                    if (m.getStatus() != MeetingStatus.STARTED) {
-                        return ResponseEntity.ok(MeetingResponse.success(
-                                ResponseCodes.MEETING_NOT_STARTED, "Host hasn’t started yet", mapper.toDto(m)));
+
+                    /* -------------------------------------------------
+                     * 2️⃣ MODERATOR ACCESS — HIGHEST PRIORITY
+                     * If moderator password provided, evaluate FIRST.
+                     * Moderator can bypass waiting/token/password.
+                     * ------------------------------------------------- */
+                    boolean isModerator = false;
+
+                    if (req.moderatorPassword() != null && !req.moderatorPassword().isBlank()) {
+
+                        if (!req.moderatorPassword().trim().equals(m.getModeratorPassword())) {
+                            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                                    .body(MeetingResponse.error(ResponseCodes.MEETING_ACCESS_DENIED,
+                                            i18n("meeting.moderator.password.incorrect")));
+                        }
+
+                        isModerator = true; // ✅ validated moderator
                     }
-                    // If meeting requires password but none provided -> ask client for passcode (200 + success envelope)
-                    // If meeting requires password:
-                    // - no password supplied -> tell client to prompt for passcode (200 + success envelope).
-                    // - password supplied but incorrect -> 403 PASSWORD_INCORRECT
 
-                    if (req.token() != null && !req.token().isBlank() &&!req.token().trim().equals(m.getToken())){
-                        return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                                .body(MeetingResponse.error(ResponseCodes.MEETING_ACCESS_DENIED,
-                                        i18n("meeting.access.denied")));
-                    }
+                    /* -------------------------------------------------
+                     * 3️⃣ HOST NOT STARTED CHECK (Skip for moderator)
+                     * ------------------------------------------------- */
+                    if (!isModerator &&
+                            m.getStatus() != MeetingStatus.STARTED &&
+                            m.getHostEmail() != null &&
+                            !m.getHostEmail().isBlank()) {
 
-                    if (req.token() != null && !req.token().trim().isBlank()) {
-                        if (m.getToken().equals(req.token().trim())) {
-                            var existing = tokenRegistry.getIfActive(m.getId(), guestKey);
-                            existing.ifPresent(t -> tokenRegistry.revoke(m.getId(), guestKey));
-
-                            var gen = algomeetJwtService.generateForMeeting(
-                                    m, guestKey, (req.name() == null ? "" : req.name().trim()), null, false);
-
-                            tokenRegistry.save(m.getId(), guestKey, gen.token(), Duration.ofSeconds(300));
-                            var dto = mapper.toDto(m);
-                            return ResponseEntity.ok(MeetingResponse.success(
-                                    ResponseCodes.MEETING_JOINED_SUCCESS, "You can join now.",
-                                    new OpenMeetingJoinResponse(dto, gen.token(), gen.room(), gen.exp())
-                            ));
-                        } else
-                            return ResponseEntity.status(HttpStatus.FORBIDDEN);
-                    } else if(req.password() == null || req.password().isBlank()) {
                         return ResponseEntity.ok(MeetingResponse.success(
-                                ResponseCodes.PASSWORD_REQUIRED,
-                                i18n("meeting.password.required"),
+                                ResponseCodes.MEETING_NOT_STARTED,
+                                "Host hasn’t started yet",
                                 mapper.toDto(m)
                         ));
                     }
-                    if (!meetingService.verifyPassword(m, req.password())) {
-                        return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                                .body(MeetingResponse.error(ResponseCodes.PASSWORD_INCORRECT, i18n("meeting.password.incorrect")));
+
+                    /* -------------------------------------------------
+                     * 4️⃣ TOKEN-BASED ACCESS (if token present)
+                     * ------------------------------------------------- */
+                    if (!isModerator && req.token() != null && !req.token().isBlank()) {
+
+                        if (!req.token().trim().equals(m.getToken())) {
+                            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                                    .body(MeetingResponse.error(ResponseCodes.MEETING_ACCESS_DENIED,
+                                            i18n("meeting.access.denied")));
+                        }
                     }
 
-                    var existing = tokenRegistry.getIfActive(m.getId(), guestKey);
-                    existing.ifPresent(t -> tokenRegistry.revoke(m.getId(), guestKey));
-                    AlgomeetJwtService.GeneratedAlgomeetToken gen = null;
-                    if(req.moderatorPassword() != null && !req.moderatorPassword().isBlank() && !req.moderatorPassword().trim().equals(m.getModeratorPassword())){
-                         gen = algomeetJwtService.generateForMeeting(
-                                m, guestKey, (req.name() == null ? "" : req.name().trim()), null, true);
-                    }else{
-                        algomeetJwtService.generateForMeeting(
-                                m, guestKey, (req.name() == null ? "" : req.name().trim()), null, false);
+                    /* -------------------------------------------------
+                     * 5️⃣ PASSWORD FLOW (Skip for moderator)
+                     * ------------------------------------------------- */
+                    if (!isModerator) {
+
+                        if (m.isPasswordEnabled()) {
+
+                            if (req.password() == null || req.password().isBlank()) {
+                                return ResponseEntity.ok(MeetingResponse.success(
+                                        ResponseCodes.PASSWORD_REQUIRED,
+                                        i18n("meeting.password.required"),
+                                        mapper.toDto(m)
+                                ));
+                            }
+
+                            if (!meetingService.verifyPassword(m, req.password())) {
+                                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                                        .body(MeetingResponse.error(ResponseCodes.PASSWORD_INCORRECT,
+                                                i18n("meeting.password.incorrect")));
+                            }
+                        }
                     }
+
+                    /* -------------------------------------------------
+                     * 6️⃣ Revoke any existing session for this guest
+                     * ------------------------------------------------- */
+                    tokenRegistry.getIfActive(m.getId(), guestKey)
+                            .ifPresent(t -> tokenRegistry.revoke(m.getId(), guestKey));
+
+                    /* -------------------------------------------------
+                     * 7️⃣ Generate JWT (single place only)
+                     * ------------------------------------------------- */
+                    AlgomeetJwtService.GeneratedAlgomeetToken gen =
+                            algomeetJwtService.generateForMeeting(
+                                    m,
+                                    guestKey,
+                                    (req.name() == null ? "" : req.name().trim()),
+                                    null,
+                                    isModerator   // 🔥 role encoded here
+                            );
+
                     tokenRegistry.save(m.getId(), guestKey, gen.token(), Duration.ofSeconds(300));
 
                     var dto = mapper.toDto(m);
+
                     return ResponseEntity.ok(MeetingResponse.success(
-                            ResponseCodes.MEETING_JOINED_SUCCESS, "You can join now.",
+                            ResponseCodes.MEETING_JOINED_SUCCESS,
+                            "You can join now.",
                             new OpenMeetingJoinResponse(dto, gen.token(), gen.room(), gen.exp())
                     ));
+
                 })
                 .orElseGet(() -> ResponseEntity.status(HttpStatus.FORBIDDEN)
                         .body(MeetingResponse.error(ResponseCodes.MEETING_ACCESS_DENIED,
