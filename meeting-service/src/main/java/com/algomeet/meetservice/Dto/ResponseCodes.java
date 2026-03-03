@@ -4,6 +4,8 @@ package com.algomeet.meetservice.Dto;
  * Centralized response code constants used across controllers/services.
  */
 public final class ResponseCodes {
+    public static final String MEETING_NOT_FOUND = "MEETING_NOT_FOUND";
+
     private ResponseCodes() {
     }
 
