@@ -1,5 +1,6 @@
 spring:
-
+  application: 
+    name: opaque-service
   datasource:
     url: jdbc:postgresql://host.docker.internal:5432/clorameet_db
     username: postgres
