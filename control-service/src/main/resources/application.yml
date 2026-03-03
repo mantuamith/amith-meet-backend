@@ -4,6 +4,8 @@ spring:
 
 ---
 spring:
+  application: 
+    name: control-service
   config:
     activate:
       on-profile: local
