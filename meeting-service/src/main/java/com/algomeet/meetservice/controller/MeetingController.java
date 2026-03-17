@@ -122,7 +122,11 @@ public class MeetingController implements MeetingControllerDoc  {
             HttpServletResponse response
     ) {
 
-        final String guestKey = GuestIdentity.resolve(request, response);
+//        final String guestKey = GuestIdentity.resolve(request, response);
+        final String guestKey =
+                (req != null && req.userKey() != null && !req.userKey().isBlank())
+                        ? req.userKey()
+                        : GuestIdentity.resolve(request, response);
 
         Optional<Meeting> meetingOpt = meetingService.getOpenMeetingById(id, null);
 

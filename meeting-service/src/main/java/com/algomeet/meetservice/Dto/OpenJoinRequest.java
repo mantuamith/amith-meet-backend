@@ -4,6 +4,7 @@ public record OpenJoinRequest(
         String token,
         String password,
         String moderatorPassword,
-        String name
+        String name,
+        String userKey
 ) {
 }
