@@ -5,6 +5,8 @@ spring:
 ---
 
 spring:
+  application: 
+    name: signal-service
   config:
     activate:
       on-profile: local

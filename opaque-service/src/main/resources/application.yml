@@ -5,6 +5,8 @@ spring:
 ---
 
 spring:
+  application: 
+    name: opaque-service
   config:
     activate:
       on-profile: local

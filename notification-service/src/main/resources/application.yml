@@ -5,6 +5,8 @@ spring:
 ---
 
 spring:
+  application: 
+    name: notification-service
   config:
     activate:
       on-profile: local

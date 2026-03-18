@@ -5,6 +5,8 @@ spring:
 ---
 
 spring:
+  application: 
+    name: media-service
   servlet:
     multipart:
       max-file-size: 150MB
