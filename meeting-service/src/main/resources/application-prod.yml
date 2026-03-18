@@ -65,6 +65,8 @@ algomeet:
     ttl-days: 10
   links:
     base: ${SPRING_MEETING_BASE_URL}
+  cleanupScheduler:
+    enabled: true
 
 feign:
   client:

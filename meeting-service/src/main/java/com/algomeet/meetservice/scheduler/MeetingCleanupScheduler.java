@@ -23,155 +23,208 @@ import com.algomeet.notificationservice.dto.Notification;
 import com.algomeet.notificationservice.enums.NotificationType;
 import com.algomeet.notificationservice.enums.ReceiverGroup;
 import com.algomeet.notificationservice.service.NotificationService;
+
 import static com.algomeet.meetservice.util.MessageUtil.wrapWithBraces;
 
 @Component
 @ConditionalOnProperty(name = "algomeet.cleanupScheduler.enabled", havingValue = "true")
 public class MeetingCleanupScheduler {
 
-    private static final Logger log = LoggerFactory.getLogger(MeetingCleanupScheduler.class);
-    
-    @Autowired
-    private ControlClient controlClient;
+	private static final Logger log = LoggerFactory.getLogger(MeetingCleanupScheduler.class);
 
-    @Autowired
-    private MeetingRepository meetingRepository;
-   
-    @Autowired
-    private NotificationService notificationService;
-    
-    @Autowired
-    private RedisTemplate<String, Boolean> redisTemplate;
-    
-    /**
-     * Marks expired meetings as EXPIRED instead of deleting them.
-     * Runs every 60 seconds.
-     */
-    @Scheduled(fixedRate = 60000)
-    public void markExpiredMeetings() {
-        Instant now = Instant.now();
-        List<Meeting> expiredMeetings = meetingRepository.findByExpiresAtBefore(now);
+	@Autowired
+	private ControlClient controlClient;
 
-        if (expiredMeetings.isEmpty()) {
-            log.debug("[MEETING CLEANUP] No expired meetings found at {}", now);
-            return;
-        }
+	@Autowired
+	private MeetingRepository meetingRepository;
 
-        expiredMeetings.forEach(meeting -> {
-            if (meeting.getStatus() != MeetingStatus.EXPIRED) {
-                meeting.setStatus(MeetingStatus.EXPIRED);
-                meetingRepository.save(meeting);
-                log.info("[MEETING CLEANUP] Marked meeting {} as EXPIRED (Expired at: {})",
-                        meeting.getId(), meeting.getExpiresAt());
-            }
-        });
+	@Autowired
+	private NotificationService notificationService;
 
-        log.info("[MEETING CLEANUP] Updated {} meeting(s) to EXPIRED", expiredMeetings.size());
-    }
+	@Autowired
+	private RedisTemplate<String, Boolean> redisTemplate;
 
+	/**
+	 * Marks expired meetings as EXPIRED instead of deleting them.
+	 * Runs every 60 seconds.
+	 *
+	 * 🔥 CHANGE:
+	 * Added tenant loop so this runs for ALL tenants.
+	 * Safe for current setup (tenant = 0).
+	 */
+	@Scheduled(fixedRate = 60000)
+	public void markExpiredMeetings() {
 
+		List<Integer> tenantIds = null;
 
-
-    /**
-     * Scheduled task to delete expired meetings from the database.
-     * Runs every 60 seconds.
-     *
-     * TODO: In future, also notify participants before deletion if required.
-     */
-    @Scheduled(fixedRate = 60000)
-    public void cleanupExpiredMeetings() {
-        Instant now = Instant.now();
-        List<Meeting> expiredMeetings = meetingRepository.findByExpiresAtBefore(now);
-
-        if (expiredMeetings.isEmpty()) {
-            log.debug("[MEETING CLEANUP] No expired meetings found at {}", now);
-            return;
-        }
-
-        expiredMeetings.forEach(meeting -> {
-				log.info("[MEETING CLEANUP] Deleting expired meeting: {} (Expired at: {})",
-				meeting.getId(), meeting.getExpiresAt());
-				if (meeting.getStatus() == MeetingStatus.EXPIRED)
-					meetingRepository.delete(meeting);
-        });
-
-        log.info("[MEETING CLEANUP] Removed {} expired meeting(s)", expiredMeetings.size());
-    }
-
-    /**
-     * Scheduled task that runs every minute to check for upcoming meetings
-     * with reminders enabled.
-     *
-     * TODO: Integrate with notification-service to send device push/email.
-     */
-    @Scheduled(fixedRate = 60000) // Every minute
-    public void processMeetingReminders() {
-    	log.info("Check for upcoming meeting reminders");
-    	
-    	String lockRedisKey = "meeting:meeting-reminder-scheduler-locked";
-    			
-    	if (!redisTemplate.opsForValue().setIfAbsent(lockRedisKey, 
-    			Boolean.TRUE, Duration.ofSeconds(30))) {
-    		return;
-    	}
-    	
-    	// Get active tenants
-    	List<Integer> tenantIds = null;
-    	try {
+		try {
 			var resp = controlClient.getActiveTenantIds();
 			tenantIds = (resp != null && resp.getBody() != null)
 					? resp.getBody()
 					: List.of();
-    		log.info("tenantIds {}", tenantIds);
+		} catch (Exception ex) {
+			log.error("Error retrieving tenant Ids {}", ex.getMessage(), ex);
+			return;
+		}
+
+		// fallback to tenant 0
+		if (CollectionUtils.isEmpty(tenantIds) || !tenantIds.contains(0)) {
+			tenantIds = List.of(0);
+		}
+
+		for (Integer tenantId : tenantIds) {
+
+			TenantContext.switchTenantExplicitly(tenantId);
+
+			try {
+				Instant now = Instant.now();
+				List<Meeting> expiredMeetings = meetingRepository.findByExpiresAtBefore(now);
+
+				if (expiredMeetings.isEmpty()) {
+					continue;
+				}
+
+				expiredMeetings.forEach(meeting -> {
+					if (meeting.getStatus() != MeetingStatus.EXPIRED) {
+						meeting.setStatus(MeetingStatus.EXPIRED);
+						meetingRepository.save(meeting);
+
+						log.info("[MEETING CLEANUP] Marked meeting {} as EXPIRED (Expired at: {})",
+								meeting.getId(), meeting.getExpiresAt());
+					}
+				});
+
+			} catch (Exception ex) {
+				log.error("Error processing tenant {} in markExpiredMeetings", tenantId, ex);
+			} finally {
+				TenantContext.clear();
+			}
+		}
+	}
+
+	/**
+	 * Deletes expired meetings from DB.
+	 * Runs every 60 seconds.
+	 *
+	 * 🔥 CHANGE:
+	 * Added tenant loop so cleanup runs across all tenants.
+	 */
+	@Scheduled(fixedRate = 60000)
+	public void cleanupExpiredMeetings() {
+
+		List<Integer> tenantIds = null;
+
+		try {
+			var resp = controlClient.getActiveTenantIds();
+			tenantIds = (resp != null && resp.getBody() != null)
+					? resp.getBody()
+					: List.of();
+		} catch (Exception ex) {
+			log.error("Error retrieving tenant Ids {}", ex.getMessage(), ex);
+			return;
+		}
+
+		// fallback to tenant 0
+		if (CollectionUtils.isEmpty(tenantIds) || !tenantIds.contains(0)) {
+			tenantIds = List.of(0);
+		}
+
+		for (Integer tenantId : tenantIds) {
+
+			TenantContext.switchTenantExplicitly(tenantId);
+
+			try {
+				Instant now = Instant.now();
+				List<Meeting> expiredMeetings = meetingRepository.findByExpiresAtBefore(now);
+
+				if (expiredMeetings.isEmpty()) {
+					continue;
+				}
+
+				expiredMeetings.forEach(meeting -> {
+					log.info("[MEETING CLEANUP] Deleting expired meeting: {} (Expired at: {})",
+							meeting.getId(), meeting.getExpiresAt());
+
+					if (meeting.getStatus() == MeetingStatus.EXPIRED) {
+						meetingRepository.delete(meeting);
+					}
+				});
+
+				log.info("[MEETING CLEANUP] Removed {} expired meeting(s) for tenant {}",
+						expiredMeetings.size(), tenantId);
+
+			} catch (Exception ex) {
+				log.error("Error processing tenant {} in cleanupExpiredMeetings", tenantId, ex);
+			} finally {
+				TenantContext.clear();
+			}
+		}
+	}
+
+	/**
+	 * Scheduled task for meeting reminders (UNCHANGED)
+	 */
+	@Scheduled(fixedRate = 60000)
+	public void processMeetingReminders() {
+		log.info("Check for upcoming meeting reminders");
+
+		String lockRedisKey = "meeting:meeting-reminder-scheduler-locked";
+
+		if (!redisTemplate.opsForValue().setIfAbsent(lockRedisKey,
+				Boolean.TRUE, Duration.ofSeconds(30))) {
+			return;
+		}
+
+		List<Integer> tenantIds = null;
+		try {
+			var resp = controlClient.getActiveTenantIds();
+			tenantIds = (resp != null && resp.getBody() != null)
+					? resp.getBody()
+					: List.of();
+			log.info("tenantIds {}", tenantIds);
 			if (tenantIds.isEmpty()) {
 				log.warn("No tenant IDs available; skipping reminders run");
 				return;
 			}
-    	} catch (Exception ex) {
-    		log.error("Error retrieving tenant Ids {}", ex.getMessage(), ex);
-    	}
-    	
-    	// If empty, add 0 tenant Id for public users
-    	if (CollectionUtils.isEmpty(tenantIds) 
-    			|| !tenantIds.contains(Integer.valueOf(0))) {
-    		tenantIds = List.of(0);
-    	}
-    	
-        Instant now = Instant.now();
-        Instant inOneMinute = now.plusSeconds(60);
-        
-        for (Integer tenantId : tenantIds) {
-        	//Switch schema
-        	TenantContext.switchTenantExplicitly(tenantId);
-        	
-        	try {
-        		List<Meeting> meetings = meetingRepository.findMeetingsByReminderTimeBetween(now, inOneMinute);
+		} catch (Exception ex) {
+			log.error("Error retrieving tenant Ids {}", ex.getMessage(), ex);
+		}
 
-        		for (Meeting meeting : meetings) {
-        			log.info("Meeting start: {} , meeting end: {}", meeting.getMeetingStartTime(), meeting.getMeetingEndTime());       	
+		if (CollectionUtils.isEmpty(tenantIds)
+				|| !tenantIds.contains(Integer.valueOf(0))) {
+			tenantIds = List.of(0);
+		}
 
-        			Notification notif = Notification.builder()
-        					.type(NotificationType.MEETING_REMINDER)
-        					.receiverGroup(ReceiverGroup.MEETING_PARTICIPANTS)
-        					.receiverGroupRefId(meeting.getId())
-        					.title("Meeting reminder")
-        					.body("Your meeting starts in " + wrapWithBraces(String.valueOf(meeting.getReminderMinutes())) + " minutes")
-        					.data(Map.of(
-        							"meetingId", meeting.getId()
-        							))
-        					.tenantId(TenantContext.getCurrentTenant())
-        					.build();
-        			notificationService.sendPush(notif);            
-        		}
-        	} catch (Exception ex) {
-        		log.error("Error {}", ex.getMessage(), ex);
-        	}
-        	
-        	// Clean up
-        	TenantContext.clear();
-        }
-        
-        //Remove redis lock;
-        redisTemplate.delete(lockRedisKey);
-    }
+		Instant now = Instant.now();
+		Instant inOneMinute = now.plusSeconds(60);
+
+		for (Integer tenantId : tenantIds) {
+			TenantContext.switchTenantExplicitly(tenantId);
+
+			try {
+				List<Meeting> meetings = meetingRepository.findMeetingsByReminderTimeBetween(now, inOneMinute);
+
+				for (Meeting meeting : meetings) {
+
+					Notification notif = Notification.builder()
+							.type(NotificationType.MEETING_REMINDER)
+							.receiverGroup(ReceiverGroup.MEETING_PARTICIPANTS)
+							.receiverGroupRefId(meeting.getId())
+							.title("Meeting reminder")
+							.body("Your meeting starts in " + wrapWithBraces(String.valueOf(meeting.getReminderMinutes())) + " minutes")
+							.data(Map.of("meetingId", meeting.getId()))
+							.tenantId(TenantContext.getCurrentTenant())
+							.build();
+
+					notificationService.sendPush(notif);
+				}
+			} catch (Exception ex) {
+				log.error("Error {}", ex.getMessage(), ex);
+			}
+
+			TenantContext.clear();
+		}
+
+		redisTemplate.delete(lockRedisKey);
+	}
 }

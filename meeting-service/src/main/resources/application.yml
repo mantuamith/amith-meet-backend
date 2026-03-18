@@ -71,7 +71,9 @@ algomeet:
     ttl-days: 10
   links:
     base: "https://meet.algoframe.in"
-      
+  cleanupScheduler:
+    enabled: true
+
 feign:
   client:
     control-service:
