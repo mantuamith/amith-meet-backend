@@ -2,6 +2,8 @@ package com.algomeet.xmpp.chatservice.session;
 
 import java.io.Serializable;
 
+import com.algomeet.xmpp.chatservice.enums.UserState;
+
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -14,5 +16,6 @@ public class UserSession implements Serializable{
 	public UserSession() {}
 	
 	private String sessionId;
-	private boolean isDeviceActive;
+	private UserState state;
+	private Long updatedAt;
 }

@@ -1,6 +1,7 @@
 package com.algomeet.xmpp.chatservice.auth;
 
 import com.algomeet.xmpp.chatservice.constant.Constants;
+import com.algomeet.xmpp.chatservice.enums.UserState;
 import com.algomeet.xmpp.chatservice.session.UserSession;
 import com.algomeet.xmpp.chatservice.session.UserSessionRegistry;
 import com.algomeet.xmpp.chatservice.session.XmppSessionManager;
@@ -20,6 +21,7 @@ import org.springframework.util.StringUtils;
 
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.Arrays;
 
 @Slf4j
@@ -29,6 +31,7 @@ import java.util.Arrays;
 public class WebSocketAuthHandler extends SimpleChannelInboundHandler<FullHttpRequest> {
     private final JwtUtil jwtUtil;
     private final UserSessionRegistry userSessionRegistry;
+    private final XmppSessionManager xmppSessionManager;
     
     @Value("${xmpp.domain}")
     private String domain;
@@ -65,14 +68,14 @@ public class WebSocketAuthHandler extends SimpleChannelInboundHandler<FullHttpRe
         ctx.channel().attr(AuthAttributes.PRINCIPAL).set(principal);
 
         // 4. Register Session in Managers
-        XmppSessionManager.register(userKey, ctx.channel());
-        userSessionRegistry.addSession(userKey, new UserSession(sessionId, true));
+        xmppSessionManager.register(userKey, ctx.channel());
+        userSessionRegistry.addSession(userKey, new UserSession(sessionId, UserState.ACTIVE, Instant.now().toEpochMilli()));
         
         log.info("User {} authenticated. Session: {}", userKey, sessionId);
 
         // 5. Cleanup: Listener for disconnection
         ctx.channel().closeFuture().addListener((ChannelFutureListener) future -> {
-            XmppSessionManager.unregister(userKey);
+            xmppSessionManager.unregister(userKey);
             userSessionRegistry.removeSession(userKey, sessionId);
             log.info("User {} disconnected, session {} removed.", userKey, sessionId);
         });

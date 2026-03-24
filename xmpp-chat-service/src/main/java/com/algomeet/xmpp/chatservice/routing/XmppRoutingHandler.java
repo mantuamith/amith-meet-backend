@@ -1,103 +1,138 @@
 package com.algomeet.xmpp.chatservice.routing;
 
+import com.algomeet.xmpp.chatservice.auth.AuthAttributes;
+import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
+import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
+import com.algomeet.xmpp.chatservice.enums.UserState;
+import com.algomeet.xmpp.chatservice.routing.handler.LocalStanzaDispatcher;
+import com.algomeet.xmpp.chatservice.routing.handler.ServerQueryHandler;
+import com.algomeet.xmpp.chatservice.session.UserSessionRegistry;
+import com.algomeet.xmpp.chatservice.session.XmppSessionManager;
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
+import lombok.AllArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
 import javax.xml.stream.XMLInputFactory;
 import javax.xml.stream.XMLStreamConstants;
 import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamReader;
-
-import org.springframework.stereotype.Component;
-
-import com.algomeet.xmpp.chatservice.session.XmppSessionManager;
-
 import java.io.StringReader;
 import java.util.HashMap;
 import java.util.Map;
-import io.netty.channel.ChannelHandler; // Add this
+import com.algomeet.xmpp.chatservice.util.XmppUtil;
 
-
-@ChannelHandler.Sharable // Add this to allow one instance for all connections
+@Slf4j
+@ChannelHandler.Sharable
 @Component
+@AllArgsConstructor
 public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocketFrame> {
 
-    // Reuse the factory (it's thread-safe)
+    private final ServerQueryHandler serverQueryHandler;
+    private final UserSessionRegistry userSessionRegistry;
+    private final ClusterMessagePublisher clusterMessagePublisher;
+    
     private static final XMLInputFactory XML_FACTORY = XMLInputFactory.newInstance();
 
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, TextWebSocketFrame frame) {
         String xml = frame.text();
-        
+        XmppPrincipal principal = ctx.channel().attr(AuthAttributes.PRINCIPAL).get();
+
         try {
-            // Parse the top-level attributes of the stanza (iq, message, or presence)
+            // 1. Handle Status Updates (Presence/Chat States)
+            if (principal != null) {
+                handleStatusUpdates(principal, xml);
+            }
+
+            // 2. Parse basic attributes for routing
             Map<String, String> attributes = parseStanzaAttributes(xml);
-            
             String to = attributes.get("to");
             String from = attributes.get("from");
             String id = attributes.get("id");
-            String type = attributes.get("type");
 
-            // 1. Session Management
-            if (from != null) {
-                XmppSessionManager.register(from, ctx.channel());
-            }
-
-            // 2. Routing Logic
-            if (to != null && !to.equals("plays.shakespeare.lit")) {
-                handleRouting(ctx, to, from, id, xml);
+            // 3. Routing Logic
+            if (StringUtils.hasText(to)) {
+            	handleRouting(ctx, id, to, from, xml);
             } else {
-                handleServerQuery(ctx, xml);
+                serverQueryHandler.handleQuery(ctx, xml);
             }
 
         } catch (XMLStreamException e) {
-            // Handle malformed XML (very common in XMPP hacking attempts)
-            System.err.println("Malformed XML received: " + e.getMessage());
+            log.error("Malformed XML received: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * Detects Presence (<show>) and Chat States (<active>/<inactive>)
+     */
+    /**
+     * Expanded to handle GONE and DND statuses.
+     */
+    private void handleStatusUpdates(XmppPrincipal principal, String xml) {
+        String userId = principal.getUserKey();
+        String sessionId = principal.getSessionId();
+        UserState newState = null;
+
+        // 1. Handle Presence (<presence>)
+        if (xml.contains("<presence")) {
+            if (xml.contains("<show>dnd</show>")) {
+                newState = UserState.DND;
+            } else if (xml.contains("<show>away</show>") || xml.contains("<show>xa</show>")) {
+                newState = UserState.AWAY;
+            } else if (xml.contains("type='unavailable'")) {
+                newState = UserState.GONE;
+            } else {
+                newState = UserState.ACTIVE;
+            }
+        } 
+        
+        // 2. Handle Chat States (<active>, <inactive>, <gone>)
+        else if (xml.contains("<active")) {
+            newState = UserState.ACTIVE;
+        } 
+        else if (xml.contains("<inactive")) {
+            newState = UserState.INACTIVE;
+        } 
+        else if (xml.contains("<gone")) {
+            newState = UserState.GONE;
+        }
+
+        // 3. Persist to Redis if a state change was detected
+        if (newState != null) {
+            userSessionRegistry.updateSessionStatus(userId, sessionId, newState);
+            log.debug("Status for user {} updated to {}", principal.getUsername(), newState);
         }
     }
 
     private Map<String, String> parseStanzaAttributes(String xml) throws XMLStreamException {
         Map<String, String> attrMap = new HashMap<>();
-        XMLStreamReader reader = XML_FACTORY.createXMLStreamReader(new StringReader(xml));
-
-        try {
-            while (reader.hasNext()) {
-                int event = reader.next();
-                if (event == XMLStreamConstants.START_ELEMENT) {
-                    // We only care about the attributes of the root element (iq/message/presence)
-                    for (int i = 0; i < reader.getAttributeCount(); i++) {
-                        attrMap.put(reader.getAttributeLocalName(i), reader.getAttributeValue(i));
+        try (StringReader sr = new StringReader(xml)) {
+            XMLStreamReader reader = XML_FACTORY.createXMLStreamReader(sr);
+            try {
+                while (reader.hasNext()) {
+                    int event = reader.next();
+                    if (event == XMLStreamConstants.START_ELEMENT) {
+                        for (int i = 0; i < reader.getAttributeCount(); i++) {
+                            attrMap.put(reader.getAttributeLocalName(i), reader.getAttributeValue(i));
+                        }
+                        break;
                     }
-                    break; // Exit after the first element
                 }
+            } finally {
+                reader.close();
             }
-        } finally {
-            reader.close();
         }
         return attrMap;
     }
-
-    private void handleRouting(ChannelHandlerContext ctx, String to, String from, String id, String originalXml) {
-        Channel targetChannel = XmppSessionManager.getChannel(to);
-        
-        if (targetChannel != null && targetChannel.isActive()) {
-            targetChannel.writeAndFlush(new TextWebSocketFrame(originalXml));
-        } else {
-            String error = String.format(
-                "<iq type='error' to='%s' id='%s'>" +
-                "<error type='cancel'><service-unavailable xmlns='urn:ietf:params:xml:ns:xmpp-stanzas'/></error></iq>", 
-                from, id);
-            ctx.channel().writeAndFlush(new TextWebSocketFrame(error));
-        }
-    }
-
-    private void handleServerQuery(ChannelHandlerContext ctx, String xml) {
-        if (xml.contains("disco#info")) {
-            String res = "<iq type='result' from='plays.shakespeare.lit' id='info1'>" +
-                         "<query xmlns='http://jabber.org/protocol/disco#info'/></iq>";
-            ctx.writeAndFlush(new TextWebSocketFrame(res));
-        }
-    }
+    
+    public void handleRouting(ChannelHandlerContext ctx, String id, String to, String from, String originalXml) {
+    	// Sync message to cluster nodes
+    	clusterMessagePublisher.convertAndSendToUser(id, XmppUtil.getUserKey(to), XmppUtil.getUserKey(from), originalXml);
+    }   
 }
