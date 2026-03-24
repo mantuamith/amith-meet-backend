@@ -12,13 +12,13 @@ public class XmppPrincipal {
     private final String username; // The local part (e.g., "romeo")
     private final Integer tenantId;
     private final String sessionId;
+    private final String domain; // The server domain (e.g., "algomeet.com")
     
     /**
      * Helper to get the Full JID for XMPP routing.
-     * @param domain The server domain (e.g., "algomeet.com")
      * @return A string like "userkey/username@domain"
      */
-    public String getFullJid(String domain) {
+    public String getFullJid() {
         return String.format("%s@%s", userKey, domain);
     }
 }
