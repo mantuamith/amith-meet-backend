@@ -5,18 +5,19 @@ package com.algomeet.xmpp.chatservice.util;
 
 import java.security.Key;
 import java.util.Base64;
-import java.util.List;
+import java.util.Date;
+import java.util.function.Function;
 
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.server.ServerHttpRequest;
 import org.springframework.stereotype.Component;
-import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
 import com.algomeet.multitenancy.constants.JwtConstants;
 import com.algomeet.xmpp.chatservice.constant.Constants;
 
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import jakarta.servlet.http.HttpServletRequest;
@@ -90,29 +91,48 @@ public class JwtUtil {
     public static String getAutorizationToken(HttpServletRequest request) {
     	String token = request.getHeader(Constants.AUTHORIZATION);
     	
-    	if (StringUtils.hasLength(token) && token.startsWith(Constants.TOKEN_PREFIX)) {
-    		return token.replace(Constants.TOKEN_PREFIX, "").trim();
+    	if (StringUtils.hasLength(token) && token.startsWith(Constants.BEARER_PREFIX)) {
+    		return token.replace(Constants.BEARER_PREFIX, "").trim();
     	}
     	    	
     	return token;
-    }   
+    }  
+        
+    public <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
+        final Claims claims = extractAllClaims(token);
+        return claimsResolver.apply(claims);
+    }
+
+    private Claims extractAllClaims(String token) {
+        return Jwts.parserBuilder()
+                .setSigningKey(secretKey)
+                .build()
+                .parseClaimsJws(token)
+                .getBody();
+    }
+
+    // Validate if token is expired or malformed
+    public boolean isTokenValid(String token) {
+        try {
+            Claims claims = extractAllClaims(token);
+            return !claims.getExpiration().before(new Date());
+        } catch (ExpiredJwtException e) {
+            log.error("Token expired: " + e.getMessage());
+        } catch (JwtException | IllegalArgumentException e) {
+        	 log.error("Invalid token: " + e.getMessage());
+        }
+        return false;
+    }
+
+    public String extractUserKey(String token) {
+        return extractClaim(token, claims -> claims.get("user_key", String.class));
+    }
     
-    public static String getAutorizationToken(ServerHttpRequest request) {
-    	List<String> authorizations = request.getHeaders().get(Constants.AUTHORIZATION);
-    	
-    	if (!CollectionUtils.isEmpty(authorizations)) {
-    		return authorizations.get(0).replace(Constants.TOKEN_PREFIX, "").trim();
-    	}
-    	     	
-    	// Get from header attribute "Sec-WebSocket-Protocol"    		
-    	List<String> protocols = request.getHeaders().get(Constants.SEC_WEBSOCKET_PROTOCOL);
-     	
-    	if (!CollectionUtils.isEmpty(protocols) 
-    			&& protocols.get(0).startsWith(Constants.TOKEN_PREFIX)) {
-    		
-    		return protocols.get(0).replaceAll((Constants.TOKEN_PREFIX + "\\.|" + Constants.TOKEN_PREFIX), "").trim();
-    	}
-    	    	
-    	return null;
-    }     
+    public String extractRole(String token) {
+        return extractClaim(token, claims -> claims.get("role", String.class));
+    }
+    
+    public Integer extractTenantId(String token) {
+        return extractClaim(token, claims -> claims.get("tenantId", Integer.class));
+    }
 }

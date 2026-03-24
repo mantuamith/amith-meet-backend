@@ -1,130 +1,134 @@
 package com.algomeet.xmpp.chatservice.auth;
 
-import org.springframework.beans.factory.annotation.Autowired;
+import com.algomeet.xmpp.chatservice.constant.Constants;
+import com.algomeet.xmpp.chatservice.session.UserSession;
+import com.algomeet.xmpp.chatservice.session.UserSessionRegistry;
+import com.algomeet.xmpp.chatservice.session.XmppSessionManager;
+import com.algomeet.xmpp.chatservice.util.JwtUtil;
+import io.netty.buffer.Unpooled;
+import io.netty.channel.*;
+import io.netty.handler.codec.http.*;
+import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
+import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler;
+import io.netty.util.CharsetUtil;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
-import com.algomeet.xmpp.chatservice.constant.Constants;
-import com.algomeet.xmpp.chatservice.session.XmppSessionManager;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 
-import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.SimpleChannelInboundHandler;
-import io.netty.handler.codec.http.DefaultFullHttpResponse;
-import io.netty.handler.codec.http.FullHttpRequest;
-import io.netty.handler.codec.http.HttpHeaderNames;
-import io.netty.handler.codec.http.HttpObjectAggregator;
-import io.netty.handler.codec.http.HttpResponseStatus;
-import io.netty.handler.codec.http.HttpServerCodec;
-import io.netty.handler.codec.http.HttpUtil;
-import io.netty.handler.codec.http.HttpVersion;
-import io.netty.handler.codec.http.websocketx.WebSocketServerHandshaker;
-import io.netty.handler.codec.http.websocketx.WebSocketServerHandshakerFactory;
-import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler;
-import io.netty.util.CharsetUtil;
-import com.algomeet.xmpp.chatservice.util.JwtUtil;
-import io.netty.channel.ChannelHandler;
-
+@Slf4j
 @Component
 @ChannelHandler.Sharable
+@RequiredArgsConstructor
 public class WebSocketAuthHandler extends SimpleChannelInboundHandler<FullHttpRequest> {
 
-	//@Autowired
-	//private JwtUtil jwtUtil;
+    private final JwtUtil jwtUtil;
+    private final UserSessionRegistry userSessionRegistry;
 
-	@Override
-	protected void channelRead0(ChannelHandlerContext ctx, FullHttpRequest request) {
-		String authHeader = request.headers().get(HttpHeaderNames.AUTHORIZATION);
+    @Override
+    protected void channelRead0(ChannelHandlerContext ctx, FullHttpRequest request) {
+        String token = extractToken(request);
 
-		if (!(StringUtils.hasText(authHeader))) {
-			authHeader = request.headers().get(Constants.SEC_WEBSOCKET_PROTOCOL);
-			//authHeader = protocols.get(0);
-		}
-
-		System.out.println("---------------------> !!!!!!!!!!!!!!!" + authHeader);
-		/*
-		if (authHeader == null || !authHeader.startsWith("Bearer")) {
-			sendUnauthorized(ctx, request);
-			return;
-		}
-
-		String token = authHeader.substring(7);
-
-		// TODO: Validate token (JWT validation, call auth service, etc.)
-		boolean isValid = validateToken(token);
-
-		if (!isValid) {
-			sendUnauthorized(ctx, request);
-			return;
-		}
-
-		// Optional: store token/user info in channel attributes
-		ctx.channel().attr(AuthAttributes.USER_TOKEN).set(token);
-        */
-		
-		if (!request.decoderResult().isSuccess() || !"websocket".equalsIgnoreCase(request.headers().get("Upgrade"))) {
-            // Not a websocket handshake, pass it along
-            ctx.fireChannelRead(request.retain());
+        // 1. Validate Token
+        if (!StringUtils.hasText(token) || !jwtUtil.validate(token)) {
+            log.warn("Unauthorized access attempt to URI: {}", request.uri());
+            sendUnauthorized(ctx);
             return;
         }
-		
-		// Pass request to next handler (WebSocket handshake)
-		ctx.fireChannelRead(request.retain());
-		
-		
-	}
-	
-	private void handleHandshake(ChannelHandlerContext ctx, FullHttpRequest request, String subprotocol) {
-	    //String location = "ws://" + request.headers().get(HttpHeaderNames.HOST) + request.uri();
-	    WebSocketServerHandshakerFactory wsFactory = new WebSocketServerHandshakerFactory(
-	            null, subprotocol, true);
-	    
-	    WebSocketServerHandshaker handshaker = wsFactory.newHandshaker(request);
 
-	    if (handshaker == null) {
-	        WebSocketServerHandshakerFactory.sendUnsupportedVersionResponse(ctx.channel());
-	    } else {
-	        handshaker.handshake(ctx.channel(), request).addListener(future -> {
-	            if (future.isSuccess()) {
-	                // --- CRITICAL FIX START ---
-	                
-	                // 1. Remove the Auth handler (HTTP)
-	                ctx.pipeline().remove(this);
-	                
-	                // 2. IMPORTANT: If you have a 'WebSocketServerProtocolHandler' 
-	                // in your initial pipeline, you MUST remove it now because 
-	                // you just did the handshake manually.
-	                if (ctx.pipeline().get(WebSocketServerProtocolHandler.class) != null) {
-	                    ctx.pipeline().remove(WebSocketServerProtocolHandler.class);
-	                }
+        // 2. Extract Identity
+        String jid = jwtUtil.getUserKey(token);
+        if (!StringUtils.hasText(jid)) {
+            log.error("Token valid but JID missing for URI: {}", request.uri());
+            sendUnauthorized(ctx);
+            return;
+        }
 
-	                // 3. Register user
-	                String username = ctx.channel().attr(AuthAttributes.USERNAME).get();
-	                XmppSessionManager.register(username, ctx.channel());
-	                
-	                // --- CRITICAL FIX END ---
-	            } else {
-	                ctx.close();
-	            }
-	        });
-	    }
-	}
+        // 3. Build and Store Principal in Channel Attribute
+        String sessionId = ctx.channel().id().asLongText();
+        XmppPrincipal principal = XmppPrincipal.builder()
+                .userKey(jid)
+                .username(jwtUtil.getUsername(token))
+                .tenantId(jwtUtil.getTenantId(token))
+                .sessionId(sessionId)
+                .build();
 
-	/*
-	private boolean validateToken(String token) {
-		// Implement JWT verification or call your auth service  	
-		return jwtUtil.validate(token);
-	}*/
+        ctx.channel().attr(AuthAttributes.PRINCIPAL).set(principal);
 
-	private void sendUnauthorized(ChannelHandlerContext ctx, FullHttpRequest request) {
-		DefaultFullHttpResponse response = new DefaultFullHttpResponse(
-				HttpVersion.HTTP_1_1,
-				HttpResponseStatus.UNAUTHORIZED
-				);
+        // 4. Register Session in Managers
+        XmppSessionManager.register(jid, ctx.channel());
+        userSessionRegistry.addSession(jid, new UserSession(sessionId, true));
+        
+        log.info("User {} authenticated. Session: {}", jid, sessionId);
 
-		response.content().writeCharSequence("Unauthorized", CharsetUtil.UTF_8);
-		HttpUtil.setContentLength(response, response.content().readableBytes());
+        // 5. Cleanup: Listener for disconnection
+        ctx.channel().closeFuture().addListener((ChannelFutureListener) future -> {
+            XmppSessionManager.unregister(jid);
+            userSessionRegistry.removeSession(jid, sessionId);
+            log.info("User {} disconnected, session {} removed.", jid, sessionId);
+        });
 
-		ctx.writeAndFlush(response);
-		ctx.close();
-	}
+        // 6. Continue to WebSocket Handshake (No 'CONNECTED' frame sent)
+        ctx.fireChannelRead(request.retain());
+    }
+    
+    /**
+     * Sends the Session ID to the client once the WebSocket Handshake is finished.
+     */
+    @Override
+    public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
+    	log.info("Handshake complete. Session ID {} sent to client.", evt);
+        if (evt instanceof WebSocketServerProtocolHandler.HandshakeComplete) {
+            XmppPrincipal principal = ctx.channel().attr(AuthAttributes.PRINCIPAL).get();
+            log.info("Handshake complete. Session ID {} sent to client 2.", principal);
+            if (principal != null) {
+                // Prepare the JSON response
+                String welcomeMessage = String.format(
+                    "{\"type\": \"AUTH_SUCCESS\", \"sessionId\": \"%s\"}",
+                    principal.getSessionId()
+                );
+
+                // Write as a WebSocket Frame
+                ctx.channel().writeAndFlush(new TextWebSocketFrame(welcomeMessage));
+                log.info("Handshake complete. Session ID {} sent to client.", principal.getSessionId());
+            }
+        }
+        // Important: always call super to let other handlers see the event
+        super.userEventTriggered(ctx, evt);
+    }
+
+    private String extractToken(FullHttpRequest request) {
+        String authHeader = request.headers().get(HttpHeaderNames.AUTHORIZATION);
+        if (StringUtils.hasText(authHeader) && authHeader.startsWith(Constants.BEARER_PREFIX)) {
+            return authHeader.substring(Constants.BEARER_PREFIX.length());
+        }
+        return extractTokenFromQuery(request.uri());
+    }
+
+    private String extractTokenFromQuery(String uri) {
+        int queryStart = uri.indexOf('?');
+        if (queryStart == -1) return null;
+
+        String query = uri.substring(queryStart + 1);
+        return Arrays.stream(query.split("&"))
+                .filter(p -> p.startsWith(Constants.TOKEN_PARAM))
+                .map(p -> p.substring(Constants.TOKEN_PARAM.length()))
+                .map(v -> URLDecoder.decode(v, StandardCharsets.UTF_8))
+                .findFirst()
+                .orElse(null);
+    }
+
+    private void sendUnauthorized(ChannelHandlerContext ctx) {
+        FullHttpResponse response = new DefaultFullHttpResponse(
+                HttpVersion.HTTP_1_1, HttpResponseStatus.UNAUTHORIZED,
+                Unpooled.copiedBuffer("Unauthorized", CharsetUtil.UTF_8));
+        response.headers().set(HttpHeaderNames.CONTENT_TYPE, "text/plain; charset=UTF-8");
+        response.headers().set(HttpHeaderNames.WWW_AUTHENTICATE, "Bearer");
+        HttpUtil.setContentLength(response, response.content().readableBytes());
+        ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE);
+    }
 }
