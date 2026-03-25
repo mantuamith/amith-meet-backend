@@ -47,13 +47,10 @@ xmpp:
 
 jwt:
   secret: Y0h4TkFxWkd6Um9TTktOVlFobU9naFN3SzY5cWhVY08=
-  accessTtlMinutes: 30
-  refreshTtlDays: 7
-
 
 feign:
   client:
-    user-service:
-      url: http://localhost:8082
-    subscription-service:
-      url: http://localhost:8096
+    group-service:
+      url: http://localhost:8087
+    media-service:
+      url: http://localhost:8095
