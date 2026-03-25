@@ -17,7 +17,7 @@ import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.constant.XmppErrorConditions;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
-import com.algomeet.xmpp.chatservice.routing.handler.ChatStateNotificationHandler;
+import com.algomeet.xmpp.chatservice.routing.handler.XmppSessionLifecycleHandler;
 import com.algomeet.xmpp.chatservice.routing.handler.ServerQueryHandler;
 import com.algomeet.xmpp.chatservice.service.OfflineMessageService;
 import com.algomeet.xmpp.chatservice.session.XmppSessionAttributes;
@@ -39,7 +39,7 @@ import lombok.extern.slf4j.Slf4j;
 public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocketFrame> {
     private final ServerQueryHandler serverQueryHandler;
     private final ClusterMessagePublisher clusterMessagePublisher;
-    private final ChatStateNotificationHandler chatStateNotificationHandler;
+    private final XmppSessionLifecycleHandler chatStateNotificationHandler;
     private final OfflineMessageService offlineMessageService;    
     private static final XMLInputFactory XML_FACTORY = XMLInputFactory.newInstance();
 
@@ -49,7 +49,7 @@ public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocke
         XmppPrincipal principal = ctx.channel().attr(XmppSessionAttributes.PRINCIPAL).get();
 
         try {
-            // 1. Handle Status Updates (Presence/Chat States)
+            // 1. Handle Status Updates (Presence/Chat States), and pulling of offline messages
             if (principal != null) {
                 handleStatusUpdates(ctx, principal, xml);
             }
@@ -143,6 +143,5 @@ public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocke
     private void handleGroupChatRouting(String id, String roomJid, String from, String originalXml) {
         // Sync to the 'Room' topic so all nodes with participants in this room receive it
         //clusterMessagePublisher.convertAndSendToRoom(id, XmppUtil.getRoomKey(roomJid), XmppUtil.getUserKey(from), originalXml);
-    }    
-    
+    }      
 }
