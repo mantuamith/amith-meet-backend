@@ -26,4 +26,22 @@ Docker build, push to harbor and deploy, check sample resources inside "/k8s":
    6. Apply
       kubectl apply -f xmpp-chat-service-deployment.yaml
 
-      
+
+
+## 🔌 Connect to the Chat Service
+
+### A. Mobile Clients
+Use a WebSocket connection and include the **Authorization header**:
+ws://chat.local/ws/chat
+
+**Header:**
+
+Authorization: Bearer <your_token>
+
+
+---
+### B. Web Clients (Browser)
+Browsers do not support setting custom headers in WebSocket connections.  
+Instead, pass the token as a **query parameter**:
+
+ws://chat.local/ws/chat?token=<your_token>
