@@ -38,7 +38,6 @@
 		</dependencies>
 	</dependencyManagement>
 
-
 	<dependencies>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
@@ -66,6 +65,11 @@
 			<artifactId>netty-all</artifactId>
 		</dependency>
 
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-data-mongodb-reactive</artifactId>
+		</dependency>
+
 		<!-- Add internal libraries -->
 		<dependency>
 			<groupId>com.algomeet</groupId>
@@ -86,5 +90,4 @@
 		</dependency>
 
 	</dependencies>
-
 </project>

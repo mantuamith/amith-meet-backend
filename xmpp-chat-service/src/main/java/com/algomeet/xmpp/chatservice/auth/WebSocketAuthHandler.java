@@ -4,6 +4,7 @@ import com.algomeet.xmpp.chatservice.constant.Constants;
 import com.algomeet.xmpp.chatservice.enums.UserState;
 import com.algomeet.xmpp.chatservice.session.UserSession;
 import com.algomeet.xmpp.chatservice.session.UserSessionRegistry;
+import com.algomeet.xmpp.chatservice.session.XmppSessionAttributes;
 import com.algomeet.xmpp.chatservice.session.XmppSessionManager;
 import com.algomeet.xmpp.chatservice.util.JwtUtil;
 import io.netty.buffer.Unpooled;
@@ -23,6 +24,7 @@ import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.concurrent.atomic.AtomicLong;
 
 @Slf4j
 @Component
@@ -40,63 +42,58 @@ public class WebSocketAuthHandler extends SimpleChannelInboundHandler<FullHttpRe
     protected void channelRead0(ChannelHandlerContext ctx, FullHttpRequest request) {
         String token = extractToken(request);
 
-        // 1. Validate Token
+        // 1. Validate Token (Pre-Handshake)
         if (!StringUtils.hasText(token) || !jwtUtil.validate(token)) {
-            log.warn("Unauthorized access attempt to URI: {}", request.uri());
+            log.warn("Unauthorized HTTP attempt: {}", request.uri());
             sendUnauthorized(ctx);
             return;
         }
 
-        // 2. Extract Identity
         String userKey = jwtUtil.getUserKey(token);
-        if (!StringUtils.hasText(userKey)) {
-            log.error("Token valid but UserKey missing for URI: {}", request.uri());
-            sendUnauthorized(ctx);
-            return;
-        }
-
-        // 3. Build and Store Principal in Channel Attribute
-        String sessionId = ctx.channel().id().asLongText();
+        
+        // 2. Prepare Principal (But don't register yet!)
         XmppPrincipal principal = XmppPrincipal.builder()
                 .userKey(userKey)
                 .username(jwtUtil.getUsername(token))
                 .tenantId(jwtUtil.getTenantId(token))
-                .sessionId(sessionId)
+                .sessionId(ctx.channel().id().asLongText())
                 .domain(domain)
                 .build();
 
-        ctx.channel().attr(AuthAttributes.PRINCIPAL).set(principal);
-
-        // 4. Register Session in Managers
-        xmppSessionManager.register(userKey, ctx.channel());
-        userSessionRegistry.addSession(userKey, new UserSession(sessionId, UserState.ACTIVE, Instant.now().toEpochMilli()));
-        
-        log.info("User {} authenticated. Session: {}", userKey, sessionId);
-
-        // 5. Cleanup: Listener for disconnection
-        ctx.channel().closeFuture().addListener((ChannelFutureListener) future -> {
-            xmppSessionManager.unregister(userKey);
-            userSessionRegistry.removeSession(userKey, sessionId);
-            log.info("User {} disconnected, session {} removed.", userKey, sessionId);
-        });
-
-        // 6. Continue to WebSocket Handshake (No 'CONNECTED' frame sent)
+        // Store in attribute so userEventTriggered can see it
+        ctx.channel().attr(XmppSessionAttributes.PRINCIPAL).set(principal);     
+      
+        // 3. Pass to WebSocketServerProtocolHandler
         ctx.fireChannelRead(request.retain());
     }
-    
-    /**
-     * Sends the Session ID to the client once the WebSocket Handshake is finished.
-     */
+
     @Override
     public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
         if (evt instanceof WebSocketServerProtocolHandler.HandshakeComplete) {
-            XmppPrincipal principal = ctx.channel().attr(AuthAttributes.PRINCIPAL).get();
+            XmppPrincipal principal = ctx.channel().attr(XmppSessionAttributes.PRINCIPAL).get();
             
             if (principal != null) {
-                // Standard XMPP format for a session bind result
+                String userKey = principal.getUserKey();
                 String sessionId = principal.getSessionId();
-                String jid = principal.getFullJid();
 
+                // --- REGISTRATION LOGIC START ---
+                
+                // 1. Initialize Stream Management Counter (XEP-0198)
+                ctx.channel().attr(XmppSessionAttributes.HANDLED_COUNT_KEY).set(new AtomicLong(0));
+
+                // 2. Register in Managers (Only now that the WS is stable)
+                xmppSessionManager.register(userKey, ctx.channel());
+                userSessionRegistry.addSession(userKey, new UserSession(sessionId, UserState.ACTIVE, Instant.now().toEpochMilli()));
+                
+                // 3. Setup Close Listener
+                ctx.channel().closeFuture().addListener((ChannelFutureListener) future -> {
+                    xmppSessionManager.unregister(userKey);
+                    userSessionRegistry.removeSession(userKey, sessionId);
+                    log.info("Session {} for user {} cleaned up.", sessionId, userKey);
+                });
+                // --- REGISTRATION LOGIC END ---
+
+                // Send Bind Result
                 String xmppResponse = String.format(
                     "<iq type='result' id='bind_1'>" +
                     "  <bind xmlns='urn:ietf:params:xml:ns:xmpp-bind'>" +
@@ -104,15 +101,14 @@ public class WebSocketAuthHandler extends SimpleChannelInboundHandler<FullHttpRe
                     "    <sessionid>%s</sessionid>" +
                     "  </bind>" +
                     "</iq>",
-                    jid, sessionId
+                    principal.getFullJid(), sessionId
                 );
 
-                // Send as a TextWebSocketFrame
                 ctx.channel().writeAndFlush(new TextWebSocketFrame(xmppResponse));
-                
-                log.info("XMPP Session Bound. JID: {} sent to client.", jid);
+                log.info("WebSocket Handshake Complete. User {} is now ACTIVE.", userKey);
             }
         }
+        
         super.userEventTriggered(ctx, evt);
     }
 
