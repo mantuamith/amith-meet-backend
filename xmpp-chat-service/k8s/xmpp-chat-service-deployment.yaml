@@ -13,7 +13,7 @@ spec:
       labels:
         app: xmpp-chat-service
     spec:
-      serviceAccountName: gateway-sa
+#      serviceAccountName: gateway-sa
       containers:
       - name: xmpp-chat-service
         image: harbor.local/library/xmpp-chat-service:latest
