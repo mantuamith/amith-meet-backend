@@ -30,4 +30,8 @@ public class OfflineMessageService {
 	public List<OfflineMessage> getOfflineMessages(String to) {
 		return offlineMessageRepository.findByToOrderByCreatedAtAsc(to);
 	}
+	
+	public Mono<Void> deleteById(String ackMsgId) {
+		return offlineMessageRepository.deleteById(ackMsgId);
+	}
 }

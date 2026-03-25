@@ -18,7 +18,7 @@ import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.constant.XmppErrorConditions;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
 import com.algomeet.xmpp.chatservice.routing.handler.XmppSessionLifecycleHandler;
-import com.algomeet.xmpp.chatservice.routing.handler.ServerQueryHandler;
+import com.algomeet.xmpp.chatservice.routing.handler.XmppInfoQueryHandler;
 import com.algomeet.xmpp.chatservice.service.OfflineMessageService;
 import com.algomeet.xmpp.chatservice.session.XmppSessionAttributes;
 import com.algomeet.xmpp.chatservice.stanza.StanzaError;
@@ -37,11 +37,12 @@ import lombok.extern.slf4j.Slf4j;
 @Component
 @AllArgsConstructor
 public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocketFrame> {
-    private final ServerQueryHandler serverQueryHandler;
+    private static final XMLInputFactory XML_FACTORY = XMLInputFactory.newInstance();
+    
+    private final XmppInfoQueryHandler xmppInfoQueryHandler;
     private final ClusterMessagePublisher clusterMessagePublisher;
     private final XmppSessionLifecycleHandler chatStateNotificationHandler;
-    private final OfflineMessageService offlineMessageService;    
-    private static final XMLInputFactory XML_FACTORY = XMLInputFactory.newInstance();
+    private final OfflineMessageService offlineMessageService;  
 
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, TextWebSocketFrame frame) {
@@ -65,7 +66,7 @@ public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocke
             if (StringUtils.hasText(to)) {
             	handleRouting(ctx, id, to, from, type, xml);
             } else {
-                serverQueryHandler.handleQuery(ctx, xml);
+            	xmppInfoQueryHandler.handleQuery(ctx, xml);
             }
 
         } catch (XMLStreamException e) {
@@ -105,7 +106,12 @@ public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocke
     	// Get or Initialize the per-session counter
         AtomicLong handledCount = ctx.channel().attr(XmppSessionAttributes.HANDLED_COUNT_KEY).get();
         
-        if (XmppMessageType.fromString(type).supportsOfflineStorage()) {  
+        if (XmppMessageType.fromString(type).supportsOfflineStorage()) {         	
+        	// Check if message is delivery receipt ack
+        	if(isDeliveryReceipt(originalXml)) {
+        		handleDeliveryAcknowledgement(originalXml);        		
+        	}
+        	
             offlineMessageService.save(id, to, from, type, originalXml)
                 .doOnSuccess(savedDoc -> {
                     if (handledCount != null) {
@@ -134,6 +140,32 @@ public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocke
             handleDirectChatRouting(id, to, from, originalXml);
         }
     }
+    
+    /**
+     * Checks if the incoming XML is a XEP-0184 <received/> receipt.
+     */
+    private boolean isDeliveryReceipt(String xml) {
+        return xml.contains("urn:xmpp:receipts") && xml.contains("<received");
+    }
+    
+    /**
+     * Extracts the message ID from the <received id='...'/> tag and deletes from DB.
+     */
+    private void handleDeliveryAcknowledgement(String xml) {
+        // We want the ID of the message that was RECEIVED, 
+        // not the ID of the receipt stanza itself.
+        String ackMsgId = XmppUtil.extractSubAttribute(xml, "received", "id");
+        
+        if (StringUtils.hasText(ackMsgId)) {
+            log.debug("Processing delivery receipt for msg: {}", ackMsgId);
+            
+            // Delete from MongoDB so it's no longer "Offline"
+            offlineMessageService.deleteById(ackMsgId)
+                .doOnSuccess(v -> log.info("Successfully deleted acked message {} from storage", ackMsgId))
+                .doOnError(e -> log.error("Failed to delete acked message {}: {}", ackMsgId, e.getMessage()))
+                .subscribe();
+        }
+    }    
 
     private void handleDirectChatRouting(String id, String to, String from, String originalXml) {
         // Sync to nodes where the specific user is connected
