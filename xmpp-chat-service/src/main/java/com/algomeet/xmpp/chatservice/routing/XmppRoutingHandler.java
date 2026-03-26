@@ -211,16 +211,32 @@ public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocke
         if (!hasActiveSession) {
             log.debug("User {} has no active sessions. Triggering push notification.", to);
             
-            // Check for audio and video call
+            /*
+             * 1. Jingle Signaling Detection (XEP-0166)
+             * We use a "Fast-Scan" approach using indexOf() to minimize CPU cycles.
+             * 
+             * - 'urn:xmpp:jingle:1': Ensures the stanza belongs to the Jingle namespace.
+             * - 'session-initiate': Identifies the specific action that triggers a new call request.
+             * 
+             * Note: We check for partial strings to remain 'quote-agnostic' (handling both ' and ").
+             */
             if (originalXml.indexOf("urn:xmpp:jingle:1") != -1 && originalXml.indexOf("session-initiate") != -1) {
-            	// Handle IQ stanza
-            	xmppIqRoutingHandler.handleIqRouting(ctx, id, to, from, originalXml, hasSessions, principal);
-            	
+                
+                // Pass to the specialized routing handler to determine if it is Audio or Video.
+                // This handler will manage the 'h' count increment required for Stream Management.
+                xmppIqRoutingHandler.handleIqRouting(ctx, id, to, from, originalXml, hasSessions, principal);
+                
             } else { 
-            	
-            	String body = XmppUtil.getMessageBody(originalXml);
+                
+                /*
+                 * 2. Standard Message Handling
+                 * If the stanza is not a call initiation, treat it as a standard chat message.
+                 * We extract the <body> element and trigger a Push Notification (FCM/APNs)
+                 * to the recipient, ensuring they receive the message even if offline.
+                 */
+                String body = XmppUtil.getMessageBody(originalXml);
                 sendPushNotification(to, body, NotificationType.DIRECT_MESSAGE, principal);
-            }            
+            }     
         }
     }
 
