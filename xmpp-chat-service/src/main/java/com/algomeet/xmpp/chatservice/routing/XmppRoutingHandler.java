@@ -3,6 +3,7 @@ package com.algomeet.xmpp.chatservice.routing;
 import java.io.StringReader;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
 import javax.xml.stream.XMLInputFactory;
@@ -11,16 +12,24 @@ import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamReader;
 
 import org.springframework.stereotype.Component;
+import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
+import com.algomeet.multitenancy.context.TenantContext;
+import com.algomeet.notificationservice.dto.Notification;
+import com.algomeet.notificationservice.enums.NotificationType;
+import com.algomeet.notificationservice.service.NotificationService;
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.constant.XmppErrorConditions;
+import com.algomeet.xmpp.chatservice.enums.UserState;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
 import com.algomeet.xmpp.chatservice.routing.handler.XmppSessionLifecycleHandler;
 import com.algomeet.xmpp.chatservice.routing.handler.XmppStreamManagementHandler;
 import com.algomeet.xmpp.chatservice.routing.handler.XmppInfoQueryHandler;
 import com.algomeet.xmpp.chatservice.service.OfflineMessageService;
+import com.algomeet.xmpp.chatservice.session.UserSession;
+import com.algomeet.xmpp.chatservice.session.UserSessionRegistry;
 import com.algomeet.xmpp.chatservice.session.XmppSessionAttributes;
 import com.algomeet.xmpp.chatservice.stanza.StanzaError;
 import com.algomeet.xmpp.chatservice.stanza.StreamAck;
@@ -67,6 +76,8 @@ public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocke
     private final XmppSessionLifecycleHandler chatStateNotificationHandler;
     private final OfflineMessageService offlineMessageService; 
     private final XmppStreamManagementHandler xmppStreamManagementHandler;
+    private final UserSessionRegistry userSessionRegistry;
+    private final NotificationService notificationService;
 
     /**
      * Entry point for incoming WebSocket text frames.
@@ -95,7 +106,7 @@ public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocke
             // 3. Routing Logic Branching
             if (StringUtils.hasText(to)) {
                 // Stanza has a recipient (Message/IQ/Presence directed to others)
-                handleRouting(ctx, id, to, from, type, xml);
+                handleRouting(ctx, id, XmppUtil.getUserKey(to), XmppUtil.getUserKey(from), type, xml);
             } else {
                 // Stanza is a control element directed at the server (Stream Mgmt or Service Discovery)
                 if (xmppStreamManagementHandler.isAckMessage(xml)) {
@@ -179,8 +190,23 @@ public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocke
                 .subscribe();
         }
         
-        // Publish to Redis/Cluster topic so the recipient's node can deliver it
-        clusterMessagePublisher.convertAndSendToUser(id, XmppUtil.getUserKey(to), XmppUtil.getUserKey(from), originalXml);
+        // Retrieve user sessions
+        Set<UserSession>  userSessions = userSessionRegistry.getSessions(to);       
+        
+        // Check if user is online, no need to sync the message to other nodes if user is offline
+        if (!(CollectionUtils.isEmpty(userSessions))) {
+        	
+        	// Check if any of user session has active status, otherwise send notification
+        	if (!(userSessions.parallelStream()
+        			.anyMatch(session -> UserState.ACTIVE == session.getState()))) {
+        		
+        		// Send push notification
+                sendPushNotification(to, XmppUtil.getMessageBody(originalXml), NotificationType.DIRECT_MESSAGE);
+        	}
+        	
+        	// Publish to Redis/Cluster topic so the recipient's node can deliver it
+            clusterMessagePublisher.convertAndSendToUser(id, to, from, originalXml);
+        }         
     }
 
     /**
@@ -196,5 +222,24 @@ public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocke
     private void sendError(ChannelHandlerContext ctx, String id, String to, String from, String condition, String text) {
         StanzaError error = new StanzaError(id, to, from, condition, text);
         ctx.writeAndFlush(new TextWebSocketFrame(error.toXml()));
+    }
+        
+    /**
+     * Used to send push notification for new message
+     *
+     * @param toKey
+     * @param message
+     * @param notifcationType
+     */
+    private void sendPushNotification(String toKey, String message, NotificationType notifcationType) {
+            Notification notif = Notification.builder()
+                    .receiverIds(Set.of(toKey))
+                    .type(notifcationType)
+                    .title("You have new message")
+                    .body(message)
+                    .tenantId(TenantContext.getCurrentTenant())
+                    .build();
+
+            notificationService.sendPush(notif);
     }
 }

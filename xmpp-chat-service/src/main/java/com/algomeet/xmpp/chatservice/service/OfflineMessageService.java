@@ -73,10 +73,10 @@ public class OfflineMessageService {
      * <p>This is typically called when an {@code <a h='...'/>} acknowledgment 
      * is processed by the {@code XmppStreamManagementHandler}.</p>
      * 
-     * @param ackMsgId The unique Stanza ID to be removed.
+     * @param messageId The unique Stanza ID to be removed.
      * @return A {@link Mono<Void>} signaling completion of the deletion.
      */
-    public Mono<Void> deleteById(String ackMsgId) {
-        return offlineMessageRepository.deleteById(ackMsgId);
+    public Mono<Void> deleteById(String messageId) {
+        return offlineMessageRepository.deleteById(messageId);
     }
 }

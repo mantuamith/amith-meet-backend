@@ -82,7 +82,7 @@ public class OfflineMessageHandler {
             ctx.writeAndFlush(new TextWebSocketFrame(xmlWithDelay));
             
             // Track in the SM buffer so we can update DB status when the client acks
-            xmppStreamAckTracker.track(userKey, outboundH.getAndIncrement(), msg.getId());
+            xmppStreamAckTracker.track(userKey, outboundH.incrementAndGet(), msg.getId());
         }
         
         log.info("Delivered {} offline messages to user: {}", messages.size(), userKey);

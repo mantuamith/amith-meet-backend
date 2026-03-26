@@ -49,6 +49,7 @@ public class XmppStreamManagementHandler {
      * @param principal The authenticated user session.
      */
     public void process(ChannelHandlerContext ctx, String xml, XmppPrincipal principal) {	
+    	log.info("Purged acknowledged messages from store for---->");
         if (isAckRequestFromClient(xml)) { 
             // The client is requesting an 'h' value from the server
             AtomicLong handledCount = ctx.channel().attr(XmppSessionAttributes.SM_INBOUND_H_KEY).get();
@@ -67,9 +68,10 @@ public class XmppStreamManagementHandler {
             // 2. Clear acknowledged messages from the persistent 'offline' store
             if (!acknowledgedStanzaIds.isEmpty()) {
                 for (String stanzaId : acknowledgedStanzaIds) {
-                    offlineMessageService.deleteById(stanzaId);
+                    offlineMessageService.deleteById(stanzaId).subscribe();
                 }
-                log.debug("Purged {} acknowledged messages from store for {}", acknowledgedStanzaIds.size(), principal.getUserKey());
+                
+                log.debug("Purged {} acknowledged messages from store for {}", acknowledgedStanzaIds, principal.getUserKey());
             }
         }		
     }

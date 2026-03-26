@@ -1,5 +1,11 @@
 package com.algomeet.xmpp.chatservice.util;
 
+import java.io.StringReader;
+
+import javax.xml.stream.XMLInputFactory;
+import javax.xml.stream.XMLStreamConstants;
+import javax.xml.stream.XMLStreamReader;
+
 import org.springframework.util.StringUtils;
 
 import lombok.extern.slf4j.Slf4j;
@@ -7,13 +13,14 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class XmppUtil {
 	private static final String DOMAIN_SEPARATOR = "@";
+	private static final XMLInputFactory XML_FACTORY = XMLInputFactory.newInstance();
 	
 	public static String getUserKey(String fullJid) {
 		if(!StringUtils.hasText(fullJid)) {
 			return null;
 		}
 		
-		return fullJid.split(DOMAIN_SEPARATOR, 2)[0];
+		return fullJid.split(DOMAIN_SEPARATOR, 2)[0].trim();
 	}
 	
 	public static String getRoomKey(String roomJid) {
@@ -35,5 +42,31 @@ public class XmppUtil {
         	log.error("Error parsing ack from client: {}", xml, e);
             return 0;
         }
+    }
+    
+    /**
+     * Extracts the text content of the <body> element from a raw XMPP XML string.
+     * 
+     * @param xml The raw XMPP message stanza.
+     * @return The message body text, or null if no body is found.
+     */
+    public static String getMessageBody(String xml) {
+        try (StringReader sr = new StringReader(xml)) {
+            XMLStreamReader reader = XML_FACTORY.createXMLStreamReader(sr);
+            while (reader.hasNext()) {
+                int event = reader.next();
+                
+                // Look for the start of the <body> element
+                if (event == XMLStreamConstants.START_ELEMENT && 
+                    "body".equals(reader.getLocalName())) {
+                    
+                    // Return the text content immediately following the <body> tag
+                    return reader.getElementText();
+                }
+            }
+        } catch (Exception e) {
+            log.error("Failed to extract body from XML: {}", e.getMessage());
+        }
+        return null;
     }
 }

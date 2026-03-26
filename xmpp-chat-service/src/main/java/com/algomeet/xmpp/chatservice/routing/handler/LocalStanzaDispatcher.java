@@ -49,7 +49,7 @@ public class LocalStanzaDispatcher {
      * @param id          The unique Stanza ID (used for tracking and DB status updates).
      * @param originalXml The raw XML content to be delivered.
      */
-    public void handleRouting(String to, String from, String id, String originalXml) {
+    public void send(String to, String from, String id, String originalXml) {
         Channel targetChannel = sessionManager.getChannel(to);
 
         if (targetChannel == null || !targetChannel.isActive()) {
@@ -66,7 +66,7 @@ public class LocalStanzaDispatcher {
             targetChannel.writeAndFlush(new TextWebSocketFrame(originalXml));
             
             // Track in the SM buffer so we can update DB status when the client eventually acks
-            long sequence = outboundH.getAndIncrement();
+            long sequence = outboundH.incrementAndGet();
             xmppStreamAckTracker.track(to, sequence, id);
             
             log.trace("Stanza {} dispatched to {} with sequence h={}", id, to, sequence);
