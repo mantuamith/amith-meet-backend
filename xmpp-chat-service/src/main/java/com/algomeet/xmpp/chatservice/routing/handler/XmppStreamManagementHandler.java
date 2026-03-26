@@ -49,7 +49,6 @@ public class XmppStreamManagementHandler {
      * @param principal The authenticated user session.
      */
     public void process(ChannelHandlerContext ctx, String xml, XmppPrincipal principal) {	
-    	log.info("Purged acknowledged messages from store for---->");
         if (isAckRequestFromClient(xml)) { 
             // The client is requesting an 'h' value from the server
             AtomicLong handledCount = ctx.channel().attr(XmppSessionAttributes.SM_INBOUND_H_KEY).get();

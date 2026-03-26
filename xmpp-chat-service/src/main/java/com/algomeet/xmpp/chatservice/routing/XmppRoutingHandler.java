@@ -169,44 +169,49 @@ public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocke
 
     /**
      * Handles 1-to-1 message routing, persistence for offline storage, 
-     * and XEP-0198 inbound acknowledgments.
+     * and cluster-wide synchronization, and push notifications for offline users.
      */
     private void handleDirectChatRouting(ChannelHandlerContext ctx, String id, String to, String from, String type, String originalXml) {
         AtomicLong handledCount = ctx.channel().attr(XmppSessionAttributes.SM_INBOUND_H_KEY).get();
-        
-        // Only save to DB if the message type warrants storage (e.g., 'chat')
-        if (XmppMessageType.fromString(type).supportsOfflineStorage()) {
+        XmppMessageType msgType = XmppMessageType.fromString(type);
+
+        // 1. Persistence & XEP-0198 Acknowledgment
+        if (msgType.supportsOfflineStorage()) {
             offlineMessageService.save(id, to, from, type, originalXml)
                 .doOnSuccess(savedDoc -> {
-                    // Send an immediate <a h='x'/> to the sender once persisted
+                    // Acknowledge receipt to the sender (Server -> Client 'h' update)
                     if (handledCount != null) {
-                        ctx.writeAndFlush(new TextWebSocketFrame(new StreamAck(handledCount.incrementAndGet()).toXml()));
+                        long h = handledCount.incrementAndGet();
+                        ctx.writeAndFlush(new TextWebSocketFrame(new StreamAck(h).toXml()));
                     }
                 })
                 .doOnError(e -> {
-                    log.error("Failed to persist message {}: {}", id, e.getMessage());
+                    log.error("Storage failure for message {}: {}", id, e.getMessage());
                     sendError(ctx, id, from, to, XmppErrorConditions.INTERNAL_SERVER_ERROR, "Storage failure");
                 })
                 .subscribe();
         }
+
+        // 2. Cluster Routing & Notification Logic
+        Set<UserSession> userSessions = userSessionRegistry.getSessions(to);
         
-        // Retrieve user sessions
-        Set<UserSession>  userSessions = userSessionRegistry.getSessions(to);       
-        
-        // Check if user is online, no need to sync the message to other nodes if user is offline
-        if (!(CollectionUtils.isEmpty(userSessions))) {
-        	
-        	// Check if any of user session has active status, otherwise send notification
-        	if (!(userSessions.parallelStream()
-        			.anyMatch(session -> UserState.ACTIVE == session.getState()))) {
-        		
-        		// Send push notification
-                sendPushNotification(to, XmppUtil.getMessageBody(originalXml), NotificationType.DIRECT_MESSAGE);
-        	}
-        	
-        	// Publish to Redis/Cluster topic so the recipient's node can deliver it
+        boolean hasSessions = !CollectionUtils.isEmpty(userSessions);
+        boolean hasActiveSession = hasSessions && userSessions.stream()
+                .anyMatch(s -> UserState.ACTIVE == s.getState());
+
+        if (hasSessions) {
+            // Broadast to Redis: Even if they are AWAY/DND, we attempt delivery 
+            // to their active WebSocket channels across the cluster.
             clusterMessagePublisher.convertAndSendToUser(id, to, from, originalXml);
-        }         
+        }
+
+        // 3. Push Notification Logic
+        // Trigger push if the user has no sessions OR no session is currently 'ACTIVE'
+        if (!hasActiveSession) {
+            log.debug("User {} has no active sessions. Triggering push notification.", to);
+            String body = XmppUtil.getMessageBody(originalXml);
+            sendPushNotification(to, body, NotificationType.DIRECT_MESSAGE);
+        }
     }
 
     /**
