@@ -211,6 +211,7 @@ public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocke
         if (!hasActiveSession) {
             log.debug("User {} has no active sessions. Triggering push notification.", to);
             
+            // Check for audio and video call
             if (originalXml.indexOf("urn:xmpp:jingle:1") != -1 && originalXml.indexOf("session-initiate") != -1) {
             	// Handle IQ stanza
             	xmppIqRoutingHandler.handleIqRouting(ctx, id, to, from, originalXml, hasSessions, principal);
