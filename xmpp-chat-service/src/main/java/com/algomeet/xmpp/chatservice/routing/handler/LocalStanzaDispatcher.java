@@ -49,7 +49,7 @@ public class LocalStanzaDispatcher {
      * @param id          The unique Stanza ID (used for tracking and DB status updates).
      * @param originalXml The raw XML content to be delivered.
      */
-    public void send(String to, String from, String id, String originalXml) {
+    public void dispatchLocally(String to, String from, String id, String originalXml) {
         Channel targetChannel = sessionManager.getChannel(to);
 
         if (targetChannel == null || !targetChannel.isActive()) {

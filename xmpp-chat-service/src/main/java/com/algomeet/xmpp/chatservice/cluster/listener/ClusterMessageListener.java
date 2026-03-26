@@ -50,7 +50,7 @@ public class ClusterMessageListener {
         if (message != null) {
             // Hand off to the dispatcher. If the user is on this node, the message 
             // is pushed over the WebSocket; otherwise, the dispatcher ignores it.
-            localStanzaDispatcher.send(
+            localStanzaDispatcher.dispatchLocally(
                 message.getTo(), 
                 message.getFrom(), 
                 message.getId(), 

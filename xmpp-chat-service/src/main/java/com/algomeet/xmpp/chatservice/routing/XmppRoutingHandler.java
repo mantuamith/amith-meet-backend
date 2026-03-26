@@ -27,6 +27,7 @@ import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
 import com.algomeet.xmpp.chatservice.routing.handler.XmppSessionLifecycleHandler;
 import com.algomeet.xmpp.chatservice.routing.handler.XmppStreamManagementHandler;
 import com.algomeet.xmpp.chatservice.routing.handler.XmppInfoQueryHandler;
+import com.algomeet.xmpp.chatservice.routing.handler.XmppIqRoutingHandler;
 import com.algomeet.xmpp.chatservice.service.OfflineMessageService;
 import com.algomeet.xmpp.chatservice.session.UserSession;
 import com.algomeet.xmpp.chatservice.session.UserSessionRegistry;
@@ -78,6 +79,7 @@ public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocke
     private final XmppStreamManagementHandler xmppStreamManagementHandler;
     private final UserSessionRegistry userSessionRegistry;
     private final NotificationService notificationService;
+    private final XmppIqRoutingHandler xmppIqRoutingHandler;
 
     /**
      * Entry point for incoming WebSocket text frames.
@@ -118,7 +120,7 @@ public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocke
 
         } catch (XMLStreamException e) {
             log.error("Malformed XML received: {} , {}", xml, e.getMessage());
-            sendError(ctx, null, null, null, XmppErrorConditions.NOT_WELL_FORMED, "XML parsing failed");
+            XmppUtil.sendError(ctx, null, null, principal.getFullJid(), XmppErrorConditions.NOT_WELL_FORMED, "XML parsing failed");
         } catch (Exception e) {
              log.error("Routing error for XML {}: {}", xml, e.getMessage(), e);
         }
@@ -174,6 +176,7 @@ public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocke
     private void handleDirectChatRouting(ChannelHandlerContext ctx, String id, String to, String from, String type, String originalXml) {
         AtomicLong handledCount = ctx.channel().attr(XmppSessionAttributes.SM_INBOUND_H_KEY).get();
         XmppMessageType msgType = XmppMessageType.fromString(type);
+        XmppPrincipal principal = ctx.channel().attr(XmppSessionAttributes.PRINCIPAL).get();
 
         // 1. Persistence & XEP-0198 Acknowledgment
         if (msgType.supportsOfflineStorage()) {
@@ -187,7 +190,7 @@ public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocke
                 })
                 .doOnError(e -> {
                     log.error("Storage failure for message {}: {}", id, e.getMessage());
-                    sendError(ctx, id, from, to, XmppErrorConditions.INTERNAL_SERVER_ERROR, "Storage failure");
+                    XmppUtil.sendError(ctx, id, from, to, XmppErrorConditions.INTERNAL_SERVER_ERROR, "Storage failure");
                 })
                 .subscribe();
         }
@@ -209,8 +212,16 @@ public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocke
         // Trigger push if the user has no sessions OR no session is currently 'ACTIVE'
         if (!hasActiveSession) {
             log.debug("User {} has no active sessions. Triggering push notification.", to);
-            String body = XmppUtil.getMessageBody(originalXml);
-            sendPushNotification(to, body, NotificationType.DIRECT_MESSAGE);
+            
+            if (originalXml.startsWith("<iq") && originalXml.contains("urn:xmpp:jingle:1")) {
+            	// Handle IQ stanza
+            	xmppIqRoutingHandler.handleIqRouting(ctx, id, to, from, originalXml, hasSessions, principal);
+            	
+            } else { 
+            	
+            	String body = XmppUtil.getMessageBody(originalXml);
+                sendPushNotification(to, body, NotificationType.DIRECT_MESSAGE, principal);
+            }            
         }
     }
 
@@ -220,14 +231,6 @@ public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocke
     private void handleGroupChatRouting(String id, String roomJid, String from, String originalXml) {
         // Implementation for MUC routing logic
     }
-
-    /**
-     * Utility to send standardized XMPP error frames back to the client.
-     */
-    private void sendError(ChannelHandlerContext ctx, String id, String to, String from, String condition, String text) {
-        StanzaError error = new StanzaError(id, to, from, condition, text);
-        ctx.writeAndFlush(new TextWebSocketFrame(error.toXml()));
-    }
         
     /**
      * Used to send push notification for new message
@@ -236,13 +239,13 @@ public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocke
      * @param message
      * @param notifcationType
      */
-    private void sendPushNotification(String toKey, String message, NotificationType notifcationType) {
+    private void sendPushNotification(String toKey, String message, NotificationType notifcationType, XmppPrincipal principal) {
             Notification notif = Notification.builder()
                     .receiverIds(Set.of(toKey))
                     .type(notifcationType)
                     .title("You have new message")
                     .body(message)
-                    .tenantId(TenantContext.getCurrentTenant())
+                    .tenantId(principal.getTenantId())
                     .build();
 
             notificationService.sendPush(notif);

@@ -8,6 +8,10 @@ import javax.xml.stream.XMLStreamReader;
 
 import org.springframework.util.StringUtils;
 
+import com.algomeet.xmpp.chatservice.stanza.StanzaError;
+
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -68,5 +72,13 @@ public class XmppUtil {
             log.error("Failed to extract body from XML: {}", e.getMessage());
         }
         return null;
+    }
+    
+    /**
+     * Utility to send standardized XMPP error frames back to the client.
+     */
+    public static void sendError(ChannelHandlerContext ctx, String id, String to, String from, String condition, String text) {
+        StanzaError error = new StanzaError(id, to, from, condition, text);
+        ctx.writeAndFlush(new TextWebSocketFrame(error.toXml()));
     }
 }

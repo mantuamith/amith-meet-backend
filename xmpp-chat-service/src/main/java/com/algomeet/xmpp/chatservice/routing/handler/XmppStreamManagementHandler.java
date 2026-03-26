@@ -70,7 +70,7 @@ public class XmppStreamManagementHandler {
                     offlineMessageService.deleteById(stanzaId).subscribe();
                 }
                 
-                log.debug("Purged {} acknowledged messages from store for {}", acknowledgedStanzaIds, principal.getUserKey());
+                log.info("Purged {} acknowledged messages from store for {}, client handled count {}", acknowledgedStanzaIds, principal.getUserKey(), clientHandledCount);
             }
         }		
     }
