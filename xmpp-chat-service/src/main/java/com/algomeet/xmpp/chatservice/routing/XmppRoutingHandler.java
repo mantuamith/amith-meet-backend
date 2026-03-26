@@ -212,7 +212,7 @@ public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocke
             log.debug("User {} has no active sessions. Triggering push notification.", to);
             
             /*
-             * 1. Jingle Signaling Detection (XEP-0166)
+             * Jingle Signaling Detection (XEP-0166)
              * We use a "Fast-Scan" approach using indexOf() to minimize CPU cycles.
              * 
              * - 'urn:xmpp:jingle:1': Ensures the stanza belongs to the Jingle namespace.
@@ -229,7 +229,7 @@ public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocke
             } else { 
                 
                 /*
-                 * 2. Standard Message Handling
+                 * Standard Message Handling
                  * If the stanza is not a call initiation, treat it as a standard chat message.
                  * We extract the <body> element and trigger a Push Notification (FCM/APNs)
                  * to the recipient, ensuring they receive the message even if offline.

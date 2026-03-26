@@ -108,13 +108,23 @@ public class XmppIqRoutingHandler {
     }
 
     /**
-     * Constructs a {@code <message type='headline'/>} stanza compliant with XEP-0203 (Delayed Delivery).
+     * Constructs an XMPP {@code <message type='headline'/>} stanza to notify a 
+     * recipient of a missed audio or video call.
      * 
-     * @param id   The new message ID for the history record.
-     * @param sid  The original Jingle Session ID (mapped to call-log sid).
-     * @return Formatted XML string.
+     * <p>This stanza uses the {@code headline} type to ensure it is treated as a 
+     * notification rather than a standard chat message. It includes a custom 
+     * {@code <call-log/>} extension for Algomeet-specific call history synchronization.</p>
+     * 
+     * @param from      The JID of the caller (initiator).
+     * @param to        The JID of the intended recipient.
+     * @param id        A unique stanza ID for tracking and archive (MAM) compatibility.
+     * @param type      The media type of the call (e.g., "audio" or "video").
+     * @param sid       The unique Jingle Session ID (XEP-0166) used to link this 
+     *                  notification to the signaling session.
+     * @return A formatted XML string representing the missed call notification.
      */
     private String constructMissedCallXml(String from, String to, String id, String type, String sid) {
+        // Use current UTC epoch for the call-log metadata
         String timestamp = String.valueOf(System.currentTimeMillis());
 
         return String.format(
