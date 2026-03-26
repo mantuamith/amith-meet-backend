@@ -58,11 +58,10 @@ public class ClusterMessagePublisher {
                     .payload(payload)
                     .build();
 
-            log.debug("Publishing cluster sync message for user [{}]: {}", to, id);
+            log.info("Publishing cluster sync message for user [{}]: {}", to, id);
 
             // Broadcast to the global topic defined in the Redis configuration
             redisTemplate.convertAndSend(topic.getTopic(), message);
-            
         } catch (Exception ex) {
             log.error("Failed to publish message {} to Redis cluster topic: {}", id, ex.getMessage());
             throw new ClusterMessageException("Error publishing to redis topic", ex);
