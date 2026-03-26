@@ -17,8 +17,8 @@ import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.constant.XmppErrorConditions;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
-import com.algomeet.xmpp.chatservice.routing.handler.XmppSessionLifecycleHandler;
-import com.algomeet.xmpp.chatservice.routing.handler.XmppInfoQueryHandler;
+import com.algomeet.xmpp.chatservice.handler.XmppInfoQueryHandler;
+import com.algomeet.xmpp.chatservice.handler.XmppSessionLifecycleHandler;
 import com.algomeet.xmpp.chatservice.service.OfflineMessageService;
 import com.algomeet.xmpp.chatservice.session.XmppSessionAttributes;
 import com.algomeet.xmpp.chatservice.stanza.StanzaError;
@@ -103,7 +103,7 @@ public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocke
     }
     
     public void handleRouting(ChannelHandlerContext ctx, String id, String to, String from, String type, String originalXml) {    	
-    	// Get or Initialize the per-session counter
+    	// Get the per-session counter
         AtomicLong handledCount = ctx.channel().attr(XmppSessionAttributes.HANDLED_COUNT_KEY).get();
         
         if (XmppMessageType.fromString(type).supportsOfflineStorage()) {         	
