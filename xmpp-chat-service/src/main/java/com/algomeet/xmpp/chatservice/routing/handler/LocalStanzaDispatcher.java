@@ -1,4 +1,4 @@
-package com.algomeet.xmpp.chatservice.handler;
+package com.algomeet.xmpp.chatservice.routing.handler;
 
 import org.springframework.stereotype.Component;
 

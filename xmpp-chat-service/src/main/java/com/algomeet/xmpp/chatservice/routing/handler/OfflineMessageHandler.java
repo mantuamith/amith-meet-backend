@@ -1,4 +1,4 @@
-package com.algomeet.xmpp.chatservice.handler;
+package com.algomeet.xmpp.chatservice.routing.handler;
 
 import java.time.Instant;
 import java.util.List;
