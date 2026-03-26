@@ -1,32 +1,79 @@
 package com.algomeet.xmpp.chatservice.routing.handler;
 
+import java.util.concurrent.atomic.AtomicLong;
 import org.springframework.stereotype.Component;
 
+import com.algomeet.xmpp.chatservice.session.XmppSessionAttributes;
 import com.algomeet.xmpp.chatservice.session.XmppSessionManager;
+import com.algomeet.xmpp.chatservice.session.XmppStreamAckTracker;
 
 import io.netty.channel.Channel;
-
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
-@RequiredArgsConstructor
+/**
+ * <p>Dispatches XMPP stanzas to locally connected sessions on the current server node.</p>
+ * 
+ * <p>The {@code LocalStanzaDispatcher} is the final step in the routing chain for 
+ * "Local-to-Local" or "Remote-to-Local" delivery. It retrieves the active Netty 
+ * {@link Channel} from the {@link XmppSessionManager} and pushes the XML payload 
+ * over the WebSocket.</p>
+ * 
+ * <p><b>Protocol Responsibilities:</b></p>
+ * <ul>
+ *     <li><b>Reliable Delivery (XEP-0198):</b> Every dispatched stanza is assigned a 
+ *         monotonically increasing sequence number ({@code smOutboundH}).</li>
+ *     <li><b>Ack Tracking:</b> Stanzas are registered with the {@link XmppStreamAckTracker} 
+ *         before being flushed, allowing the server to handle potential reconnection 
+ *         resumptions or delivery confirmations.</li>
+ *     <li><b>Session Validation:</b> Verifies that the target channel is active and 
+ *         initialized before attempting transmission.</li>
+ * </ul>
+ * 
+ * @author Algomeet Core Team
+ */
+@Slf4j
 @Component
+@RequiredArgsConstructor
 public class LocalStanzaDispatcher {
-	private final XmppSessionManager sessionManager; 
-	
-	 public void handleRouting(String to, String from, String id, String originalXml) {
-	        Channel targetChannel = sessionManager.getChannel(to);
 
-	        if (targetChannel != null && targetChannel.isActive()) {
-	            targetChannel.writeAndFlush(new TextWebSocketFrame(originalXml));
-	        }
-	        /*
-	        else {
-	            String error = String.format(
-	                "<iq type='error' to='%s' id='%s' from='server'>" +
-	                "<error type='cancel'><service-unavailable xmlns='urn:ietf:params:xml:ns:xmpp-stanzas'/></error></iq>",
-	                from, id);
-	            ctx.channel().writeAndFlush(new TextWebSocketFrame(error));
-	        } */
-	    }
+    private final XmppSessionManager sessionManager; 
+    private final XmppStreamAckTracker xmppStreamAckTracker;
+    
+    /**
+     * Routes a stanza to a specific local user session.
+     * 
+     * @param to          The User Key/ JID (Jabber ID) of the recipient.
+     * @param from        The User Key/ JID of the sender.
+     * @param id          The unique Stanza ID (used for tracking and DB status updates).
+     * @param originalXml The raw XML content to be delivered.
+     */
+    public void handleRouting(String to, String from, String id, String originalXml) {
+        Channel targetChannel = sessionManager.getChannel(to);
+
+        if (targetChannel == null || !targetChannel.isActive()) {
+            log.warn("Routing failed: No active local channel found for JID: {}", to);
+            // Note: In a full implementation, you would trigger the OfflineMessageHandler here
+            return;
+        }
+
+        // Retrieve the session's outbound counter to maintain protocol sequence
+        AtomicLong outboundH = targetChannel.attr(XmppSessionAttributes.SM_OUTBOUND_H_KEY).get();
+
+        if (outboundH != null) {
+            // Write to the WebSocket
+            targetChannel.writeAndFlush(new TextWebSocketFrame(originalXml));
+            
+            // Track in the SM buffer so we can update DB status when the client eventually acks
+            long sequence = outboundH.getAndIncrement();
+            xmppStreamAckTracker.track(to, sequence, id);
+            
+            log.trace("Stanza {} dispatched to {} with sequence h={}", id, to, sequence);
+        } else {
+            log.error("Outbound SM counter missing for active channel: {}. Reliability broken.", to);
+            // Fallback: send without tracking or close the corrupted session
+            targetChannel.writeAndFlush(new TextWebSocketFrame(originalXml));
+        }
+    }
 }

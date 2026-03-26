@@ -31,8 +31,8 @@ public class OfflineMessage {
 
     /**
      * Optional: MongoDB TTL (Time To Live) index.
-     * Automatically deletes messages after 30 days if never delivered.
+     * Automatically deletes messages after 6 months if never delivered.
      */
-    @Indexed(expireAfterSeconds = 2592000) 
+    @Indexed(expireAfterSeconds = 6 * 2592000) 
     private Instant expireAt;
 }

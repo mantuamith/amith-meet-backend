@@ -1,10 +1,10 @@
 package com.algomeet.xmpp.chatservice.util;
 
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
 import org.springframework.util.StringUtils;
 
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
 public class XmppUtil {
 	private static final String DOMAIN_SEPARATOR = "@";
 	
@@ -23,20 +23,17 @@ public class XmppUtil {
 		
 		return roomJid.split(DOMAIN_SEPARATOR, 2)[0];
 	}
-	
-	/**
-     * Extracts an attribute value from a specific sub-tag.
-     * Example: Extract 'id' from <received xmlns='...' id='msg_123'/>
+	    
+    /**
+     * Simple regex or string manipulation to extract 'h' value
      */
-    public static String extractSubAttribute(String xml, String tagName, String attrName) {
-        // Regex looks for: <tagName ... attrName=['"]VALUE['"]
-        String patternString = "<" + tagName + "[^>]*\\s" + attrName + "=['\"]([^'\"]+)['\"]";
-        Pattern pattern = Pattern.compile(patternString);
-        Matcher matcher = pattern.matcher(xml);
-        
-        if (matcher.find()) {
-            return matcher.group(1);
+    public static long parseHAttribute(String xml) {
+        try {
+            String hValue = xml.split("h='")[1].split("'")[0];
+            return Long.parseLong(hValue);
+        } catch (Exception e) {
+        	log.error("Error parsing ack from client: {}", xml, e);
+            return 0;
         }
-        return null;
     }
 }

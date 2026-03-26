@@ -28,46 +28,73 @@ import io.netty.util.CharsetUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+/**
+ * <p>Handles pre-handshake authentication for WebSocket connections using JWT.</p>
+ * * <p>This handler intercepts the initial {@link FullHttpRequest} (HTTP GET with Upgrade header) 
+ * before the Netty {@code WebSocketServerProtocolHandler} performs the handshake. 
+ * It ensures that only authenticated clients can establish a long-lived session.</p>
+ * * <p><b>Authentication Methods:</b></p>
+ * <ul>
+ * <li><b>Standard Header:</b> Looks for the {@code Authorization: Bearer <token>} header.</li>
+ * <li><b>Query Parameter:</b> Fallback to {@code ?token=<token>} for clients (like some web browsers) 
+ * that cannot easily set custom headers during a WebSocket constructor call.</li>
+ * </ul>
+ * * <p>If authentication succeeds, an {@link XmppPrincipal} is attached to the channel's 
+ * attributes for use by subsequent handlers in the pipeline. If it fails, a 401 Unauthorized 
+ * response is returned and the connection is closed.</p>
+ * * @author Algomeet Core Team
+ */
 @Slf4j
 @Component
 @ChannelHandler.Sharable
 @RequiredArgsConstructor
 public class WebSocketPreAuthHandler extends SimpleChannelInboundHandler<FullHttpRequest> {
+
     private final JwtUtil jwtUtil;
     
     @Value("${xmpp.server.domain}")
     private String domain;
     
-	@Override
-	protected void channelRead0(ChannelHandlerContext ctx, FullHttpRequest request) throws Exception {
-		 String token = extractToken(request);
+    /**
+     * Intercepts the HTTP request to perform JWT validation.
+     * * @param ctx     The Netty channel context.
+     * @param request The full HTTP request attempting to upgrade to WebSocket.
+     */
+    @Override
+    protected void channelRead0(ChannelHandlerContext ctx, FullHttpRequest request) throws Exception {
+        String token = extractToken(request);
 
-	        // 1. Validate Token (Pre-Handshake)
-	        if (!StringUtils.hasText(token) || !jwtUtil.validate(token)) {
-	            log.warn("Unauthorized HTTP attempt: {}", request.uri());
-	            sendUnauthorized(ctx);
-	            return;
-	        }
+        // 1. Validate Token (Pre-Handshake)
+        if (!StringUtils.hasText(token) || !jwtUtil.validate(token)) {
+            log.warn("Unauthorized HTTP/WS upgrade attempt from IP: {} for URI: {}", 
+                ctx.channel().remoteAddress(), request.uri());
+            sendUnauthorized(ctx);
+            return;
+        }
 
-	        String userKey = jwtUtil.getUserKey(token);
-	        
-	        // 2. Prepare Principal (But don't register yet!)
-	        XmppPrincipal principal = XmppPrincipal.builder()
-	                .userKey(userKey)
-	                .username(jwtUtil.getUsername(token))
-	                .tenantId(jwtUtil.getTenantId(token))
-	                .sessionId(ctx.channel().id().asLongText())
-	                .domain(domain)
-	                .build();
+        // 2. Extract Identity & Build Principal
+        String userKey = jwtUtil.getUserKey(token);
+        XmppPrincipal principal = XmppPrincipal.builder()
+                .userKey(userKey)
+                .username(jwtUtil.getUsername(token))
+                .tenantId(jwtUtil.getTenantId(token))
+                .sessionId(ctx.channel().id().asLongText()) // Unique ID for this physical connection
+                .domain(domain)
+                .build();
 
-	        // Store in attribute so userEventTriggered can see it
-	        ctx.channel().attr(XmppSessionAttributes.PRINCIPAL).set(principal);     
-	      
-	        // 3. Pass to WebSocketServerProtocolHandler
-	        ctx.fireChannelRead(request.retain());		
-	}
+        // Store the principal in a Channel Attribute. 
+        // This is retrieved later in WebSocketPostAuthHandler after the handshake completes.
+        ctx.channel().attr(XmppSessionAttributes.PRINCIPAL).set(principal);     
+      
+        // 3. Hand over the request to the next handler (WebSocketServerProtocolHandler)
+        // retain() is called because SimpleChannelInboundHandler would otherwise release the buffer.
+        ctx.fireChannelRead(request.retain());		
+    }
 	
-	private String extractToken(FullHttpRequest request) {
+    /**
+     * Attempts to extract the JWT from the Authorization header or URL query parameters.
+     */
+    private String extractToken(FullHttpRequest request) {
         String authHeader = request.headers().get(HttpHeaderNames.AUTHORIZATION);
         if (StringUtils.hasText(authHeader) && authHeader.startsWith(Constants.BEARER_PREFIX)) {
             return authHeader.substring(Constants.BEARER_PREFIX.length());
@@ -75,6 +102,9 @@ public class WebSocketPreAuthHandler extends SimpleChannelInboundHandler<FullHtt
         return extractTokenFromQuery(request.uri());
     }
 
+    /**
+     * Parses the URI to find a 'token' parameter. Useful for browser-based XMPP clients.
+     */
     private String extractTokenFromQuery(String uri) {
         int queryStart = uri.indexOf('?');
         if (queryStart == -1) return null;
@@ -88,13 +118,18 @@ public class WebSocketPreAuthHandler extends SimpleChannelInboundHandler<FullHtt
                 .orElse(null);
     }
 
+    /**
+     * Rejects the connection with an HTTP 401 response and closes the channel.
+     */
     private void sendUnauthorized(ChannelHandlerContext ctx) {
         FullHttpResponse response = new DefaultFullHttpResponse(
                 HttpVersion.HTTP_1_1, HttpResponseStatus.UNAUTHORIZED,
-                Unpooled.copiedBuffer("Unauthorized", CharsetUtil.UTF_8));
+                Unpooled.copiedBuffer("Unauthorized: Valid JWT required", CharsetUtil.UTF_8));
+        
         response.headers().set(HttpHeaderNames.CONTENT_TYPE, "text/plain; charset=UTF-8");
         response.headers().set(HttpHeaderNames.WWW_AUTHENTICATE, "Bearer");
         HttpUtil.setContentLength(response, response.content().readableBytes());
+        
         ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE);
     }
 }

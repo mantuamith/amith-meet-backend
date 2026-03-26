@@ -9,7 +9,7 @@ import lombok.Data;
 @Builder
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class ClusterSyncMessage { 
-	private String id;
+	private String id;            // Stanza/ message ID
 	private String to;            // Target Userkey/ JID
 	private String from;          // Sender Userkey/ JID
 	private String payload;       // The XMPP XML or JSON
