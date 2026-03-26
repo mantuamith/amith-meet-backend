@@ -43,7 +43,7 @@ server:
 xmpp:
   server:
     port: 8098
-  domain: algomeet.com
+    domain: algomeet.com
 
 jwt:
   secret: Y0h4TkFxWkd6Um9TTktOVlFobU9naFN3SzY5cWhVY08=

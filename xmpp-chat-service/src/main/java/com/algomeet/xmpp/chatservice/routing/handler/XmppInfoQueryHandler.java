@@ -14,7 +14,7 @@ import lombok.extern.slf4j.Slf4j;
 @Component
 public class XmppInfoQueryHandler {
 
-    @Value("${xmpp.domain}")
+    @Value("${xmpp.server.domain}")
     private String domain;
 
     private static final Pattern ID_PATTERN = Pattern.compile("id=['\"]([^'\"]+)['\"]");

@@ -3,6 +3,7 @@ package com.algomeet.xmpp.chatservice.routing.handler;
 import java.time.Instant;
 import java.util.List;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
@@ -17,6 +18,9 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class OfflineMessageHandler {
     private final OfflineMessageService offlineMessageService;
+    
+    @Value("${xmpp.server.domain}")
+    private String domain;
 
     public void deliverOfflineMessages(ChannelHandlerContext ctx, XmppPrincipal principal) {
         List<OfflineMessage> messages = offlineMessageService.getOfflineMessages(principal.getUserKey());
@@ -34,7 +38,7 @@ public class OfflineMessageHandler {
         // According to XEP-0203, 'from' should be the server domain
         String delay = String.format(
             "<delay xmlns='urn:xmpp:delay' from='%s' stamp='%s'/>",
-            principal.getFullJid(), timestamp.toString()
+            domain, timestamp.toString()
         );
         
         // Robust insertion: insert before the closing tag of the top-level element

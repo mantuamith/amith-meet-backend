@@ -35,7 +35,7 @@ import lombok.extern.slf4j.Slf4j;
 public class WebSocketPreAuthHandler extends SimpleChannelInboundHandler<FullHttpRequest> {
     private final JwtUtil jwtUtil;
     
-    @Value("${xmpp.domain}")
+    @Value("${xmpp.server.domain}")
     private String domain;
     
 	@Override
