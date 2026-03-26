@@ -20,7 +20,7 @@ import lombok.extern.slf4j.Slf4j;
 /**
  * <p><strong>Jingle Signaling & Call Orchestration Handler</strong></p>
  * 
- * <p>The {@code XmppIqRoutingHandler} is responsible for interpreting Jingle (XEP-0166) 
+ * <p>The {@code JingleSessionOrchestrator} is responsible for interpreting Jingle (XEP-0166) 
  * session initiation requests. It determines the appropriate delivery strategy based 
  * on the recipient's online status across the cluster.</p>
  * 
@@ -40,7 +40,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Component
 @AllArgsConstructor
-public class XmppIqRoutingHandler {
+public class JingleSessionOrchestrator {
 
     private final NotificationService notificationService;
     private final OfflineMessageService offlineMessageService;

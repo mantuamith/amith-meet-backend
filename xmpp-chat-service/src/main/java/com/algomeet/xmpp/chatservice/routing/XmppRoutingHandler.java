@@ -24,7 +24,7 @@ import com.algomeet.xmpp.chatservice.constant.XmppErrorConditions;
 import com.algomeet.xmpp.chatservice.enums.UserState;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
 import com.algomeet.xmpp.chatservice.routing.handler.XmppInfoQueryHandler;
-import com.algomeet.xmpp.chatservice.routing.handler.XmppIqRoutingHandler;
+import com.algomeet.xmpp.chatservice.routing.handler.JingleSessionOrchestrator;
 import com.algomeet.xmpp.chatservice.routing.handler.XmppSessionLifecycleHandler;
 import com.algomeet.xmpp.chatservice.routing.handler.XmppStreamManagementHandler;
 import com.algomeet.xmpp.chatservice.service.OfflineMessageService;
@@ -77,7 +77,7 @@ public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocke
     private final XmppStreamManagementHandler xmppStreamManagementHandler;
     private final UserSessionRegistry userSessionRegistry;
     private final NotificationService notificationService;
-    private final XmppIqRoutingHandler xmppIqRoutingHandler;
+    private final JingleSessionOrchestrator jingleSessionOrchestrator;
 
     /**
      * Entry point for incoming WebSocket text frames.
@@ -224,7 +224,7 @@ public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocke
                 
                 // Pass to the specialized routing handler to determine if it is Audio or Video.
                 // This handler will manage the 'h' count increment required for Stream Management.
-                xmppIqRoutingHandler.handleIqRouting(ctx, id, to, from, originalXml, hasSessions, principal);
+            	jingleSessionOrchestrator.handleIqRouting(ctx, id, to, from, originalXml, hasSessions, principal);
                 
             } else { 
                 
