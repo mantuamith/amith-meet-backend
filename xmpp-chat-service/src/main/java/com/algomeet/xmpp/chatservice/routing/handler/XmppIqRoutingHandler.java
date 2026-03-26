@@ -1,7 +1,5 @@
 package com.algomeet.xmpp.chatservice.routing.handler;
 
-import java.time.Instant;
-import java.time.format.DateTimeFormatter;
 import java.util.Set;
 import java.util.UUID;
 
@@ -60,10 +58,10 @@ public class XmppIqRoutingHandler {
      */
     public void handleIqRouting(ChannelHandlerContext ctx, String id, String to, 
                                 String from, String xml, boolean hasSessions, XmppPrincipal principal) {
-
         // Detect call type based on media attributes in the Jingle description
-        boolean isVideo = xml.contains("media='video'");
-        boolean isAudio = xml.contains("media='audio'");
+    	// Use a optimized check for media type (handles ' and ")
+        boolean isVideo = xml.matches("(?s).*media=['\"]video['\"].*");
+        boolean isAudio = xml.matches("(?s).*media=['\"]audio['\"].*");
 
         if (isVideo && isAudio) {
             handleCallLogic(ctx, id, to, from, hasSessions, principal, "video");

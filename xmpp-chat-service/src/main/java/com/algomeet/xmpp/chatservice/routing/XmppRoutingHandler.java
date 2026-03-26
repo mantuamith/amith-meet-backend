@@ -15,7 +15,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
-import com.algomeet.multitenancy.context.TenantContext;
 import com.algomeet.notificationservice.dto.Notification;
 import com.algomeet.notificationservice.enums.NotificationType;
 import com.algomeet.notificationservice.service.NotificationService;
@@ -24,15 +23,14 @@ import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.constant.XmppErrorConditions;
 import com.algomeet.xmpp.chatservice.enums.UserState;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
-import com.algomeet.xmpp.chatservice.routing.handler.XmppSessionLifecycleHandler;
-import com.algomeet.xmpp.chatservice.routing.handler.XmppStreamManagementHandler;
 import com.algomeet.xmpp.chatservice.routing.handler.XmppInfoQueryHandler;
 import com.algomeet.xmpp.chatservice.routing.handler.XmppIqRoutingHandler;
+import com.algomeet.xmpp.chatservice.routing.handler.XmppSessionLifecycleHandler;
+import com.algomeet.xmpp.chatservice.routing.handler.XmppStreamManagementHandler;
 import com.algomeet.xmpp.chatservice.service.OfflineMessageService;
 import com.algomeet.xmpp.chatservice.session.UserSession;
 import com.algomeet.xmpp.chatservice.session.UserSessionRegistry;
 import com.algomeet.xmpp.chatservice.session.XmppSessionAttributes;
-import com.algomeet.xmpp.chatservice.stanza.StanzaError;
 import com.algomeet.xmpp.chatservice.stanza.StreamAck;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
 
@@ -213,7 +211,7 @@ public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocke
         if (!hasActiveSession) {
             log.debug("User {} has no active sessions. Triggering push notification.", to);
             
-            if (originalXml.startsWith("<iq") && originalXml.contains("urn:xmpp:jingle:1")) {
+            if (originalXml.indexOf("urn:xmpp:jingle:1") != -1 && originalXml.indexOf("session-initiate") != -1) {
             	// Handle IQ stanza
             	xmppIqRoutingHandler.handleIqRouting(ctx, id, to, from, originalXml, hasSessions, principal);
             	
