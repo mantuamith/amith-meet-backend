@@ -27,7 +27,7 @@ public class XmppUtil {
 		return fullJid.split(DOMAIN_SEPARATOR, 2)[0].trim();
 	}
 	
-	public static String getRoomKey(String roomJid) {
+	public static String getRoomId(String roomJid) {
 		if(!StringUtils.hasText(roomJid)) {
 			return null;
 		}

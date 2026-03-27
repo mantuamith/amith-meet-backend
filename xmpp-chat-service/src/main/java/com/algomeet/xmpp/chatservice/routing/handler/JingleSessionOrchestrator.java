@@ -57,17 +57,37 @@ public class JingleSessionOrchestrator {
      * @param principal   The security principal of the authenticated sender.
      */
     public void handleIqRouting(ChannelHandlerContext ctx, String id, String to, 
-                                String from, String xml, boolean hasSessions, XmppPrincipal principal) {
-        // Detect call type based on media attributes in the Jingle description
-    	// Use a optimized check for media type (handles ' and ")
-        boolean isVideo = xml.matches("(?s).*media=['\"]video['\"].*");
-        boolean isAudio = xml.matches("(?s).*media=['\"]audio['\"].*");
+            String from, String xml, boolean hasSessions, XmppPrincipal principal) {
 
-        if (isVideo && isAudio) {
-            handleCallLogic(ctx, id, to, from, hasSessions, principal, "video");
-        } else if (isAudio) {
-            handleCallLogic(ctx, id, to, from, hasSessions, principal, "audio");
-        }
+    	// 1. Detect media type using quote-agnostic regex (handles 'video' or "video")
+    	boolean isVideo = xml.matches("(?s).*media=['\"]video['\"].*");
+    	boolean isAudio = xml.matches("(?s).*media=['\"]audio['\"].*");
+
+    	// 2. Identify if this is the start of a session (XEP-0166)
+    	boolean isInitiateAction = (xml.indexOf("session-initiate") != -1);
+
+    	/* 
+    	 * 3. Role Mapping:
+    	 * In Jingle, the 'initiator' is the user who started the call.
+    	 * - On 'session-initiate': 'from' is the Initiator.
+    	 * - On 'session-info' (Ringing) or 'session-accept': 'to' is the Initiator.
+    	 */
+    	String initiator = (isInitiateAction ? from : to);
+    	String responder = (isInitiateAction ? to : from);
+
+    	if (isVideo && isAudio) {
+    		handleCallLogic(ctx, id, initiator, responder, hasSessions, principal, "video");
+    	} else if (isAudio) {
+    		handleCallLogic(ctx, id, initiator, responder, hasSessions, principal, "audio");
+    	} else {
+    		/* 
+    		 * 4. State-Dependent Routing:
+    		 * Stanzas like 'session-info' (ringing) often omit media descriptions.
+    		 * TODO: Implement a local/distributed registry (Redis) to look up 'callType' 
+    		 * by 'sid' for consistent routing of mid-session signaling.
+    		 */
+    		handleCallLogic(ctx, id, initiator, responder, hasSessions, principal, "");
+    	}
     }
 
     /**

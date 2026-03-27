@@ -75,7 +75,7 @@ public class WebSocketPreAuthHandler extends SimpleChannelInboundHandler<FullHtt
         // 2. Extract Identity & Build Principal
         String userKey = jwtUtil.getUserKey(token);
         XmppPrincipal principal = XmppPrincipal.builder()
-                .userKey(userKey)
+                .userKey(userKey)                
                 .username(jwtUtil.getUsername(token))
                 .tenantId(jwtUtil.getTenantId(token))
                 .sessionId(ctx.channel().id().asLongText()) // Unique ID for this physical connection

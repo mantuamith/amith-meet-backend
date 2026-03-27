@@ -8,17 +8,25 @@ import lombok.ToString;
 @Builder
 @ToString(exclude = "userKey") // Security best practice: don't log keys/tokens
 public class XmppPrincipal {
-    private final String userKey;  // The internal UUID or DB Primary Key
-    private final String username; // The local part (e.g., "romeo")
+	private final String userKey;  // The ID used as localpart (e.g. UUID)
+    private final String username; // Human-readable name (for UI/Display)
     private final Integer tenantId;
-    private final String sessionId;
-    private final String domain; // The server domain (e.g., "algomeet.com")
-    
+    private final String sessionId; // Used as the XMPP Resource
+    private final String domain;
+
     /**
-     * Helper to get the Full JID for XMPP routing.
-     * @return A string like "userkey/username@domain"
+     * Returns the Bare JID (user@domain).
+     * Used for database indexing and MUC room persistence.
+     */
+    public String getBareJid() {
+        return String.format("%s@%s", userKey, domain);
+    }
+
+    /**
+     * Returns the Full JID (user@domain/resource).
+     * Required for real-time routing to this specific connection.
      */
     public String getFullJid() {
-        return String.format("%s@%s", userKey, domain);
+        return String.format("%s@%s/%s", userKey, domain, sessionId);
     }
 }

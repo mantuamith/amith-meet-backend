@@ -5,7 +5,7 @@ import java.time.Instant;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import jakarta.persistence.Id;
+import org.springframework.data.annotation.Id;
 import lombok.Builder;
 import lombok.Data;
 
@@ -14,7 +14,7 @@ import lombok.Data;
 @Document(collection = "offline_messages")
 public class OfflineMessage {
 	@Id
-    private String id;          // The ID from the <message id='...'> attribute
+    private String id;          // The stanza ID from the <message id='...'> attribute
 
     @Indexed
     private String from;        // Sender user key / ID
