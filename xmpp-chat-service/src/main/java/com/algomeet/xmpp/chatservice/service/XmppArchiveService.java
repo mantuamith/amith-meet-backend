@@ -13,8 +13,9 @@ import reactor.core.publisher.Mono;
 public class XmppArchiveService {
     private final MucMessageRepository repository;
 
-    public Mono<MucMessage> archiveEvent(String xml, StanzaInfo info, String roomId, String from) {
+    public Mono<MucMessage> archiveEvent(String xml, StanzaInfo info, String roomId, String from, String internalId) {
         MucMessage event = MucMessage.builder()
+        		.id(internalId)
                 .stanzaId(info.getStanzaId()) // Original client ID
                 .roomId(roomId)
                 .from(from)

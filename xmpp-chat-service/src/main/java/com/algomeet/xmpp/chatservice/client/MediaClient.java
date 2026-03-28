@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
-@FeignClient(name = "media-service", url = "${media.service.url}")
+@FeignClient(name = "media-service", url = "${feign.client.media-service.url}")
 public interface MediaClient {
 	
 	@PostMapping("/internal/media/{mediaId}/share")

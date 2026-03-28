@@ -1,29 +1,22 @@
 package com.algomeet.xmpp.chatservice.routing;
 
-import java.io.StringReader;
-import java.util.HashMap;
 import java.util.Map;
 
-import javax.xml.stream.XMLInputFactory;
-import javax.xml.stream.XMLStreamConstants;
 import javax.xml.stream.XMLStreamException;
-import javax.xml.stream.XMLStreamReader;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
-import com.algomeet.notificationservice.service.NotificationService;
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.constant.XmppErrorConditions;
-import com.algomeet.xmpp.chatservice.routing.handler.JingleSessionOrchestrator;
 import com.algomeet.xmpp.chatservice.routing.handler.XmppDirectChatHandler;
 import com.algomeet.xmpp.chatservice.routing.handler.XmppInfoQueryHandler;
 import com.algomeet.xmpp.chatservice.routing.handler.XmppMucHandler;
 import com.algomeet.xmpp.chatservice.routing.handler.XmppSessionLifecycleHandler;
 import com.algomeet.xmpp.chatservice.routing.handler.XmppStreamManagementHandler;
 import com.algomeet.xmpp.chatservice.service.OfflineMessageService;
-import com.algomeet.xmpp.chatservice.session.UserSessionRegistry;
 import com.algomeet.xmpp.chatservice.session.XmppSessionAttributes;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
@@ -32,7 +25,7 @@ import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
-import lombok.AllArgsConstructor;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -60,7 +53,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @ChannelHandler.Sharable
 @Component
-@AllArgsConstructor
+@RequiredArgsConstructor
 public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocketFrame> {
    
     private final XmppInfoQueryHandler xmppInfoQueryHandler;
@@ -68,6 +61,9 @@ public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocke
     private final XmppStreamManagementHandler xmppStreamManagementHandler;
     private final XmppDirectChatHandler xmppDirectChatHandler;
     private final XmppMucHandler xmppMucHandler;
+    
+    @Value("${xmpp.server.group-chat-domain}")
+    private String groupChatDomain;
 
     /**
      * Entry point for incoming WebSocket text frames.
@@ -94,13 +90,16 @@ public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocke
             String type = attributes.get("type");
 
             // 3. Routing Logic Branching
-            if (StringUtils.hasText(to)) {
-                // Stanza has a recipient (Message/IQ/Presence directed to others)
-                handleRouting(ctx, id, XmppUtil.getUserKey(to), XmppUtil.getUserKey(from), type, xml);
+            if ("groupchat".equalsIgnoreCase(type) || isGroupChat(xml)) {            	
+            	xmppMucHandler.handleGroupChatRouting(ctx, id, to, from, xml);
+
+            } else if (StringUtils.hasText(to)) {       	
+            	xmppDirectChatHandler.handleDirectChatRouting(ctx, id, to, from, type, xml);
+
             } else {
                 // Stanza is a control element directed at the server (Stream Mgmt or Service Discovery)
                 if (xmppStreamManagementHandler.isAckMessage(xml)) {
-                    xmppStreamManagementHandler.process(ctx, xml, principal);
+                    xmppStreamManagementHandler.processAck(ctx, xml, principal);
                 } else {
                     xmppInfoQueryHandler.handleQuery(ctx, xml);
                 }
@@ -118,17 +117,21 @@ public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocke
      * Delegates status, presence, and chat state updates to the lifecycle handler.
      */   
     private void handleStatusUpdates(ChannelHandlerContext ctx, XmppPrincipal principal, String xml) {
-        chatStateNotificationHandler.handleStatusUpdates(ctx, principal, xml);
-    }
-       
-    /**
-     * Determines if the routing is for a 1-to-1 chat or a Multi-User Chat (Group).
-     */
-    public void handleRouting(ChannelHandlerContext ctx, String id, String to, String from, String type, String originalXml) {   	
-        if ("groupchat".equalsIgnoreCase(type)) {
-        	xmppMucHandler.handleGroupChatRouting(ctx, id, to, from, originalXml);
-        } else {       	
-        	xmppDirectChatHandler.handleDirectChatRouting(ctx, id, to, from, type, originalXml);
+        chatStateNotificationHandler.processPresenceAndActivateSession(ctx, principal, xml);
+    }  
+    
+    public boolean isGroupChat(String xml) {
+        // 1. Check for the MUC Namespace (The Protocol standard)
+        if (xml.contains("http://jabber.org/protocol/muc")) {
+            return true; 
         }
+        
+        // 2. Fallback: Check if the 'to' address contains a known MUC service domain
+        // (This is useful if the stanza is malformed but the routing is correct)
+        if (xml.contains("@" + groupChatDomain)) {
+            return true;
+        }
+
+        return false;
     }    
 }

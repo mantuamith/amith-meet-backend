@@ -19,6 +19,7 @@ import com.algomeet.xmpp.chatservice.session.UserSession;
 import com.algomeet.xmpp.chatservice.session.UserSessionRegistry;
 import com.algomeet.xmpp.chatservice.session.XmppSessionAttributes;
 import com.algomeet.xmpp.chatservice.stanza.StreamAck;
+import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
 
 import io.netty.channel.ChannelHandler;
@@ -36,7 +37,7 @@ public class XmppDirectChatHandler {
     private final OfflineMessageService offlineMessageService; 
     private final UserSessionRegistry userSessionRegistry;
     private final NotificationService notificationService;
-    private final JingleSessionOrchestrator jingleSessionOrchestrator;
+    private final JingleNotificationHandler jingleSessionOrchestrator;
     
 	 /**
      * Handles 1-to-1 message routing, persistence for offline storage, 
@@ -46,9 +47,9 @@ public class XmppDirectChatHandler {
         AtomicLong handledCount = ctx.channel().attr(XmppSessionAttributes.SM_INBOUND_H_KEY).get();
         XmppMessageType msgType = XmppMessageType.fromString(type);
         XmppPrincipal principal = ctx.channel().attr(XmppSessionAttributes.PRINCIPAL).get();
-
+        
         // 1. Persistence & XEP-0198 Acknowledgment
-        if (msgType.supportsOfflineStorage()) {
+        if (msgType.supportsOfflineStorage() && XmppStanzaUtil.isArchiveable(originalXml)) {
             offlineMessageService.save(id, to, from, type, originalXml)
                 .doOnSuccess(savedDoc -> {
                     // Acknowledge receipt to the sender (Server -> Client 'h' update)
@@ -87,26 +88,22 @@ public class XmppDirectChatHandler {
              * We use a "Fast-Scan" approach using indexOf() to minimize CPU cycles.
              * 
              * - 'urn:xmpp:jingle:1': Ensures the stanza belongs to the Jingle namespace.
-             * - 'session-initiate': Identifies the specific action that triggers a new call request.
-             * 
-             * Note: We check for partial strings to remain 'quote-agnostic' (handling both ' and ").
              */
-            if (originalXml.indexOf("urn:xmpp:jingle:1") != -1) {
+            if (originalXml.indexOf("urn:xmpp:jingle:1") != -1) {      
+            	// Handle Jingle Signaling notification
+            	jingleSessionOrchestrator.handlePush(ctx, id, to, from, originalXml, hasSessions, principal);
                 
-                // Pass to the specialized routing handler to determine if it is Audio or Video.
-                // This handler will manage the 'h' count increment required for Stream Management.
-            	jingleSessionOrchestrator.handleIqRouting(ctx, id, to, from, originalXml, hasSessions, principal);
-                
-            } else { 
-                
+            } else {                 
                 /*
                  * Standard Message Handling
                  * If the stanza is not a call initiation, treat it as a standard chat message.
                  * We extract the <body> element and trigger a Push Notification (FCM/APNs)
                  * to the recipient, ensuring they receive the message even if offline.
-                 */
-                String body = XmppUtil.getMessageBody(originalXml);
-                sendPushNotification(to, body, NotificationType.DIRECT_MESSAGE, principal);
+                 */            	
+            	if (XmppStanzaUtil.isPushEligible(originalXml)) {
+	                String body = XmppUtil.getMessageBody(originalXml);
+	                sendPushNotification(to, body, NotificationType.DIRECT_MESSAGE, principal);
+            	}
             }     
         }
     }

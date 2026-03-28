@@ -49,4 +49,6 @@ public class XmppSessionAttributes {
     public static XmppPrincipal getPrincipal(Channel channel) {
         return channel.attr(PRINCIPAL).get();
     }
+    
+    public static final AttributeKey<Boolean> INITIAL_PRESENCE_SENT = AttributeKey.valueOf("initial_presence_sent");
 }

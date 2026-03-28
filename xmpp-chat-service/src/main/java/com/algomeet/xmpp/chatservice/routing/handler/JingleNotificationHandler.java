@@ -20,7 +20,7 @@ import lombok.extern.slf4j.Slf4j;
 /**
  * <p><strong>Jingle Signaling & Call Orchestration Handler</strong></p>
  * 
- * <p>The {@code JingleSessionOrchestrator} is responsible for interpreting Jingle (XEP-0166) 
+ * <p>The {@code JingleNotificationHandler} is responsible for interpreting Jingle (XEP-0166) 
  * session initiation requests. It determines the appropriate delivery strategy based 
  * on the recipient's online status across the cluster.</p>
  * 
@@ -40,7 +40,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Component
 @AllArgsConstructor
-public class JingleSessionOrchestrator {
+public class JingleNotificationHandler {
 
     private final NotificationService notificationService;
     private final OfflineMessageService offlineMessageService;
@@ -56,7 +56,7 @@ public class JingleSessionOrchestrator {
      * @param hasSessions Flag indicating if the recipient is currently connected to any cluster node.
      * @param principal   The security principal of the authenticated sender.
      */
-    public void handleIqRouting(ChannelHandlerContext ctx, String id, String to, 
+    public void handlePush(ChannelHandlerContext ctx, String id, String to, 
             String from, String xml, boolean hasSessions, XmppPrincipal principal) {
 
     	// 1. Detect media type using quote-agnostic regex (handles 'video' or "video")

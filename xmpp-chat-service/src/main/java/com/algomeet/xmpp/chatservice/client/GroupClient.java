@@ -6,7 +6,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 
 import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
 
-@FeignClient(name = "group-service", url = "${group.service.url}")
+@FeignClient(name = "group-service", url = "${feign.client.group-service.url}")
 public interface GroupClient {
 
     @GetMapping("/internal/groups/{groupId}")

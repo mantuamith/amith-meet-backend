@@ -9,4 +9,5 @@ import lombok.Data;
 public class MucMember { // or ChatMember
     private String userKey;
     private String username;
+    private String nickName;
 }

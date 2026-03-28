@@ -48,7 +48,7 @@ public class XmppStreamManagementHandler {
      * @param xml       The raw XML string (either {@code <r/>} or {@code <a/>}).
      * @param principal The authenticated user session.
      */
-    public void process(ChannelHandlerContext ctx, String xml, XmppPrincipal principal) {	
+    public void processAck(ChannelHandlerContext ctx, String xml, XmppPrincipal principal) {	
         if (isAckRequestFromClient(xml)) { 
             // The client is requesting an 'h' value from the server
             AtomicLong handledCount = ctx.channel().attr(XmppSessionAttributes.SM_INBOUND_H_KEY).get();
