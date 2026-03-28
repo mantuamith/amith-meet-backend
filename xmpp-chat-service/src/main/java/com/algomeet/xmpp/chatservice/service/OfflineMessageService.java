@@ -8,6 +8,7 @@ import com.algomeet.xmpp.chatservice.document.OfflineMessage;
 import com.algomeet.xmpp.chatservice.repository.OfflineMessageRepository;
 
 import lombok.AllArgsConstructor;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 /**
@@ -63,7 +64,7 @@ public class OfflineMessageService {
      * @param to The User Key/JID of the recipient.
      * @return A list of {@link OfflineMessage} objects in the order they were originally sent.
      */
-    public List<OfflineMessage> getOfflineMessages(String to) {
+    public Flux<OfflineMessage> getOfflineMessages(String to) {
         return offlineMessageRepository.findByToOrderByCreatedAtAsc(to);
     }
     

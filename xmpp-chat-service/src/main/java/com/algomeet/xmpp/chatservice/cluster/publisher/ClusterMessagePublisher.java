@@ -6,6 +6,7 @@ import org.springframework.data.redis.listener.ChannelTopic;
 import org.springframework.stereotype.Component;
 
 import com.algomeet.xmpp.chatservice.cluster.dto.ClusterSyncMessage;
+import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.exceptions.ClusterMessageException;
 
 import lombok.extern.slf4j.Slf4j;
@@ -43,22 +44,24 @@ public class ClusterMessagePublisher {
     /**
      * Publishes a direct chat stanza to the cluster topic for user-specific delivery.
      * 
-     * @param id      The unique Stanza ID (used for tracking/acks).
-     * @param to      The recipient's Jabber ID or User Key.
-     * @param from    The sender's Jabber ID or User Key.
-     * @param payload The raw XML stanza content to be synchronized.
+     * @param id       The unique Stanza ID (used for tracking/acks).
+     * @param to       The recipient's Jabber ID or User Key.
+     * @param from     The sender's Jabber ID or User Key.
+     * @param chatType The chat type / conversation type
+     * @param payload  The raw XML stanza content to be synchronized.
      * @throws ClusterMessageException if the message fails to publish to the Redis backbone.
      */
-    public void convertAndSendToUser(String id, String to, String from, String payload) {
+    public void convertAndSendToUser(String id, String to, String from, ChatType chatType, String payload) {
         try {						
             ClusterSyncMessage message = ClusterSyncMessage.builder()
                     .id(id)
                     .to(to)					
                     .from(from)
+                    .chatType(chatType)
                     .payload(payload)
                     .build();
 
-            log.info("Publishing cluster sync message for user [{}]: {}", to, id);
+            log.info("Publishing cluster sync message for user [{}]: with Message ID: {}", to, id);
 
             // Broadcast to the global topic defined in the Redis configuration
             redisTemplate.convertAndSend(topic.getTopic(), message);

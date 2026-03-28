@@ -91,7 +91,7 @@ public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocke
 
             // 3. Routing Logic Branching
             if ("groupchat".equalsIgnoreCase(type) || isGroupChat(xml)) {            	
-            	xmppMucHandler.handleGroupChatRouting(ctx, id, to, from, xml);
+            	xmppMucHandler.handleGroupChatRouting(ctx, id, to, from, xml, groupChatDomain);
 
             } else if (StringUtils.hasText(to)) {       	
             	xmppDirectChatHandler.handleDirectChatRouting(ctx, id, to, from, type, xml);

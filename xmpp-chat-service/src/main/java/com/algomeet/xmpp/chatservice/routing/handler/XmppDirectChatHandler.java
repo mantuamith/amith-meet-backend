@@ -12,6 +12,7 @@ import com.algomeet.notificationservice.service.NotificationService;
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.constant.XmppErrorConditions;
+import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.enums.UserState;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
 import com.algomeet.xmpp.chatservice.service.OfflineMessageService;
@@ -48,9 +49,12 @@ public class XmppDirectChatHandler {
         XmppMessageType msgType = XmppMessageType.fromString(type);
         XmppPrincipal principal = ctx.channel().attr(XmppSessionAttributes.PRINCIPAL).get();
         
+    	String toUserKey = XmppUtil.getUserKey(to);
+    	String fromUserKey = principal.getUserKey();
+        
         // 1. Persistence & XEP-0198 Acknowledgment
         if (msgType.supportsOfflineStorage() && XmppStanzaUtil.isArchiveable(originalXml)) {
-            offlineMessageService.save(id, to, from, type, originalXml)
+            offlineMessageService.save(id, toUserKey, fromUserKey, type, originalXml)
                 .doOnSuccess(savedDoc -> {
                     // Acknowledge receipt to the sender (Server -> Client 'h' update)
                     if (handledCount != null) {
@@ -66,7 +70,7 @@ public class XmppDirectChatHandler {
         }
 
         // 2. Cluster Routing & Notification Logic
-        Set<UserSession> userSessions = userSessionRegistry.getSessions(to);
+        Set<UserSession> userSessions = userSessionRegistry.getSessions(toUserKey);
         
         boolean hasSessions = !CollectionUtils.isEmpty(userSessions);
         boolean hasActiveSession = hasSessions && userSessions.stream()
@@ -75,13 +79,13 @@ public class XmppDirectChatHandler {
         if (hasSessions) {
             // Broadast to Redis: Even if they are AWAY/DND, we attempt delivery 
             // to their active WebSocket channels across the cluster.
-            clusterMessagePublisher.convertAndSendToUser(id, to, from, originalXml);
+            clusterMessagePublisher.convertAndSendToUser(id, toUserKey, fromUserKey, ChatType.CHAT, originalXml);
         }
 
         // 3. Push Notification Logic
         // Trigger push if the user has no sessions OR no session is currently 'ACTIVE'
         if (!hasActiveSession) {
-            log.debug("User {} has no active sessions. Triggering push notification.", to);
+            log.debug("User {} has no active sessions. Triggering push notification.", toUserKey);
             
             /*
              * Jingle Signaling Detection (XEP-0166)
@@ -91,7 +95,7 @@ public class XmppDirectChatHandler {
              */
             if (originalXml.indexOf("urn:xmpp:jingle:1") != -1) {      
             	// Handle Jingle Signaling notification
-            	jingleSessionOrchestrator.handlePush(ctx, id, to, from, originalXml, hasSessions, principal);
+            	jingleSessionOrchestrator.handlePush(ctx, id, toUserKey, fromUserKey, originalXml, hasSessions, principal);
                 
             } else {                 
                 /*
@@ -102,7 +106,7 @@ public class XmppDirectChatHandler {
                  */            	
             	if (XmppStanzaUtil.isPushEligible(originalXml)) {
 	                String body = XmppUtil.getMessageBody(originalXml);
-	                sendPushNotification(to, body, NotificationType.DIRECT_MESSAGE, principal);
+	                sendPushNotification(toUserKey, body, NotificationType.DIRECT_MESSAGE, principal);
             	}
             }     
         }

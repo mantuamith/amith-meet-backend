@@ -1,5 +1,6 @@
 package com.algomeet.xmpp.chatservice.cluster.dto;
 
+import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 import lombok.Builder;
@@ -50,6 +51,13 @@ public class ClusterSyncMessage {
      * but can support JSON payloads for specialized extensions.
      */
     private String payload;
+    
+    /**
+     * Message source 
+     * 
+     * "chat" or "groupchat" 
+     */
+    private ChatType chatType;  
 
     /**
      * The system time (in milliseconds) when this message was 

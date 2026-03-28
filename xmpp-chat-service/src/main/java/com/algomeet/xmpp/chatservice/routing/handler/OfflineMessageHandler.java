@@ -59,14 +59,8 @@ public class OfflineMessageHandler {
      */
     public void deliverOfflineMessages(ChannelHandlerContext ctx, XmppPrincipal principal) {
         String userKey = principal.getUserKey();
-        List<OfflineMessage> messages = offlineMessageService.getOfflineMessages(userKey);
         
-        if (messages.isEmpty()) {
-            log.debug("No offline messages found for user: {}", userKey);
-            return;
-        }
-
-        // Retrieve the session's outbound counter to maintain protocol sequence
+        // 1. Get the Stream Management counter (XEP-0198)
         AtomicLong outboundH = ctx.channel().attr(XmppSessionAttributes.SM_OUTBOUND_H_KEY).get();
         
         if (outboundH == null) {
@@ -74,18 +68,22 @@ public class OfflineMessageHandler {
             return;
         }
 
-        for (OfflineMessage msg : messages) {
-            // Add metadata about when the message was originally sent
-            String xmlWithDelay = wrapWithDelay(msg.getStanzaXml(), msg.getCreatedAt());
-            
-            // Push to WebSocket
-            ctx.writeAndFlush(new TextWebSocketFrame(xmlWithDelay));
-            
-            // Track in the SM buffer so we can update DB status when the client acks
-            xmppStreamAckTracker.track(userKey, outboundH.incrementAndGet(), msg.getId());
-        }
-        
-        log.info("Delivered {} offline messages to user: {}", messages.size(), userKey);
+        // 2. Subscribe to the Flux of offline messages
+        offlineMessageService.getOfflineMessages(userKey)
+            .doOnNext(msg -> {
+                // Add XEP-0203 Delay metadata
+                String xmlWithDelay = wrapWithDelay(msg.getStanzaXml(), msg.getCreatedAt());
+                
+                // Push to WebSocket
+                ctx.writeAndFlush(new TextWebSocketFrame(xmlWithDelay));
+                
+                // Track for Stream Management Acknowledgment
+                // We use the incremented counter as the 'h' value
+                xmppStreamAckTracker.track(userKey, outboundH.incrementAndGet(), msg.getId());
+            })
+            .doOnComplete(() -> log.info("Completed offline message delivery for user: {}", userKey))
+            .doOnError(e -> log.error("Failed to deliver offline messages for {}: {}", userKey, e.getMessage()))
+            .subscribe(); // This triggers the execution asynchronously
     }
 
     /**

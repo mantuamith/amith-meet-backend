@@ -54,6 +54,7 @@ public class ClusterMessageListener {
                 message.getTo(), 
                 message.getFrom(), 
                 message.getId(), 
+                message.getChatType(),
                 message.getPayload()
             );
         }
