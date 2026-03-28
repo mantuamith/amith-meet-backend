@@ -107,7 +107,7 @@ public class XmppMucHandler {
 	            
 	            // Don't route back to the sender (unless reflecting presence, but usually handled by client)
 	            if (toUserKey.equals(principal.getUserKey())) {
-	                //continue;
+	                continue;
 	            }
 
 	            // --- JID REWRITING LOGIC ---
