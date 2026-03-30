@@ -89,17 +89,23 @@ public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocke
             String id = attributes.get("id");
             String type = attributes.get("type");
 
-            // 3. Routing Logic Branching
-            if ("groupchat".equalsIgnoreCase(type) || isGroupChat(xml)) {            	
-            	xmppMucHandler.handleGroupChatRouting(ctx, id, to, from, xml, groupChatDomain);
+            // 3. Identify MAM once
+            boolean mam = isMamRequest(xml);
 
-            } else if (StringUtils.hasText(to)) {       	
-            	xmppDirectChatHandler.handleDirectChatRouting(ctx, id, to, from, type, xml);
-
+            // 4. Branch based on logic: MAM and Server-directed queries go to InfoQueryHandler
+            // Direct/Group messages go to respective handlers
+            if (!mam && ("groupchat".equalsIgnoreCase(type) || isGroupChat(xml))) {
+                xmppMucHandler.handleGroupChatRouting(ctx, id, to, from, xml, groupChatDomain);
+                
+            } else if (!mam && StringUtils.hasText(to)) {
+                xmppDirectChatHandler.handleDirectChatRouting(ctx, id, to, from, type, xml);
+                
             } else {
-                // Stanza is a control element directed at the server (Stream Mgmt or Service Discovery)
+                // This block catches MAM, Service Discovery, and Stream Management
                 if (xmppStreamManagementHandler.isAckMessage(xml)) {
                     xmppStreamManagementHandler.processAck(ctx, xml, principal);
+                } else if (mam) {
+                    xmppInfoQueryHandler.handleMamRequest(ctx, to, xml);
                 } else {
                     xmppInfoQueryHandler.handleQuery(ctx, xml);
                 }
@@ -111,6 +117,10 @@ public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocke
         } catch (Exception e) {
              log.error("Routing error for XML {}: {}", xml, e.getMessage(), e);
         }
+    }
+    
+    private boolean isMamRequest(String xml) {
+    	return xml.contains("urn:xmpp:mam:2");
     }
 
     /**

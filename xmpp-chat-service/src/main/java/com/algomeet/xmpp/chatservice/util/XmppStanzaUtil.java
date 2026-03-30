@@ -3,16 +3,23 @@ package com.algomeet.xmpp.chatservice.util;
 import java.io.StringReader;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import javax.xml.stream.XMLInputFactory;
 import javax.xml.stream.XMLStreamConstants;
 import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamReader;
 
+import org.springframework.util.StringUtils;
+
+import lombok.extern.slf4j.Slf4j;
+
 /**
  * Utility to identify XMPP elements that increment the 'h' (handled) count.
  * Per XEP-0198, only the three core stanzas are trackable.
  */
+@Slf4j
 public class XmppStanzaUtil {
     private static final XMLInputFactory XML_FACTORY = XMLInputFactory.newInstance();
     
@@ -71,6 +78,11 @@ public class XmppStanzaUtil {
             return false;
         }
         
+        if (xml.contains("urn:xmpp:mam:2")) { 
+            // ROUTE ONLY: This is a call setup, do not touch the DB
+            return false;
+        }
+        
         return true;
     }
     
@@ -99,5 +111,62 @@ public class XmppStanzaUtil {
         }
 
         return true;
+    }
+    
+    
+    /**
+     * Extracts the value of a specific field (tag) from the XML.
+     * Specifically looks for <value> inside a <field var='varName'>.
+     */
+    public static String getFieldValue(String xml, String varName) {
+        if (!StringUtils.hasText(xml)) return null;
+        
+        // Regex to find: <field var='varName'><value>DATA</value></field>
+        // Supports both ' and " for attributes
+        String regex = "<field var=['\"]" + Pattern.quote(varName) + "['\"]>\\s*<value>([^<]+)</value>";
+        Pattern pattern = Pattern.compile(regex);
+        Matcher matcher = pattern.matcher(xml);
+        
+        if (matcher.find()) {
+            return matcher.group(1);
+        }
+        return null;
+    }
+
+    /**
+     * Extracts the <max> value from the RSM (Result Set Management) block.
+     * <set xmlns='http://jabber.org/protocol/rsm'><max>50</max></set>
+     */
+    public static int getRsmMax(String xml, int defaultValue) {
+        if (!xml.contains("<max>")) return defaultValue;
+
+        try {
+            String regex = "<max>(\\d+)</max>";
+            Pattern pattern = Pattern.compile(regex);
+            Matcher matcher = pattern.matcher(xml);
+            if (matcher.find()) {
+                return Integer.parseInt(matcher.group(1));
+            }
+        } catch (Exception e) {
+            log.warn("Failed to parse RSM max value, using default: {}", defaultValue);
+        }
+        return defaultValue;
+    }
+
+    /**
+     * Extracts an attribute value from the root stanza tag (e.g., 'id', 'to', 'type').
+     */
+    public static String getAttribute(String xml, String attributeName) {
+        if (!StringUtils.hasText(xml)) return null;
+
+        // Regex looks for attributeName='value' or attributeName="value"
+        String regex = attributeName + "=['\"]([^'\"]+)['\"]";
+        Pattern pattern = Pattern.compile(regex);
+        Matcher matcher = pattern.matcher(xml);
+
+        if (matcher.find()) {
+            return matcher.group(1);
+        }
+        return null;
     }
 }

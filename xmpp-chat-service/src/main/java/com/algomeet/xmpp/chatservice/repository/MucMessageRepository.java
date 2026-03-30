@@ -11,9 +11,11 @@ public interface MucMessageRepository extends ReactiveMongoRepository<MucMessage
     /**
      * Retrieve a page of messages for a room starting AFTER a specific sequential ID.
      * Ideal for infinite scroll / MAM 'after' queries.
+     * 
+     * Version with a limit to satisfy MAM 'max' requests (XEP-0059)
      */
     Flux<MucMessage> findByRoomIdAndIdGreaterThanOrderByIdAsc(
-        String roomId, String lastSeenId, Pageable pageable
+        String roomId, String afterId, Pageable pageable
     );
     
     
@@ -21,4 +23,11 @@ public interface MucMessageRepository extends ReactiveMongoRepository<MucMessage
      * Efficiently counts unread messages using the {roomId: 1, id: 1} compound index.
      */
     Mono<Long> countByRoomIdAndIdGreaterThanAndFromNot(String roomId, String lastReadId, String userJid);
+    
+    
+    /**
+     * Fetches messages for a specific room that occurred after the given ULID/ID.
+     * Sorted Ascending so the client receives them in chronological order.
+     */
+    Flux<MucMessage> findByRoomIdAndIdGreaterThanOrderByIdAsc(String roomId, String afterId);
 }

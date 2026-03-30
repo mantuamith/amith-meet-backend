@@ -48,11 +48,7 @@ public class XmppMucHandler {
 
 	/**
 	 * Handles routing for Multi-User Chat rooms.
-	 * Strategy: Save every event (Message, Reaction, Retraction) and forward to client.
-	 */
-	/**
-	 * Handles routing for Multi-User Chat rooms.
-	 * Strategy: Save every event, rewrite JIDs for anonymity, and forward.
+	 * Strategy: Save every event (Message, Reaction, Retraction), rewrite JIDs for anonymity, and forward to client.
 	 */
 	public void handleGroupChatRouting(ChannelHandlerContext ctx, String id, String roomJid, String from, String originalXml, String groupChatDomain) {
 	    XmppPrincipal principal = ctx.channel().attr(XmppSessionAttributes.PRINCIPAL).get();
@@ -113,7 +109,7 @@ public class XmppMucHandler {
 	        }
 	        // Replace the nickname with actual user's nickname in chat room
 	        String occupantFromJid = tempRoomJid + "/" 
-	        		+ (senderMucMember.get().getNickname() != null ? senderMucMember.get().getNickname() : senderMucMember.get().getNickname());
+	        		+ (senderMucMember.get().getNickname() != null ? senderMucMember.get().getNickname() : senderMucMember.get().getUsername());
 
             // Define the patterns to match both ' and "
             // The regex looks for: from= followed by either ' or " then the JID, then the matching quote
