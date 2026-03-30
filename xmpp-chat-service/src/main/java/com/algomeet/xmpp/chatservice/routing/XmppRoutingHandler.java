@@ -12,7 +12,8 @@ import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.constant.XmppErrorConditions;
 import com.algomeet.xmpp.chatservice.routing.handler.XmppDirectChatHandler;
-import com.algomeet.xmpp.chatservice.routing.handler.XmppInfoQueryHandler;
+import com.algomeet.xmpp.chatservice.routing.handler.XmppDiscoveryHandler;
+import com.algomeet.xmpp.chatservice.routing.handler.XmppMamHandler;
 import com.algomeet.xmpp.chatservice.routing.handler.XmppMucHandler;
 import com.algomeet.xmpp.chatservice.routing.handler.XmppSessionLifecycleHandler;
 import com.algomeet.xmpp.chatservice.routing.handler.XmppStreamManagementHandler;
@@ -56,11 +57,12 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocketFrame> {
    
-    private final XmppInfoQueryHandler xmppInfoQueryHandler;
+    private final XmppDiscoveryHandler xmppDiscoveryHandler;
     private final XmppSessionLifecycleHandler chatStateNotificationHandler;
     private final XmppStreamManagementHandler xmppStreamManagementHandler;
     private final XmppDirectChatHandler xmppDirectChatHandler;
     private final XmppMucHandler xmppMucHandler;
+    private final XmppMamHandler xmppMamHandler;
     
     @Value("${xmpp.server.group-chat-domain}")
     private String groupChatDomain;
@@ -107,9 +109,9 @@ public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocke
                     xmppStreamManagementHandler.processAck(ctx, xml, principal);
                 } else if (mam) {
                 	// XEP-0313: Message Archive Management
-                    xmppInfoQueryHandler.handleMamRequest(ctx, to, xml);
+                	xmppMamHandler.handleMamRequest(ctx, to, xml);
                 } else {
-                    xmppInfoQueryHandler.handleQuery(ctx, xml);
+                	xmppDiscoveryHandler.handleQuery(ctx, xml);
                 }
             }
 

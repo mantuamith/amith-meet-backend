@@ -1,6 +1,5 @@
 package com.algomeet.xmpp.chatservice.routing.handler;
 
-import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -8,13 +7,6 @@ import javax.xml.stream.XMLStreamException;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
-import org.springframework.util.StringUtils;
-
-import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
-import com.algomeet.xmpp.chatservice.service.XmppArchiveService;
-import com.algomeet.xmpp.chatservice.session.XmppSessionAttributes;
-import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
-import com.algomeet.xmpp.chatservice.util.XmppUtil;
 
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
@@ -24,14 +16,9 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class XmppInfoQueryHandler {
-	private final XmppArchiveService xmppArchiveService;
-
+public class XmppDiscoveryHandler {
     @Value("${xmpp.server.domain}")
     private String domain;
-    
-    @Value("${xmpp.server.group-chat-domain}")
-    private String groupChatDomain;
 
     private static final Pattern ID_PATTERN = Pattern.compile("id=['\"]([^'\"]+)['\"]");
 
@@ -72,20 +59,5 @@ public class XmppInfoQueryHandler {
     private String extractId(String xml) {
         Matcher matcher = ID_PATTERN.matcher(xml);
         return matcher.find() ? matcher.group(1) : "info_" + System.currentTimeMillis();
-    }
-    
-    public void handleMamRequest(ChannelHandlerContext ctx, String to, String xml) {
-        XmppPrincipal principal = ctx.channel().attr(XmppSessionAttributes.PRINCIPAL).get();
-        
-        // Determine if this is a MUC MAM or Personal MAM
-        if (StringUtils.hasText(to) && to.contains(groupChatDomain)) {
-            String roomId = XmppUtil.getRoomId(to);
-            // Call service to fetch history from the room's archive
-            xmppArchiveService.fetchMUCArchive(ctx, roomId, xml, principal);
-        } else {
-            // Call service to fetch history from the user's personal archive
-            // If this server support direct chat MAM
-        	// TODO: Retrieve direct chat MAM
-        }
-    }
+    }  
 }
