@@ -45,8 +45,8 @@ public class ClusterMessagePublisher {
      * Publishes a direct chat stanza to the cluster topic for user-specific delivery.
      * 
      * @param id       The unique Stanza ID (used for tracking/acks).
-     * @param to       The recipient's Jabber ID or User Key.
-     * @param from     The sender's Jabber ID or User Key.
+     * @param to       The recipient's User Key.
+     * @param from     The sender's User Key.
      * @param chatType The chat type / conversation type
      * @param payload  The raw XML stanza content to be synchronized.
      * @throws ClusterMessageException if the message fails to publish to the Redis backbone.

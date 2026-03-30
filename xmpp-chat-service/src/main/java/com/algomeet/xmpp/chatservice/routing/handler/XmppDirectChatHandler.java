@@ -45,7 +45,6 @@ public class XmppDirectChatHandler {
      * and cluster-wide synchronization, and push notifications for offline users.
      */
     public void handleDirectChatRouting(ChannelHandlerContext ctx, String id, String to, String from, String type, String originalXml) {
-        AtomicLong handledCount = ctx.channel().attr(XmppSessionAttributes.SM_INBOUND_H_KEY).get();
         XmppMessageType msgType = XmppMessageType.fromString(type);
         XmppPrincipal principal = ctx.channel().attr(XmppSessionAttributes.PRINCIPAL).get();
         
@@ -57,6 +56,8 @@ public class XmppDirectChatHandler {
             offlineMessageService.save(id, toUserKey, fromUserKey, type, originalXml)
                 .doOnSuccess(savedDoc -> {
                     // Acknowledge receipt to the sender (Server -> Client 'h' update)
+                    AtomicLong handledCount = ctx.channel().attr(XmppSessionAttributes.SM_INBOUND_H_KEY).get();
+                    
                     if (handledCount != null) {
                         long h = handledCount.incrementAndGet();
                         ctx.writeAndFlush(new TextWebSocketFrame(new StreamAck(h).toXml()));

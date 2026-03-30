@@ -2,6 +2,7 @@ package com.algomeet.xmpp.chatservice.routing.handler;
 
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Pattern;
 
 import org.springframework.stereotype.Component;
@@ -23,12 +24,14 @@ import com.algomeet.xmpp.chatservice.service.XmppArchiveService;
 import com.algomeet.xmpp.chatservice.session.UserSession;
 import com.algomeet.xmpp.chatservice.session.UserSessionRegistry;
 import com.algomeet.xmpp.chatservice.session.XmppSessionAttributes;
+import com.algomeet.xmpp.chatservice.stanza.StreamAck;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
 import com.github.f4b6a3.ulid.Ulid;
 import com.github.f4b6a3.ulid.UlidCreator;
 
 import io.netty.channel.ChannelHandlerContext;
+import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -67,12 +70,21 @@ public class XmppMucHandler {
 	                principal.getDomain(), 
 	                ulidString
 	                );
-
+	        // Append ULID to the payload to be used by client to sync un-delivered messages from server
 	        updatedXml = originalXml.replace("</message>", stanzaIdExtension + "</message>");
 
 	        xmppArchiveService.archiveEvent(updatedXml, info, roomId, from, ulidString)
-	            .doOnSuccess(saved -> log.debug("Event archived [{}]: category={}", id, info.getCategory()))
-	            .subscribe();
+	        .doOnSuccess(saved -> {
+                // Acknowledge receipt to the sender (Server -> Client 'h' update)
+                AtomicLong handledCount = ctx.channel().attr(XmppSessionAttributes.SM_INBOUND_H_KEY).get();
+                
+                if (handledCount != null) {
+                    long h = handledCount.incrementAndGet();
+                    ctx.writeAndFlush(new TextWebSocketFrame(new StreamAck(h).toXml()));
+                }
+	        	log.debug("Event archived [{}]: category={}", id, info.getCategory());
+	        })
+	        .subscribe();
 	    }
 
 	    try {
@@ -95,7 +107,8 @@ public class XmppMucHandler {
 	        	tempRoomJid = tempRoomJid.substring(0, tempRoomJid.lastIndexOf("/"));
 	        }
 	        // Replace the nickname with actual user's nickname in chat room
-	        String occupantFromJid = tempRoomJid + "/" + senderMucMember.get().getNickname();
+	        String occupantFromJid = tempRoomJid + "/" 
+	        		+ (senderMucMember.get().getNickname() != null ? senderMucMember.get().getNickname() : senderMucMember.get().getNickname());
 
             // Define the patterns to match both ' and "
             // The regex looks for: from= followed by either ' or " then the JID, then the matching quote
