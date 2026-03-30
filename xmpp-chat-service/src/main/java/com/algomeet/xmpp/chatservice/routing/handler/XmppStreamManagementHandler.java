@@ -1,6 +1,8 @@
 package com.algomeet.xmpp.chatservice.routing.handler;
 
 import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.springframework.stereotype.Component;
@@ -48,16 +50,17 @@ public class XmppStreamManagementHandler {
      * @param xml       The raw XML string (either {@code <r/>} or {@code <a/>}).
      * @param principal The authenticated user session.
      */
-    public void processAck(ChannelHandlerContext ctx, String xml, XmppPrincipal principal) {	
-        if (isAckRequestFromClient(xml)) { 
+    public void process(ChannelHandlerContext ctx, String xml, XmppPrincipal principal) {	
+        if (isStreamManagementReq(xml)) { 
             // The client is requesting an 'h' value from the server
+        	AtomicBoolean isEnabledSm = ctx.channel().attr(XmppSessionAttributes.SM_INBOUND_H_ENABLED_KEY).get();
             AtomicLong handledCount = ctx.channel().attr(XmppSessionAttributes.SM_INBOUND_H_KEY).get();
             
-            if (handledCount != null) {
+            if (isEnabledSm != null && isEnabledSm.get() && handledCount != null) {
                 ctx.writeAndFlush(new TextWebSocketFrame(new StreamAck(handledCount.get()).toXml()));
                 log.trace("Responded to ack request from {} with h={}", principal.getUserKey(), handledCount.get());
             }
-        } else {
+        } else if(isStreamManagementResp(xml)) {
             // The client is providing its 'h' value (how many stanzas it handled)
             long clientHandledCount = XmppUtil.parseHAttribute(xml);
             
@@ -72,7 +75,42 @@ public class XmppStreamManagementHandler {
                 
                 log.info("Purged {} acknowledged messages from store for {}, client handled count {}", acknowledgedStanzaIds, principal.getUserKey(), clientHandledCount);
             }
-        }		
+        } else {
+        	processSmEnable(ctx, xml);
+        }
+    }
+    
+    public void processSmEnable(ChannelHandlerContext ctx, String xml) {
+        if (xml.contains("<enable")) {
+            // 1. Extract the client's requested 'resume' preference (default to false if not found)
+            boolean resumeRequested = xml.contains("resume='true'") || xml.contains("resume=\"true\"");
+            
+            // 2. Generate a unique SM ID if resumption is enabled
+            String smId = resumeRequested ? UUID.randomUUID().toString() : null;
+
+            // 3. Initialize Stream Management Counters (XEP-0198)
+            // Using Atomic types for thread-safe increments during high-traffic routing           
+            ctx.channel().attr(XmppSessionAttributes.SM_INBOUND_H_KEY).set(new AtomicLong(0));
+            ctx.channel().attr(XmppSessionAttributes.SM_INBOUND_H_ENABLED_KEY).set(new AtomicBoolean(true));
+            
+            // 4. Store resumption preference for session lifecycle management
+            ctx.channel().attr(XmppSessionAttributes.SM_RESUMABLE_KEY).set(new AtomicBoolean(resumeRequested));
+            if (smId != null) {
+                ctx.channel().attr(XmppSessionAttributes.SM_ID_KEY).set(smId);
+            }
+
+            // 5. Build the <enabled /> response
+            StringBuilder response = new StringBuilder("<enabled xmlns='urn:xmpp:sm:3'");
+            if (smId != null) {
+                response.append(String.format(" id='%s'", smId));
+            }
+            response.append(String.format(" resume='%b'/>", resumeRequested));
+
+            // 6. Send the confirmation back to the client
+            ctx.writeAndFlush(new TextWebSocketFrame(response.toString()));
+            
+            log.info("Stream Management enabled for session. Resumable: {}", resumeRequested);
+        }
     }
     
     /**
@@ -81,14 +119,14 @@ public class XmppStreamManagementHandler {
      * @param xml Raw incoming XML string.
      * @return true if the element is an acknowledgment request or response.
      */
-    public boolean isAckMessage(String xml) {
-        return isAckRequestFromClient(xml) || isAckResponseFromClient(xml);	        
+    public boolean isStreamManagementStanza(String xml) {
+        return xml.contains("urn:xmpp:sm:3") || isStreamManagementReq(xml) || isStreamManagementResp(xml);	        
     }
     
     /**
      * Checks for the Ack Request tag: {@code <r xmlns='urn:xmpp:sm:3'/>}
      */
-    private boolean isAckRequestFromClient(String xml) {
+    private boolean isStreamManagementReq(String xml) {
         // Includes basic string checks for performance; ideally uses namespace check if available
         return xml.contains("<r ") || xml.equals("<r/>") || xml.equals("<r />");
     }
@@ -96,7 +134,7 @@ public class XmppStreamManagementHandler {
     /**
      * Checks for the Ack Response tag: {@code <a h='...' xmlns='urn:xmpp:sm:3'/>}
      */
-    private boolean isAckResponseFromClient(String xml) {
-        return xml.startsWith("<a ") && xml.contains("h=");
+    private boolean isStreamManagementResp(String xml) {
+        return xml.contains("<a ") && xml.contains("h=");
     }
 }

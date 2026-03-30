@@ -105,8 +105,8 @@ public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocke
             } else {
             	
                 // This block catches MAM, Service Discovery, and Stream Management
-                if (xmppStreamManagementHandler.isAckMessage(xml)) {
-                    xmppStreamManagementHandler.processAck(ctx, xml, principal);
+                if (xmppStreamManagementHandler.isStreamManagementStanza(xml)) {
+                    xmppStreamManagementHandler.process(ctx, xml, principal);
                 } else if (mam) {
                 	// XEP-0313: Message Archive Management
                 	xmppMamHandler.handleMamRequest(ctx, to, xml);

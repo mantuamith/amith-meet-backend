@@ -1,6 +1,7 @@
 package com.algomeet.xmpp.chatservice.routing.handler;
 
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.springframework.stereotype.Component;
@@ -56,9 +57,10 @@ public class XmppDirectChatHandler {
             offlineMessageService.save(id, toUserKey, fromUserKey, type, originalXml)
                 .doOnSuccess(savedDoc -> {
                     // Acknowledge receipt to the sender (Server -> Client 'h' update)
+                	AtomicBoolean isEnabledSm = ctx.channel().attr(XmppSessionAttributes.SM_INBOUND_H_ENABLED_KEY).get();
                     AtomicLong handledCount = ctx.channel().attr(XmppSessionAttributes.SM_INBOUND_H_KEY).get();
                     
-                    if (handledCount != null) {
+                    if (isEnabledSm != null && isEnabledSm.get() && handledCount != null) {
                         long h = handledCount.incrementAndGet();
                         ctx.writeAndFlush(new TextWebSocketFrame(new StreamAck(h).toXml()));
                     }

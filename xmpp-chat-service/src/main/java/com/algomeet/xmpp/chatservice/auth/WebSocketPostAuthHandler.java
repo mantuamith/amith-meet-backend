@@ -70,7 +70,6 @@ public class WebSocketPostAuthHandler extends ChannelInboundHandlerAdapter {
                
                 // 1. Initialize Stream Management Counters (XEP-0198)
                 // These counters are attached to the channel attribute for thread-safe access
-                ctx.channel().attr(XmppSessionAttributes.SM_INBOUND_H_KEY).set(new AtomicLong(0));
                 ctx.channel().attr(XmppSessionAttributes.SM_OUTBOUND_H_KEY).set(new AtomicLong(0));
                 // Initialize Initial Presence flag to false
                 ctx.channel().attr(XmppSessionAttributes.INITIAL_PRESENCE_SENT).set(false);

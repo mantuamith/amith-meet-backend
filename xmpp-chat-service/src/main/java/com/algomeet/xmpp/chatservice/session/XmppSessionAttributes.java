@@ -2,6 +2,8 @@ package com.algomeet.xmpp.chatservice.session;
 
 import io.netty.channel.Channel;
 import io.netty.util.AttributeKey;
+
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
@@ -30,6 +32,9 @@ public class XmppSessionAttributes {
      */
     public static final AttributeKey<AtomicLong> SM_INBOUND_H_KEY = 
             AttributeKey.valueOf("smInboundH");
+    
+    public static final AttributeKey<AtomicBoolean> SM_INBOUND_H_ENABLED_KEY = 
+            AttributeKey.valueOf("smInboundHEnabled");
 
     /**
      * <p>The <b>Outbound</b> stanza counter ({@code h}) for XEP-0198 Stream Management.</p>
@@ -39,6 +44,9 @@ public class XmppSessionAttributes {
      */
     public static final AttributeKey<AtomicLong> SM_OUTBOUND_H_KEY = 
             AttributeKey.valueOf("smOutboundH");
+    
+    public static final AttributeKey<AtomicBoolean> SM_OUTBOUND_H_ENABLED_KEY = 
+            AttributeKey.valueOf("smOutboundHEnabled");
 
     /**
      * Utility method to safely retrieve the authenticated principal from a channel.
@@ -51,4 +59,11 @@ public class XmppSessionAttributes {
     }
     
     public static final AttributeKey<Boolean> INITIAL_PRESENCE_SENT = AttributeKey.valueOf("initial_presence_sent");
+    
+    public static final AttributeKey<AtomicBoolean> SM_RESUMABLE_KEY = 
+            AttributeKey.valueOf("smResumable");
+    
+    public static final AttributeKey<String> SM_ID_KEY = 
+            AttributeKey.valueOf("smId");
+    
 }
