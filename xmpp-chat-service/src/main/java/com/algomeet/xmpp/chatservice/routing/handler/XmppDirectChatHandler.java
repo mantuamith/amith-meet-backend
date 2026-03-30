@@ -65,7 +65,7 @@ public class XmppDirectChatHandler {
                 })
                 .doOnError(e -> {
                     log.error("Storage failure for message {}: {}", id, e.getMessage());
-                    XmppUtil.sendError(ctx, id, from, to, XmppErrorConditions.INTERNAL_SERVER_ERROR, "Storage failure");
+                    XmppUtil.sendError(ctx, id, to, from, XmppErrorConditions.INTERNAL_SERVER_ERROR, "Storage failure");
                 })
                 .subscribe();
         }

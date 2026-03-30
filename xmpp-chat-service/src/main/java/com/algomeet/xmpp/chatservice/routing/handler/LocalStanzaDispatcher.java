@@ -54,8 +54,7 @@ public class LocalStanzaDispatcher {
 		Channel targetChannel = sessionManager.getChannel(to);
 
 		if (targetChannel == null || !targetChannel.isActive()) {
-			log.warn("Routing failed: No active local channel found for JID: {}", to);
-			// Note: In a full implementation, you would trigger the OfflineMessageHandler here
+			log.debug("Routing failed: No active local channel found for JID: {}", to);
 			return;
 		}
 
@@ -66,7 +65,7 @@ public class LocalStanzaDispatcher {
 
 			// Retrieve the session's outbound counter to maintain protocol sequence
 			AtomicLong outboundH = targetChannel.attr(XmppSessionAttributes.SM_OUTBOUND_H_KEY).get();
-			if (outboundH != null) {
+			if (outboundH != null) { 
 				// Write to the WebSocket
 				targetChannel.writeAndFlush(new TextWebSocketFrame(originalXml));
 

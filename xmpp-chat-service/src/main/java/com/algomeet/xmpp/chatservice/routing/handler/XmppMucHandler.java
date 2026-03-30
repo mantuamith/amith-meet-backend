@@ -14,6 +14,7 @@ import com.algomeet.notificationservice.service.NotificationService;
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.client.GroupClient;
 import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
+import com.algomeet.xmpp.chatservice.constant.XmppErrorConditions;
 import com.algomeet.xmpp.chatservice.dto.MucMember;
 import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
 import com.algomeet.xmpp.chatservice.dto.StanzaInfo;
@@ -83,6 +84,10 @@ public class XmppMucHandler {
                     ctx.writeAndFlush(new TextWebSocketFrame(new StreamAck(h).toXml()));
                 }
 	        	log.debug("Event archived [{}]: category={}", id, info.getCategory());
+	        })
+	        .doOnError(e -> {
+	        	log.error("Storage failure for message {}: {}", id, e.getMessage());
+                XmppUtil.sendError(ctx, id, roomJid, from, XmppErrorConditions.INTERNAL_SERVER_ERROR, "Storage failure");
 	        })
 	        .subscribe();
 	    }
