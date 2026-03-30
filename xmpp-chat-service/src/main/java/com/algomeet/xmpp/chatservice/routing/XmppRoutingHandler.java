@@ -101,11 +101,12 @@ public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocke
                 xmppDirectChatHandler.handleDirectChatRouting(ctx, id, to, from, type, xml);
                 
             } else {
-            	// XEP-0313: Message Archive Management
+            	
                 // This block catches MAM, Service Discovery, and Stream Management
                 if (xmppStreamManagementHandler.isAckMessage(xml)) {
                     xmppStreamManagementHandler.processAck(ctx, xml, principal);
                 } else if (mam) {
+                	// XEP-0313: Message Archive Management
                     xmppInfoQueryHandler.handleMamRequest(ctx, to, xml);
                 } else {
                     xmppInfoQueryHandler.handleQuery(ctx, xml);
