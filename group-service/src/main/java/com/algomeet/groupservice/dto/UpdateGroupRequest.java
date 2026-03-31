@@ -1,8 +1,22 @@
 package com.algomeet.groupservice.dto;
 
+import java.util.HashSet;
+import java.util.Set;
+
 import lombok.Data;
 
 @Data
 public class UpdateGroupRequest {
 	private String name;
+	
+    /**
+     * Members to be updated to the group.
+     * <p>
+     * Behavior:
+     * <ul>
+     *   <li>Ignored when {@code emptyGroup = true}</li>
+     *   <li>The owner is automatically added if not already included</li>
+     * </ul>
+     */
+    private Set<MemberRequest> members = new HashSet<>();
 }
