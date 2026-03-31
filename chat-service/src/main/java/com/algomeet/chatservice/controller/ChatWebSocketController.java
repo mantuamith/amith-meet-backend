@@ -7,7 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
-
+import com.algomeet.chatservice.model.MessageType;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -84,7 +84,7 @@ public class ChatWebSocketController {
             List<String> failedMembers = new ArrayList<>();
             if (message.isGroupMessage()) {
                 GroupDto group = groupClient.getGroupById(Long.parseLong(message.getGroupId()));   
-                
+                response.setType(MessageType.GROUP);
                 // If a message has media files, grant media access permissions to the
                 // message recipients.
                 mediaService.share(message, group);
@@ -96,7 +96,6 @@ public class ChatWebSocketController {
                             messageService.sendUnreadCountUpdate(member.getUsername()); // real-time update
 
                             // Send push notification
-                            // Todo: get the member user key
                             sendPushNotification(member.getUserKey(), message.getContent(), NotificationType.GROUP_MESSAGE, member.getUsername());
                         }
                     } catch (Exception e) {
@@ -120,6 +119,7 @@ public class ChatWebSocketController {
             	
             	// If a message has media files, grant media access permissions to the
     			// message recipients.
+                message.setType(MessageType.DIRECT);
     			mediaService.share(message);
             	            	
                 //Send the new message to the receiver
