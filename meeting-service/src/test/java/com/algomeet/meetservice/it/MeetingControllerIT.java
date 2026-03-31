@@ -99,7 +99,7 @@ class MeetingControllerIT {
             .thenReturn(Optional.of(meeting(MEETING_ID, ROOM_ID, HOST, TOKEN, MeetingStatus.STARTED)));
 
     // App participant (logged in) joins -> mints JWT “jwt-app”
-    when(algomeetJwtService.generateForMeeting(any(Meeting.class), anyString(), any(), isNull(), eq(false)))
+    when(algomeetJwtService.generateForMeeting(any(Meeting.class), anyString(), any(), isNull(), eq(false),isNull()))
             .thenReturn(new AlgomeetJwtService.GeneratedAlgomeetToken("jwt-app", ROOM_ID, Instant.now().plusSeconds(300), "jti-app"));
 
     mvc.perform(get("/api/meetings/open/{id}", MEETING_ID)
@@ -111,7 +111,7 @@ class MeetingControllerIT {
             .andExpect(jsonPath("$.data.algomeetToken").value("jwt-app"));
 
     // Guest-by-link (anonymous) joins -> mints JWT “jwt-guest”
-    when(algomeetJwtService.generateForMeeting(any(Meeting.class), anyString(), any(), isNull(), eq(false)))
+    when(algomeetJwtService.generateForMeeting(any(Meeting.class), anyString(), any(), isNull(), eq(false),isNull()))
             .thenReturn(new AlgomeetJwtService.GeneratedAlgomeetToken("jwt-guest", ROOM_ID, Instant.now().plusSeconds(300), "jti-guest"));
 
     mvc.perform(get("/api/meetings/open/{id}", MEETING_ID)

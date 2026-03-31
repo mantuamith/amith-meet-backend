@@ -264,7 +264,7 @@ class MeetingControllerTest {
 
         when(meetingService.getOpenMeetingById("241001000005", "abc")).thenReturn(Optional.of(m));
         when(tokenRegistry.getIfActive(eq("241001000005"), anyString())).thenReturn(Optional.empty());
-        when(algomeetJwtService.generateForMeeting(eq(m), anyString(), any(), isNull(), eq(false)))
+        when(algomeetJwtService.generateForMeeting(eq(m), anyString(), any(), isNull(), eq(false),null))
                 .thenReturn(new AlgomeetJwtService.GeneratedAlgomeetToken(
                         "jwt-token", m.getRoom().getRoomId(), Instant.now().plusSeconds(300), "jti-1"
                 ));

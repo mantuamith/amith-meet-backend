@@ -152,7 +152,7 @@ class MeetingJoinFlowIT {
 
         // Mint jwt with moderator:true
         String jwt = makeJwtWithModerator(true);
-        when(algomeetJwtService.generateForMeeting(any(Meeting.class), anyString(), anyString(), isNull(), eq(true)))
+        when(algomeetJwtService.generateForMeeting(any(Meeting.class), anyString(), anyString(), isNull(), eq(true),null))
                 .thenReturn(new AlgomeetJwtService.GeneratedAlgomeetToken(jwt, ROOM_ID, Instant.now().plusSeconds(300), "jti-host"));
 
         var result = mvc.perform(post("/api/meetings/{id}/join", MEETING_ID)
@@ -210,7 +210,7 @@ class MeetingJoinFlowIT {
         logResponse("attendee_before_start response", result.getResponse().getContentAsString());
 
         // Ensure we did NOT mint anything
-        verify(algomeetJwtService, never()).generateForMeeting(any(), anyString(), anyString(), any(), anyBoolean());
+        verify(algomeetJwtService, never()).generateForMeeting(any(), anyString(), anyString(), any(), anyBoolean(), isNull());
     }
 
     @Test
@@ -239,7 +239,7 @@ class MeetingJoinFlowIT {
         when(tokenRegistry.getIfActive(eq(MEETING_ID), anyString())).thenReturn(Optional.empty());
 
         String jwt = makeJwtWithModerator(false);
-        when(algomeetJwtService.generateForMeeting(any(Meeting.class), anyString(), anyString(), isNull(), eq(false)))
+        when(algomeetJwtService.generateForMeeting(any(Meeting.class), anyString(), anyString(), isNull(), eq(false),isNull()))
                 .thenReturn(new AlgomeetJwtService.GeneratedAlgomeetToken(jwt, ROOM_ID, Instant.now().plusSeconds(300), "jti-a"));
 
         var result = mvc.perform(post("/api/meetings/{id}/join", MEETING_ID)
@@ -290,7 +290,7 @@ class MeetingJoinFlowIT {
 
         logResponse("rejoin_reuses_token response", result.getResponse().getContentAsString());
 
-        verify(algomeetJwtService, never()).generateForMeeting(any(), anyString(), anyString(), any(), anyBoolean());
+        verify(algomeetJwtService, never()).generateForMeeting(any(), anyString(), anyString(), any(), anyBoolean(), isNull());
     }
 
     @Test

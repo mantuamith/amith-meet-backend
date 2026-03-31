@@ -275,7 +275,7 @@ public class MeetingController implements MeetingControllerDoc  {
                         guestKey,
                         (req.name() == null ? "" : req.name().trim()),
                         null,
-                        isModerator
+                        isModerator,Duration.between(m.getMeetingStartTime(), m.getMeetingEndTime())
                 );
 
         tokenRegistry.save(
@@ -393,7 +393,7 @@ public class MeetingController implements MeetingControllerDoc  {
 
         // Mint fresh JWT (host becomes moderator)
         var gen = algomeetJwtService.generateForMeeting(
-                m, userId, display, /*avatar*/ null, /*moderator*/ isHost);
+                m, userId, display, /*avatar*/ null, /*moderator*/ isHost, Duration.between(m.getMeetingStartTime(), m.getMeetingEndTime()));
 
         tokenRegistry.save(m.getId(), userId, gen.token(), Duration.between(m.getMeetingStartTime(), m.getMeetingEndTime()));
 
@@ -448,7 +448,7 @@ public class MeetingController implements MeetingControllerDoc  {
                             existing.ifPresent(t -> tokenRegistry.revoke(m.getId(), guestKey));
 
                             var gen = algomeetJwtService.generateForMeeting(
-                                    m, guestKey, (req.name() == null ? "" : req.name().trim()), null, false);
+                                    m, guestKey, (req.name() == null ? "" : req.name().trim()), null, false,Duration.between(m.getMeetingStartTime(), m.getMeetingEndTime()));
 
                             tokenRegistry.save(m.getId(), guestKey, gen.token(), Duration.between(m.getMeetingStartTime(), m.getMeetingEndTime()));
                             var dto = mapper.toDto(m);
@@ -474,7 +474,7 @@ public class MeetingController implements MeetingControllerDoc  {
                     existing.ifPresent(t -> tokenRegistry.revoke(m.getId(), guestKey));
 
                     var gen = algomeetJwtService.generateForMeeting(
-                            m, guestKey, (req.name() == null ? "" : req.name().trim()), null, false);
+                            m, guestKey, (req.name() == null ? "" : req.name().trim()), null, false,Duration.between(m.getMeetingStartTime(), m.getMeetingEndTime()));
 
                     tokenRegistry.save(m.getId(), guestKey, gen.token(), Duration.between(m.getMeetingStartTime(), m.getMeetingEndTime()));
 
