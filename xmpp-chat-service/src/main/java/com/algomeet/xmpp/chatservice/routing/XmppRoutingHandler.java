@@ -96,7 +96,7 @@ public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocke
 
             // 4. Branch based on logic: MAM and Server-directed queries go to InfoQueryHandler
             // Direct/Group messages go to respective handlers
-            if (!mam && ("groupchat".equalsIgnoreCase(type) || isGroupChat(xml))) {
+            if (!mam && ("groupchat".equalsIgnoreCase(type) || isGroupChat(to))) {
                 xmppMucHandler.handleGroupChatRouting(ctx, id, to, from, xml, groupChatDomain);
                 
             } else if (!mam && StringUtils.hasText(to)) {
@@ -134,15 +134,10 @@ public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocke
         chatStateNotificationHandler.processPresenceAndActivateSession(ctx, principal, xml);
     }  
     
-    public boolean isGroupChat(String xml) {
-        // 1. Check for the MUC Namespace (The Protocol standard)
-        if (xml.contains("http://jabber.org/protocol/muc")) {
-            return true; 
-        }
-        
-        // 2. Fallback: Check if the 'to' address contains a known MUC service domain
+    public boolean isGroupChat(String to) {        
+        // Check if the 'to' address contains a known MUC service domain
         // (This is useful if the stanza is malformed but the routing is correct)
-        if (xml.contains("@" + groupChatDomain)) {
+        if (to.contains("@" + groupChatDomain)) {
             return true;
         }
 
