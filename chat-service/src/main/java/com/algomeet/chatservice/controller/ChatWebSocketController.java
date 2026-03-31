@@ -119,7 +119,7 @@ public class ChatWebSocketController {
             	
             	// If a message has media files, grant media access permissions to the
     			// message recipients.
-                message.setType(MessageType.DIRECT);
+                response.setType(MessageType.DIRECT);
     			mediaService.share(message);
             	            	
                 //Send the new message to the receiver
