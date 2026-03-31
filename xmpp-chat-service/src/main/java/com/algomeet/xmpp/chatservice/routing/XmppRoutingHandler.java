@@ -137,7 +137,7 @@ public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocke
     public boolean isGroupChat(String to) {        
         // Check if the 'to' address contains a known MUC service domain
         // (This is useful if the stanza is malformed but the routing is correct)
-        if (to.contains("@" + groupChatDomain)) {
+        if (to != null && to.contains("@" + groupChatDomain)) {
             return true;
         }
 
