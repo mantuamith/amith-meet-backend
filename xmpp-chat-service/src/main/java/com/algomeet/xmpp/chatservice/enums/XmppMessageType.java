@@ -1,0 +1,84 @@
+package com.algomeet.xmpp.chatservice.enums;
+
+import java.util.Arrays;
+
+/**
+ * Represents XMPP Stanza Types as per RFC 6120/6121.
+ * Note: 'set' and 'get' are technically IQ types, but included here for routing consistency.
+ */
+public enum XmppMessageType {
+    /**
+     * Messages with type "normal" or no type. SHOULD be stored offline.
+     */
+    NORMAL("normal", true),
+
+    /**
+     * Standard chat messages. SHOULD be stored offline.
+     */
+    CHAT("chat", true),
+
+    /**
+     * Multi-user chat messages. SHOULD NOT be stored offline in the user's personal box 
+     * (MUC archive handles this instead).
+     */
+    GROUPCHAT("groupchat", false),
+
+    /**
+     * Time-sensitive alerts/news. For Algomeet, we enable storage to persist 
+     * Missed Call notifications.
+     */
+    HEADLINE("headline", true),
+
+    /**
+     * Error stanzas. SHOULD NOT be stored offline.
+     */
+    ERROR("error", false),
+
+    /**
+     * IQ 'set' type. Used for requests that change state (like Jingle session-initiate).
+     * NEVER stored offline.
+     */
+    SET("set", false),
+
+    /**
+     * IQ 'get' type. Used for information queries.
+     * NEVER stored offline.
+     */
+    GET("get", false),
+
+    /**
+     * IQ 'result' type. Used for successful responses.
+     */
+    RESULT("result", false);
+
+    private final String xmlValue;
+    private final boolean supportsOfflineStorage;
+
+    XmppMessageType(String xmlValue, boolean supportsOfflineStorage) {
+        this.xmlValue = xmlValue;
+        this.supportsOfflineStorage = supportsOfflineStorage;
+    }
+
+    public String getXmlValue() {
+        return xmlValue;
+    }
+
+    public boolean supportsOfflineStorage() {
+        return supportsOfflineStorage;
+    }
+
+    /**
+     * Helper to find the enum from an XML attribute string.
+     * Defaults to NORMAL for unknown message types, but returns null/specific 
+     * logic for IQ types if needed.
+     */
+    public static XmppMessageType fromString(String type) {
+        if (type == null || type.isEmpty()) {
+            return NORMAL;
+        }
+        return Arrays.stream(values())
+                .filter(t -> t.xmlValue.equalsIgnoreCase(type))
+                .findFirst()
+                .orElse(NORMAL); 
+    }
+}

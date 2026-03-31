@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: xmpp-chat-service
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: xmpp-chat-service
+  template:
+    metadata:
+      labels:
+        app: xmpp-chat-service
+    spec:
+#      serviceAccountName: gateway-sa
+      containers:
+      - name: xmpp-chat-service
+        image: harbor.local/library/xmpp-chat-service:latest
+        ports:
+        - name: http-mgmt
+          containerPort: 8097   # Spring Boot Admin/Health
+        - name: xmpp-netty
+          containerPort: 8098   # Netty XMPP/WebSocket
+        livenessProbe:
+          httpGet:
+            path: /actuator/health/liveness
+            port: 8097
+          initialDelaySeconds: 20
+          periodSeconds: 15
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /actuator/health/readiness
+            port: 8097
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+      imagePullSecrets:
+      - name: harbor-credentials
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: xmpp-chat-service
+  namespace: default
+spec:
+  selector:
+    app: xmpp-chat-service
+  ports:
+    - name: http
+      protocol: TCP
+      port: 8097
+      targetPort: 8097
+    - name: xmpp
+      protocol: TCP
+      port: 8098
+      targetPort: 8098
