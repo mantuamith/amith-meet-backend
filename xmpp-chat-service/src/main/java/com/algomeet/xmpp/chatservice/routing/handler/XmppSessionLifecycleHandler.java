@@ -62,10 +62,10 @@ public class XmppSessionLifecycleHandler {
             // Standard XMPP logic: Only trigger catch-up on the first non-MUC presence
             if (!xml.contains("http://jabber.org/protocol/muc") && !Boolean.TRUE.equals(initialPresenceAttr.get())) {
                 
+            	offlineMessageHandler.deliverOfflineMessages(ctx, principal);
+            	
                 initialPresenceAttr.set(true);
-                log.info("Session activation for {}. Delivering missed content.", principal.getUserKey());
-
-                offlineMessageHandler.deliverOfflineMessages(ctx, principal);
+                log.info("Session activation for {}. Delivering missed content.", principal.getUserKey());                
             }
         }
     }
