@@ -1,6 +1,7 @@
 package com.algomeet.groupservice.controller;
 
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -63,7 +64,7 @@ public class GroupController implements GroupControllerDoc {
 	@PutMapping("/{groupId}")
 	public ResponseEntity<CommonResponse<GroupResponse>> updateGroup(@PathVariable Long groupId, @Valid @RequestBody UpdateGroupRequest request) {
 		try {
-			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, groupService.updateGroup(groupId, request)));
+			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, groupService.updateGroup(groupId, request, SecurityUtil.getUserKey())));
 		} catch(GroupNotFoundException ex) {
 			return ResponseEntity.status(HttpStatus.NOT_FOUND)
 					.body(CommonResponse.from(ResponseCode.GROUP_ID_NOT_FOUND));
@@ -85,6 +86,7 @@ public class GroupController implements GroupControllerDoc {
 	@PostMapping("/{groupId}/join")
 	public ResponseEntity<CommonResponse<?>> joinGroup(
 			@PathVariable Long groupId,
+			@RequestParam Optional<String> nickname,
 			Authentication authentication) {
 
 		GroupResponse response = null;
@@ -93,7 +95,8 @@ public class GroupController implements GroupControllerDoc {
 			response = groupService.joinGroup(
 					groupId,
 					authentication.getName(),
-					SecurityUtil.getUserKey()
+					SecurityUtil.getUserKey(),
+					nickname.orElse(null)
 					);
 		} catch(GroupNotFoundException ex) {
 			return ResponseEntity.status(HttpStatus.NOT_FOUND)
@@ -114,7 +117,7 @@ public class GroupController implements GroupControllerDoc {
 		GroupResponse response = null;
 
 		try {
-			response = groupService.addGroupMembers(groupId, request);
+			response = groupService.addGroupMembers(groupId, request, SecurityUtil.getUserKey());
 
 		} catch(GroupNotFoundException ex) {
 			return ResponseEntity.status(HttpStatus.NOT_FOUND)

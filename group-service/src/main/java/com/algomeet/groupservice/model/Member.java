@@ -23,12 +23,22 @@ public class Member {
 		this.username = username;
 		this.role = GroupRole.MEMBER;
 	}
+	
+	public Member(String userKey, String username, String nickname) {
+		this.userKey = userKey;
+		this.username = username;
+		this.nickname = nickname;
+		this.role = GroupRole.MEMBER;
+	}
 
     @Column(name = "user_key", nullable = false)
     private String userKey;
 
     @Column(name = "username")
     private String username;
+    
+    @Column(name = "nickname")
+    private String nickname;
     
     @Enumerated(EnumType.STRING)
     @Column(

@@ -1,5 +1,7 @@
 package com.algomeet.groupservice.controller.swagger;
 
+import java.util.Optional;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -140,6 +142,7 @@ public interface GroupControllerDoc {
     public ResponseEntity<CommonResponse<?>> joinGroup(
             @Parameter(description = "Group ID", example = "1")
             @PathVariable Long groupId,
+            @RequestParam Optional<String> nickname,
             Authentication authentication);
 
     @Operation(
