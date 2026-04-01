@@ -48,8 +48,8 @@ public class NotificationStreamConsumer implements StreamListener<String, MapRec
 			.xGroupCreate(
 					redisStreamConfigProperties.getNotificationStreamKey().getBytes(),
 					GROUP_NAME,
-					ReadOffset.latest(),  // start at beginning
-					true                   // create stream if not exists
+					ReadOffset.from("0"),  // start at beginning
+					true                  // create stream if not exists
 					);
 			log.info("Consumer group created: {} ", GROUP_NAME);
 		} catch (Exception ex) {
@@ -86,11 +86,17 @@ public class NotificationStreamConsumer implements StreamListener<String, MapRec
 
 		try {
 			notificationConsumer.handleMessage(message.getValue().get(Constants.REDIS_STREAM_MESSAGE_KEY_MESSAGE));
+			
 			// Proper acknowledgment using RecordId
-			connectionFactory.getConnection()
-			.xAck(redisStreamConfigProperties.getNotificationStreamKey().getBytes(), GROUP_NAME, message.getId());
+			// 1. Acknowledge the message so it leaves the PEL (Pending Entries List)
+	        byte[] streamKey = redisStreamConfigProperties.getNotificationStreamKey().getBytes();
+	        connectionFactory.getConnection().xAck(streamKey, GROUP_NAME, message.getId());
 
-			log.debug("Acknowledged message ID: {} ", message.getId());
+	        // 2. Explicitly delete the message from the stream
+	        connectionFactory.getConnection().xDel(streamKey, message.getId());
+
+	        log.debug("Acknowledged and deleted message ID: {} ", message.getId());
+
 		} catch (Exception ex) {
 			log.error("Error processing message: {} - {}", message.getId(), ex.getMessage(), ex);
 		}
