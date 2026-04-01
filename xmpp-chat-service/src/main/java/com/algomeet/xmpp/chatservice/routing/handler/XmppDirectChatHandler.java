@@ -40,6 +40,7 @@ public class XmppDirectChatHandler {
     private final UserSessionRegistry userSessionRegistry;
     private final NotificationService notificationService;
     private final JingleNotificationHandler jingleSessionOrchestrator;
+    private final CallLifeCycleTracker callTracker;
     
 	 /**
      * Handles 1-to-1 message routing, persistence for offline storage, 
@@ -78,6 +79,11 @@ public class XmppDirectChatHandler {
         boolean hasSessions = !CollectionUtils.isEmpty(userSessions);
         boolean hasActiveSession = hasSessions && userSessions.stream()
                 .anyMatch(s -> UserState.ACTIVE == s.getState());
+        
+        // Call tracker
+        if (XmppMessageType.SET.getXmlValue().equalsIgnoreCase(type)) {
+        	callTracker.track(ctx, to, from, originalXml, principal);
+        }
 
         if (hasSessions) {
             // Broadast to Redis: Even if they are AWAY/DND, we attempt delivery 
@@ -98,7 +104,7 @@ public class XmppDirectChatHandler {
              */
             if (originalXml.indexOf("urn:xmpp:jingle:1") != -1) {      
             	// Handle Jingle Signaling notification
-            	jingleSessionOrchestrator.handlePush(ctx, id, toUserKey, fromUserKey, originalXml, hasSessions, principal);
+            	jingleSessionOrchestrator.handlePush(ctx, id, toUserKey, fromUserKey, originalXml, principal);
                 
             } else {                 
                 /*
