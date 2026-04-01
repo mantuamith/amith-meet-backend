@@ -14,21 +14,23 @@ import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * <p><strong>Jingle Signaling & Call Lifecycle Coordinator</strong></p>
- * * <p>The {@code JingleNotificationHandler} manages the lifecycle of Jingle (XEP-0166) 
- * sessions. It serves as the primary interceptor for call signaling, coordinating 
- * between real-time Netty delivery, Redis-backed timeout tracking, and Push Notifications.</p>
+ * <p><strong>Jingle Offline Notification Handler</strong></p>
+ * * <p>The {@code JingleNotificationHandler} is responsible for triggering external 
+ * push notifications when a Jingle (XEP-0166) session is initiated. This ensures 
+ * that recipients who are offline or have backgrounded mobile applications are 
+ * alerted to incoming VoIP/Video calls.</p>
  * * <p><b>Core Responsibilities:</b></p>
  * <ul>
- * <li><b>Session Interception:</b> Detects {@code session-initiate}, {@code session-accept}, 
- * and {@code session-terminate} stanzas to manage call state.</li>
- * <li><b>Timeout Orchestration:</b> Schedules 30-second 'Missed Call' tasks in Redis 
- * Sorted Sets (ZSET) upon session initiation.</li>
- * <li><b>State Cleanup:</b> Atomically removes pending timeout tasks when a call 
- * is accepted or actively declined.</li>
- * <li><b>Push Dispatch:</b> Triggers high-priority VoIP notifications to wake up 
- * mobile devices via {@code NotificationService}.</li>
+ * <li><b>Session-Initiate Detection:</b> Intercepts initial call requests to 
+ * trigger out-of-band signaling.</li>
+ * <li><b>Push Dispatch:</b> Communicates with the {@code NotificationService} 
+ * to send high-priority FCM/APNs payloads (VoIP Push).</li>
+ * <li><b>Media Classification:</b> Differentiates between Audio and Video 
+ * call types to provide accurate notification content (e.g., CallKit UI).</li>
  * </ul>
+ * * <p>Note: This class handles <i>notification</i> only. Real-time signaling 
+ * delivery and session state tracking are managed by the routing engine and 
+ * {@code CallLifeCycleTracker} respectively.</p>
  * * @author Algomeet Core Team
  */
 @Slf4j
@@ -39,24 +41,25 @@ public class JingleNotificationHandler {
 	private final NotificationService notificationService;
 
 	/**
-	 * Main entry point for Jingle stanza processing. 
-	 * Identifies the action type and delegates to the appropriate lifecycle handler.
-	 * * @param ctx         The Netty {@link ChannelHandlerContext} for the active connection.
+	 * Processes incoming stanzas to identify new call sessions requiring 
+	 * push notification delivery.
+	 * * @param ctx         The Netty {@link ChannelHandlerContext} for the sender.
 	 * @param id          The unique IQ stanza ID.
 	 * @param to          The JID of the intended recipient.
 	 * @param from        The JID of the initiator.
-	 * @param xml         The raw Jingle XML payload containing the SID and reason.
-	 * @param principal   The authenticated user's security context.
+	 * @param xml         The raw Jingle XML payload.
+	 * @param principal   The authenticated sender's security context.
 	 */
 	public void handlePush(ChannelHandlerContext ctx, String id, String to, 
 			String from, String xml, XmppPrincipal principal) {
 
-		// 1. Detect media type using quote-agnostic regex (XEP-0167)
+		// 1. Detect media type using quote-agnostic regex per XEP-0167
 		boolean isVideo = xml.matches("(?s).*media=['\"]video['\"].*");
 
-		// 2. Identify the Jingle Action (XEP-0166 Section 7.2)
+		// 2. Filter for 'session-initiate' only; notifications are not required 
+		// for subsequent signaling (transport-info, accept, etc.)
 		boolean isInitiate = xml.contains("session-initiate");
-		
+
 		if(isInitiate) {
 			String callType = isVideo ? "video" : "audio";
 			handleCallLogic(ctx, id, to, from, principal, callType, xml);
@@ -64,25 +67,24 @@ public class JingleNotificationHandler {
 	}
 
 	/**
-	 * Handles the 'Initiate' phase: Triggers the VoIP push and registers the 
-	 * 30-second timeout task in the Redis delayed queue.
-	 * * @param callType The determined media type ("video" or "audio").
+	 * Orchestrates the push notification metadata based on the call type.
+	 * * @param callType The media type: "video" or "audio".
 	 */
 	private void handleCallLogic(ChannelHandlerContext ctx, String id, String to, String from, 
 			XmppPrincipal principal, String callType, String xml) {
-		    
-			// Notify the user via high-priority push to trigger CallKit/ConnectionService UI.
-			NotificationType type = "video".equals(callType) ? NotificationType.VIDEO_CALL : NotificationType.AUDIO_CALL;
-			String title = "video".equals(callType) ? "Incoming Video Call..." : "Incoming Call...";
-			
-			sendPush(to, type, title, xml, principal.getTenantId());      
-			
-			log.info("Jingle [{}] session-initiate processed for user: {}", callType, to);
+
+		// Map call type to specialized notification types to trigger 
+		// device-specific VoIP UI (e.g., Android ConnectionService or iOS CallKit).
+		NotificationType type = "video".equals(callType) ? NotificationType.VIDEO_CALL : NotificationType.AUDIO_CALL;
+		String title = "video".equals(callType) ? "Incoming Video Call..." : "Incoming Call...";
+
+		sendPush(to, type, title, xml, principal.getTenantId());      
+
+		log.info("Dispatched {} push notification for recipient: {}", callType, to);
 	}
 
 	/**
-	 * Encapsulates the NotificationService call to ensure consistent metadata 
-	 * across all call-related push notifications.
+	 * Forwards the notification request to the notification microservice.
 	 */
 	private void sendPush(String to, NotificationType type, String title, String body, Integer tenantId) {        
 		Notification notif = Notification.builder()
