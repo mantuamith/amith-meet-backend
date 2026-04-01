@@ -59,6 +59,8 @@ algomeet:
     sub: meet.algoframe.in         # -> sub (your Algomeet)
     secret-base64: ${ALGOMEET_JWT_SECRET_BASE64}
     ttl-seconds: 300
+    features:
+      file-upload: ${ALGOMEET_JWT_FEATURE_FILE_UPLOAD:true}
   idgen:
     timezone: UTC          # default; can set to Asia/Kolkata, etc.
     key-prefix: "meet:id:seq:"

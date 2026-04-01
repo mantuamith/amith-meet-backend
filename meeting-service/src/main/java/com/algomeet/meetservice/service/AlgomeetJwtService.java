@@ -15,6 +15,7 @@ import java.security.Key;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -68,6 +69,7 @@ public class AlgomeetJwtService {
         // ---- context ----
         Map<String, Object> context = new LinkedHashMap<>();
         context.put("user", userCtx);
+        context.put("features", configuredFeatures());
         context.put("sdkversion", 1);
 
         // ---- JWT ----
@@ -122,4 +124,11 @@ public class AlgomeetJwtService {
             Instant exp,
             String jti
     ) {}
+
+    private Map<String, Boolean> configuredFeatures() {
+        if (props == null || props.getFeatures() == null || props.getFeatures().isEmpty()) {
+            return Collections.emptyMap();
+        }
+        return new LinkedHashMap<>(props.getFeatures());
+    }
 }

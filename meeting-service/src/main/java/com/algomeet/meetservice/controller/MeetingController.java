@@ -382,7 +382,7 @@ public class MeetingController implements MeetingControllerDoc  {
             var reused = new AlgomeetJwtService.GeneratedAlgomeetToken(
                     existingOpt.get(),
                     m.getRoom() != null ? m.getRoom().getRoomId() : null,
-                    java.time.Instant.now().plusSeconds(300), // best-effort exp window
+                    java.time.Instant.now().plusSeconds(Duration.between(m.getMeetingStartTime(), m.getMeetingEndTime()).toSeconds()), // best-effort exp window
                     "reused"
             );
             return ResponseEntity.ok(MeetingResponse.success(
