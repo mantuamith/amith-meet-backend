@@ -48,41 +48,48 @@ public class XmppStanzaUtil {
         return attrMap;
     }
     
+
     /**
-     * Determines if the stanza contains actual conversational content 
-     * that requires long-term storage or user notification.
-     * Filters out transient states (typing), presence updates, and MUC signaling.
+     * <p><strong>Optimized Message Archive Filter (XEP-0313 Compliance)</strong></p>
+     * * <p>Determines if a stanza should be persisted to long-term storage (MongoDB).
+     * This method uses a <b>Negative-First, Early-Exit</b> strategy to minimize 
+     * CPU cycles and memory scanning for high-throughput routing.</p>
+     * * @param xml The raw XMPP stanza string.
+     * @return {@code true} if the stanza contains conversational content; 
+     * {@code false} if it is transient signaling.
      */
     public static boolean isArchiveable(String xml) {
-        // 1. Check for Jingle Signaling (VoIP/Video/File Transfer)
-        if (xml.contains("urn:xmpp:jingle:1")) { 
-            // ROUTE ONLY: This is a call setup, do not touch the DB
-            return false;
-        }
-
-        // 2. Check for Chat States (Typing, Paused, Gone)
-        if (xml.contains("http://jabber.org/protocol/chatstates") && !xml.contains("<body")) {
-            // ROUTE ONLY: Transient engagement signal
-            return false;
-        }
-
-        // 3. Check for MUC Presence (Join/Update/Leave Group)
-        if (xml.contains("<presence") && xml.contains("http://jabber.org/protocol/muc")) {
-            // ROUTE ONLY: Membership/Occupancy logic, do not save to message history
-            return false;
-        }
-
-        // 4. Check for Standard Presence (Online, Away, DND)
-        if (xml.contains("<presence")) {
-            // UPDATE REDIS & ROUTE: Update live state only, no persistent history
-            return false;
-        }
+        // Defensive check for malformed or empty stream fragments
+        if (xml == null) return false;
         
-        if (xml.contains("urn:xmpp:mam:2")) { 
-            // ROUTE ONLY: This is a call setup, do not touch the DB
-            return false;
-        }
+        // Only scan the first 1000 characters for routing/type info
+        // Most XMPP metadata is at the start of the stanza
+        String header = xml.substring(0, Math.min(xml.length(), 1000));
+
+        // 1. Filter Presence: Standard Roster updates and MUC (XEP-0045) occupancy 
+        // are state-based and should never be stored in message history.
+        if (header.contains("<presence")) return false; 
+
+        // 2. Filter Jingle (XEP-0166): VoIP/Video signaling (initiate, transport-info, etc.)
+        // is routing logic only. Storing these would bloat the DB with session metadata.
+        if (header.contains("urn:xmpp:jingle:1")) return false;
+
+        // 3. Filter MAM (XEP-0313): Queries for archives should not be 
+        // archived themselves to prevent recursive storage loops.
+        if (header.contains("urn:xmpp:mam:2")) return false;
+
+        // 4. Filter MUC Admin (XEP-0045): Administrative actions like kicks, 
+        // bans, or role changes are signaling events, not chat messages.
+        if (header.contains("http://jabber.org/protocol/muc#admin")) return false;
         
+        // 5. Conditional Filter for Chat States (XEP-0085):
+        // Typing notifications ("is typing...") are transient. We only archive 
+        // if the stanza ALSO contains a <body> element (e.g., a message with a state).
+        if (header.contains("http://jabber.org/protocol/chatstates")) {
+            return xml.contains("<body");
+        }
+
+        // If it survived the negative filters, it is likely a conversational <message/>
         return true;
     }
     
