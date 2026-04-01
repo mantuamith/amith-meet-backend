@@ -122,7 +122,11 @@ public class MeetingController implements MeetingControllerDoc  {
             HttpServletResponse response
     ) {
 
-        final String guestKey = GuestIdentity.resolve(request, response);
+//        final String guestKey = GuestIdentity.resolve(request, response);
+        final String guestKey =
+                (req != null && req.userKey() != null && !req.userKey().isBlank())
+                        ? req.userKey()
+                        : GuestIdentity.resolve(request, response);
 
         Optional<Meeting> meetingOpt = meetingService.getOpenMeetingById(id, null);
 
@@ -271,14 +275,14 @@ public class MeetingController implements MeetingControllerDoc  {
                         guestKey,
                         (req.name() == null ? "" : req.name().trim()),
                         null,
-                        isModerator
+                        isModerator,Duration.between(m.getMeetingStartTime(), m.getMeetingEndTime())
                 );
 
         tokenRegistry.save(
                 m.getId(),
                 guestKey,
                 gen.token(),
-                Duration.ofSeconds(300)
+                Duration.between(m.getMeetingStartTime(), m.getMeetingEndTime())
         );
 
         var dto = mapper.toDto(m);
@@ -378,7 +382,7 @@ public class MeetingController implements MeetingControllerDoc  {
             var reused = new AlgomeetJwtService.GeneratedAlgomeetToken(
                     existingOpt.get(),
                     m.getRoom() != null ? m.getRoom().getRoomId() : null,
-                    java.time.Instant.now().plusSeconds(300), // best-effort exp window
+                    java.time.Instant.now().plusSeconds(Duration.between(m.getMeetingStartTime(), m.getMeetingEndTime()).toSeconds()), // best-effort exp window
                     "reused"
             );
             return ResponseEntity.ok(MeetingResponse.success(
@@ -389,9 +393,9 @@ public class MeetingController implements MeetingControllerDoc  {
 
         // Mint fresh JWT (host becomes moderator)
         var gen = algomeetJwtService.generateForMeeting(
-                m, userId, display, /*avatar*/ null, /*moderator*/ isHost);
+                m, userId, display, /*avatar*/ null, /*moderator*/ isHost, Duration.between(m.getMeetingStartTime(), m.getMeetingEndTime()));
 
-        tokenRegistry.save(m.getId(), userId, gen.token(), java.time.Duration.ofMinutes(5));
+        tokenRegistry.save(m.getId(), userId, gen.token(), Duration.between(m.getMeetingStartTime(), m.getMeetingEndTime()));
 
         return ResponseEntity.ok(MeetingResponse.success(
                 ResponseCodes.MEETING_JOINED_SUCCESS, "You can join now.",
@@ -444,9 +448,9 @@ public class MeetingController implements MeetingControllerDoc  {
                             existing.ifPresent(t -> tokenRegistry.revoke(m.getId(), guestKey));
 
                             var gen = algomeetJwtService.generateForMeeting(
-                                    m, guestKey, (req.name() == null ? "" : req.name().trim()), null, false);
+                                    m, guestKey, (req.name() == null ? "" : req.name().trim()), null, false,Duration.between(m.getMeetingStartTime(), m.getMeetingEndTime()));
 
-                            tokenRegistry.save(m.getId(), guestKey, gen.token(), Duration.ofSeconds(300));
+                            tokenRegistry.save(m.getId(), guestKey, gen.token(), Duration.between(m.getMeetingStartTime(), m.getMeetingEndTime()));
                             var dto = mapper.toDto(m);
                             return ResponseEntity.ok(MeetingResponse.success(
                                     ResponseCodes.MEETING_JOINED_SUCCESS, "You can join now.",
@@ -470,9 +474,9 @@ public class MeetingController implements MeetingControllerDoc  {
                     existing.ifPresent(t -> tokenRegistry.revoke(m.getId(), guestKey));
 
                     var gen = algomeetJwtService.generateForMeeting(
-                            m, guestKey, (req.name() == null ? "" : req.name().trim()), null, false);
+                            m, guestKey, (req.name() == null ? "" : req.name().trim()), null, false,Duration.between(m.getMeetingStartTime(), m.getMeetingEndTime()));
 
-                    tokenRegistry.save(m.getId(), guestKey, gen.token(), Duration.ofSeconds(300));
+                    tokenRegistry.save(m.getId(), guestKey, gen.token(), Duration.between(m.getMeetingStartTime(), m.getMeetingEndTime()));
 
                     var dto = mapper.toDto(m);
                     return ResponseEntity.ok(MeetingResponse.success(

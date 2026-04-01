@@ -8,5 +8,6 @@ import lombok.Data;
 public class MemberResponse {
     private String userKey;
     private String username;
+    private String nickname;
     private GroupRole role;
 }

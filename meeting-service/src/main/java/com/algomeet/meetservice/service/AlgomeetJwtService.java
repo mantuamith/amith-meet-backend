@@ -8,13 +8,14 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
 
-import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.security.Key;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -50,10 +51,12 @@ public class AlgomeetJwtService {
             String userId,       // stable user key (UUID/SID)
             String displayName,  // optional
             String email,        // optional
-            boolean moderator
+            boolean moderator,
+            Duration expTime
     ) {
         Instant now = Instant.now();
-        Instant exp = now.plusSeconds(props.getTtlSeconds());
+        Instant exp = now.plusSeconds(expTime.getSeconds());
+
         String jti = UUID.randomUUID().toString();
 
         // ---- context.user ----
@@ -66,6 +69,7 @@ public class AlgomeetJwtService {
         // ---- context ----
         Map<String, Object> context = new LinkedHashMap<>();
         context.put("user", userCtx);
+        context.put("features", configuredFeatures());
         context.put("sdkversion", 1);
 
         // ---- JWT ----
@@ -95,12 +99,13 @@ public class AlgomeetJwtService {
             String userKey,
             String displayName,
             String email,
-            boolean moderator
+            boolean moderator,
+            Duration expiration
     ) {
         // TODO: Revert hardcoded Room logic for fixing JWT
         // Right now meeting id and jwt room id needs to be same
         String room = meeting.getId();
-        JwtBundle b = generateForRoom(room, userKey, displayName, email, moderator);
+        JwtBundle b = generateForRoom(room, userKey, displayName, email, moderator,expiration);
         return new GeneratedAlgomeetToken(b.token(), b.room(), b.exp(), b.jti());
     }
 
@@ -119,4 +124,11 @@ public class AlgomeetJwtService {
             Instant exp,
             String jti
     ) {}
+
+    private Map<String, Boolean> configuredFeatures() {
+        if (props == null || props.getFeatures() == null || props.getFeatures().isEmpty()) {
+            return Collections.emptyMap();
+        }
+        return new LinkedHashMap<>(props.getFeatures());
+    }
 }

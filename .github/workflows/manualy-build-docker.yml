@@ -48,6 +48,11 @@ on:
         required: true
         default: 'true'
         type: boolean
+      group-service:
+        description: 'Build group-service?'
+        required: true
+        default: 'true'
+        type: boolean
       extra-tag:
         description: 'Additional tag (optional)'
         required: false
@@ -77,6 +82,7 @@ jobs:
           if [ "${{ github.event.inputs.control-service }}" == "true" ]; then SERVICES+=("\"control-service\""); fi
           if [ "${{ github.event.inputs.subscription-service }}" == "true" ]; then SERVICES+=("\"subscription-service\""); fi
           if [ "${{ github.event.inputs.signal-service }}" == "true" ]; then SERVICES+=("\"signal-service\""); fi
+          if [ "${{ github.event.inputs.group-service }}" == "true" ]; then SERVICES+=("\"group-service\""); fi
           
           # join with commas, not spaces
           SERVICES_JOINED=$(IFS=, ; echo "${SERVICES[*]}")

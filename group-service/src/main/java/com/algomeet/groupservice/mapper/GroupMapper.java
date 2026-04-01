@@ -27,7 +27,16 @@ public class GroupMapper {
 		Set<Member> members = new HashSet<>();
 		if (req.getMembers() != null) {
 			for (MemberRequest memberReq : req.getMembers()) {
-				Member member = new Member(memberReq.getUserKey(), memberReq.getUsername());
+				Member member = null;
+				
+				if(memberReq.getRole() == null) {
+					member = new Member(memberReq.getUserKey(), 
+							memberReq.getUsername(), memberReq.getNikname());
+				} else {
+					member = new Member(memberReq.getUserKey(), 
+							memberReq.getUsername(), memberReq.getNikname(), memberReq.getRole());
+				}
+				
 				members.add(member);
 			}
 		}
@@ -55,6 +64,8 @@ public class GroupMapper {
 				MemberResponse memberResp = new MemberResponse();
 				memberResp.setUserKey(member.getUserKey());
 				memberResp.setUsername(member.getUsername());
+				memberResp.setNickname(member.getNickname());
+
 				memberResp.setRole(member.getRole());
 				members.add(memberResp);
 			}

@@ -121,7 +121,7 @@ class GroupControllerTest {
 	        .thenReturn(response);
 
 	    // Perform POST request
-	    mockMvc.perform(post("/groups/create")
+	    mockMvc.perform(post("/api/groups/create")
 	            .contentType(MediaType.APPLICATION_JSON)
 	            .content(objectMapper.writeValueAsString(request))
 	            .principal(authentication))
@@ -139,7 +139,7 @@ class GroupControllerTest {
 
 	@Test
 	void removeGroup_success() throws Exception {
-		mockMvc.perform(delete("/groups/{id}", 1L))
+		mockMvc.perform(delete("/api/groups/{id}", 1L))
 		.andExpect(status().isOk())
 		.andExpect(jsonPath("$.code").value(ResponseCode.SUCCESS.name()));
 
@@ -151,7 +151,7 @@ class GroupControllerTest {
 		doThrow(new GroupNotFoundException("not found"))
 		.when(groupService).removeGroup(1L);
 
-		mockMvc.perform(delete("/groups/{id}", 1L))
+		mockMvc.perform(delete("/api/groups/{id}", 1L))
 		.andExpect(status().isNotFound())
 		.andExpect(jsonPath("$.code")
 				.value(ResponseCode.GROUP_ID_NOT_FOUND.name()));
@@ -163,10 +163,10 @@ class GroupControllerTest {
 
 	@Test
 	void joinGroup_success() throws Exception {
-		when(groupService.joinGroup(1L, USERNAME, USER_KEY))
+		when(groupService.joinGroup(1L, USERNAME, USER_KEY, null))
 		.thenReturn(new GroupResponse());
 
-		mockMvc.perform(post("/groups/{id}/join", 1L)
+		mockMvc.perform(post("/api/groups/{id}/join", 1L)
 				.principal(authentication))
 		.andExpect(status().isOk())
 		.andExpect(jsonPath("$.code").value(ResponseCode.SUCCESS.name()));
@@ -174,10 +174,10 @@ class GroupControllerTest {
 
 	@Test
 	void joinGroup_alreadyMember() throws Exception {
-		when(groupService.joinGroup(any(), any(), any()))
+		when(groupService.joinGroup(any(), any(), any(), any()))
 		.thenThrow(new IllegalStateException());
 
-		mockMvc.perform(post("/groups/{id}/join", 1L)
+		mockMvc.perform(post("/api/groups/{id}/join", 1L)
 				.principal(authentication))
 		.andExpect(status().isConflict())
 		.andExpect(jsonPath("$.code")
@@ -207,18 +207,18 @@ class GroupControllerTest {
 	    request.setMembers(members);
 
 	    // Mock service behavior
-	    when(groupService.addGroupMembers(eq(1L), any()))
+	    when(groupService.addGroupMembers(eq(1L), any(), any()))
 	        .thenReturn(new GroupResponse());
 
 	    // Perform the POST request
-	    mockMvc.perform(post("/groups/{id}/add", 1L)
+	    mockMvc.perform(post("/api/groups/{id}/add", 1L)
 	            .contentType(MediaType.APPLICATION_JSON)
 	            .content(objectMapper.writeValueAsString(request)))
 	        .andExpect(status().isOk())
 	        .andExpect(jsonPath("$.code").value(ResponseCode.SUCCESS.name()));
 
 	    // Verify service call
-	    verify(groupService).addGroupMembers(eq(1L), any());
+	    verify(groupService).addGroupMembers(eq(1L), any(), any());
 	}
 
 
@@ -228,7 +228,7 @@ class GroupControllerTest {
 
 	@Test
 	void leaveGroup_success() throws Exception {
-		mockMvc.perform(delete("/groups/{id}/leave", 1L)
+		mockMvc.perform(delete("/api/groups/{id}/leave", 1L)
 				.principal(authentication))
 		.andExpect(status().isOk())
 		.andExpect(jsonPath("$.code").value(ResponseCode.SUCCESS.name()));
@@ -241,7 +241,7 @@ class GroupControllerTest {
 		doThrow(new IllegalStateException())
 		.when(groupService).leaveGroup(any(), any());
 
-		mockMvc.perform(delete("/groups/{id}/leave", 1L)
+		mockMvc.perform(delete("/api/groups/{id}/leave", 1L)
 				.principal(authentication))
 		.andExpect(status().isConflict())
 		.andExpect(jsonPath("$.code")
@@ -254,7 +254,7 @@ class GroupControllerTest {
 
 	@Test
 	void removeGroupMember_success() throws Exception {
-		mockMvc.perform(delete("/groups/{id}/remove", 1L)
+		mockMvc.perform(delete("/api/groups/{id}/remove", 1L)
 				.param("userKey", "u2"))
 		.andExpect(status().isOk())
 		.andExpect(jsonPath("$.code").value(ResponseCode.SUCCESS.name()));
@@ -271,7 +271,7 @@ class GroupControllerTest {
 		when(groupService.getMyGroups(USER_KEY))
 		.thenReturn(List.of(new GroupResponse()));
 
-		mockMvc.perform(get("/groups/mine")
+		mockMvc.perform(get("/api/groups/mine")
 				.principal(authentication))
 		.andExpect(status().isOk())
 		.andExpect(jsonPath("$.code").value(ResponseCode.SUCCESS.name()));
