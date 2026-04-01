@@ -13,14 +13,14 @@ import org.springframework.stereotype.Component;
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.enums.CallSessionMetadata;
-import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.enums.CallSessionRedisKey;
+import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
 import com.algomeet.xmpp.chatservice.service.OfflineMessageService;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
 
 import io.netty.channel.ChannelHandlerContext;
-import lombok.AllArgsConstructor;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -31,7 +31,7 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 @Component
-@AllArgsConstructor
+@RequiredArgsConstructor
 public class CallLifeCycleTracker {
 	private final StringRedisTemplate redisTemplate;
 	private final ClusterMessagePublisher clusterMessagePublisher;
@@ -62,7 +62,7 @@ public class CallLifeCycleTracker {
 		if (sid == null) return;
 
 		if (isInitiate) {
-			handleInitiate(to, from, xml, sid, principal.getTenantId());
+			handleInitiate(to, from, xml, sid, principal.getUsername(), principal.getTenantId());
 		} else if (isAccept) {
 			handleAccept(sid);
 		} else if (isTerminate) {
@@ -74,7 +74,7 @@ public class CallLifeCycleTracker {
 	 * Handles 'session-initiate'. Registers the call metadata and starts the 
 	 * countdown timer in Redis for the "Missed Call" worker.
 	 */
-	private void handleInitiate(String to, String from, String xml, String sid, Integer tenantId) {
+	private void handleInitiate(String to, String from, String xml, String sid, String username, Integer tenantId) {
 		// Calculate the exact epoch millisecond when the call should be considered "Missed"
 		long executeAt = System.currentTimeMillis() + (callRingingTimeoutSeconds * 1000);
 
@@ -90,6 +90,7 @@ public class CallLifeCycleTracker {
 		data.put(CallSessionMetadata.FROM.getKey(), from);
 		data.put(CallSessionMetadata.CALL_TYPE.getKey(), callType);
 		data.put(CallSessionMetadata.TENANT_ID.getKey(), tenantId.toString()); 
+		data.put(CallSessionMetadata.USERNAME.getKey(), username); 
 
 		redisTemplate.opsForHash().putAll(metaKey, data);
 
@@ -102,9 +103,14 @@ public class CallLifeCycleTracker {
 		log.info("Call [{}] initiated. SID: {}. Timeout scheduled in {}s", callType, sid, callRingingTimeoutSeconds);
 	}
 
-	private String getCallType(String sid) {
-		String metaKey = CallSessionRedisKey.CALL_PENDING_PREFIX.format(sid);
-		return (String) redisTemplate.opsForHash().get(metaKey, CallSessionMetadata.CALL_TYPE.getKey());
+	/**
+	 * Fetches multiple metadata fields in a single Redis round-trip.
+	 * Optimized to reduce network latency and command overhead.
+	 */
+	private Map<Object, Object> getSessionMetadata(String sid) {
+	    String metaKey = CallSessionRedisKey.CALL_PENDING_PREFIX.format(sid);
+	    // Fetch the entire hash at once
+	    return redisTemplate.opsForHash().entries(metaKey);
 	}
 
 	/**
@@ -122,18 +128,33 @@ public class CallLifeCycleTracker {
 	 * Identifies why the call ended (Rejected vs Canceled) and generates appropriate logs.
 	 */
 	private void handleTerminate(ChannelHandlerContext ctx, String to, String from, String xml, String sid) {
-		String callType = getCallType(sid);
+		// 1. Single round-trip to get all data
+	    Map<Object, Object> metadata = getSessionMetadata(sid);
+	    if (metadata == null) {
+	    	return;
+	    }
+	    	    
+		String callType = (String) metadata.get(CallSessionMetadata.CALL_TYPE.getKey());
 
 		// Kill the background timer first to prevent race conditions
 		handleResolution(sid);
 
 		// Case: User pressed the "Red Button" to decline an incoming call
 		if (xml.contains("<decline/>")) {
-			sendCallLog(ctx, from, to, sid, "rejected", "Call Declined", callType);
+			// 1. To Initiator: "The other person rejected your call"
+		    sendCallLog(ctx, from, to, sid, "rejected", "Call Declined", callType);
+		    
+		    // 2. To Responder (Self): "You rejected this call"
+		    sendCallLog(ctx, to, from, sid, "declined", "Call Declined", callType);		
 		} 
+		
 		// Case: Caller hung up before the recipient answered
 		else if (xml.contains("<cancel/>")) {
-			sendCallLog(ctx, from, to, sid, "canceled", "Missed Call", callType);
+			// 1. To Initiator (Self): "You canceled the call attempt"
+		    sendCallLog(ctx, to, from, sid, "canceled", "Call Canceled", callType);
+		    
+		    // 2. To Responder: "You missed an incoming call"
+		    sendCallLog(ctx, from, to, sid, "missed", "Missed Call", callType);
 		}
 	}
 

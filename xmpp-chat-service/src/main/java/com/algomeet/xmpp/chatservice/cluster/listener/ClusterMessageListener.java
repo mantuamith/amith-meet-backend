@@ -57,6 +57,8 @@ public class ClusterMessageListener {
                 message.getChatType(),
                 message.getPayload()
             );
+            
+            log.info("Received cluster sync message ID {}", message.getId());
         }
     }
 

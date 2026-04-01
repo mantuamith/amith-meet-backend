@@ -8,6 +8,9 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import com.algomeet.notificationservice.dto.Notification;
+import com.algomeet.notificationservice.enums.NotificationType;
+import com.algomeet.notificationservice.service.NotificationService;
 import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.enums.CallSessionMetadata;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
@@ -37,92 +40,113 @@ import lombok.extern.slf4j.Slf4j;
 @AllArgsConstructor
 public class MissedCallScheduler {
 
-    private final StringRedisTemplate redisTemplate;
+	private final StringRedisTemplate redisTemplate;
 	private final ClusterMessagePublisher clusterMessagePublisher;
 	private final OfflineMessageService offlineMessageService;
+	private final NotificationService notificationService;
 
-    /**
-     * Polls Redis every second for tasks that have "matured" 
-     * (score <= current timestamp). 
-     * * <p>Note: Redis operations here are O(log(N) + M), which is highly efficient even 
-     * with thousands of concurrent pending calls.</p>
-     */
-    @Scheduled(fixedDelay = 1000)
-    public void processExpiredCalls() {
-        long now = System.currentTimeMillis();
+	/**
+	 * Polls Redis every second for tasks that have "matured" 
+	 * (score <= current timestamp). 
+	 * * <p>Note: Redis operations here are O(log(N) + M), which is highly efficient even 
+	 * with thousands of concurrent pending calls.</p>
+	 */
+	@Scheduled(fixedDelay = 1000)
+	public void processExpiredCalls() {
+		long now = System.currentTimeMillis();
 
-        // 1. Fetch all Session IDs (SIDs) where the timeout threshold has been reached.
-        Set<String> expiredSids = redisTemplate.opsForZSet().rangeByScore(CallSessionRedisKey.DELAYED_QUEUE.getVal(), 0, now);
+		// 1. Fetch all Session IDs (SIDs) where the timeout threshold has been reached.
+		Set<String> expiredSids = redisTemplate.opsForZSet().rangeByScore(CallSessionRedisKey.DELAYED_QUEUE.getVal(), 0, now);
 
-        if (expiredSids == null || expiredSids.isEmpty()) {
-            return;
-        }
+		if (expiredSids == null || expiredSids.isEmpty()) {
+			return;
+		}
 
-        for (String sid : expiredSids) {
-            // 2. ATOMIC LOCK: Attempt to remove the SID from the ZSET.
-            // Redis is single-threaded; only the first node to execute this 'remove' will 
-            // receive a return value > 0. This prevents duplicate 'Missed Call' logs.
-            Long removed = redisTemplate.opsForZSet().remove(CallSessionRedisKey.DELAYED_QUEUE.getVal(), sid);
-            
-            if (removed != null && removed > 0) {
-                processMissedCall(sid);
-            }
-        }
-    }
+		for (String sid : expiredSids) {
+			try {
+				// 2. ATOMIC LOCK: Attempt to remove the SID from the ZSET.
+				// Redis is single-threaded; only the first node to execute this 'remove' will 
+				// receive a return value > 0. This prevents duplicate 'Missed Call' logs.
+				Long removed = redisTemplate.opsForZSet().remove(CallSessionRedisKey.DELAYED_QUEUE.getVal(), sid);
 
-    /**
-     * Retrieves session details from Redis and initiates the missed call notification flow.
-     * * @param sid The unique Jingle Session ID to process.
-     */
-    private void processMissedCall(String sid) {
-        // Construct the key for the metadata Hash stored during handleInitiate()
-        String metaKey = CallSessionRedisKey.CALL_PENDING_PREFIX.format(sid);
-        
-        // 3. Retrieve metadata from Redis Hash
-        Map<Object, Object> metadata = redisTemplate.opsForHash().entries(metaKey);
-        
-        if (metadata.isEmpty()) {
-            // This happens if the metadata TTL expired or if the call was resolved 
-            // but the ZSET entry wasn't cleared correctly.
-            log.warn("Found expired SID {} in ZSET, but metadata Hash was already empty.", sid);
-            return;
-        }
+				if (removed != null && removed > 0) {
+					processMissedCall(sid);
+				}
+			} catch(Exception ex){
+				log.error("Error processing missed call task {}, {}", sid, ex.getMessage(), ex);
+			}
+		}
+	}
 
-        String to = (String) metadata.get(CallSessionMetadata.TO.getKey());
-        String from = (String) metadata.get(CallSessionMetadata.FROM.getKey());
-        String type = (String) metadata.get(CallSessionMetadata.CALL_TYPE.getKey());
+	/**
+	 * Retrieves session details from Redis and initiates the missed call notification flow.
+	 * * @param sid The unique Jingle Session ID to process.
+	 */
+	private void processMissedCall(String sid) {
+		// Construct the key for the metadata Hash stored during handleInitiate()
+		String metaKey = CallSessionRedisKey.CALL_PENDING_PREFIX.format(sid);
 
-        log.info("Call session {} timed out. Sending Missed Call log to recipient: {}", sid, to);
+		// 3. Retrieve metadata from Redis Hash
+		Map<Object, Object> metadata = redisTemplate.opsForHash().entries(metaKey);
 
-        // 4. Build and dispatch the XMPP Headline Stanza
-        sendMissedCallStanza(from, to, sid, type);
+		if (metadata.isEmpty()) {
+			// This happens if the metadata TTL expired or if the call was resolved 
+			// but the ZSET entry wasn't cleared correctly.
+			log.warn("Found expired SID {} in ZSET, but metadata Hash was already empty.", sid);
+			return;
+		}
 
-        // 5. Cleanup: Manually remove the metadata hash to free Redis memory immediately
-        redisTemplate.delete(metaKey);
-    }
+		String to = (String) metadata.get(CallSessionMetadata.TO.getKey());
+		String from = (String) metadata.get(CallSessionMetadata.FROM.getKey());
+		String type = (String) metadata.get(CallSessionMetadata.CALL_TYPE.getKey());
+		String tenantId = (String) metadata.get(CallSessionMetadata.TENANT_ID.getKey());
+		String username = (String) metadata.get(CallSessionMetadata.USERNAME.getKey());
 
-    /**
-     * Constructs the XEP-compliant XML stanza and routes it through persistence and cluster pub/sub.
-     */
-    private void sendMissedCallStanza(String from, String to, String sid, String type) {
-        String id = java.util.UUID.randomUUID().toString();
-        String timestamp = Instant.now().toString();
+		log.info("Call session {} timed out. Sending Missed Call log to recipient: {}", sid, to);
 
-        // XML structure for AlgoMeet call logging (urn:xmpp:algomeet:calls)
-        String xml = String.format(
-            "<message from='%s' to='%s' type='headline' id='%s'>" +
-            "<subject>Missed %s Call</subject>" +
-            "<body>Missed %s call</body>" +
-            "<call-log xmlns='urn:xmpp:algomeet:calls' type='%s' status='missed' timestamp='%s' sid='%s'/>" +
-            "</message>",
-            from, to, id, type, type, type, timestamp, sid
-        );
-        
-        String toUserKey = XmppUtil.getUserKey(to);
+		// 4. Build and dispatch the XMPP Headline Stanza
+		// Send to call responder
+		sendMissedCallStanza(from, to, sid, type);
+		// Missed call notification
+		String toUserKey = XmppUtil.getUserKey(to);
+		String title = "Missed " + type + " Call";
+		String body = String.format("Missed %s call from %s", type, username);
+
+		sendPush(toUserKey,  
+				"video".equalsIgnoreCase(type) ? NotificationType.VIDEO_MISSED_CALL : NotificationType.AUDIO_MISSED_CALL, 
+						title, 
+						body, 
+						Integer.parseInt(tenantId));
+
+		// Send to call initiator
+		sendMissedCallStanza(to, from, sid, type);
+
+		// 5. Cleanup: Manually remove the metadata hash to free Redis memory immediately
+		redisTemplate.delete(metaKey);
+	}
+
+	/**
+	 * Constructs the XEP-compliant XML stanza and routes it through persistence and cluster pub/sub.
+	 */
+	private void sendMissedCallStanza(String from, String to, String sid, String type) {
+		String id = java.util.UUID.randomUUID().toString();
+		String timestamp = Instant.now().toString();
+
+		// XML structure for AlgoMeet call logging (urn:xmpp:algomeet:calls)
+		String xml = String.format(
+				"<message from='%s' to='%s' type='headline' id='%s'>" +
+						"<subject>Missed %s Call</subject>" +
+						"<body>Missed %s call</body>" +
+						"<call-log xmlns='urn:xmpp:algomeet:calls' type='%s' status='missed' timestamp='%s' sid='%s'/>" +
+						"</message>",
+						from, to, id, type, type, type, timestamp, sid
+				);
+
+		String toUserKey = XmppUtil.getUserKey(to);
 		String fromUserKey = XmppUtil.getUserKey(from);
 
 		// A. Persist to MongoDB for Offline users. 
-        // This ensures the user sees the 'Missed Call' even if they log in much later.
+		// This ensures the user sees the 'Missed Call' even if they log in much later.
 		offlineMessageService.save(id, toUserKey, fromUserKey, XmppMessageType.HEADLINE.getXmlValue(), xml)
 		.doOnError(e -> {
 			log.error("Failed to persist missed call log for SID {}: {}", sid, e.getMessage());
@@ -130,9 +154,23 @@ public class MissedCallScheduler {
 		.subscribe();
 
 		// B. Publish to Cluster Redis Pub/Sub.
-        // If the recipient is currently online on another node, this delivers the log in real-time.
+		// If the recipient is currently online on another node, this delivers the log in real-time.
 		clusterMessagePublisher.convertAndSendToUser(id, toUserKey, fromUserKey, ChatType.CHAT, xml);
-        
+
 		log.debug("Successfully published Missed Call stanza for SID: {}", sid);
-    }
+	}
+
+	/**
+	 * Forwards the notification request to the notification microservice.
+	 */
+	private void sendPush(String to, NotificationType type, String title, String body, Integer tenantId) {        
+		Notification notif = Notification.builder()
+				.receiverIds(Set.of(to))
+				.type(type)
+				.title(title)
+				.body(body)
+				.tenantId(tenantId)
+				.build();
+		notificationService.sendPush(notif);
+	}
 }
