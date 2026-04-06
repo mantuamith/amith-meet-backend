@@ -36,9 +36,7 @@ public class XmppStanzaMucUtil {
 	        bareRoomJid = roomJid.substring(0, slashIndex);
 	    }
 
-	    String nickname = (sender.getNickname() != null && !sender.getNickname().isBlank()) 
-	                      ? sender.getNickname() 
-	                      : sender.getUsername();
+	    String nickname = sender.getUserKey();
 
 	    return bareRoomJid + "/" + nickname;
 	}

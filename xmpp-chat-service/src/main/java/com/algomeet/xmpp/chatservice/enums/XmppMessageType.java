@@ -19,10 +19,9 @@ public enum XmppMessageType {
     CHAT("chat", true),
 
     /**
-     * Multi-user chat messages. SHOULD NOT be stored offline in the user's personal box 
-     * (MUC archive handles this instead).
+     * Multi-user chat messages. (MUC archive handles this instead).
      */
-    GROUPCHAT("groupchat", false),
+    GROUPCHAT("groupchat", true),
 
     /**
      * Time-sensitive alerts/news. 

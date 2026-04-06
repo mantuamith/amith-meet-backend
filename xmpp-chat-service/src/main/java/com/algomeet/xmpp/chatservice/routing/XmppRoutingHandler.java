@@ -21,6 +21,7 @@ import com.algomeet.xmpp.chatservice.routing.state.XmppUserStateHandler;
 import com.algomeet.xmpp.chatservice.service.OfflineMessageService;
 import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
+import com.algomeet.xmpp.chatservice.util.XmppStreamManagementUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
 
 import io.netty.channel.ChannelHandler;
@@ -139,7 +140,7 @@ public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocke
                 	xmppMamHandler.handleMamRequest(ctx, toJid, xml);
                 } else {
                 	xmppDiscoveryHandler.handleQuery(ctx, xml);
-                }
+                }     
             }
 
         } catch (XMLStreamException e) {

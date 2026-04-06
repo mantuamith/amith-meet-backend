@@ -147,4 +147,39 @@ public class XmppStanzaUtil {
 		}
 		return false;
 	}
+	
+	
+	/**
+     * Extracts an attribute value from a specific tag.
+     * Example: getAttribute(xml, "item", "nick") returns "pistol"
+     */
+    public static String getAttribute(String xml, String tagName, String attributeName) {
+        if (!StringUtils.hasText(xml)) return null;
+
+        // Regex explanation:
+        // <tagName[^>]* -> Find the start of the tag
+        // attributeName=['\"] -> Find the attribute key followed by ' or "
+        // ([^'\"]+) -> Capture the value until the closing quote
+        String regex = "<" + Pattern.quote(tagName) + "[^>]*\\s" + 
+                       Pattern.quote(attributeName) + "=['\"]([^'\"]+)['\"]";
+        
+        Pattern pattern = Pattern.compile(regex);
+        Matcher matcher = pattern.matcher(xml);
+
+        return matcher.find() ? matcher.group(1) : null;
+    }
+
+    /**
+     * Extracts the text content of a direct child tag.
+     * Example: getTagContent(xml, "reason") returns "Avaunt, you cullion!"
+     */
+    public static String getTagContent(String xml, String tagName) {
+        if (!StringUtils.hasText(xml)) return null;
+
+        String regex = "<" + Pattern.quote(tagName) + ">([^<]+)</" + Pattern.quote(tagName) + ">";
+        Pattern pattern = Pattern.compile(regex);
+        Matcher matcher = pattern.matcher(xml);
+
+        return matcher.find() ? matcher.group(1) : null;
+    }
 }

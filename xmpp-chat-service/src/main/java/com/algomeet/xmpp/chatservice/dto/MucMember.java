@@ -10,4 +10,5 @@ public class MucMember { // or ChatMember
     private String userKey;
     private String username;
     private String nickname;
+    private String role;
 }

@@ -30,6 +30,7 @@ import com.algomeet.xmpp.chatservice.session.model.UserSession;
 import com.algomeet.xmpp.chatservice.stanza.StreamAck;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaMucUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
+import com.algomeet.xmpp.chatservice.util.XmppStreamManagementUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
 import com.github.f4b6a3.ulid.Ulid;
 import com.github.f4b6a3.ulid.UlidCreator;
@@ -71,7 +72,8 @@ public class XmppMucHandler {
 	 */
 	public void handleGroupChatRouting(ChannelHandlerContext ctx, String id, String roomJid, String fromJid, String type, String originalXml) {
 		XmppPrincipal principal = ctx.channel().attr(XmppSessionAttributes.PRINCIPAL).get();
-
+        XmppMessageType msgType = XmppMessageType.fromString(type);
+        
 		String roomId = XmppUtil.getRoomId(roomJid);
 		String updatedXml = originalXml;
 
@@ -79,7 +81,7 @@ public class XmppMucHandler {
 		String xmlHeader = originalXml.substring(0, Math.min(originalXml.length(), 500));
 
 		// 1. ARCHIVING & STREAM MANAGEMENT (XEP-0198 / XEP-0313)
-		if(XmppStanzaUtil.isArchiveable(xmlHeader, originalXml)) {
+		if(msgType.supportsOfflineStorage() && XmppStanzaUtil.isArchiveable(xmlHeader, originalXml)) {
 			StanzaInfo info = GroupChatParser.parse(originalXml);
 			Ulid ulid = UlidCreator.getMonotonicUlid();
 			String ulidString = ulid.toLowerCase();
@@ -95,12 +97,8 @@ public class XmppMucHandler {
 			xmppArchiveService.archiveEvent(updatedXml, info, roomId, fromJid, ulidString)
 			.doOnSuccess(saved -> {
 				// XEP-0198: Increment the inbound handled count and send 'h' ack to the sender
-				AtomicLong handledCount = ctx.channel().attr(XmppSessionAttributes.SM_INBOUND_H_KEY).get();
-
-				if (handledCount != null) {
-					long h = handledCount.incrementAndGet();
-					ctx.writeAndFlush(new TextWebSocketFrame(new StreamAck(h).toXml()));
-				}
+				XmppStreamManagementUtil.incrementAndSendInboundH(ctx);
+				
 				log.debug("Event archived [{}]: category={}", id, info.getCategory());
 			})
 			.doOnError(e -> {
@@ -108,6 +106,9 @@ public class XmppMucHandler {
 				XmppUtil.sendError(ctx, id, roomJid, fromJid, XmppErrorConditions.INTERNAL_SERVER_ERROR, "Storage failure");
 			})
 			.subscribe();
+		} else {
+			// XEP-0198: Increment the inbound handled count and send 'h' ack to the sender
+			XmppStreamManagementUtil.incrementAndSendInboundH(ctx);
 		}
 
 		try {
@@ -130,7 +131,7 @@ public class XmppMucHandler {
 			} else  if (XmppMessageType.SET == XmppMessageType.fromString(type) 
 					&& xmlHeader.contains("http://jabber.org/protocol/muc#admin")) {
 				// Handle Moderation (Kick, Ban, Mute)
-				mucAdminHandler.handleAdminStanza(ctx, roomJid, principal.getBareJid(), originalXml);
+				mucAdminHandler.handleAdminStanza(ctx, roomJid, principal.getBareJid(), originalXml, group, senderMucMember.get());
 			} else {
 				// Standard message forwarding logic				
 				handleReq(ctx, id, roomJid, fromJid, group, senderMucMember.get(),
@@ -147,24 +148,16 @@ public class XmppMucHandler {
 	 */
 	private void handleReq(ChannelHandlerContext ctx, String id, String roomJid, String fromJid, MucRoomDto group, 
 			MucMember senderMucMember, String xmlHeader, String originalXml, String updatedXml) {
-
 		XmppPrincipal principal = ctx.channel().attr(XmppSessionAttributes.PRINCIPAL).get();
 
 		for(MucMember receiverMucMember : group.getMembers()) {
 			String toUserKey = receiverMucMember.getUserKey();
-
-			// MUC Reflection: The server usually reflects the message back to the sender,
-			// but here we skip to prevent duplicate local echoing if handled by the client UI.
-			if (toUserKey.equals(principal.getUserKey())) {
-			//	continue;
-			}
 
 			// Determine recipient connectivity state
 			Set<UserSession> userSessions = userSessionRegistry.getSessions(toUserKey);
 			boolean hasSessions = !CollectionUtils.isEmpty(userSessions);
 			boolean hasActiveSession = hasSessions && userSessions.stream()
 					.anyMatch(s -> UserState.ACTIVE == s.getState());
-
 
 			/*
 			 * JID REWRITING:

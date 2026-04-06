@@ -24,6 +24,7 @@ import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
 import com.algomeet.xmpp.chatservice.session.model.UserSession;
 import com.algomeet.xmpp.chatservice.stanza.StreamAck;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
+import com.algomeet.xmpp.chatservice.util.XmppStreamManagementUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
 
 import io.netty.channel.ChannelHandler;
@@ -63,20 +64,17 @@ public class XmppChatHandler {
         if (msgType.supportsOfflineStorage() && XmppStanzaUtil.isArchiveable(xmlHeader, originalXml)) {
             offlineMessageService.save(id, toUserKey, fromUserKey, type, originalXml)
                 .doOnSuccess(savedDoc -> {
-                    // Acknowledge receipt to the sender (Server -> Client 'h' update)
-                	AtomicBoolean isEnabledSm = ctx.channel().attr(XmppSessionAttributes.SM_INBOUND_H_ENABLED_KEY).get();
-                    AtomicLong handledCount = ctx.channel().attr(XmppSessionAttributes.SM_INBOUND_H_KEY).get();
-                    
-                    if (isEnabledSm != null && isEnabledSm.get() && handledCount != null) {
-                        long h = handledCount.incrementAndGet();
-                        ctx.writeAndFlush(new TextWebSocketFrame(new StreamAck(h).toXml()));
-                    }
+                	// XEP-0198: Increment the inbound handled count and send 'h' ack to the sender
+        			XmppStreamManagementUtil.incrementAndSendInboundH(ctx);                    
                 })
                 .doOnError(e -> {
                     log.error("Storage failure for message {}: {}", id, e.getMessage(), e);
                     XmppUtil.sendError(ctx, id, toJid, fromJid, XmppErrorConditions.INTERNAL_SERVER_ERROR, "Storage failure");
                 })
                 .subscribe();
+        } else {
+        	// XEP-0198: Increment the inbound handled count and send 'h' ack to the sender
+			XmppStreamManagementUtil.incrementAndSendInboundH(ctx);  
         }
 
         // 2. Cluster Routing & Notification Logic
