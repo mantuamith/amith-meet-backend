@@ -1,4 +1,4 @@
-package com.algomeet.xmpp.chatservice.session;
+package com.algomeet.xmpp.chatservice.session.constant;
 
 import io.netty.channel.Channel;
 import io.netty.util.AttributeKey;

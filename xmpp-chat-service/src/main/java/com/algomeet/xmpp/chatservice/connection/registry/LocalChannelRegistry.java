@@ -1,4 +1,4 @@
-package com.algomeet.xmpp.chatservice.session;
+package com.algomeet.xmpp.chatservice.connection.registry;
 
 import io.netty.channel.Channel;
 import jakarta.annotation.PreDestroy;
@@ -13,7 +13,7 @@ import java.util.Map;
 /**
  * <p>Manages the physical lifecycle of active Netty {@link Channel} connections 
  * on the local server instance.</p>
- * * <p>The {@code XmppSessionManager} acts as a local lookup table that maps a 
+ * * <p>The {@code LocalChannelRegistry} acts as a local lookup table that maps a 
  * unique user identifier (userKey) to their corresponding WebSocket channel. 
  * This is critical for <b>final-mile delivery</b>: once a message is routed 
  * to the correct server node, this manager is used to find the pipe that 
@@ -31,7 +31,7 @@ import java.util.Map;
  */
 @Component
 @Slf4j
-public class XmppSessionManager {
+public class LocalChannelRegistry {
     
     /**
      * Internal thread-safe map storing active local connections.

@@ -1,4 +1,4 @@
-package com.algomeet.xmpp.chatservice.routing.handler;
+package com.algomeet.xmpp.chatservice.routing.muc;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -6,7 +6,7 @@ import org.springframework.util.StringUtils;
 
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.service.XmppArchiveService;
-import com.algomeet.xmpp.chatservice.session.XmppSessionAttributes;
+import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
 
 import io.netty.channel.ChannelHandlerContext;

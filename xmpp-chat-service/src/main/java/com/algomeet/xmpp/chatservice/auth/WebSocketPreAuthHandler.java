@@ -9,7 +9,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import com.algomeet.xmpp.chatservice.constant.Constants;
-import com.algomeet.xmpp.chatservice.session.XmppSessionAttributes;
+import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
 import com.algomeet.xmpp.chatservice.util.JwtUtil;
 
 import io.netty.buffer.Unpooled;

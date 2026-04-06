@@ -1,12 +1,14 @@
-package com.algomeet.xmpp.chatservice.routing.handler;
+package com.algomeet.xmpp.chatservice.routing.state;
 
 import org.springframework.stereotype.Component;
 
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.enums.UserState;
 import com.algomeet.xmpp.chatservice.parser.StateStanzaParser;
+import com.algomeet.xmpp.chatservice.routing.chat.OfflineMessageHandler;
 import com.algomeet.xmpp.chatservice.session.UserSessionRegistry;
-import com.algomeet.xmpp.chatservice.session.XmppSessionAttributes;
+import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
+import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.util.Attribute;
@@ -34,7 +36,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class XmppSessionLifecycleHandler {
+public class XmppUserStateHandler {
 
     private final UserSessionRegistry userSessionRegistry;
     private final OfflineMessageHandler offlineMessageHandler;
@@ -48,7 +50,7 @@ public class XmppSessionLifecycleHandler {
      * @param principal The authenticated user identity.
      * @param xml       The raw XML stanza content.
      */
-    public void processPresenceAndActivateSession(ChannelHandlerContext ctx, XmppPrincipal principal, String xml) {
+    public void processPresence(ChannelHandlerContext ctx, XmppPrincipal principal, String xml) {
         UserState newState = determineState(xml);
         if (newState == null) return;
 
@@ -73,7 +75,8 @@ public class XmppSessionLifecycleHandler {
     private UserState determineState(String xml) {
     	// Guard clause: ignore stanzas that are not Presence or Chat State notifications
     	try {
-    		if (xml.contains("<presence")) {
+    		
+    		if (XmppStanzaUtil.isPresenceStanza(xml)) {
     			return StateStanzaParser.determineState(xml);
     		}
     	} catch(Exception ex) {

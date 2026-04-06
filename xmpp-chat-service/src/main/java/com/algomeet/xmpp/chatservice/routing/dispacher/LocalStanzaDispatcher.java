@@ -1,12 +1,12 @@
-package com.algomeet.xmpp.chatservice.routing.handler;
+package com.algomeet.xmpp.chatservice.routing.dispacher;
 
 import java.util.concurrent.atomic.AtomicLong;
 import org.springframework.stereotype.Component;
 
+import com.algomeet.xmpp.chatservice.connection.registry.LocalChannelRegistry;
+import com.algomeet.xmpp.chatservice.connection.stream.XmppStreamManagementBuffer;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
-import com.algomeet.xmpp.chatservice.session.XmppSessionAttributes;
-import com.algomeet.xmpp.chatservice.session.XmppSessionManager;
-import com.algomeet.xmpp.chatservice.session.XmppStreamAckTracker;
+import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
 
 import io.netty.channel.Channel;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
@@ -18,14 +18,14 @@ import lombok.extern.slf4j.Slf4j;
  * 
  * <p>The {@code LocalStanzaDispatcher} is the final step in the routing chain for 
  * "Local-to-Local" or "Remote-to-Local" delivery. It retrieves the active Netty 
- * {@link Channel} from the {@link XmppSessionManager} and pushes the XML payload 
+ * {@link Channel} from the {@link LocalChannelRegistry} and pushes the XML payload 
  * over the WebSocket.</p>
  * 
  * <p><b>Protocol Responsibilities:</b></p>
  * <ul>
  *     <li><b>Reliable Delivery (XEP-0198):</b> Every dispatched stanza is assigned a 
  *         monotonically increasing sequence number ({@code smOutboundH}).</li>
- *     <li><b>Ack Tracking:</b> Stanzas are registered with the {@link XmppStreamAckTracker} 
+ *     <li><b>Ack Tracking:</b> Stanzas are registered with the {@link XmppStreamManagementBuffer} 
  *         before being flushed, allowing the server to handle potential reconnection 
  *         resumptions or delivery confirmations.</li>
  *     <li><b>Session Validation:</b> Verifies that the target channel is active and 
@@ -39,8 +39,8 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class LocalStanzaDispatcher {
 
-	private final XmppSessionManager sessionManager; 
-	private final XmppStreamAckTracker xmppStreamAckTracker;
+	private final LocalChannelRegistry localChannelRegistry; 
+	private final XmppStreamManagementBuffer xmppStreamAckTracker;
 
 	/**
 	 * Routes a stanza to a specific local user session.
@@ -51,7 +51,7 @@ public class LocalStanzaDispatcher {
 	 * @param originalXml The raw XML content to be delivered.
 	 */
 	public void dispatchLocally(String to, String from, String id, ChatType chatType, String originalXml) {
-		Channel targetChannel = sessionManager.getChannel(to);
+		Channel targetChannel = localChannelRegistry.getChannel(to);
 
 		if (targetChannel == null || !targetChannel.isActive()) {
 			log.debug("Routing failed: No active local channel found for JID: {}", to);

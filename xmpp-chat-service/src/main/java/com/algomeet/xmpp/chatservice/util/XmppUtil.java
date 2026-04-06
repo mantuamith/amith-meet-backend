@@ -24,7 +24,7 @@ public class XmppUtil {
 			return null;
 		}
 		
-		return fullJid.trim().split(DOMAIN_SEPARATOR, 2)[0].trim();
+		return fullJid.trim().split(DOMAIN_SEPARATOR, 2)[0].trim().toLowerCase();
 	}
 	
 	public static String getRoomId(String roomJid) {

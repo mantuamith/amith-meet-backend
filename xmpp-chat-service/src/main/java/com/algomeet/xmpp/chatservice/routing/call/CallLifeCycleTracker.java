@@ -1,4 +1,4 @@
-package com.algomeet.xmpp.chatservice.routing.handler;
+package com.algomeet.xmpp.chatservice.routing.call;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -16,6 +16,7 @@ import com.algomeet.xmpp.chatservice.enums.CallSessionMetadata;
 import com.algomeet.xmpp.chatservice.enums.CallSessionRedisKey;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
+import com.algomeet.xmpp.chatservice.service.CallTrackerService;
 import com.algomeet.xmpp.chatservice.service.OfflineMessageService;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
 
@@ -36,6 +37,7 @@ public class CallLifeCycleTracker {
 	private final StringRedisTemplate redisTemplate;
 	private final ClusterMessagePublisher clusterMessagePublisher;
 	private final OfflineMessageService offlineMessageService;
+	private final CallTrackerService callTrackerService;
 
 	@Value("${call.session-metadata-ttl-minutes:10}")
 	private Integer callSessionMetadataTtlMinutes;
@@ -52,21 +54,21 @@ public class CallLifeCycleTracker {
 	/**
 	 * Entry point for analyzing incoming XMPP stanzas for Jingle signaling actions.
 	 */
-	public void track(ChannelHandlerContext ctx, String to, String from, String xml, XmppPrincipal principal) {
+	public void track(ChannelHandlerContext ctx, String toJid, String fromJid, String xml, XmppPrincipal principal) {
 		// Detect specific Jingle actions defined in XEP-0166
-		boolean isInitiate = xml.contains("urn:xmpp:jingle:1") && xml.contains("session-initiate");
-		boolean isAccept = xml.contains("urn:xmpp:jingle:1") && xml.contains("session-accept");
-		boolean isTerminate = xml.contains("urn:xmpp:jingle:1") && xml.contains("session-terminate");
+		boolean isInitiate = xml.contains("session-initiate");
+		boolean isAccept = xml.contains("session-accept");
+		boolean isTerminate = xml.contains("session-terminate");
 
 		String sid = extractSid(xml);
 		if (sid == null) return;
 
 		if (isInitiate) {
-			handleInitiate(to, from, xml, sid, principal.getUsername(), principal.getTenantId());
+			handleInitiate(toJid, fromJid, xml, sid, principal);
 		} else if (isAccept) {
-			handleAccept(sid);
+			handleAccept(sid, principal.getSessionId());
 		} else if (isTerminate) {
-			handleTerminate(ctx, to, from, xml, sid);
+			handleTerminate(ctx, toJid, fromJid, xml, sid);
 		}
 	}
 
@@ -74,7 +76,7 @@ public class CallLifeCycleTracker {
 	 * Handles 'session-initiate'. Registers the call metadata and starts the 
 	 * countdown timer in Redis for the "Missed Call" worker.
 	 */
-	private void handleInitiate(String to, String from, String xml, String sid, String username, Integer tenantId) {
+	private void handleInitiate(String toJid, String fromJid, String xml, String sid, XmppPrincipal principal) {
 		// Calculate the exact epoch millisecond when the call should be considered "Missed"
 		long executeAt = System.currentTimeMillis() + (callRingingTimeoutSeconds * 1000);
 
@@ -86,11 +88,11 @@ public class CallLifeCycleTracker {
 		// This is the source of truth for the background worker if the call times out.
 		String metaKey = CallSessionRedisKey.CALL_PENDING_PREFIX.format(sid);
 		Map<String, String> data = new HashMap<>();
-		data.put(CallSessionMetadata.TO.getKey(), to);
-		data.put(CallSessionMetadata.FROM.getKey(), from);
+		data.put(CallSessionMetadata.TO.getKey(), toJid);
+		data.put(CallSessionMetadata.FROM.getKey(), fromJid);
 		data.put(CallSessionMetadata.CALL_TYPE.getKey(), callType);
-		data.put(CallSessionMetadata.TENANT_ID.getKey(), tenantId.toString()); 
-		data.put(CallSessionMetadata.USERNAME.getKey(), username); 
+		data.put(CallSessionMetadata.TENANT_ID.getKey(), principal.getTenantId().toString()); 
+		data.put(CallSessionMetadata.USERNAME.getKey(), principal.getUsername()); 
 
 		redisTemplate.opsForHash().putAll(metaKey, data);
 
@@ -101,6 +103,9 @@ public class CallLifeCycleTracker {
 		// The 'score' is the expiration time; the worker polls for scores <= current time.
 		redisTemplate.opsForZSet().add(CallSessionRedisKey.DELAYED_QUEUE.getVal(), sid, executeAt);
 		log.info("Call [{}] initiated. SID: {}. Timeout scheduled in {}s", callType, sid, callRingingTimeoutSeconds);
+		
+		// Track call initiation for duration calculation
+		callTrackerService.trackInitiation(sid, principal.getUserKey(), principal.getSessionId(), XmppUtil.getUserKey(toJid), callType);
 	}
 
 	/**
@@ -118,16 +123,19 @@ public class CallLifeCycleTracker {
 	 * Crucial: We must remove the SID from Redis immediately so the MissedCallScheduler 
 	 * doesn't send a "Missed Call" notification for an active conversation.
 	 */
-	private void handleAccept(String sid) {
+	private void handleAccept(String sid, String calleeSid) {
 		log.info("Call accepted for SID: {}. Killing timeout timer.", sid);
 		handleResolution(sid);
+		
+		// Track call acceptance for duration calculation
+		callTrackerService.trackAcceptance(sid, calleeSid);
 	}
 
 	/**
 	 * Handles 'session-terminate'. 
 	 * Identifies why the call ended (Rejected vs Canceled) and generates appropriate logs.
 	 */
-	private void handleTerminate(ChannelHandlerContext ctx, String to, String from, String xml, String sid) {
+	private void handleTerminate(ChannelHandlerContext ctx, String toJid, String fromJid, String xml, String sid) {
 		// 1. Single round-trip to get all data
 	    Map<Object, Object> metadata = getSessionMetadata(sid);
 	    if (metadata == null) {
@@ -140,21 +148,61 @@ public class CallLifeCycleTracker {
 		handleResolution(sid);
 
 		// Case: User pressed the "Red Button" to decline an incoming call
-		if (xml.contains("<decline/>")) {
+		if (xml.contains("<success/>")) {			
+			// Set terminated call
+			callTrackerService.trackTermination(sid);
+			
+			// Calculate and send call logs
+			callTrackerService.finalizeAndNotify(sid, "success");
+		}
+		else if (xml.contains("<decline/>")) {
 			// 1. To Initiator: "The other person rejected your call"
-		    sendCallLog(ctx, from, to, sid, "rejected", "Call Declined", callType);
+		    sendCallLog(ctx, fromJid, toJid, sid, "rejected", "Call Declined", callType);
 		    
 		    // 2. To Responder (Self): "You rejected this call"
-		    sendCallLog(ctx, to, from, sid, "declined", "Call Declined", callType);		
-		} 
-		
+		    sendCallLog(ctx, toJid, fromJid, sid, "declined", "Call Declined", callType);		
+		    
+		    // Remove call session for declined call
+			callTrackerService.remove(sid).subscribe();
+		} 		
 		// Case: Caller hung up before the recipient answered
 		else if (xml.contains("<cancel/>")) {
 			// 1. To Initiator (Self): "You canceled the call attempt"
-		    sendCallLog(ctx, to, from, sid, "canceled", "Call Canceled", callType);
+		    sendCallLog(ctx, toJid, fromJid, sid, "canceled", "Call Canceled", callType);
 		    
 		    // 2. To Responder: "You missed an incoming call"
-		    sendCallLog(ctx, from, to, sid, "missed", "Missed Call", callType);
+		    sendCallLog(ctx, fromJid, toJid, sid, "missed", "Missed Call", callType);
+		    
+		    // Remove call session for canceled call
+		    callTrackerService.remove(sid);
+		}	
+		else if (xml.contains("<busy/>")) {
+			// 1. To Initiator (Self): "You missed an incoming call"
+			sendCallLog(ctx, toJid, fromJid, sid, "missed", "Line Busy", callType);
+
+			// 2. To Responder: "You missed an incoming call"
+			sendCallLog(ctx, fromJid, toJid, sid, "missed", "Line Busy", callType);
+
+			// Remove call session for busy call
+			callTrackerService.remove(sid);
+		} else if (xml.contains("<alternative-session>")) {
+			// 1. To Initiator (Self): "You missed an incoming call"
+			sendCallLog(ctx, toJid, fromJid, sid, "missed", "Alternative Session", callType);
+
+			// 2. To Responder: "You missed an incoming call"
+			sendCallLog(ctx, fromJid, toJid, sid, "missed", "Alternative Session", callType);
+
+			// Remove call session for busy call
+			callTrackerService.remove(sid);
+		} else if (xml.contains("<unsupported-transports/>")) {
+			// 1. To Initiator (Self): "You missed an incoming call"
+			sendCallLog(ctx, toJid, fromJid, sid, "missed", "Unsupported Transports", callType);
+
+			// 2. To Responder: "You missed an incoming call"
+			sendCallLog(ctx, fromJid, toJid, sid, "missed", "Unsupported Transportsn", callType);
+
+			// Remove call session for busy call
+			callTrackerService.remove(sid);
 		}
 	}
 
@@ -175,7 +223,7 @@ public class CallLifeCycleTracker {
 	/**
 	 * Constructs the XMPP 'headline' message and persists it to the Offline store/Cluster.
 	 */
-	private void sendCallLog(ChannelHandlerContext ctx, String from, String to, 
+	private void sendCallLog(ChannelHandlerContext ctx, String fromJid, String toJid, 
 			String sid, String status, String bodyText, String callType ) {
 
 		String messageId = java.util.UUID.randomUUID().toString();
@@ -183,9 +231,9 @@ public class CallLifeCycleTracker {
 
 		// Building XEP-compliant message with custom AlgoMeet call-log namespace
 		StringBuilder xml = new StringBuilder();
-		xml.append("<message from='").append(from).append("' ")
-		.append("to='").append(to).append("' ")
-		.append("type='headline' ")
+		xml.append("<message from='").append(fromJid).append("' ")
+		.append("to='").append(toJid).append("' ")
+		.append("type='chat' ")
 		.append("id='").append(messageId).append("'>")
 		.append("<subject>").append(bodyText).append("</subject>")
 		.append("<body>").append(bodyText).append("</body>")
@@ -196,11 +244,11 @@ public class CallLifeCycleTracker {
 		.append("sid='").append(sid).append("'/>")
 		.append("</message>");
 
-		String toUserKey = XmppUtil.getUserKey(to);
-		String fromUserKey = XmppUtil.getUserKey(from);
+		String toUserKey = XmppUtil.getUserKey(toJid);
+		String fromUserKey = XmppUtil.getUserKey(fromJid);
 
 		// Persist to MongoDB for offline retrieval
-		offlineMessageService.save(messageId, toUserKey, fromUserKey, XmppMessageType.HEADLINE.getXmlValue(), xml.toString())
+		offlineMessageService.save(messageId, toUserKey, fromUserKey, XmppMessageType.CHAT.getXmlValue(), xml.toString())
 		.doOnError(e -> log.error("Storage failure for message {}: {}", messageId, e.getMessage()))
 		.subscribe();
 
@@ -208,5 +256,5 @@ public class CallLifeCycleTracker {
 		clusterMessagePublisher.convertAndSendToUser(messageId, toUserKey, fromUserKey, ChatType.CHAT, xml.toString());
 
 		log.debug("Published {} call log for SID: {}", status, sid);
-	}
+	}	
 }

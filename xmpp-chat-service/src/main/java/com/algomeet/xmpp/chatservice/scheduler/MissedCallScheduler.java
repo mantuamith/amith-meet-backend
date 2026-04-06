@@ -134,7 +134,7 @@ public class MissedCallScheduler {
 
 		// XML structure for AlgoMeet call logging (urn:xmpp:algomeet:calls)
 		String xml = String.format(
-				"<message from='%s' to='%s' type='headline' id='%s'>" +
+				"<message from='%s' to='%s' type='chat' id='%s'>" +
 						"<subject>Missed %s Call</subject>" +
 						"<body>Missed %s call</body>" +
 						"<call-log xmlns='urn:xmpp:algomeet:calls' type='%s' status='missed' timestamp='%s' sid='%s'/>" +

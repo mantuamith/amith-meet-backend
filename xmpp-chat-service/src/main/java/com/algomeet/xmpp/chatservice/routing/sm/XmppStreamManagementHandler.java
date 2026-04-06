@@ -1,4 +1,4 @@
-package com.algomeet.xmpp.chatservice.routing.handler;
+package com.algomeet.xmpp.chatservice.routing.sm;
 
 import java.util.List;
 import java.util.UUID;
@@ -8,9 +8,9 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.springframework.stereotype.Component;
 
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
+import com.algomeet.xmpp.chatservice.connection.stream.XmppStreamManagementBuffer;
 import com.algomeet.xmpp.chatservice.service.OfflineMessageService;
-import com.algomeet.xmpp.chatservice.session.XmppSessionAttributes;
-import com.algomeet.xmpp.chatservice.session.XmppStreamAckTracker;
+import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
 import com.algomeet.xmpp.chatservice.stanza.StreamAck;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
 
@@ -40,7 +40,7 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class XmppStreamManagementHandler {
 
-    private final XmppStreamAckTracker xmppStreamAckTracker;
+    private final XmppStreamManagementBuffer xmppStreamAckTracker;
     private final OfflineMessageService offlineMessageService; 
     
     /**

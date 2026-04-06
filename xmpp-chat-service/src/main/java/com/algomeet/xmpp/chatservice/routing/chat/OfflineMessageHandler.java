@@ -1,4 +1,4 @@
-package com.algomeet.xmpp.chatservice.routing.handler;
+package com.algomeet.xmpp.chatservice.routing.chat;
 
 import java.time.Instant;
 import java.util.concurrent.atomic.AtomicLong;
@@ -7,9 +7,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
+import com.algomeet.xmpp.chatservice.connection.stream.XmppStreamManagementBuffer;
 import com.algomeet.xmpp.chatservice.service.OfflineMessageService;
-import com.algomeet.xmpp.chatservice.session.XmppSessionAttributes;
-import com.algomeet.xmpp.chatservice.session.XmppStreamAckTracker;
+import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
 
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
@@ -28,7 +28,7 @@ import lombok.extern.slf4j.Slf4j;
  *     <li><b>XEP-0203 Integration:</b> Wraps stanzas with {@code <delay/>} tags so the 
  *         client knows the original timestamp of the message.</li>
  *     <li><b>Stream Management (XEP-0198):</b> Automatically registers these outbound 
- *         messages with the {@link XmppStreamAckTracker} to ensure they are actually 
+ *         messages with the {@link XmppStreamManagementBuffer} to ensure they are actually 
  *         received by the client's device.</li>
  *     <li><b>Sequence Alignment:</b> Updates the session's outbound 'h' counter 
  *         proportionally to the number of offline messages delivered.</li>
@@ -42,7 +42,7 @@ import lombok.extern.slf4j.Slf4j;
 public class OfflineMessageHandler {
 
     private final OfflineMessageService offlineMessageService;
-    private final XmppStreamAckTracker xmppStreamAckTracker;
+    private final XmppStreamManagementBuffer xmppStreamAckTracker;
     
     @Value("${xmpp.server.domain}")
     private String domain;

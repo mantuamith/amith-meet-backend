@@ -1,6 +1,7 @@
 package com.algomeet.xmpp.chatservice.enums;
 
-import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Represents XMPP Stanza Types as per RFC 6120/6121.
@@ -24,10 +25,9 @@ public enum XmppMessageType {
     GROUPCHAT("groupchat", false),
 
     /**
-     * Time-sensitive alerts/news. For Algomeet, we enable storage to persist 
-     * Missed Call notifications.
+     * Time-sensitive alerts/news. 
      */
-    HEADLINE("headline", true),
+    HEADLINE("headline", false),
 
     /**
      * Error stanzas. SHOULD NOT be stored offline.
@@ -53,7 +53,14 @@ public enum XmppMessageType {
 
     private final String xmlValue;
     private final boolean supportsOfflineStorage;
+    private static final Map<String, XmppMessageType> LOOKUP_MAP = new HashMap<>();
 
+    static {
+        for (XmppMessageType type : values()) {
+            LOOKUP_MAP.put(type.xmlValue.toLowerCase(), type);
+        }
+    }
+    
     XmppMessageType(String xmlValue, boolean supportsOfflineStorage) {
         this.xmlValue = xmlValue;
         this.supportsOfflineStorage = supportsOfflineStorage;
@@ -73,12 +80,10 @@ public enum XmppMessageType {
      * logic for IQ types if needed.
      */
     public static XmppMessageType fromString(String type) {
-        if (type == null || type.isEmpty()) {
-            return NORMAL;
-        }
-        return Arrays.stream(values())
-                .filter(t -> t.xmlValue.equalsIgnoreCase(type))
-                .findFirst()
-                .orElse(NORMAL); 
+        if (type == null || type.isEmpty()) return NORMAL;
+        
+        // O(1) Hash lookup is significantly faster than O(N) Stream
+        XmppMessageType match = LOOKUP_MAP.get(type.toLowerCase());
+        return (match != null) ? match : NORMAL;
     }
 }

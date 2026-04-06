@@ -1,4 +1,4 @@
-package com.algomeet.xmpp.chatservice.routing.handler;
+package com.algomeet.xmpp.chatservice.routing.call;
 
 import java.util.Set;
 
@@ -62,7 +62,7 @@ public class JingleNotificationHandler {
 
 		if(isInitiate) {
 			String callType = isVideo ? "video" : "audio";
-			handleCallLogic(ctx, id, to, from, principal, callType, xml);
+			handleCallLogic(ctx, id, to, from, principal, callType);
 		}
 	}
 
@@ -71,14 +71,14 @@ public class JingleNotificationHandler {
 	 * * @param callType The media type: "video" or "audio".
 	 */
 	private void handleCallLogic(ChannelHandlerContext ctx, String id, String to, String from, 
-			XmppPrincipal principal, String callType, String xml) {
+			XmppPrincipal principal, String callType) {
 
 		// Map call type to specialized notification types to trigger 
 		// device-specific VoIP UI (e.g., Android ConnectionService or iOS CallKit).
 		NotificationType type = "video".equals(callType) ? NotificationType.VIDEO_CALL : NotificationType.AUDIO_CALL;
 		String title = "video".equals(callType) ? "Incoming Video Call..." : "Incoming Call...";
 
-		sendPush(to, type, title, xml, principal.getTenantId());      
+		sendPush(to, type, title, principal.getTenantId());      
 
 		log.info("Dispatched {} push notification for recipient: {}", callType, to);
 	}
@@ -86,12 +86,11 @@ public class JingleNotificationHandler {
 	/**
 	 * Forwards the notification request to the notification microservice.
 	 */
-	private void sendPush(String to, NotificationType type, String title, String body, Integer tenantId) {        
+	private void sendPush(String to, NotificationType type, String title, Integer tenantId) {        
 		Notification notif = Notification.builder()
 				.receiverIds(Set.of(to))
 				.type(type)
 				.title(title)
-				.body(body)
 				.tenantId(tenantId)
 				.build();
 		notificationService.sendPush(notif);

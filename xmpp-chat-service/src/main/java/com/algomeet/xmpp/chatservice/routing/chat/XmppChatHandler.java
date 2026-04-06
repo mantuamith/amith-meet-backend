@@ -1,4 +1,4 @@
-package com.algomeet.xmpp.chatservice.routing.handler;
+package com.algomeet.xmpp.chatservice.routing.chat;
 
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -16,10 +16,12 @@ import com.algomeet.xmpp.chatservice.constant.XmppErrorConditions;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.enums.UserState;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
+import com.algomeet.xmpp.chatservice.routing.call.CallLifeCycleTracker;
+import com.algomeet.xmpp.chatservice.routing.call.JingleNotificationHandler;
 import com.algomeet.xmpp.chatservice.service.OfflineMessageService;
-import com.algomeet.xmpp.chatservice.session.UserSession;
 import com.algomeet.xmpp.chatservice.session.UserSessionRegistry;
-import com.algomeet.xmpp.chatservice.session.XmppSessionAttributes;
+import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
+import com.algomeet.xmpp.chatservice.session.model.UserSession;
 import com.algomeet.xmpp.chatservice.stanza.StreamAck;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
@@ -34,27 +36,31 @@ import lombok.extern.slf4j.Slf4j;
 @ChannelHandler.Sharable
 @Component
 @AllArgsConstructor
-public class XmppDirectChatHandler {
+public class XmppChatHandler {
     private final ClusterMessagePublisher clusterMessagePublisher;
     private final OfflineMessageService offlineMessageService; 
     private final UserSessionRegistry userSessionRegistry;
     private final NotificationService notificationService;
-    private final JingleNotificationHandler jingleSessionOrchestrator;
+    private final JingleNotificationHandler jingleNotificationHandler;
     private final CallLifeCycleTracker callTracker;
     
 	 /**
      * Handles 1-to-1 message routing, persistence for offline storage, 
      * and cluster-wide synchronization, and push notifications for offline users.
      */
-    public void handleDirectChatRouting(ChannelHandlerContext ctx, String id, String to, String from, String type, String originalXml) {
+    public void handleDirectChatRouting(ChannelHandlerContext ctx, String id, String toJid, String fromJid, String type, String originalXml) {
         XmppMessageType msgType = XmppMessageType.fromString(type);
-        XmppPrincipal principal = ctx.channel().attr(XmppSessionAttributes.PRINCIPAL).get();
+        XmppPrincipal principal = ctx.channel().attr(XmppSessionAttributes.PRINCIPAL).get();               
         
-    	String toUserKey = XmppUtil.getUserKey(to);
+    	String toUserKey = XmppUtil.getUserKey(toJid);
     	String fromUserKey = principal.getUserKey();
+    	    	
+		// Only scan the first 500 characters for routing/type info
+		// Most XMPP metadata is at the start of the stanza
+		String xmlHeader = originalXml.substring(0, Math.min(originalXml.length(), 500));
         
         // 1. Persistence & XEP-0198 Acknowledgment
-        if (msgType.supportsOfflineStorage() && XmppStanzaUtil.isArchiveable(originalXml)) {
+        if (msgType.supportsOfflineStorage() && XmppStanzaUtil.isArchiveable(xmlHeader, originalXml)) {
             offlineMessageService.save(id, toUserKey, fromUserKey, type, originalXml)
                 .doOnSuccess(savedDoc -> {
                     // Acknowledge receipt to the sender (Server -> Client 'h' update)
@@ -67,8 +73,8 @@ public class XmppDirectChatHandler {
                     }
                 })
                 .doOnError(e -> {
-                    log.error("Storage failure for message {}: {}", id, e.getMessage());
-                    XmppUtil.sendError(ctx, id, to, from, XmppErrorConditions.INTERNAL_SERVER_ERROR, "Storage failure");
+                    log.error("Storage failure for message {}: {}", id, e.getMessage(), e);
+                    XmppUtil.sendError(ctx, id, toJid, fromJid, XmppErrorConditions.INTERNAL_SERVER_ERROR, "Storage failure");
                 })
                 .subscribe();
         }
@@ -80,9 +86,10 @@ public class XmppDirectChatHandler {
         boolean hasActiveSession = hasSessions && userSessions.stream()
                 .anyMatch(s -> UserState.ACTIVE == s.getState());
         
-        // Call tracker
-        if (XmppMessageType.SET.getXmlValue().equalsIgnoreCase(type)) {
-        	callTracker.track(ctx, to, from, originalXml, principal);
+        // Handle call life cycle 
+        if (XmppMessageType.SET == XmppMessageType.fromString(type) 
+        		&& originalXml.contains("urn:xmpp:jingle:1")) {
+        	callTracker.track(ctx, toJid, fromJid, originalXml, principal);
         }
 
         if (hasSessions) {
@@ -98,13 +105,14 @@ public class XmppDirectChatHandler {
             
             /*
              * Jingle Signaling Detection (XEP-0166)
-             * We use a "Fast-Scan" approach using indexOf() to minimize CPU cycles.
              * 
              * - 'urn:xmpp:jingle:1': Ensures the stanza belongs to the Jingle namespace.
              */
-            if (originalXml.indexOf("urn:xmpp:jingle:1") != -1) {      
+            if (XmppMessageType.SET == XmppMessageType.fromString(type)
+            		&& originalXml.contains("urn:xmpp:jingle:1")) {   
+            	
             	// Handle Jingle Signaling notification
-            	jingleSessionOrchestrator.handlePush(ctx, id, toUserKey, fromUserKey, originalXml, principal);
+            	jingleNotificationHandler.handlePush(ctx, id, toUserKey, fromUserKey, originalXml, principal);
                 
             } else {                 
                 /*
@@ -113,14 +121,14 @@ public class XmppDirectChatHandler {
                  * We extract the <body> element and trigger a Push Notification (FCM/APNs)
                  * to the recipient, ensuring they receive the message even if offline.
                  */            	
-            	if (XmppStanzaUtil.isPushEligible(originalXml)) {
+            	if (XmppStanzaUtil.isArchiveable(xmlHeader, originalXml)) {
 	                String body = XmppUtil.getMessageBody(originalXml);
 	                sendPushNotification(toUserKey, body, NotificationType.DIRECT_MESSAGE, principal);
             	}
             }     
         }
     }
-
+       
     /**
      * Used to send push notification for new message
      *

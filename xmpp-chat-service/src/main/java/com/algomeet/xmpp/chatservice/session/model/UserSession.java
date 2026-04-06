@@ -1,4 +1,4 @@
-package com.algomeet.xmpp.chatservice.session;
+package com.algomeet.xmpp.chatservice.session.model;
 
 import java.io.Serializable;
 import com.algomeet.xmpp.chatservice.enums.UserState;
