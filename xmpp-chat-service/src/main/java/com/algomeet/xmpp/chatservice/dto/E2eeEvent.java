@@ -10,5 +10,6 @@ import lombok.Data;
 public class E2eeEvent {
 	private String sourceUserKey;	
 	private Integer deviceId;
+	private String actionType;
 	private Set<String> subscribers;
 }

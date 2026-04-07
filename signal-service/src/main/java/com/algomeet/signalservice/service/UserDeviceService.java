@@ -25,6 +25,7 @@ import com.algomeet.signalservice.entity.SignedPreKey;
 import com.algomeet.signalservice.entity.SignedPreKeyId;
 import com.algomeet.signalservice.entity.UserDevice;
 import com.algomeet.signalservice.entity.UserDeviceId;
+import com.algomeet.signalservice.enums.E2eeEventActionType;
 import com.algomeet.signalservice.exceptions.DeviceExistsException;
 import com.algomeet.signalservice.exceptions.OneTimePreKeyExistsException;
 import com.algomeet.signalservice.exceptions.RecordNotFoundException;
@@ -92,7 +93,7 @@ public class UserDeviceService {
 
 		
 		// publish signal event to subscribers
-		subscriberAsyncService.publishEventAsync(userKey, deviceId);
+		subscriberAsyncService.publishEventAsync(userKey, deviceId, E2eeEventActionType.UPDATED);
 				
 		return UserDeviceMapper.toResponse(updated);
 	}
@@ -115,7 +116,7 @@ public class UserDeviceService {
 		repository.deleteById(id);	
 		
 		// publish signal event to subscribers
-		subscriberAsyncService.publishEventAsync(userKey, deviceId);
+		subscriberAsyncService.publishEventAsync(userKey, deviceId, E2eeEventActionType.REMOVED);
 	}
 
 	public DevicePreKeyBundleResponse createDevicePreKeyBundle(UUID userKey, Integer deviceId, DevicePreKeyBundleRequest request) {
@@ -149,7 +150,7 @@ public class UserDeviceService {
 		preKeyBundleResp.setOneTimePreKeys(savedOtPreKeys.stream().map(OneTimePreKeyMapper::toResponse).toList());
 
 		// publish signal event to subscribers
-		subscriberAsyncService.publishEventAsync(userKey, deviceId);
+		subscriberAsyncService.publishEventAsync(userKey, deviceId, E2eeEventActionType.ADDED);
 		
 		return preKeyBundleResp;
 	}
@@ -245,6 +246,6 @@ public class UserDeviceService {
 		repository.save(userDevice);
 		
 		// publish signal event to subscribers
-		subscriberAsyncService.publishEventAsync(userKey, deviceId);
+		subscriberAsyncService.publishEventAsync(userKey, deviceId, E2eeEventActionType.UPDATED);
 	}
 }

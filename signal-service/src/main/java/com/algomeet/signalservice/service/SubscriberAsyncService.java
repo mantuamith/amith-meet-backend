@@ -11,6 +11,7 @@ import org.springframework.util.CollectionUtils;
 import com.algomeet.signalservice.dto.E2eeEvent;
 import com.algomeet.signalservice.dto.SubscriberRequest;
 import com.algomeet.signalservice.dto.SubscriberResponse;
+import com.algomeet.signalservice.enums.E2eeEventActionType;
 import com.algomeet.signalservice.publisher.E2eeEventPublisher;
 
 import lombok.RequiredArgsConstructor;
@@ -37,12 +38,13 @@ public class SubscriberAsyncService {
     
     
     @Async
-    public CompletableFuture<Void> publishEventAsync(UUID userKey, Integer deviceId) {
+    public CompletableFuture<Void> publishEventAsync(UUID userKey, Integer deviceId, E2eeEventActionType actionType) {
     	List<SubscriberResponse> subscribers = subscriberService.getSubscribers(userKey);
     	
     	if (!CollectionUtils.isEmpty(subscribers)) {
     		E2eeEvent event = new E2eeEvent(userKey.toString(), 
     				deviceId,
+    				actionType.name().toLowerCase(),
     				subscribers.stream()
     				.map(s -> s.getSubscriberKey().toString())
     				.collect(Collectors.toSet()));
