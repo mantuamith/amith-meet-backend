@@ -81,4 +81,23 @@ public class LocalStanzaDispatcher {
 			}
 		}
 	}
+
+
+	/**
+	 * Routes a stanza to a specific local user session.
+	 * 
+	 * @param to          The User Key/ JID (Jabber ID) of the recipient.
+	 * @param from        The User Key/ JID of the sender.
+	 * @param originalXml The raw XML content to be delivered.
+	 */
+	public void dispatchLocally(String to, String from, String payload) {
+		Channel targetChannel = localChannelRegistry.getChannel(to);
+
+		if (targetChannel == null || !targetChannel.isActive()) {
+			log.debug("Routing failed: No active local channel found for JID: {}", to);
+			return;
+		}
+
+		targetChannel.writeAndFlush(new TextWebSocketFrame(payload));
+	}
 }

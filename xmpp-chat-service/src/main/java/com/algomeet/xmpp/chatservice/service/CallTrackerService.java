@@ -12,6 +12,7 @@ import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.document.CallSession;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
+import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.repository.CallTrackerRepository;
 
 import lombok.RequiredArgsConstructor;
@@ -25,10 +26,8 @@ public class CallTrackerService {
 
     private final CallTrackerRepository repository;
     private final ClusterMessagePublisher clusterMessagePublisher;
-    private final OfflineMessageService offlineMessageService;
-    
-    @Value("${xmpp.server.domain}")
-    private String domain;
+    private final OfflineMessageService offlineMessageService;    
+    private final DomainProperties domainProperties;
 
     /**
      * Initiates the call record reactively.
@@ -103,8 +102,8 @@ public class CallTrackerService {
                     // Logic: If it's a connection drop and wasn't accepted, it's 'failed'
                     // Otherwise, if it was accepted but dropped, it's 'dropped'
                     String status = "success".equalsIgnoreCase(reason) ? "success" : "dropped";
-                    String callerJid = session.getCaller() + "@" + domain;
-                    String calleeJid = session.getCallee() + "@" + domain;
+                    String callerJid = session.getCaller() + "@" + domainProperties.getDomain();
+                    String calleeJid = session.getCallee() + "@" + domainProperties.getDomain();
                     
                     String callerMsgId = UUID.randomUUID().toString();
                     String calleMsgId = UUID.randomUUID().toString();

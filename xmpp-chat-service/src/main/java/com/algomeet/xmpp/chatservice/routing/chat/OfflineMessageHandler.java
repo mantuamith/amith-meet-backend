@@ -8,6 +8,7 @@ import org.springframework.stereotype.Component;
 
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.connection.stream.XmppStreamManagementBuffer;
+import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.service.OfflineMessageService;
 import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
 
@@ -43,9 +44,7 @@ public class OfflineMessageHandler {
 
     private final OfflineMessageService offlineMessageService;
     private final XmppStreamManagementBuffer xmppStreamAckTracker;
-    
-    @Value("${xmpp.server.domain}")
-    private String domain;
+    private final DomainProperties domainProperties;
 
     /**
      * Fetches offline stanzas for the given principal and flushes them to the channel.
@@ -95,7 +94,7 @@ public class OfflineMessageHandler {
         // 'from' attribute identifies the server that stored the message
         String delay = String.format(
             "<delay xmlns='urn:xmpp:delay' from='%s' stamp='%s'/>",
-            domain, timestamp.toString()
+            domainProperties.getDomain(), timestamp.toString()
         );
         
         // Find the end of the opening tag or the start of the closing tag.

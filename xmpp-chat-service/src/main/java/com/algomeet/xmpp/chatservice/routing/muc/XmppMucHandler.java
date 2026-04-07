@@ -2,8 +2,6 @@ package com.algomeet.xmpp.chatservice.routing.muc;
 
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.regex.Pattern;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -23,11 +21,11 @@ import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.enums.UserState;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
 import com.algomeet.xmpp.chatservice.parser.GroupChatParser;
+import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.service.XmppArchiveService;
 import com.algomeet.xmpp.chatservice.session.UserSessionRegistry;
 import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
 import com.algomeet.xmpp.chatservice.session.model.UserSession;
-import com.algomeet.xmpp.chatservice.stanza.StreamAck;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaMucUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStreamManagementUtil;
@@ -36,7 +34,6 @@ import com.github.f4b6a3.ulid.Ulid;
 import com.github.f4b6a3.ulid.UlidCreator;
 
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -56,9 +53,7 @@ public class XmppMucHandler {
 	private final ClusterMessagePublisher clusterMessagePublisher;
 	private final NotificationService notificationService;
 	private final MucCommandDispatcher mucAdminHandler;
-
-    @Value("${xmpp.server.domain}")
-    private String domain;
+	private final DomainProperties domainProperties;
     
 	/**
 	 * Main entry point for MUC stanza routing.
@@ -165,7 +160,7 @@ public class XmppMucHandler {
 			 * 2. Change 'to' from RoomJID to the specific Recipient's JID for routing.
 			 */
 			String finalForwardXml = XmppStanzaMucUtil.rewriteMucStanzaForRecipient(originalXml, roomJid, fromJid, 
-					toUserKey, domain, senderMucMember);
+					toUserKey, domainProperties.getDomain(), senderMucMember);
 
 			if (hasSessions) {
 				// Live Delivery: Publish to the cluster for real-time delivery to active sessions

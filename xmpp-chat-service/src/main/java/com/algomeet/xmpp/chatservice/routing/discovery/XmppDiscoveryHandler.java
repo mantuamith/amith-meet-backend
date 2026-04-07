@@ -8,6 +8,8 @@ import javax.xml.stream.XMLStreamException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import com.algomeet.xmpp.chatservice.properties.DomainProperties;
+
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import lombok.RequiredArgsConstructor;
@@ -17,8 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 @Component
 @RequiredArgsConstructor
 public class XmppDiscoveryHandler {
-    @Value("${xmpp.server.domain}")
-    private String domain;
+    private final DomainProperties domainProperties;
 
     private static final Pattern ID_PATTERN = Pattern.compile("id=['\"]([^'\"]+)['\"]");
 
@@ -28,7 +29,7 @@ public class XmppDiscoveryHandler {
             String requestId = extractId(xml);
             
             StringBuilder res = new StringBuilder();
-            res.append(String.format("<iq type='result' from='%s' id='%s'>", domain, requestId));
+            res.append(String.format("<iq type='result' from='%s' id='%s'>", domainProperties.getDomain(), requestId));
             res.append("<query xmlns='http://jabber.org/protocol/disco#info'>");
             
             // 1. Identity

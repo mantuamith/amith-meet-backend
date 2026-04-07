@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import com.algomeet.xmpp.chatservice.constant.Constants;
+import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
 import com.algomeet.xmpp.chatservice.util.JwtUtil;
 
@@ -51,9 +52,7 @@ import lombok.extern.slf4j.Slf4j;
 public class WebSocketPreAuthHandler extends SimpleChannelInboundHandler<FullHttpRequest> {
 
     private final JwtUtil jwtUtil;
-    
-    @Value("${xmpp.server.domain}")
-    private String domain;
+    private final DomainProperties domainProperties;
     
     /**
      * Intercepts the HTTP request to perform JWT validation.
@@ -79,7 +78,7 @@ public class WebSocketPreAuthHandler extends SimpleChannelInboundHandler<FullHtt
                 .username(jwtUtil.getUsername(token))
                 .tenantId(jwtUtil.getTenantId(token))
                 .sessionId(ctx.channel().id().asLongText()) // Unique ID for this physical connection
-                .domain(domain)
+                .domain(domainProperties.getDomain())
                 .build();
 
         // Store the principal in a Channel Attribute. 

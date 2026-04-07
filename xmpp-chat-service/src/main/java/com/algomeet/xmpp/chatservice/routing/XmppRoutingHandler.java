@@ -4,7 +4,6 @@ import java.util.Map;
 
 import javax.xml.stream.XMLStreamException;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -12,6 +11,7 @@ import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.constant.XmppErrorConditions;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
+import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.routing.chat.XmppChatHandler;
 import com.algomeet.xmpp.chatservice.routing.discovery.XmppDiscoveryHandler;
 import com.algomeet.xmpp.chatservice.routing.muc.XmppMamHandler;
@@ -21,7 +21,6 @@ import com.algomeet.xmpp.chatservice.routing.state.XmppUserStateHandler;
 import com.algomeet.xmpp.chatservice.service.OfflineMessageService;
 import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
-import com.algomeet.xmpp.chatservice.util.XmppStreamManagementUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
 
 import io.netty.channel.ChannelHandler;
@@ -65,9 +64,7 @@ public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocke
     private final XmppChatHandler xmppDirectChatHandler;
     private final XmppMucHandler xmppMucHandler;
     private final XmppMamHandler xmppMamHandler;
-    
-    @Value("${xmpp.server.group-chat-domain}")
-    private String groupChatDomain;
+    private final DomainProperties domainProperties;
 
     /**
      * Entry point for incoming WebSocket text frames.
@@ -166,7 +163,7 @@ public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocke
     public boolean isGroupChat(String to) {        
         // Check if the 'to' address contains a known MUC service domain
         // (This is useful if the stanza is malformed but the routing is correct)
-        if (to != null && to.contains("@" + groupChatDomain)) {
+        if (to != null && to.contains("@" + domainProperties.getGroupChatDomain())) {
             return true;
         }
 

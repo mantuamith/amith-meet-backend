@@ -1,14 +1,14 @@
 package com.algomeet.xmpp.chatservice.cluster.publisher;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.data.redis.listener.ChannelTopic;
 import org.springframework.stereotype.Component;
 
 import com.algomeet.xmpp.chatservice.cluster.dto.ClusterSyncMessage;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.exceptions.ClusterMessageException;
+import com.algomeet.xmpp.chatservice.properties.RedisTopicProperties;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -19,7 +19,7 @@ import lombok.extern.slf4j.Slf4j;
  * recipient is physically connected to. This component wraps the stanza into a 
  * {@link ClusterSyncMessage} and publishes it to a shared Redis topic. All 
  * subscribed nodes will then receive the message via their 
- * {@code ClusterMessageListener}.</p>
+ * {@code E2eeEventMessageListener}.</p>
  * 
  * <p><b>Key Responsibilities:</b></p>
  * <ul>
@@ -33,13 +33,11 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class ClusterMessagePublisher {
-
-    @Autowired
-    private RedisTemplate<String, ClusterSyncMessage> redisTemplate;
+	private final RedisTopicProperties redisTopicProperties;
+    private final RedisTemplate<String, ClusterSyncMessage> redisTemplate;
     
-    @Autowired
-    private ChannelTopic topic;
     
     /**
      * Publishes a direct chat stanza to the cluster topic for user-specific delivery.
@@ -64,7 +62,7 @@ public class ClusterMessagePublisher {
             log.info("Publishing cluster sync message for user [{}]: with Message ID: {}", to, id);
 
             // Broadcast to the global topic defined in the Redis configuration
-            redisTemplate.convertAndSend(topic.getTopic(), message);
+            redisTemplate.convertAndSend(redisTopicProperties.getClusterSyncTopic(), message);
         } catch (Exception ex) {
             log.error("Failed to publish message {} to Redis cluster topic: {}", id, ex.getMessage());
             throw new ClusterMessageException("Error publishing to redis topic", ex);
