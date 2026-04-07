@@ -75,7 +75,7 @@ public class GroupSenderKeyBackupController implements GroupSenderKeyBackupContr
 
 	@Override
 	@GetMapping
-	public ResponseEntity<CommonResponse<List<GroupSenderKeyBackupResponse>>> getByUser(@PathVariable UUID userKey) {
+	public ResponseEntity<CommonResponse<List<GroupSenderKeyBackupResponse>>> getByUser() {
 		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS,
 				service.findByUser(UUID.fromString(SecurityUtil.getUserKey()))));
 	}

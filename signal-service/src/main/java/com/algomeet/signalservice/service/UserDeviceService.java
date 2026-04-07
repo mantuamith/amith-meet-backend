@@ -25,6 +25,7 @@ import com.algomeet.signalservice.entity.SignedPreKey;
 import com.algomeet.signalservice.entity.SignedPreKeyId;
 import com.algomeet.signalservice.entity.UserDevice;
 import com.algomeet.signalservice.entity.UserDeviceId;
+import com.algomeet.signalservice.enums.E2eeEventActionType;
 import com.algomeet.signalservice.exceptions.DeviceExistsException;
 import com.algomeet.signalservice.exceptions.OneTimePreKeyExistsException;
 import com.algomeet.signalservice.exceptions.RecordNotFoundException;
@@ -36,6 +37,7 @@ import com.algomeet.signalservice.repository.KyberPreKeyRepository;
 import com.algomeet.signalservice.repository.OneTimePreKeyRepository;
 import com.algomeet.signalservice.repository.SignedPreKeyRepository;
 import com.algomeet.signalservice.repository.UserDeviceRepository;
+import com.algomeet.signalservice.util.SecurityUtil;
 
 import lombok.RequiredArgsConstructor;
 
@@ -46,6 +48,7 @@ public class UserDeviceService {
 	private final SignedPreKeyRepository signedPreKeyRepository;
 	private final KyberPreKeyRepository kyberPreKeyRepository;
 	private final OneTimePreKeyRepository oneTimePreKeyRepository;
+	private final SubscriberAsyncService subscriberAsyncService;
 
 	public UserDeviceResponse registerDevice(UUID userKey, UserDeviceRequest request) {
 		// To generate new device ID, get maximum user device ID from table then increment it by 1.
@@ -88,6 +91,10 @@ public class UserDeviceService {
 			return repository.save(device);    		
 		}).orElseThrow(() -> new RecordNotFoundException("User device ID not found"));
 
+		
+		// publish signal event to subscribers
+		subscriberAsyncService.publishEventAsync(userKey, deviceId, E2eeEventActionType.UPDATED);
+				
 		return UserDeviceMapper.toResponse(updated);
 	}
 
@@ -106,7 +113,10 @@ public class UserDeviceService {
 
 		oneTimePreKeyRepository.deleteByUserKeyAndDeviceId(userKey, deviceId);
 
-		repository.deleteById(id);		
+		repository.deleteById(id);	
+		
+		// publish signal event to subscribers
+		subscriberAsyncService.publishEventAsync(userKey, deviceId, E2eeEventActionType.REMOVED);
 	}
 
 	public DevicePreKeyBundleResponse createDevicePreKeyBundle(UUID userKey, Integer deviceId, DevicePreKeyBundleRequest request) {
@@ -139,6 +149,9 @@ public class UserDeviceService {
 		preKeyBundleResp.setKyberPreKey(KyberPreKeyMapper.toResponse(savedKyberPreKey));
 		preKeyBundleResp.setOneTimePreKeys(savedOtPreKeys.stream().map(OneTimePreKeyMapper::toResponse).toList());
 
+		// publish signal event to subscribers
+		subscriberAsyncService.publishEventAsync(userKey, deviceId, E2eeEventActionType.ADDED);
+		
 		return preKeyBundleResp;
 	}
 
@@ -148,9 +161,15 @@ public class UserDeviceService {
 		// Fetch all UserDevices efficiently, avoiding N+1 for SignedPreKey and KyberPreKey
 		List<UserDevice> devices = getDevicesOptimized(userKey, deviceIds);
 
+		
 		if (devices.isEmpty()) {
-			throw new RecordNotFoundException("User device ID not found");
+			if (deviceIds.isPresent()) {
+				throw new RecordNotFoundException("User device ID not found");
+			} else {
+				return new ArrayList<>();
+			}
 		}
+		
 
 		// Batch-find all necessary OneTimePreKeys (OPKs)
 		// Create a list of all UserDeviceId keys needed for OPKs
@@ -197,6 +216,9 @@ public class UserDeviceService {
 
 			listDeviceKeyResp.add(deviceKeyResp);
 		}
+		
+		// Add signal keys subscriber, any signal keys update will be published to the subscriber
+		subscriberAsyncService.addAsSubscriberAsync(userKey, UUID.fromString(SecurityUtil.getUserKey()));
 
 		return listDeviceKeyResp;
 	}
@@ -222,5 +244,8 @@ public class UserDeviceService {
 				.orElseThrow(() -> new RecordNotFoundException("User device ID not found"));
 		userDevice.setUpdatedAt(Instant.now());
 		repository.save(userDevice);
+		
+		// publish signal event to subscribers
+		subscriberAsyncService.publishEventAsync(userKey, deviceId, E2eeEventActionType.UPDATED);
 	}
 }

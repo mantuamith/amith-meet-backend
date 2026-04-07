@@ -18,4 +18,10 @@ public class XmppErrorConditions {
      */
     public static final String NOT_WELL_FORMED = "not-well-formed";
     
+    /**
+     * XEP-0086 / RFC 6120: The sender does not have the permissions 
+     * to send a stanza as the specified 'from' JID.
+     */
+    public static final String FORBIDDEN = "forbidden";
+    
 }

@@ -3,7 +3,7 @@ package com.algomeet.xmpp.chatservice.cluster.listener;
 import org.springframework.stereotype.Component;
 
 import com.algomeet.xmpp.chatservice.cluster.dto.ClusterSyncMessage;
-import com.algomeet.xmpp.chatservice.routing.handler.LocalStanzaDispatcher;
+import com.algomeet.xmpp.chatservice.routing.dispacher.LocalStanzaDispatcher;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import lombok.RequiredArgsConstructor;
@@ -57,6 +57,8 @@ public class ClusterMessageListener {
                 message.getChatType(),
                 message.getPayload()
             );
+            
+            log.info("Received cluster sync message ID {}", message.getId());
         }
     }
 

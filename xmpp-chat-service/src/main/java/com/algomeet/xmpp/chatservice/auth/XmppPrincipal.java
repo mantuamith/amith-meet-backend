@@ -27,6 +27,11 @@ public class XmppPrincipal {
      * Required for real-time routing to this specific connection.
      */
     public String getFullJid() {
-        return String.format("%s@%s/%s", userKey, domain, sessionId);
+        // Takes the first 8 characters of the sessionId
+        String shortSession = (sessionId != null && sessionId.length() > 8) 
+                              ? sessionId.substring(0, 8) 
+                              : sessionId;
+
+        return String.format("%s@%s/%s", userKey, domain, shortSession);
     }
 }

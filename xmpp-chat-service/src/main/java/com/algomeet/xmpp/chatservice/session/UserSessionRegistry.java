@@ -5,12 +5,15 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.HashOperations;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Repository;
 import org.springframework.util.CollectionUtils;
 
 import com.algomeet.xmpp.chatservice.enums.UserState;
+import com.algomeet.xmpp.chatservice.session.model.UserSession;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import lombok.RequiredArgsConstructor;
@@ -45,6 +48,10 @@ public class UserSessionRegistry {
     private final RedisTemplate<String, String> redisTemplate;
     private final ObjectMapper objectMapper;
 
+    // For zombie sessions cleanup
+    @Value("${session.zombie-max-age-hours:168}") // Defaults to 7 days if missing
+    private int zombieMaxAgeHours;
+    
     /**
      * Generates the Redis key for a specific user's session hash.
      */
@@ -70,6 +77,7 @@ public class UserSessionRegistry {
             String key = userKey(userKey);
             String value = objectMapper.writeValueAsString(session);
             hashOps().put(key, session.getSessionId(), value);
+                        
             log.debug("Session {} added for user {}", session.getSessionId(), userKey);
         } catch (Exception e) {
             log.error("CRITICAL: Failed to persist session to Redis for user {}", userKey, e);
@@ -107,7 +115,7 @@ public class UserSessionRegistry {
      * Updates the availability status and timestamp of a specific session.
      * 
      * <p>This is typically triggered by XMPP Presence or Chat State stanzas 
-     * processed by the {@code XmppSessionLifecycleHandler}.</p>
+     * processed by the {@code XmppUserStateHandler}.</p>
      * 
      * @param userKey    The user's unique key.
      * @param sessionId The specific Netty channel ID.
@@ -153,6 +161,24 @@ public class UserSessionRegistry {
     public void removeSession(String userKey, String sessionId) {
         String key = userKey(userKey);
         hashOps().delete(key, sessionId);
+        
+        // Cleanup zombie sessions
+        Map<String, String> sessions = hashOps().entries(key);
+        for (Map.Entry<String, String> session : sessions.entrySet()) {        	
+            try {
+            	// Deserialize
+				UserSession userSession = objectMapper.readValue(session.getValue(), UserSession.class);
+				long time = (Instant.now().toEpochMilli() - userSession.getUpdatedAt());
+				// Convert to hours
+				long sessionAgeInhours = time / (60 * 60 * 1000L);
+
+				if (sessionAgeInhours > zombieMaxAgeHours) {
+					hashOps().delete(key, session.getKey());
+				}
+			} catch (JsonProcessingException e) {
+				log.error("Error transforming/processing user session from redis", e);
+			} 
+        }
 
         // Cleanup: If the user has no more active sessions, remove the hash key entirely
         Long size = hashOps().size(key);
