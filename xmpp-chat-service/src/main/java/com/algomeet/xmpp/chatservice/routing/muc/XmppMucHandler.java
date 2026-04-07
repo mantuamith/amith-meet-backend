@@ -3,7 +3,7 @@ package com.algomeet.xmpp.chatservice.routing.muc;
 import java.util.Optional;
 import java.util.Set;
 
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 
@@ -72,6 +72,18 @@ public class XmppMucHandler {
 		String roomId = XmppUtil.getRoomId(roomJid);
 		String updatedXml = originalXml;
 
+		// Fetch room metadata and membership from the internal Group Service
+		MucRoomDto group = groupClient.getGroupById(Long.parseLong(roomId));
+
+		// Verify if the sender is actually a member of the room/ group
+		Optional<MucMember> senderMucMember = group.getMembers().stream()
+				.filter(m -> m.getUserKey().equals(principal.getUserKey())).findFirst();
+
+		if(senderMucMember.isEmpty()) {
+			log.error("User {} is not a member of group {}", principal.getUserKey(), roomId);
+			return;
+		}
+		
 		// Performance Optimization: Only scan the first 500 characters for routing metadata
 		String xmlHeader = originalXml.substring(0, Math.min(originalXml.length(), 500));
 
@@ -98,7 +110,11 @@ public class XmppMucHandler {
 			})
 			.doOnError(e -> {
 				log.error("Storage failure for message {}: {}", id, e.getMessage());
-				XmppUtil.sendError(ctx, id, roomJid, fromJid, XmppErrorConditions.INTERNAL_SERVER_ERROR, "Storage failure");
+				if (e instanceof DuplicateKeyException) {
+					XmppUtil.sendError(ctx, id, roomJid, fromJid, XmppErrorConditions.DUPLICATE_KEY_ERROR, "Stanza has duplicate key");
+				} else {
+					XmppUtil.sendError(ctx, id, roomJid, fromJid, XmppErrorConditions.INTERNAL_SERVER_ERROR, "Storage failure");
+				}
 			})
 			.subscribe();
 		} else {
@@ -106,24 +122,8 @@ public class XmppMucHandler {
 			XmppStreamManagementUtil.incrementAndSendInboundH(ctx);
 		}
 
-		try {
-			// Fetch room metadata and membership from the internal Group Service
-			MucRoomDto group = groupClient.getGroupById(Long.parseLong(roomId));
-
-			// Verify the sender is actually a member of the room
-			Optional<MucMember> senderMucMember = group.getMembers().stream()
-					.filter(m -> m.getUserKey().equals(principal.getUserKey())).findFirst();
-
-			if(senderMucMember.isEmpty()) {
-				log.error("User {} is not a member of group {}", principal.getUserKey(), roomId);
-				return;
-			}
-
-			// 2. DISPATCHING BY NAMESPACE
+		try {			
 			if (XmppMessageType.SET == XmppMessageType.fromString(type) 
-					&& originalXml.contains("urn:xmpp:jingle:1")) {
-				// Placeholder for Jingle (WebRTC) signaling in MUC
-			} else  if (XmppMessageType.SET == XmppMessageType.fromString(type) 
 					&& xmlHeader.contains("http://jabber.org/protocol/muc#admin")) {
 				// Handle Moderation (Kick, Ban, Mute)
 				mucAdminHandler.handleAdminStanza(ctx, roomJid, principal.getBareJid(), originalXml, group, senderMucMember.get());

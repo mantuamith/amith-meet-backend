@@ -1,9 +1,8 @@
 package com.algomeet.xmpp.chatservice.routing.chat;
 
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 
@@ -22,14 +21,12 @@ import com.algomeet.xmpp.chatservice.service.OfflineMessageService;
 import com.algomeet.xmpp.chatservice.session.UserSessionRegistry;
 import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
 import com.algomeet.xmpp.chatservice.session.model.UserSession;
-import com.algomeet.xmpp.chatservice.stanza.StreamAck;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStreamManagementUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
 
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -69,7 +66,11 @@ public class XmppChatHandler {
                 })
                 .doOnError(e -> {
                     log.error("Storage failure for message {}: {}", id, e.getMessage(), e);
-                    XmppUtil.sendError(ctx, id, toJid, fromJid, XmppErrorConditions.INTERNAL_SERVER_ERROR, "Storage failure");
+                    if (e instanceof DuplicateKeyException) {
+                    	XmppUtil.sendError(ctx, id, toJid, fromJid, XmppErrorConditions.DUPLICATE_KEY_ERROR, "Stanza has duplicate key");
+                    } else {
+                    	XmppUtil.sendError(ctx, id, toJid, fromJid, XmppErrorConditions.INTERNAL_SERVER_ERROR, "Storage failure");
+                    }
                 })
                 .subscribe();
         } else {

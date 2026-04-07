@@ -6,9 +6,7 @@ import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.dto.MucMember;
 import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
-import com.algomeet.xmpp.chatservice.enums.GroupRole;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
-import com.algomeet.xmpp.chatservice.util.XmppUtil;
 
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
