@@ -60,7 +60,7 @@ public interface GroupSenderKeyBackupControllerDoc {
             @ApiResponse(responseCode = "200", description = "Backups retrieved successfully",
                 content = @Content(schema = @Schema(implementation = GroupSenderKeyBackupResponse.class)))
         })
-    public ResponseEntity<CommonResponse<List<GroupSenderKeyBackupResponse>>> getByUser(@PathVariable UUID userKey);
+    public ResponseEntity<CommonResponse<List<GroupSenderKeyBackupResponse>>> getByUser();
     
     @Operation(summary = "Get all group sender key backups for a specific group",
         responses = {
