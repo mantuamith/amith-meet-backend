@@ -135,12 +135,18 @@ public class MessageService {
 
         List<MessageDocument> visible = all.stream()
                 .filter(m -> m.isVisibleTo(userId))
+                .filter(m -> !m.isGroupMessage())
+                .filter(m -> hasText(m.getSender()) && hasText(m.getReceiver()))
+                .filter(m -> userId.equals(m.getSender()) || userId.equals(m.getReceiver()))
                 .toList();
 
         if (visible.isEmpty()) return List.of();
 
         Map<String, List<MessageDocument>> byContact = visible.stream()
-                .collect(Collectors.groupingBy(m -> userId.equals(m.getSender()) ? m.getReceiver() : m.getSender()));
+                .map(m -> Map.entry(resolveContactId(m, userId), m))
+                .filter(e -> hasText(e.getKey()))
+                .collect(Collectors.groupingBy(Map.Entry::getKey,
+                        Collectors.mapping(Map.Entry::getValue, Collectors.toList())));
 
         List<RecentReceivedMessageResponse> result = new ArrayList<>();
         for (Map.Entry<String, List<MessageDocument>> e : byContact.entrySet()) {
@@ -148,6 +154,7 @@ public class MessageService {
             List<MessageDocument> thread = e.getValue();
 
             MessageDocument latest = thread.stream()
+                    .filter(m -> m.getTimestamp() != null)
                     .max(Comparator.comparing(MessageDocument::getTimestamp))
                     .orElse(null);
             if (latest == null) {
@@ -175,6 +182,20 @@ public class MessageService {
 
         log.debug("[Recent] user={} threads={}", userId, out.size());
         return out;
+    }
+
+    private static String resolveContactId(MessageDocument message, String userId) {
+        if (userId.equals(message.getSender())) {
+            return message.getReceiver();
+        }
+        if (userId.equals(message.getReceiver())) {
+            return message.getSender();
+        }
+        return null;
+    }
+
+    private static boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 
     // -------- DELIVERY RECEIPTS --------
