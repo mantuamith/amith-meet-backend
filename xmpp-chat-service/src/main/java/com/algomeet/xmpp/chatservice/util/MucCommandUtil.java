@@ -73,11 +73,6 @@ public class MucCommandUtil {
 		return xml.contains("role='participant'") || xml.contains("role=\"participant\"");
 	}
 
-
-	/*
-	 **
-	 * Checks if the IQ stanza is an Admin command to add/promote a user to 'member'.
-	 */
 	/**
 	 * Checks if the provided XML represents a MUC Admin "Add Member" request.
 	 * <p>
@@ -153,47 +148,4 @@ public class MucCommandUtil {
 	        return false;
 	    }
 	}
-
-	public static String getNewMemberJid(String xml) throws XMLStreamException {
-		try (StringReader sr = new StringReader(xml)) {
-			XMLStreamReader reader = XML_FACTORY.createXMLStreamReader(sr);
-
-			try {
-				// 1. Verify IQ Type is 'set'
-				String iqType = reader.getAttributeValue(null, "type");
-				if (!"set".equals(iqType)) return null;
-
-				while (reader.hasNext()) {
-					int event = reader.next();
-
-					if (event == XMLStreamConstants.START_ELEMENT) {
-						String localName = reader.getLocalName();
-
-						if ("item".equals(localName)) {
-							String affiliation = reader.getAttributeValue(null, "affiliation");
-							String targetJid = reader.getAttributeValue(null, "jid");
-
-							// 3. Logic Check: Must have a JID and be setting affiliation to 'member'
-							// Note: You can expand this to include 'admin' or 'owner' if needed
-							if (("owner".equals(affiliation) || "admin".equals(affiliation) || "member".equals(affiliation)) 
-									&& targetJid != null) {
-								return targetJid;
-							}
-							break; // Found the item, we can stop
-						}
-					}
-
-					if (event == XMLStreamConstants.END_ELEMENT && "iq".equals(reader.getLocalName())) {
-						break;
-					}
-				}
-
-			} finally {
-				reader.close();
-			}
-
-			return null;
-		}
-	}
-
 }

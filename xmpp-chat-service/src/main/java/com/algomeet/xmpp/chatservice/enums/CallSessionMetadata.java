@@ -6,6 +6,7 @@ public enum CallSessionMetadata {
     CALL_TYPE("callType"),
     TENANT_ID("tenantId"),
     START_TIME("startTime"),
+    GROUP_ID("groupId"),
     USERNAME("username");
 
     private final String key;

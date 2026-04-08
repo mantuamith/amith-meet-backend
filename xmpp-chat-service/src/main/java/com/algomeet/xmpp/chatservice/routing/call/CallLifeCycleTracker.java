@@ -51,10 +51,13 @@ public class CallLifeCycleTracker {
 	 */
 	private static final Pattern SID_PATTERN = Pattern.compile("sid=['\"]([^'\"]+)['\"]");
 
+	public void track(ChannelHandlerContext ctx, String toJid, String fromJid, String xml, XmppPrincipal principal) {
+		track(ctx, toJid, fromJid, xml, principal, null);
+	}
 	/**
 	 * Entry point for analyzing incoming XMPP stanzas for Jingle signaling actions.
 	 */
-	public void track(ChannelHandlerContext ctx, String toJid, String fromJid, String xml, XmppPrincipal principal) {
+	public void track(ChannelHandlerContext ctx, String toJid, String fromJid, String xml, XmppPrincipal principal, String groupId) {
 		// Detect specific Jingle actions defined in XEP-0166
 		boolean isInitiate = xml.contains("session-initiate");
 		boolean isAccept = xml.contains("session-accept");
@@ -64,7 +67,7 @@ public class CallLifeCycleTracker {
 		if (sid == null) return;
 
 		if (isInitiate) {
-			handleInitiate(toJid, fromJid, xml, sid, principal);
+			handleInitiate(toJid, fromJid, xml, sid, groupId, principal);
 		} else if (isAccept) {
 			handleAccept(sid, principal.getSessionId());
 		} else if (isTerminate) {
@@ -76,7 +79,7 @@ public class CallLifeCycleTracker {
 	 * Handles 'session-initiate'. Registers the call metadata and starts the 
 	 * countdown timer in Redis for the "Missed Call" worker.
 	 */
-	private void handleInitiate(String toJid, String fromJid, String xml, String sid, XmppPrincipal principal) {
+	private void handleInitiate(String toJid, String fromJid, String xml, String sid, String roomId, XmppPrincipal principal) {
 		// Calculate the exact epoch millisecond when the call should be considered "Missed"
 		long executeAt = System.currentTimeMillis() + (callRingingTimeoutSeconds * 1000);
 
@@ -92,6 +95,7 @@ public class CallLifeCycleTracker {
 		data.put(CallSessionMetadata.FROM.getKey(), fromJid);
 		data.put(CallSessionMetadata.CALL_TYPE.getKey(), callType);
 		data.put(CallSessionMetadata.TENANT_ID.getKey(), principal.getTenantId().toString()); 
+		data.put(CallSessionMetadata.GROUP_ID.getKey(), roomId); 		
 		data.put(CallSessionMetadata.USERNAME.getKey(), principal.getUsername()); 
 
 		redisTemplate.opsForHash().putAll(metaKey, data);
@@ -105,7 +109,7 @@ public class CallLifeCycleTracker {
 		log.info("Call [{}] initiated. SID: {}. Timeout scheduled in {}s", callType, sid, callRingingTimeoutSeconds);
 		
 		// Track call initiation for duration calculation
-		callTrackerService.trackInitiation(sid, principal.getUserKey(), principal.getSessionId(), XmppUtil.getUserKey(toJid), callType);
+		callTrackerService.trackInitiation(sid, principal.getUserKey(), principal.getSessionId(), XmppUtil.getUserKey(toJid), callType, roomId);
 	}
 
 	/**

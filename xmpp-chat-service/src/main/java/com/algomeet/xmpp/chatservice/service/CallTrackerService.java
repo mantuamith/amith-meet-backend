@@ -5,7 +5,6 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.UUID;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
@@ -32,13 +31,14 @@ public class CallTrackerService {
     /**
      * Initiates the call record reactively.
      */
-    public Mono<CallSession> trackInitiation(String sid, String caller, String callerSid, String callee, String callType) {
+    public Mono<CallSession> trackInitiation(String sid, String caller, String callerSid, String callee, String callType, String roomId) {
         CallSession call = CallSession.builder()
                 .sid(sid)
                 .caller(caller)
                 .callerSid(callerSid)
                 .callee(callee)
                 .callType(callType)
+                .roomId(roomId)
                 .createdAt(Instant.now().toEpochMilli())
                 .build();
 

@@ -29,6 +29,8 @@ public class CallSession {
     private String calleSid;  // callee websocket connection session ID
 
     private String callType;  // "audio" or "video"
+    
+    private String roomId;    // Room/Group chat Id
 
     private Long createdAt;    // When the call invitation was sent
     private Long acceptedAt;   // When the callee clicked "Answer"

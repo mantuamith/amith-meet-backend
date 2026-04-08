@@ -12,24 +12,25 @@ import com.algomeet.notificationservice.dto.Notification;
 import com.algomeet.notificationservice.enums.NotificationType;
 import com.algomeet.notificationservice.service.NotificationService;
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
-import com.algomeet.xmpp.chatservice.client.GroupClient;
 import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.constant.XmppErrorConditions;
 import com.algomeet.xmpp.chatservice.dto.MucMember;
 import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
 import com.algomeet.xmpp.chatservice.dto.StanzaInfo;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
-import com.algomeet.xmpp.chatservice.enums.MucAffiliation;
 import com.algomeet.xmpp.chatservice.enums.UserState;
 import com.algomeet.xmpp.chatservice.enums.XmppErrorType;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
 import com.algomeet.xmpp.chatservice.parser.GroupChatParser;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
+import com.algomeet.xmpp.chatservice.routing.call.CallLifeCycleTracker;
+import com.algomeet.xmpp.chatservice.routing.call.JingleNotificationHandler;
 import com.algomeet.xmpp.chatservice.service.GroupCacheService;
 import com.algomeet.xmpp.chatservice.service.XmppArchiveService;
 import com.algomeet.xmpp.chatservice.session.UserSessionRegistry;
 import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
 import com.algomeet.xmpp.chatservice.session.model.UserSession;
+import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaMucUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStreamManagementUtil;
@@ -59,6 +60,9 @@ public class XmppMucHandler {
 	private final MucAdminCommandDispatcher mucAdminCmdHandler;
 	private final DomainProperties domainProperties;
 	private final MucUserCommandDispatcher mucUserCommandDispatcher;
+	private final JingleNotificationHandler jingleNotificationHandler;
+	private final CallLifeCycleTracker callTracker;
+    private final JidUtil jidUtil;
     
 	/**
 	 * Main entry point for MUC stanza routing.
@@ -140,11 +144,12 @@ public class XmppMucHandler {
 				mucAdminCmdHandler.handleCommandStanza(ctx, roomJid, principal.getBareJid(), originalXml, senderMucMember.get());
 			} else if(isUserCommandStanza(originalXml, roomJid)) {
 				// Handle user command
-				mucUserCommandDispatcher.handleCommandStanza(ctx, roomJid, principal.getBareJid(), originalXml, principal);			
+				mucUserCommandDispatcher.handleCommandStanza(ctx, roomJid, principal.getBareJid(), originalXml, principal);		
+				
 			} else {
 				// Standard message forwarding logic				
-				handleReq(ctx, id, roomJid, fromJid, group, senderMucMember.get(),
-						xmlHeader, originalXml, updatedXml);
+				handleReq(ctx, id, roomJid, fromJid, msgType, group, senderMucMember.get(),
+							xmlHeader, originalXml, updatedXml);
 			}
 		} catch (NumberFormatException e) {
 			log.error("Invalid roomId format: {}", roomId);
@@ -155,19 +160,33 @@ public class XmppMucHandler {
 	 * Iterates through room members and performs JID rewriting for delivery.
 	 * Ensures that the 'from' JID is the Occupant JID (Room Nickname) and not the real User JID.
 	 */
-	private void handleReq(ChannelHandlerContext ctx, String id, String roomJid, String fromJid, MucRoomDto group, 
+	private void handleReq(ChannelHandlerContext ctx, String id, String roomJid, String fromJid, XmppMessageType msgType, MucRoomDto group, 
 			MucMember senderMucMember, String xmlHeader, String originalXml, String updatedXml) {
+
 		XmppPrincipal principal = ctx.channel().attr(XmppSessionAttributes.PRINCIPAL).get();
-
-		for(MucMember receiverMucMember : group.getMembers()) {
-			String toUserKey = receiverMucMember.getUserKey();
-
-			// Determine recipient connectivity state
-			Set<UserSession> userSessions = userSessionRegistry.getSessions(toUserKey);
-			boolean hasSessions = !CollectionUtils.isEmpty(userSessions);
-			boolean hasActiveSession = hasSessions && userSessions.stream()
-					.anyMatch(s -> UserState.ACTIVE == s.getState());
-
+		boolean isJingleStanza = XmppStanzaUtil.isJingleStanza(msgType, updatedXml);
+		boolean isJingleSessionInitiate = isJingleStanza && originalXml.contains("session-initiate");
+		
+		// Check for response Jingle
+		if (isJingleStanza && !(isJingleSessionInitiate)) {		
+			// Process response Jingle
+			// Verify if the sender is actually a member of the room/ group
+			Optional<MucMember> recieverMucMember = group.getMembers().stream()
+					.filter(m -> m.getNickname() != null && m.getNickname().equalsIgnoreCase(jidUtil.getNickname(roomJid)))
+					.findFirst();
+			
+			if (recieverMucMember.isEmpty()) {
+				XmppUtil.sendError(ctx, id, fromJid, domainProperties.getGroupChatDomain(), XmppErrorType.CANCEL, 
+						XmppErrorConditions.BAD_REQUEST, "Receiver not found");
+				return;
+			}
+			
+			// Get receiver user key
+			String toUserKey = recieverMucMember.get().getUserKey();
+			
+			// Handle call life cycle   	
+			callTracker.track(ctx, jidUtil.getBareJid(toUserKey), fromJid, originalXml, principal, XmppUtil.getRoomId(roomJid));
+			
 			/*
 			 * JID REWRITING:
 			 * 1. Change 'from' from UserJID to OccupantJID (Room anonymity).
@@ -175,18 +194,52 @@ public class XmppMucHandler {
 			 */
 			String finalForwardXml = XmppStanzaMucUtil.rewriteMucStanzaForRecipient(originalXml, roomJid, fromJid, 
 					toUserKey, domainProperties.getDomain(), senderMucMember);
+			
+			// Live Delivery: Publish to the cluster for real-time delivery to active sessions
+			clusterMessagePublisher.convertAndSendToUser(id, toUserKey, principal.getUserKey(), ChatType.GROUPCHAT, finalForwardXml);
 
-			if (hasSessions) {
-				// Live Delivery: Publish to the cluster for real-time delivery to active sessions
-				clusterMessagePublisher.convertAndSendToUser(id, toUserKey, principal.getUserKey(), ChatType.GROUPCHAT, finalForwardXml);
-			}
+		} else {
+			for(MucMember receiverMucMember : group.getMembers()) {
+				String toUserKey = receiverMucMember.getUserKey();
 
-			// 3. PUSH NOTIFICATIONS
-			// Trigger only if the user has no active foreground session and the message is "archiveable" (e.g. has a body)
-			if (!hasActiveSession) {
-				if (XmppStanzaUtil.isArchiveable(xmlHeader, originalXml)) {
-					String body = XmppUtil.getMessageBody(originalXml);
-					sendPushNotification(toUserKey, body, NotificationType.GROUP_MESSAGE, principal);
+				// Handle call life cycle 
+				if (isJingleStanza) {	        	
+					callTracker.track(ctx, jidUtil.getBareJid(toUserKey), fromJid, originalXml, principal, XmppUtil.getRoomId(roomJid));
+				}
+
+				// Determine recipient connectivity state
+				Set<UserSession> userSessions = userSessionRegistry.getSessions(toUserKey);
+				boolean hasSessions = !CollectionUtils.isEmpty(userSessions);
+				boolean hasActiveSession = hasSessions && userSessions.stream()
+						.anyMatch(s -> UserState.ACTIVE == s.getState());
+
+				/*
+				 * JID REWRITING:
+				 * 1. Change 'from' from UserJID to OccupantJID (Room anonymity).
+				 * 2. Change 'to' from RoomJID to the specific Recipient's JID for routing.
+				 */
+				String finalForwardXml = XmppStanzaMucUtil.rewriteMucStanzaForRecipient(originalXml, roomJid, fromJid, 
+						toUserKey, domainProperties.getDomain(), senderMucMember);
+
+				if (hasSessions) {
+					// Live Delivery: Publish to the cluster for real-time delivery to active sessions
+					clusterMessagePublisher.convertAndSendToUser(id, toUserKey, principal.getUserKey(), ChatType.GROUPCHAT, finalForwardXml);
+				}
+
+				// 3. PUSH NOTIFICATIONS
+				// Trigger only if the user has no active foreground session and the message is "archiveable" (e.g. has a body)
+				if (!hasActiveSession) {					
+					if ((msgType.supportsOfflineStorage() && XmppStanzaUtil.isArchiveable(xmlHeader, originalXml)) 
+							|| isJingleSessionInitiate) {
+
+						if (isJingleSessionInitiate) {
+							// Handle Jingle Signaling notification
+							jingleNotificationHandler.handlePush(ctx, id, toUserKey, XmppUtil.getUserKey(fromJid), originalXml, principal);
+						} else {
+							String body = XmppUtil.getMessageBody(originalXml);
+							sendPushNotification(toUserKey, body, NotificationType.GROUP_MESSAGE, principal);
+						}
+					}
 				}
 			}
 		}
@@ -221,6 +274,7 @@ public class XmppMucHandler {
         // Default to false if it's not a presence or is missing a specific nickname resource
         return false;
     }
+ 
 
 	/**
 	 * Dispatches a push notification via the internal Notification Service.

@@ -13,6 +13,8 @@ import javax.xml.stream.XMLStreamReader;
 
 import org.springframework.util.StringUtils;
 
+import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
+
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -147,7 +149,10 @@ public class XmppStanzaUtil {
 		return false;
 	}
 	
-	
+	public static boolean isJingleStanza(XmppMessageType msgType, String xml) {
+		return XmppMessageType.SET == msgType && xml.contains("urn:xmpp:jingle:1");
+	}
+		
 	/**
      * Extracts an attribute value from a specific tag.
      * Example: getAttribute(xml, "item", "nick") returns "pistol"
