@@ -14,7 +14,9 @@ import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.constant.XmppErrorConditions;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.enums.UserState;
+import com.algomeet.xmpp.chatservice.enums.XmppErrorType;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
+import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.routing.call.CallLifeCycleTracker;
 import com.algomeet.xmpp.chatservice.routing.call.JingleNotificationHandler;
 import com.algomeet.xmpp.chatservice.service.OfflineMessageService;
@@ -41,6 +43,7 @@ public class XmppChatHandler {
     private final NotificationService notificationService;
     private final JingleNotificationHandler jingleNotificationHandler;
     private final CallLifeCycleTracker callTracker;
+    private final DomainProperties domainProperties;
     
 	 /**
      * Handles 1-to-1 message routing, persistence for offline storage, 
@@ -67,9 +70,11 @@ public class XmppChatHandler {
                 .doOnError(e -> {
                     log.error("Storage failure for message {}: {}", id, e.getMessage(), e);
                     if (e instanceof DuplicateKeyException) {
-                    	XmppUtil.sendError(ctx, id, toJid, fromJid, XmppErrorConditions.DUPLICATE_KEY_ERROR, "Stanza has duplicate key");
+                    	XmppUtil.sendError(ctx, id, fromJid, domainProperties.getDomain(), XmppErrorType.CANCEL, 
+                    			XmppErrorConditions.DUPLICATE_KEY_ERROR, "Stanza has duplicate key");
                     } else {
-                    	XmppUtil.sendError(ctx, id, toJid, fromJid, XmppErrorConditions.INTERNAL_SERVER_ERROR, "Storage failure");
+                    	XmppUtil.sendError(ctx, id, fromJid, domainProperties.getDomain(), XmppErrorType.WAIT, 
+                    			XmppErrorConditions.INTERNAL_SERVER_ERROR, "Storage failure");
                     }
                 })
                 .subscribe();

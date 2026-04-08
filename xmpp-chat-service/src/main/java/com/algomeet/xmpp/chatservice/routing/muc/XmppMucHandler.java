@@ -6,6 +6,7 @@ import java.util.Set;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
+import org.springframework.util.StringUtils;
 
 import com.algomeet.notificationservice.dto.Notification;
 import com.algomeet.notificationservice.enums.NotificationType;
@@ -18,10 +19,13 @@ import com.algomeet.xmpp.chatservice.dto.MucMember;
 import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
 import com.algomeet.xmpp.chatservice.dto.StanzaInfo;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
+import com.algomeet.xmpp.chatservice.enums.MucAffiliation;
 import com.algomeet.xmpp.chatservice.enums.UserState;
+import com.algomeet.xmpp.chatservice.enums.XmppErrorType;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
 import com.algomeet.xmpp.chatservice.parser.GroupChatParser;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
+import com.algomeet.xmpp.chatservice.service.GroupCacheService;
 import com.algomeet.xmpp.chatservice.service.XmppArchiveService;
 import com.algomeet.xmpp.chatservice.session.UserSessionRegistry;
 import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
@@ -48,12 +52,13 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class XmppMucHandler {
 	private final XmppArchiveService xmppArchiveService;
-	private final GroupClient groupClient;
+	private final GroupCacheService groupCacheService;
 	private final UserSessionRegistry userSessionRegistry;
 	private final ClusterMessagePublisher clusterMessagePublisher;
 	private final NotificationService notificationService;
-	private final MucCommandDispatcher mucAdminHandler;
+	private final MucAdminCommandDispatcher mucAdminCmdHandler;
 	private final DomainProperties domainProperties;
+	private final MucUserCommandDispatcher mucUserCommandDispatcher;
     
 	/**
 	 * Main entry point for MUC stanza routing.
@@ -72,15 +77,19 @@ public class XmppMucHandler {
 		String roomId = XmppUtil.getRoomId(roomJid);
 		String updatedXml = originalXml;
 
-		// Fetch room metadata and membership from the internal Group Service
-		MucRoomDto group = groupClient.getGroupById(Long.parseLong(roomId));
+		// Fetch room metadata and membership from the either cache
+		MucRoomDto group = groupCacheService.getCachedGroup(Long.parseLong(roomId));
 
 		// Verify if the sender is actually a member of the room/ group
 		Optional<MucMember> senderMucMember = group.getMembers().stream()
 				.filter(m -> m.getUserKey().equals(principal.getUserKey())).findFirst();
 
-		if(senderMucMember.isEmpty()) {
-			log.error("User {} is not a member of group {}", principal.getUserKey(), roomId);
+		if(senderMucMember.isEmpty()
+				|| senderMucMember.get().isMuted()) {
+			log.error("User {} is not a member of group {} or user is muted", principal.getUserKey(), roomId);
+			
+			XmppUtil.sendError(ctx, id, fromJid, domainProperties.getGroupChatDomain(), XmppErrorType.CANCEL, 
+					XmppErrorConditions.INTERNAL_SERVER_ERROR, "You are not allowed to send messages to this room");
 			return;
 		}
 		
@@ -111,9 +120,11 @@ public class XmppMucHandler {
 			.doOnError(e -> {
 				log.error("Storage failure for message {}: {}", id, e.getMessage());
 				if (e instanceof DuplicateKeyException) {
-					XmppUtil.sendError(ctx, id, roomJid, fromJid, XmppErrorConditions.DUPLICATE_KEY_ERROR, "Stanza has duplicate key");
+					XmppUtil.sendError(ctx, id, fromJid, domainProperties.getGroupChatDomain(), XmppErrorType.CANCEL, 
+							XmppErrorConditions.DUPLICATE_KEY_ERROR, "Stanza has duplicate key");
 				} else {
-					XmppUtil.sendError(ctx, id, roomJid, fromJid, XmppErrorConditions.INTERNAL_SERVER_ERROR, "Storage failure");
+					XmppUtil.sendError(ctx, id, fromJid, domainProperties.getGroupChatDomain(), XmppErrorType.WAIT, 
+							XmppErrorConditions.INTERNAL_SERVER_ERROR, "Storage failure");
 				}
 			})
 			.subscribe();
@@ -126,7 +137,10 @@ public class XmppMucHandler {
 			if (XmppMessageType.SET == XmppMessageType.fromString(type) 
 					&& xmlHeader.contains("http://jabber.org/protocol/muc#admin")) {
 				// Handle Moderation (Kick, Ban, Mute)
-				mucAdminHandler.handleAdminStanza(ctx, roomJid, principal.getBareJid(), originalXml, group, senderMucMember.get());
+				mucAdminCmdHandler.handleCommandStanza(ctx, roomJid, principal.getBareJid(), originalXml, senderMucMember.get());
+			} else if(isUserCommandStanza(originalXml, roomJid)) {
+				// Handle user command
+				mucUserCommandDispatcher.handleCommandStanza(ctx, roomJid, principal.getBareJid(), originalXml, principal);			
 			} else {
 				// Standard message forwarding logic				
 				handleReq(ctx, id, roomJid, fromJid, group, senderMucMember.get(),
@@ -177,6 +191,36 @@ public class XmppMucHandler {
 			}
 		}
 	}
+	
+	/**
+     * Determines if the incoming XML stanza is a user-initiated command.
+     * <p>
+     * In XMPP MUC, a presence stanza directed at a room with a specific nickname 
+     * (e.g., room@conference.domain/newNick) indicates a command like a nickname change, 
+     * rather than a simple room join or status update.
+     * </p>
+     * * @param xml     The raw XML payload to check.
+     * @param roomJid The target JID of the stanza.
+     * @return {@code true} if the stanza is a presence-based command; {@code false} otherwise.
+     */
+    private boolean isUserCommandStanza(String xml, String roomJid) {
+        // 1. First, verify the stanza type is actually a <presence/>
+        if (XmppStanzaUtil.isPresenceStanza(xml)) {
+            
+            // 2. Split the JID to check for the presence of a Resource (the nickname)
+            // Example: "dev-team@muc.algomeet.com/Jack" -> ["dev-team@muc.algomeet.com", "Jack"]
+            String[] jidArr = roomJid.split("/");
+            
+            // 3. If a nickname is provided in the JID (length > 1), it indicates 
+            // a specific targeted action/command within the MUC context.
+            if (jidArr.length > 1 && StringUtils.hasText(jidArr[1])) {
+                return true;
+            }
+        }
+        
+        // Default to false if it's not a presence or is missing a specific nickname resource
+        return false;
+    }
 
 	/**
 	 * Dispatches a push notification via the internal Notification Service.

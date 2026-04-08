@@ -10,6 +10,7 @@ import org.springframework.util.StringUtils;
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.constant.XmppErrorConditions;
+import com.algomeet.xmpp.chatservice.enums.XmppErrorType;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.routing.chat.XmppChatHandler;
@@ -110,7 +111,8 @@ public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocke
 
             		if (!isValid) {
             			log.warn("Unauthorized 'from' JID attempt: {} by {}", fromJid, authorizedBareJid);
-            			XmppUtil.sendError(ctx, id, toJid, authorizedBareJid, XmppErrorConditions.FORBIDDEN, "Invalid from attribute");
+            			XmppUtil.sendError(ctx, id, fromJid, domainProperties.getDomain(), XmppErrorType.AUTH, 
+            					XmppErrorConditions.FORBIDDEN, "Invalid from attribute");
             			return;
             		}
             	}
@@ -142,7 +144,8 @@ public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocke
 
         } catch (XMLStreamException e) {
             log.error("Malformed XML received: {} , {}", xml, e.getMessage());
-            XmppUtil.sendError(ctx, null, null, principal.getBareJid(), XmppErrorConditions.NOT_WELL_FORMED, "XML parsing failed");
+            XmppUtil.sendError(ctx, null, principal.getBareJid(), domainProperties.getDomain(), XmppErrorType.CANCEL,
+            		XmppErrorConditions.NOT_WELL_FORMED, "XML parsing failed");
         } catch (Exception e) {
              log.error("Routing error for XML {}: {}", xml, e.getMessage(), e);
         }

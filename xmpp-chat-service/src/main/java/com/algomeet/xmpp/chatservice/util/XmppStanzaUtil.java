@@ -48,7 +48,6 @@ public class XmppStanzaUtil {
 		return attrMap;
 	}
 
-
 	/**
 	 * <p><strong>Optimized Message Archive Filter (XEP-0313 Compliance)</strong></p>
 	 * * <p>Determines if a stanza should be persisted to long-term storage (MongoDB).

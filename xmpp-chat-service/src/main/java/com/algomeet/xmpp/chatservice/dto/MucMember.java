@@ -11,4 +11,5 @@ public class MucMember { // or ChatMember
     private String username;
     private String nickname;
     private String role;
+    private boolean isMuted;
 }

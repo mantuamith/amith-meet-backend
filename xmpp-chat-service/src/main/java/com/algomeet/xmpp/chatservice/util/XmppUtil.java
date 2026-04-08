@@ -8,6 +8,7 @@ import javax.xml.stream.XMLStreamReader;
 
 import org.springframework.util.StringUtils;
 
+import com.algomeet.xmpp.chatservice.enums.XmppErrorType;
 import com.algomeet.xmpp.chatservice.stanza.StanzaError;
 
 import io.netty.channel.ChannelHandlerContext;
@@ -17,6 +18,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class XmppUtil {
 	private static final String DOMAIN_SEPARATOR = "@";
+	private static final String BARE_JID_SEPARATOR = "/";
 	private static final XMLInputFactory XML_FACTORY = XMLInputFactory.newInstance();
 	
 	public static String getUserKey(String fullJid) {
@@ -33,6 +35,14 @@ public class XmppUtil {
 		}
 		
 		return roomJid.trim().split(DOMAIN_SEPARATOR, 2)[0];
+	}
+	
+	public static String getRoomBareJid(String roomJid) {
+		if(!StringUtils.hasText(roomJid)) {
+			return null;
+		}
+		
+		return roomJid.trim().split(BARE_JID_SEPARATOR, 2)[0];
 	}
 	    
     /**
@@ -77,8 +87,8 @@ public class XmppUtil {
     /**
      * Utility to send standardized XMPP error frames back to the client.
      */
-    public static void sendError(ChannelHandlerContext ctx, String id, String to, String from, String condition, String text) {
-        StanzaError error = new StanzaError(id, to, from, condition, text);
+    public static void sendError(ChannelHandlerContext ctx, String id, String to, String from, XmppErrorType errorType, String condition, String text) {
+        StanzaError error = new StanzaError(id, to, from, errorType, condition, text);
         ctx.writeAndFlush(new TextWebSocketFrame(error.toXml()));
     }
 }
