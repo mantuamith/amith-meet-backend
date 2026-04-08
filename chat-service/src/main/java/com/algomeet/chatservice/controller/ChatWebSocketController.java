@@ -93,12 +93,24 @@ public class ChatWebSocketController {
                     try {
                         if (!member.getUsername().equals(message.getSender())) {
                         	messagingSyncTemplate.convertAndSendToUser(member.getUsername(), "/queue/messages", response);
+                            log.info("__**__ after convertAndSendToUser called");
+
                             messageService.sendUnreadCountUpdate(member.getUsername()); // real-time update
+                            log.info("__**__ after sendUnreadCountUpdate called");
+
+                            messagingSyncTemplate.convertAndSendToUser(message.getSender(), "/queue/update_message", response);
+
+                            log.info("__**__Delivering message to group member: {}", member.getUsername());
+                            log.info("__**__member userkey: {}", member.getUserKey());
+                            log.info("__**__Message content: {}", message.getContent());
+                            log.info("__**__Message type: {}", message.getType());
 
                             // Send push notification
                             sendPushNotification(member.getUserKey(), message.getContent(), NotificationType.GROUP_MESSAGE, member.getUsername());
+                            log.info("__**__ after sendPushNotification called");
                         }
                     } catch (Exception e) {
+                        e.printStackTrace();
                         // Fallback if one group member fails
                         // log.error("Failed to deliver to group member {}: {}", member, e.getMessage());
                         failedMembers.add(member.getUsername());
