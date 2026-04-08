@@ -49,7 +49,7 @@ spring:
 
 group:
   service:
-    url: http://localhost:8083
+    url: http://localhost:8087
 media:
   service:
     url: http://localhost:8095
