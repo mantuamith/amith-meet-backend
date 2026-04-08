@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.algomeet.groupservice.controller.swagger.GroupControllerDoc;
 import com.algomeet.groupservice.dto.AddGroupMembersRequest;
 import com.algomeet.groupservice.dto.CommonResponse;
+import com.algomeet.groupservice.dto.GroupInviteLinkResponse;
 import com.algomeet.groupservice.dto.GroupRequest;
 import com.algomeet.groupservice.dto.GroupResponse;
 import com.algomeet.groupservice.dto.UpdateGroupRequest;
@@ -109,6 +110,37 @@ public class GroupController implements GroupControllerDoc {
 		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, response));
 	}
 
+	@PostMapping("/{groupId}/join-by-invite")
+	public ResponseEntity<CommonResponse<?>> joinGroupByInvite(
+			@PathVariable Long groupId,
+			@RequestParam String inviteCode,
+			@RequestParam Optional<String> nickname,
+			Authentication authentication) {
+
+		GroupResponse response = null;
+
+		try {
+			response = groupService.joinGroupByInviteCode(
+					groupId,
+					inviteCode,
+					authentication.getName(),
+					SecurityUtil.getUserKey(),
+					nickname.orElse(null)
+			);
+		} catch(GroupNotFoundException ex) {
+			return ResponseEntity.status(HttpStatus.NOT_FOUND)
+					.body(CommonResponse.from(ResponseCode.GROUP_ID_NOT_FOUND));
+		} catch(IllegalStateException ex) {
+			return ResponseEntity.status(HttpStatus.CONFLICT)
+					.body(CommonResponse.from(ResponseCode.USER_ALREADY_GROUP_MEMBER));
+		} catch(IllegalArgumentException ex) {
+			return ResponseEntity.badRequest()
+					.body(CommonResponse.from(ResponseCode.GROUP_INVITE_CODE_INVALID));
+		}
+
+		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, response));
+	}
+
 	@PostMapping("/{groupId}/add")
 	public ResponseEntity<CommonResponse<?>> addGroupMembers(
 			@PathVariable Long groupId,
@@ -128,6 +160,28 @@ public class GroupController implements GroupControllerDoc {
 		} 
 
 		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, response));
+	}
+
+	@GetMapping("/{groupId}/invite-link")
+	public ResponseEntity<CommonResponse<GroupInviteLinkResponse>> getInviteLink(@PathVariable Long groupId) {
+		try {
+			GroupInviteLinkResponse response = groupService.getOrCreateInviteLink(groupId, SecurityUtil.getUserKey());
+			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, response));
+		} catch(GroupNotFoundException ex) {
+			return ResponseEntity.status(HttpStatus.NOT_FOUND)
+					.body(CommonResponse.from(ResponseCode.GROUP_ID_NOT_FOUND));
+		}
+	}
+
+	@PostMapping("/{groupId}/invite-link/reset")
+	public ResponseEntity<CommonResponse<GroupInviteLinkResponse>> resetInviteLink(@PathVariable Long groupId) {
+		try {
+			GroupInviteLinkResponse response = groupService.resetInviteLink(groupId, SecurityUtil.getUserKey());
+			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, response));
+		} catch(GroupNotFoundException ex) {
+			return ResponseEntity.status(HttpStatus.NOT_FOUND)
+					.body(CommonResponse.from(ResponseCode.GROUP_ID_NOT_FOUND));
+		}
 	}
 
 	@DeleteMapping("/{groupId}/leave")

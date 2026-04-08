@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 
 import com.algomeet.groupservice.dto.AddGroupMembersRequest;
 import com.algomeet.groupservice.dto.CommonResponse;
+import com.algomeet.groupservice.dto.GroupInviteLinkResponse;
 import com.algomeet.groupservice.dto.GroupRequest;
 import com.algomeet.groupservice.dto.GroupResponse;
 import com.algomeet.groupservice.dto.UpdateGroupRequest;
@@ -146,6 +147,24 @@ public interface GroupControllerDoc {
             Authentication authentication);
 
     @Operation(
+        summary = "Join a group using invite code",
+        description = "Adds the authenticated user to the specified group after validating the invite code"
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Successfully joined the group"),
+        @ApiResponse(responseCode = "400", description = "Invite code is invalid"),
+        @ApiResponse(responseCode = "404", description = "Group not found"),
+        @ApiResponse(responseCode = "409", description = "User is already a group member")
+    })
+    public ResponseEntity<CommonResponse<?>> joinGroupByInvite(
+            @Parameter(description = "Group ID", example = "1")
+            @PathVariable Long groupId,
+            @Parameter(description = "Invite code for the group", example = "abc123")
+            @RequestParam String inviteCode,
+            @RequestParam Optional<String> nickname,
+            Authentication authentication);
+
+    @Operation(
         summary = "Add members to a group",
         description = "Adds multiple users to a group using their userKeys (UUIDs)"
     )
@@ -166,6 +185,32 @@ public interface GroupControllerDoc {
                 )
             )
             @Valid @RequestBody AddGroupMembersRequest request);
+
+    @Operation(
+        summary = "Get or generate a group invite link",
+        description = "Returns the current invite link for a group, generating a new invite code if one does not exist yet"
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Invite link retrieved successfully"),
+        @ApiResponse(responseCode = "404", description = "Group not found"),
+        @ApiResponse(responseCode = "403", description = "User is not allowed to access the invite link")
+    })
+    public ResponseEntity<CommonResponse<GroupInviteLinkResponse>> getInviteLink(
+            @Parameter(description = "Group ID", example = "1")
+            @PathVariable Long groupId);
+
+    @Operation(
+        summary = "Reset a group invite link",
+        description = "Rotates the group invite code and returns a new invite link. Previously issued links become invalid"
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Invite link reset successfully"),
+        @ApiResponse(responseCode = "404", description = "Group not found"),
+        @ApiResponse(responseCode = "403", description = "User is not allowed to reset the invite link")
+    })
+    public ResponseEntity<CommonResponse<GroupInviteLinkResponse>> resetInviteLink(
+            @Parameter(description = "Group ID", example = "1")
+            @PathVariable Long groupId);
     
     @Operation(
         summary = "Leave a group",

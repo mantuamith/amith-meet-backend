@@ -40,6 +40,9 @@ public class Group {
     private String ownerUserKey;
     
     private String createdBy;
+
+    @Column(name = "invite_code")
+    private String inviteCode;
     
     @Column(
     		name = "date_created",
