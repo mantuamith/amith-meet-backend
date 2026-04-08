@@ -88,7 +88,8 @@ public class ChatWebSocketController {
                 // If a message has media files, grant media access permissions to the
                 // message recipients.
                 mediaService.share(message, group);
-                
+
+                messagingSyncTemplate.convertAndSendToUser(message.getSender(), "/queue/update_message", response);
                 for (Member member : group.members) {
                     try {
                         if (!member.getUsername().equals(message.getSender())) {
@@ -98,7 +99,6 @@ public class ChatWebSocketController {
                             messageService.sendUnreadCountUpdate(member.getUsername()); // real-time update
                             log.info("__**__ after sendUnreadCountUpdate called");
 
-                            messagingSyncTemplate.convertAndSendToUser(message.getSender(), "/queue/update_message", response);
 
                             log.info("__**__Delivering message to group member: {}", member.getUsername());
                             log.info("__**__member userkey: {}", member.getUserKey());
@@ -112,7 +112,7 @@ public class ChatWebSocketController {
                     } catch (Exception e) {
                         e.printStackTrace();
                         // Fallback if one group member fails
-                        // log.error("Failed to deliver to group member {}: {}", member, e.getMessage());
+                        log.error("Failed to deliver to group member {}: {}", member, e.getMessage());
                         failedMembers.add(member.getUsername());
                     }
                     if (!failedMembers.isEmpty()) {
