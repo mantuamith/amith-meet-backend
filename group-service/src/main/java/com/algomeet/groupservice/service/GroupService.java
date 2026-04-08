@@ -1,15 +1,19 @@
 package com.algomeet.groupservice.service;
 
+import java.util.Base64;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.algomeet.groupservice.dto.AddGroupMembersRequest;
+import com.algomeet.groupservice.dto.GroupInviteLinkResponse;
 import com.algomeet.groupservice.dto.GroupRequest;
 import com.algomeet.groupservice.dto.GroupResponse;
 import com.algomeet.groupservice.dto.MemberRequest;
@@ -24,11 +28,16 @@ import com.algomeet.groupservice.repository.GroupRepository;
 
 import lombok.RequiredArgsConstructor;
 
+import java.security.SecureRandom;
+
 @Service
 @RequiredArgsConstructor
 public class GroupService {
 
+	private static final SecureRandom INVITE_CODE_RANDOM = new SecureRandom();
+
 	private final GroupRepository groupRepository;
+	private final GroupInviteLinkFactory groupInviteLinkFactory;
 
 	public GroupResponse createGroup(GroupRequest request, String username, String userKey) {
 		Group group = GroupMapper.toEntity(request);
@@ -65,6 +74,16 @@ public class GroupService {
 
 		group.getMembers().add(member);
 		return GroupMapper.toResponse(groupRepository.save(group));
+	}
+
+	public GroupResponse joinGroupByInviteCode(Long groupId, String inviteCode, String username, String userKey, String nickname) {
+		Group group = getGroupOrThrow(groupId);
+
+		if (!StringUtils.hasText(inviteCode) || !inviteCode.equals(group.getInviteCode())) {
+			throw new IllegalArgumentException(ResponseCode.GROUP_INVITE_CODE_INVALID.name());
+		}
+
+		return joinGroup(groupId, username, userKey, nickname);
 	}
 
 	public GroupResponse addGroupMembers(Long groupId, AddGroupMembersRequest request, String userKey) throws GroupNotFoundException {
@@ -135,6 +154,28 @@ public class GroupService {
 		Group group = getGroupOrThrow(groupId);
 
 		return GroupMapper.toResponse(group);
+	}
+
+	public GroupInviteLinkResponse getOrCreateInviteLink(Long groupId, String userKey) {
+		Group group = getGroupOrThrow(groupId);
+		getInviteLinkAuthorizedMember(group, userKey);
+
+		if (!StringUtils.hasText(group.getInviteCode())) {
+			group.setInviteCode(generateInviteCode());
+			group = groupRepository.save(group);
+		}
+
+		return new GroupInviteLinkResponse(groupInviteLinkFactory.build(group.getId(), group.getInviteCode()));
+	}
+
+	public GroupInviteLinkResponse resetInviteLink(Long groupId, String userKey) {
+		Group group = getGroupOrThrow(groupId);
+		getInviteLinkAuthorizedMember(group, userKey);
+
+		group.setInviteCode(generateInviteCode());
+		Group updatedGroup = groupRepository.save(group);
+
+		return new GroupInviteLinkResponse(groupInviteLinkFactory.build(updatedGroup.getId(), updatedGroup.getInviteCode()));
 	}
 
 	public GroupResponse updateGroup(Long groupId, UpdateGroupRequest request, String userKey) {
@@ -217,5 +258,38 @@ public class GroupService {
 		}
 
 		return true;
-	}    
+	}
+
+	private Member getInviteLinkAuthorizedMember(Group group, String userKey) {
+//		if (StringUtils.hasText(group.getOwnerUserKey()) && group.getOwnerUserKey().equals(userKey)) {
+//			return new Member(userKey, null, null, GroupRole.OWNER);
+//		}
+
+		if (CollectionUtils.isEmpty(group.getMembers())) {
+			throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You are not a member of this group");
+		}
+
+		Member member = findMember(group.getMembers(), userKey);
+		if (member == null) {
+			throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You are not a member of this group");
+		}
+
+		if (!isInviteLinkAllowed(member.getRole())) {
+			throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You are not allowed to manage this invite link");
+		}
+
+		return member;
+	}
+
+	private boolean isInviteLinkAllowed(GroupRole userRole) {
+		return userRole == GroupRole.OWNER
+				|| userRole == GroupRole.ADMIN
+				|| userRole == GroupRole.MEMBER;
+	}
+
+	private String generateInviteCode() {
+		byte[] bytes = new byte[18];
+		INVITE_CODE_RANDOM.nextBytes(bytes);
+		return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+	}
 }
