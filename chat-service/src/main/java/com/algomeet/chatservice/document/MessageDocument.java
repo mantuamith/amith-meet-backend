@@ -90,6 +90,8 @@ public class MessageDocument {
 
     private Long msgDeliveredTimeStamp;
 
+    @Field("readByUsers")
+    private Set<String> readByUsers = new HashSet<>();
 
     @Field("failedRecipients")
     private List<String> failedRecipients;
@@ -111,6 +113,29 @@ public class MessageDocument {
             return false;
         }
         return true;
+    }
+
+    public boolean isReadBy(String userId) {
+        if (userId == null) {
+            return false;
+        }
+        if (userId.equals(sender)) {
+            return true;
+        }
+        if (isGroupMessage()) {
+            return readByUsers != null && readByUsers.contains(userId);
+        }
+        return userId.equals(receiver) && status == MessageStatus.READ;
+    }
+
+    public void markReadBy(String userId) {
+        if (userId == null) {
+            return;
+        }
+        if (readByUsers == null) {
+            readByUsers = new HashSet<>();
+        }
+        readByUsers.add(userId);
     }
 
     // TODO(migration): when you move “delete for me” to UUIDs, add:

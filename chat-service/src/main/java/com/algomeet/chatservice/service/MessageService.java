@@ -1,6 +1,8 @@
 package com.algomeet.chatservice.service;
 
+import com.algomeet.chatservice.client.GroupClient;
 import com.algomeet.chatservice.document.CallMetaData;
+import com.algomeet.chatservice.document.GroupDto;
 import com.algomeet.chatservice.document.MessageDocument;
 import com.algomeet.chatservice.document.MessageResponse;
 import com.algomeet.chatservice.dto.*;
@@ -44,6 +46,7 @@ import static org.springframework.data.mongodb.core.query.Criteria.where;
 public class MessageService {
 
     private final MessageRepository messageRepository;
+    private final GroupClient groupClient;
     private final SimpMessagingSyncTemplate messagingSyncTemplate;
     private final MessageMapper messageMapper;
     private final MongoTemplate mongoTemplate;
@@ -52,8 +55,8 @@ public class MessageService {
     // -------- RECENT / UNREAD --------
     public List<MessageResponse> getRecentUnreadMessages(String userId) {
         log.debug("[Unread] Fetching unread for user={}", userId);
-        List<MessageResponse> out = messageRepository.findByReceiverAndStatusNot(userId, MessageStatus.READ)
-                .stream()
+        List<MessageResponse> out = loadRecentScopeMessages(userId).stream()
+                .filter(m -> isUnreadForUser(m, userId))
                 .sorted(Comparator.comparing(MessageDocument::getTimestamp).reversed())
                 .peek(m -> log.trace("[Unread] docId={} from={} ts={}", m.getId(), m.getSender(), m.getTimestamp()))
                 .map(messageMapper::toResponse)
@@ -81,9 +84,11 @@ public class MessageService {
     }
 
     public void sendUnreadCountUpdate(String userId) {
-        var unread = messageRepository.findByReceiverAndStatusNot(userId, MessageStatus.READ);
-        Map<String, Long> countsBySender = unread.stream()
-                .collect(Collectors.groupingBy(MessageDocument::getSender, Collectors.counting()));
+        Map<String, Long> countsBySender = loadRecentScopeMessages(userId).stream()
+                .filter(m -> isUnreadForUser(m, userId))
+                .map(m -> resolveThreadId(m, userId))
+                .filter(MessageService::hasText)
+                .collect(Collectors.groupingBy(threadId -> threadId, Collectors.counting()));
 
         List<UnreadCountResponse> summary = countsBySender.entrySet().stream()
                 .map(e -> new UnreadCountResponse(e.getKey(), e.getValue().intValue()))
@@ -91,7 +96,7 @@ public class MessageService {
                 .toList();
 
         log.info("[UnreadPush] user={} distinctContacts={} totalUnread={}",
-                userId, summary.size(), unread.size());
+                userId, summary.size(), countsBySender.values().stream().mapToLong(Long::longValue).sum());
         messagingSyncTemplate.convertAndSendToUser(userId, "/queue/unread/count", summary);
     }
 
@@ -110,6 +115,7 @@ public class MessageService {
         if (message.getTimestamp() == null) {
             message.setTimestamp(Instant.now());
         }
+        initializeReadTracking(message);
         log.info("[Save] id?(pre) sender={} receiver={} status={} ts={}",
                 message.getSender(), message.getReceiver(), message.getStatus(), message.getTimestamp());
 
@@ -126,8 +132,12 @@ public class MessageService {
     }
 
     public List<RecentReceivedMessageResponse> getRecentMessages(String userId) {
+        if (!hasText(userId)) {
+            log.debug("[Recent] empty user id");
+            return List.of();
+        }
         log.debug("[Recent] Computing thread list for user={}", userId);
-        List<MessageDocument> all = messageRepository.findBySenderOrReceiver(userId, userId);
+        List<MessageDocument> all = loadRecentScopeMessages(userId);
         if (all.isEmpty()) {
             log.debug("[Recent] user={} no messages", userId);
             return List.of();
@@ -135,18 +145,19 @@ public class MessageService {
 
         List<MessageDocument> visible = all.stream()
                 .filter(m -> m.isVisibleTo(userId))
-                //.filter(m -> !m.isGroupMessage())
-                .filter(m -> hasText(m.getSender()))
-                .filter(m -> userId.equals(m.getSender()) || userId.equals(m.getReceiver()))
+                .filter(this::isRecentThreadCandidate)
                 .toList();
 
         if (visible.isEmpty()) return List.of();
 
-        Map<String, List<MessageDocument>> byContact = visible.stream()
-                .map(m -> Map.entry(Objects.requireNonNull(resolveContactId(m, userId)), m))
-                .filter(e -> hasText(e.getKey()))
-                .collect(Collectors.groupingBy(Map.Entry::getKey,
-                        Collectors.mapping(Map.Entry::getValue, Collectors.toList())));
+        Map<String, List<MessageDocument>> byContact = new HashMap<>();
+        for (MessageDocument m : visible) {
+            String contactId = resolveThreadId(m, userId);
+            if (!hasText(contactId)) {
+                continue;
+            }
+            byContact.computeIfAbsent(contactId, ignored -> new ArrayList<>()).add(m);
+        }
 
         List<RecentReceivedMessageResponse> result = new ArrayList<>();
         for (Map.Entry<String, List<MessageDocument>> e : byContact.entrySet()) {
@@ -166,12 +177,10 @@ public class MessageService {
             String lastText = latest.getContent();
 
             int unread = (int) thread.stream()
-                    .filter(m -> contactId.equals(m.getSender()))
-                    .filter(m -> userId.equals(m.getReceiver()))
-                    .filter(m -> m.getStatus() != MessageStatus.READ)
+                    .filter(m -> isUnreadForThread(m, userId, contactId))
                     .count();
 
-            result.add(new RecentReceivedMessageResponse(contactId, lastText, ts, unread,latest.getEncryptionMetadata()));
+            result.add(new RecentReceivedMessageResponse(contactId, lastText, ts, unread, latest.getEncryptionMetadata()));
             log.trace("[Recent] user={} contact={} latestId={} unread={}",
                     userId, contactId, latest.getId(), unread);
         }
@@ -184,8 +193,70 @@ public class MessageService {
         return out;
     }
 
-    private static String resolveContactId(MessageDocument message, String userId) {
+    private List<MessageDocument> loadRecentScopeMessages(String userId) {
+        Map<String, MessageDocument> uniqueById = new LinkedHashMap<>();
 
+        for (MessageDocument message : messageRepository.findBySenderOrReceiver(userId, userId)) {
+            if (message.getId() != null) {
+                uniqueById.put(message.getId(), message);
+            }
+        }
+
+        Set<String> groupIds = fetchGroupIdsForUsername(userId);
+        if (!groupIds.isEmpty()) {
+            for (MessageDocument message : messageRepository.findByGroupIdInOrReceiverIn(groupIds, groupIds)) {
+                if (message.getId() != null) {
+                    uniqueById.put(message.getId(), message);
+                }
+            }
+        }
+
+        return new ArrayList<>(uniqueById.values());
+    }
+
+    private Set<String> fetchGroupIdsForUsername(String userId) {
+        try {
+            return groupClient.getGroupsForUsername(userId).stream()
+                    .map(GroupDto::getId)
+                    .filter(Objects::nonNull)
+                    .map(String::valueOf)
+                    .collect(Collectors.toCollection(LinkedHashSet::new));
+        } catch (Exception ex) {
+            log.warn("[Recent] Failed to fetch groups for user={}: {}", userId, ex.getMessage());
+            return Set.of();
+        }
+    }
+
+    public void initializeReadTracking(MessageDocument message) {
+        if (message == null || !message.isGroupMessage()) {
+            return;
+        }
+        message.markReadBy(message.getSender());
+    }
+
+    private boolean isUnreadForThread(MessageDocument message, String userId, String threadId) {
+        if (!isUnreadForUser(message, userId)) {
+            return false;
+        }
+        return threadId.equals(resolveThreadId(message, userId));
+    }
+
+    private boolean isUnreadForUser(MessageDocument message, String userId) {
+        if (message == null || !hasText(userId)) {
+            return false;
+        }
+        if (message.isGroupMessage()) {
+            return hasText(resolveThreadId(message, userId))
+                    && !userId.equals(message.getSender())
+                    && !message.isReadBy(userId);
+        }
+        return userId.equals(message.getReceiver()) && message.getStatus() != MessageStatus.READ;
+    }
+
+    private String resolveThreadId(MessageDocument message, String userId) {
+        if (message.isGroupMessage()) {
+            return hasText(message.getGroupId()) ? message.getGroupId() : message.getReceiver();
+        }
         if (userId.equals(message.getSender())) {
             return message.getReceiver();
         }
@@ -193,6 +264,16 @@ public class MessageService {
             return message.getSender();
         }
         return null;
+    }
+
+    private boolean isRecentThreadCandidate(MessageDocument message) {
+        if (!hasText(message.getSender())) {
+            return false;
+        }
+        if (message.isGroupMessage()) {
+            return hasText(message.getGroupId()) || hasText(message.getReceiver());
+        }
+        return hasText(message.getReceiver());
     }
 
     private static boolean hasText(String value) {
@@ -233,19 +314,28 @@ public class MessageService {
     // -------- READ RECEIPTS --------
     public void markMessagesAsRead(MessageStatusUpdate readUpdate, String readerId) {
         log.info("[Read] reader={} ids={}", readerId, readUpdate.getMessageIds());
-        List<MessageDocument> messages = messageRepository.findAllById(readUpdate.getMessageIds()).stream()
-                .filter(m -> readerId.equals(m.getReceiver()) && m.getStatus() != MessageStatus.READ)
-                .toList();
+        List<MessageDocument> candidates = messageRepository.findAllById(readUpdate.getMessageIds());
+        List<MessageDocument> messages = new ArrayList<>();
+        for (MessageDocument message : candidates) {
+            if (message.isGroupMessage()) {
+                if (!readerId.equals(message.getSender()) && !message.isReadBy(readerId)) {
+                    message.markReadBy(readerId);
+                    messages.add(message);
+                }
+                continue;
+            }
+            if (readerId.equals(message.getReceiver()) && message.getStatus() != MessageStatus.READ) {
+                message.setStatus(MessageStatus.READ);
+                message.setMsgReadTimeStamp(readUpdate.getStatusTimeStamp());
+                messages.add(message);
+            }
+        }
 
         if (messages.isEmpty()) {
             log.debug("[Read] No eligible messages to mark. reader={} ids={}", readerId, readUpdate.getMessageIds());
             return;
         }
 
-        messages.forEach(m -> {
-            m.setStatus(MessageStatus.READ);
-            m.setMsgReadTimeStamp(readUpdate.getStatusTimeStamp());
-        });
         messageRepository.saveAll(messages);
         long nowSec = readUpdate.getStatusTimeStamp();
         log.info("[Read] Updated count={} reader={}", messages.size(), readerId);
@@ -265,18 +355,33 @@ public class MessageService {
     }
 
     public void markMessagesAsRead(String reqSenderId, String contactId) {
-        log.info("[Read] reader={} ", contactId);
-        List<MessageDocument> messages = messageRepository.findByReceiver(contactId).stream()
-                .filter(m -> contactId.equals(m.getReceiver()) && m.getStatus() != MessageStatus.READ)
-                .toList();
+        log.info("[Read] reader={} thread={}", reqSenderId, contactId);
+        List<MessageDocument> all = messageRepository.findByReceiver(contactId).stream().toList();
+        if (all.isEmpty()) {
+            all = messageRepository.findByGroupIdOrReceiver(contactId, contactId);
+        }
+        List<MessageDocument> messages = new ArrayList<>();
+        for (MessageDocument message : all) {
+            if (message.isGroupMessage()) {
+                if (!reqSenderId.equals(message.getSender()) && !message.isReadBy(reqSenderId)) {
+                    message.markReadBy(reqSenderId);
+                    messages.add(message);
+                }
+                continue;
+            }
+            if (reqSenderId.equals(message.getReceiver()) && message.getStatus() != MessageStatus.READ) {
+                message.setStatus(MessageStatus.READ);
+                message.setMsgReadTimeStamp(Instant.now().getEpochSecond());
+                messages.add(message);
+            }
+        }
 
         if (messages.isEmpty()) {
-            log.debug("[Read] No eligible messages to mark. reader={}", contactId);
+            log.debug("[Read] No eligible messages to mark. reader={} thread={}", reqSenderId, contactId);
             sendUnreadCountUpdate(reqSenderId);
             return;
         }
 
-        messages.forEach(m -> m.setStatus(MessageStatus.READ));
         messageRepository.saveAll(messages);
         long nowSec = Instant.now().getEpochSecond();
         log.info("[Read] Updated count={}", messages.size());

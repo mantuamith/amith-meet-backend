@@ -10,4 +10,6 @@ public interface GroupRepository extends JpaRepository<Group, Long> {
     Optional<Group> findByName(String name);
 
     List<Group> findByMembers_UserKey(String userKey);
+
+    List<Group> findByMembers_Username(String username);
 }

@@ -97,6 +97,7 @@ public class MessageActionService {
         replyContent.setOriginalFrom(msg.getReceiver());
         replyContent.setOriginalMesg(msg.getContent());
         reply.setReplyContent(replyContent);
+        messageService.initializeReadTracking(reply);
         MessageDocument saved = messageRepository.save(reply);
         dispatchNewMessage(saved);
         return saved;
@@ -130,6 +131,7 @@ public class MessageActionService {
         fi.setForwardedAt(req.getMsgForwardTimeStamp());
         fwd.setForwarded(fi);
 
+        messageService.initializeReadTracking(fwd);
         MessageDocument saved = messageRepository.save(fwd);
         dispatchNewMessage(saved);
         return saved;
