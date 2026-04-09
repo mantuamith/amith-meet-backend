@@ -13,7 +13,7 @@ spring:
 
   data:
     mongodb:
-      uri: ${SPRING_MONGODB_URI_AUTHDB}
+      uri: ${SPRING_DATASOURCE_URL_MONGODB}
       auto-index-creation: true
 
     redis:
