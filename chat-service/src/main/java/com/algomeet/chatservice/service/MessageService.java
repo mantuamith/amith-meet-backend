@@ -135,8 +135,8 @@ public class MessageService {
 
         List<MessageDocument> visible = all.stream()
                 .filter(m -> m.isVisibleTo(userId))
-                .filter(m -> !m.isGroupMessage())
-                .filter(m -> hasText(m.getSender()) && hasText(m.getReceiver()))
+                //.filter(m -> !m.isGroupMessage())
+                .filter(m -> hasText(m.getSender()))
                 .filter(m -> userId.equals(m.getSender()) || userId.equals(m.getReceiver()))
                 .toList();
 
@@ -185,6 +185,7 @@ public class MessageService {
     }
 
     private static String resolveContactId(MessageDocument message, String userId) {
+
         if (userId.equals(message.getSender())) {
             return message.getReceiver();
         }
