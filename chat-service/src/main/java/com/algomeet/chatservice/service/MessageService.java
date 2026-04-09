@@ -143,7 +143,7 @@ public class MessageService {
         if (visible.isEmpty()) return List.of();
 
         Map<String, List<MessageDocument>> byContact = visible.stream()
-                .map(m -> Map.entry(resolveContactId(m, userId), m))
+                .map(m -> Map.entry(Objects.requireNonNull(resolveContactId(m, userId)), m))
                 .filter(e -> hasText(e.getKey()))
                 .collect(Collectors.groupingBy(Map.Entry::getKey,
                         Collectors.mapping(Map.Entry::getValue, Collectors.toList())));
