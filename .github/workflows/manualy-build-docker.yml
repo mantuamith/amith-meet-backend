@@ -83,7 +83,7 @@ jobs:
           if [ "${{ github.event.inputs.subscription-service }}" == "true" ]; then SERVICES+=("\"subscription-service\""); fi
           if [ "${{ github.event.inputs.signal-service }}" == "true" ]; then SERVICES+=("\"signal-service\""); fi
           if [ "${{ github.event.inputs.group-service }}" == "true" ]; then SERVICES+=("\"group-service\""); fi
-          if [ "${{ github.event.inputs.xmpp-chat-service }}" == "true" ]; then SERVICES+=("\"xmpp-chat-service\""); fi
+          if [ "${{ github.event.inputs.chat-service }}" == "true" ]; then SERVICES+=("\"xmpp-chat-service\""); fi
           
           # join with commas, not spaces
           SERVICES_JOINED=$(IFS=, ; echo "${SERVICES[*]}")
