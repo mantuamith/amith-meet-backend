@@ -12,7 +12,7 @@ public class MessageMapper {
         return MessageResponse.builder()
                 .id(document.getId())
                 .from(document.getSender())
-                .to(document.getReceiver())
+                .to(document.isGroupMessage() ? document.getGroupId() : document.getReceiver())
                 .fromKey(document.getSenderKey())          // NEW
                 .toKey(document.getReceiverKey())          // NEW
                 .timestamp(document.getTimestamp() != null ? document.getTimestamp().toEpochMilli()/1000 : null)

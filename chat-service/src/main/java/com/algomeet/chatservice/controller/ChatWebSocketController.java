@@ -77,6 +77,7 @@ public class ChatWebSocketController {
         if (message.getStatus() == null) {
             message.setStatus(MessageStatus.SENT);
         }
+        messageService.initializeReadTracking(message);
         try {
 
             MessageDocument savedMessage = messageRepository.save(message);
