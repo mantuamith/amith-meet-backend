@@ -49,10 +49,10 @@ spring:
 
 group:
   service:
-    url: http://localhost:8087
+    url: http://group-service:8087
 media:
   service:
-    url: http://localhost:8095
+    url: http://media-service:8095
 jwt:
   secret: ${SPRING_JWT_SECRET}
 
