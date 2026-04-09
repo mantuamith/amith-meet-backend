@@ -16,7 +16,7 @@ import java.util.List;
 public class MessageResponse {
     private String id;
     private String from;
-    private String to;
+    private String to; // for group chats this is the group id
     private Long timestamp;
     private MessageType type;
     private MessageStatus status;

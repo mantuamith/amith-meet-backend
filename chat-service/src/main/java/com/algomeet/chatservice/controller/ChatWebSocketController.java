@@ -80,39 +80,26 @@ public class ChatWebSocketController {
         try {
 
             MessageDocument savedMessage = messageRepository.save(message);
-            log.info("__**__ after savedMessage called");
+
             MessageResponse response = messageMapper.toResponse(savedMessage);
             List<String> failedMembers = new ArrayList<>();
-            log.info("__**__ after messageMapper called");
+
             if (message.isGroupMessage()) {
                 GroupDto group = groupClient.getGroupById(Long.parseLong(message.getGroupId()));   
                 response.setType(MessageType.GROUP);
+                response.setTo(group.getId().toString());
                 // If a message has media files, grant media access permissions to the
                 // message recipients.
                 mediaService.share(message, group);
-                log.info("__**__ after mediaService share called");
-
                 messagingSyncTemplate.convertAndSendToUser(message.getSender(), "/queue/update_message", response);
-                log.info("__**__ after convertAndSendToUser message.getSender() called");
-
                 for (Member member : group.members) {
                     try {
                         if (!member.getUsername().equals(message.getSender())) {
                         	messagingSyncTemplate.convertAndSendToUser(member.getUsername(), "/queue/messages", response);
-                            log.info("__**__ after convertAndSendToUser called");
-
                             messageService.sendUnreadCountUpdate(member.getUsername()); // real-time update
-                            log.info("__**__ after sendUnreadCountUpdate called");
-
-
-                            log.info("__**__Delivering message to group member: {}", member.getUsername());
-                            log.info("__**__member userkey: {}", member.getUserKey());
-                            log.info("__**__Message content: {}", message.getContent());
-                            log.info("__**__Message type: {}", message.getType());
-
                             // Send push notification
                             sendPushNotification(member.getUserKey(), message.getContent(), NotificationType.GROUP_MESSAGE, member.getUsername());
-                            log.info("__**__ after sendPushNotification called");
+
                         }
                     } catch (Exception e) {
                         e.printStackTrace();
