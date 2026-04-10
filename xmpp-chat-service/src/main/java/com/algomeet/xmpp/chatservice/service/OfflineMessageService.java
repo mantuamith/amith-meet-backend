@@ -1,7 +1,5 @@
 package com.algomeet.xmpp.chatservice.service;
 
-import java.util.List;
-
 import org.springframework.stereotype.Service;
 
 import com.algomeet.xmpp.chatservice.document.OfflineMessage;

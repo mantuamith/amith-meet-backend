@@ -1,24 +1,17 @@
 package com.algomeet.xmpp.chatservice.auth;
 
-import java.time.Instant;
-import java.util.concurrent.atomic.AtomicLong;
 import org.springframework.stereotype.Component;
 
 import com.algomeet.xmpp.chatservice.connection.ConnectionLifecycleHandler;
 import com.algomeet.xmpp.chatservice.connection.registry.LocalChannelRegistry;
 import com.algomeet.xmpp.chatservice.connection.stream.XmppStreamManagementBuffer;
-import com.algomeet.xmpp.chatservice.enums.UserState;
-import com.algomeet.xmpp.chatservice.service.CallTrackerService;
 import com.algomeet.xmpp.chatservice.session.UserSessionRegistry;
-import com.algomeet.xmpp.chatservice.stanza.BindResult;
 import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
-import com.algomeet.xmpp.chatservice.session.model.UserSession;
 
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
-import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

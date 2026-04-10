@@ -6,6 +6,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.document.CallSession;
@@ -21,7 +22,7 @@ import reactor.core.publisher.Mono;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class CallTrackerService {
+public class MucCallTrackerService {
 
     private final CallTrackerRepository repository;
     private final ClusterMessagePublisher clusterMessagePublisher;
@@ -31,13 +32,14 @@ public class CallTrackerService {
     /**
      * Initiates the call record reactively.
      */
-    public Mono<CallSession> trackInitiation(String sid, String caller, String callerSid, String callee, String callType) {
+    public Mono<CallSession> trackInitiation(String sid, String caller, String callerSid, String callee, String callType, String roomId) {
         CallSession call = CallSession.builder()
                 .sid(sid)
                 .caller(caller)
                 .callerSid(callerSid)
                 .callee(callee)
                 .callType(callType)
+                .roomId(roomId)
                 .createdAt(Instant.now().toEpochMilli())
                 .build();
 
@@ -75,14 +77,21 @@ public class CallTrackerService {
      * Finalizes session, notifies parties, and then handles the document lifecycle.
      */
     public Mono<Void> finalizeAndNotify(String sid, String userSessionId, String reason) {
-        return repository.findAllBySidAndRoomIdIsNull(sid) // Now returns Flux<CallSession>
-                .flatMap(session -> {                	
+        return repository.findAllBySidAndRoomIdIsNotNull(sid) // Now returns Flux<CallSession>
+                .flatMap(session -> {
+                	
                 	// Check the session ID
                 	if(!((session.getCallerSid() != null && session.getCallerSid().equalsIgnoreCase(userSessionId)) 
                 			|| (session.getCalleeSid() != null && session.getCalleeSid().equalsIgnoreCase(userSessionId)))) {                		
                 	    return Mono.empty();
                 	}
- 
+                	
+                	// For group call only initiator or the caller can finalize the call
+                	if (StringUtils.hasText(session.getRoomId()) 
+                			&& !(session.getCallerSid() != null && session.getCallerSid().equalsIgnoreCase(userSessionId))) {
+                	    return Mono.empty();
+                	}
+
                     long now = Instant.now().toEpochMilli();
 
                     long duration = 0;
@@ -102,9 +111,10 @@ public class CallTrackerService {
                     
                     String callerMsgId = UUID.randomUUID().toString();
                     String calleeMsgId = UUID.randomUUID().toString(); // Corrected spelling
-                                     	
-                    String callerMsg = composeCallLogStanza(callerMsgId, callerJid, calleeJid, sid, session.getCallType(), duration, status, isoTimestamp);                    
-                    publish(callerMsgId, session.getCaller(), session.getCallee(), ChatType.CHAT, callerMsg);
+                    
+                    // TODO: Don't send to caller for group chat call, call logs must be send by the group caller it self.                	
+                    //String callerMsg = composeCallLogStanza(callerMsgId, callerJid, calleeJid, sid, session.getCallType(), duration, status, isoTimestamp);                    
+                    //publish(callerMsgId, session.getCaller(), session.getCallee(), ChatType.CHAT, callerMsg);
                     
                     String calleeMsg = composeCallLogStanza(calleeMsgId, calleeJid, callerJid, sid, session.getCallType(), duration, status, isoTimestamp);
                     publish(calleeMsgId, session.getCallee(), session.getCaller(), ChatType.CHAT, calleeMsg);
@@ -127,13 +137,12 @@ public class CallTrackerService {
     	
     	// publish to cluster for synchronization
     	clusterMessagePublisher.convertAndSendToUser(id, to, from, chatType, payload);
-
     }
 
     private String composeCallLogStanza(String id, String to, String from, String sid, String type, long duration, String status, String timestamp) {
         // Constructing the final XML payload
         String stanza = String.format(
-            "<message id='%s' to='%s' from='%s' type='chat'>" +
+            "<message id='%s' to='%s' from='%s' type='groupchat'>" +
                 "<body>%s call ended. Duration: %ds</body>" +
                 "<call-log xmlns='https://algomeet.com/protocol/calls' " +
                           "sid='%s' " +

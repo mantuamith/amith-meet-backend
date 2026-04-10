@@ -5,6 +5,7 @@ public class XmppErrorConditions {
     public static final String SERVICE_UNAVAILABLE = "service-unavailable";
     public static final String BAD_REQUEST = "bad-request";
     public static final String REMOTE_SERVER_NOT_FOUND = "remote-server-not-found";
+    public static final String DUPLICATE_KEY_ERROR = "duplicate-key-error";
    
     /**
      * Used when the sent XML is not well-formed or 

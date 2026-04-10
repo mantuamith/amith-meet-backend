@@ -3,7 +3,6 @@ package com.algomeet.xmpp.chatservice.routing.chat;
 import java.time.Instant;
 import java.util.concurrent.atomic.AtomicLong;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;

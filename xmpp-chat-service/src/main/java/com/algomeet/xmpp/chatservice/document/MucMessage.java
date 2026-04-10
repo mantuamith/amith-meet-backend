@@ -29,6 +29,8 @@ public class MucMessage {
     private String roomId;
     
     private String from;
+    // USed for DIRECT PRIVATE MESSAGE (PM) WITHIN MUC 
+    private String to;
     private String stanzaXml;
     
     private String category;
