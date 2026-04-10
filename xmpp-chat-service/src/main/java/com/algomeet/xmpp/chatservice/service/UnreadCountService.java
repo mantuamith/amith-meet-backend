@@ -6,7 +6,9 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
+import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.document.UnreadCount;
+import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.session.UserSessionRegistry;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
@@ -23,6 +25,7 @@ public class UnreadCountService {
 	private final DomainProperties domainProperties;
 	private final JidUtil jidUtil;
 	private final UserSessionRegistry userSessionRegistry;
+    private final ClusterMessagePublisher clusterMessagePublisher;
 
     /**
      * Non-blocking increment of the unread count.
@@ -59,7 +62,8 @@ public class UnreadCountService {
 		</message> */
         if(userSessionRegistry.getSessions(recipientKey).size() > 1) {
 			// Send it user has more that one session for synchronization
-			MucCountUtil.composeCountSync(domainProperties.getDomain(), jidUtil.getBareJid(recipientKey), senderKey, 0);
+			String payload = MucCountUtil.composeCountSync(domainProperties.getDomain(), jidUtil.getBareJid(recipientKey), senderKey, 0);
+			clusterMessagePublisher.convertAndSendToUser(id, recipientKey, recipientKey, ChatType.CHAT, payload);
 		}
 
         return reactiveMongoTemplate.updateFirst(query, update, UnreadCount.class)

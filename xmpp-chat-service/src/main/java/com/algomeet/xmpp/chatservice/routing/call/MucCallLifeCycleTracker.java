@@ -16,7 +16,6 @@ import com.algomeet.xmpp.chatservice.enums.CallSessionMetadata;
 import com.algomeet.xmpp.chatservice.enums.CallSessionRedisKey;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
-import com.algomeet.xmpp.chatservice.service.CallTrackerService;
 import com.algomeet.xmpp.chatservice.service.MucCallTrackerService;
 import com.algomeet.xmpp.chatservice.service.OfflineMessageService;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
