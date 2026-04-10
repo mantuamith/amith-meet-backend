@@ -26,7 +26,7 @@ public class CallSession {
     private String callee;    // callee user key
     
     @Indexed
-    private String calleSid;  // callee websocket connection session ID
+    private String calleeSid;  // callee websocket connection session ID
 
     private String callType;  // "audio" or "video"
     

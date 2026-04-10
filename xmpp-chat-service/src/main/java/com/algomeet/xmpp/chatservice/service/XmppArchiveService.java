@@ -4,6 +4,7 @@ import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.document.MucMessage;
 import com.algomeet.xmpp.chatservice.dto.StanzaInfo;
 import com.algomeet.xmpp.chatservice.repository.MucMessageRepository;
+import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 
 import io.netty.channel.ChannelHandlerContext;
@@ -30,6 +31,7 @@ import reactor.core.publisher.Mono;
 public class XmppArchiveService {
     
     private final MucMessageRepository repository;
+    private final JidUtil jidUtil;
 
     /**
      * Persists a room event (message or signaling) to the archive.
@@ -41,12 +43,13 @@ public class XmppArchiveService {
      * @param internalId The unique internal ID (typically a ULID or Snowflake) for database ordering.
      * @return A {@link Mono} containing the saved {@link MucMessage}.
      */
-    public Mono<MucMessage> archiveEvent(String xml, StanzaInfo info, String roomId, String from, String internalId) {
+    public Mono<MucMessage> archiveEvent(String xml, StanzaInfo info, String toRoomId, String toMucMember, String from, String internalId) {
         MucMessage event = MucMessage.builder()
                 .id(internalId)
                 .stanzaId(info.getStanzaId()) // Original client-side ID
-                .roomId(roomId)
+                .roomId(toRoomId)
                 .from(from)
+                .to(toMucMember)
                 .stanzaXml(xml)
                 .category(info.getCategory())
                 .refersTo(info.getTargetId()) // Used for message corrections or replies
@@ -83,7 +86,12 @@ public class XmppArchiveService {
                 afterId != null ? afterId : "", // Ensure non-null for stable Mongo range query
                 PageRequest.of(0, maxResults)
         )
+        .filter((MucMessage msg) -> 
+            // Check for direct private messages with MUC
+        	msg.getTo() == null || (msg.getTo() != null && msg.getTo().equalsIgnoreCase(principal.getUserKey()))
+        )
         .concatMap((MucMessage msg) -> {
+        	        	
             // Wrap the archived stanza in a MAM result container
             String mamResult = String.format(
                     "<message to='%s'>" +

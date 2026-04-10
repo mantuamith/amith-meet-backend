@@ -20,6 +20,11 @@ public class XmppStanzaMucUtil {
 	    String fromPattern = "from=['\"]" + Pattern.quote(fromJid) + "['\"]";
 	    String toPattern = "to=['\"]" + Pattern.quote(roomJid) + "['\"]";
 
+	    /*
+		 * JID REWRITING:
+		 * 1. Change 'from' from UserJID to OccupantJID (Room anonymity).
+		 * 2. Change 'to' from RoomJID to the specific Recipient's JID for routing.
+		 */
 	    return xml.replaceAll(fromPattern, "from='" + occupantFromJid + "'")
 	              .replaceAll(toPattern, "to='" + recipientRealJid + "'");
 	}

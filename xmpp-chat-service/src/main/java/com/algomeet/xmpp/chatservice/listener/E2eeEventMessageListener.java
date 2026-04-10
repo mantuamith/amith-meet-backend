@@ -5,6 +5,7 @@ import java.util.UUID;
 import org.springframework.stereotype.Component;
 
 import com.algomeet.xmpp.chatservice.routing.dispacher.LocalStanzaDispatcher;
+import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import lombok.RequiredArgsConstructor;
@@ -36,6 +37,7 @@ import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 @RequiredArgsConstructor
 public class E2eeEventMessageListener {	
     private final DomainProperties domainProperties;
+    private final JidUtil jidUtil;
 
     /** Dispatcher used to route stanzas to local Netty channels/sessions. */
     private final LocalStanzaDispatcher localStanzaDispatcher;
@@ -64,8 +66,8 @@ public class E2eeEventMessageListener {
                     "    </items>" +
                     "  </pubsub>" +
                     "</iq>",
-                    event.getSourceUserKey() + "@" + domainProperties.getDomain(), // Assuming this is the 'from' JID
-                    subscriberKey + "@" + domainProperties.getDomain(),            // The recipient
+                    jidUtil.getBareJid(event.getSourceUserKey()), // Assuming this is the 'from' JID
+                    jidUtil.getBareJid(subscriberKey),            // The recipient
                     stanzaId,
                     event.getDeviceId(),      // Ensure your E2eeEvent DTO has deviceId
                     bundlePayload

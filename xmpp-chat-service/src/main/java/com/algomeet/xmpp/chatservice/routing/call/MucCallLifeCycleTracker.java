@@ -17,6 +17,7 @@ import com.algomeet.xmpp.chatservice.enums.CallSessionRedisKey;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
 import com.algomeet.xmpp.chatservice.service.CallTrackerService;
+import com.algomeet.xmpp.chatservice.service.MucCallTrackerService;
 import com.algomeet.xmpp.chatservice.service.OfflineMessageService;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
 
@@ -33,11 +34,11 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class CallLifeCycleTracker {
+public class MucCallLifeCycleTracker {
 	private final StringRedisTemplate redisTemplate;
 	private final ClusterMessagePublisher clusterMessagePublisher;
 	private final OfflineMessageService offlineMessageService;
-	private final CallTrackerService callTrackerService;
+	private final MucCallTrackerService mucCallTrackerService;
 
 	@Value("${call.session-metadata-ttl-minutes:10}")
 	private Integer callSessionMetadataTtlMinutes;
@@ -54,7 +55,7 @@ public class CallLifeCycleTracker {
 	/**
 	 * Entry point for analyzing incoming XMPP stanzas for Jingle signaling actions.
 	 */
-	public void track(ChannelHandlerContext ctx, String toJid, String fromJid, String xml, XmppPrincipal principal) {
+	public void track(ChannelHandlerContext ctx, String toJid, String fromJid, String xml, XmppPrincipal principal, String groupId) {
 		// Detect specific Jingle actions defined in XEP-0166
 		boolean isInitiate = xml.contains("session-initiate");
 		boolean isAccept = xml.contains("session-accept");
@@ -64,7 +65,7 @@ public class CallLifeCycleTracker {
 		if (sid == null) return;
 
 		if (isInitiate) {
-			handleInitiate(toJid, fromJid, xml, sid, principal);
+			handleInitiate(toJid, fromJid, xml, sid, groupId, principal);
 		} else if (isAccept) {
 			handleAccept(sid, principal.getUserKey(), principal.getSessionId());
 		} else if (isTerminate) {
@@ -76,7 +77,7 @@ public class CallLifeCycleTracker {
 	 * Handles 'session-initiate'. Registers the call metadata and starts the 
 	 * countdown timer in Redis for the "Missed Call" worker.
 	 */
-	private void handleInitiate(String toJid, String fromJid, String xml, String sid, XmppPrincipal principal) {
+	private void handleInitiate(String toJid, String fromJid, String xml, String sid, String roomId, XmppPrincipal principal) {
 		// Calculate the exact epoch millisecond when the call should be considered "Missed"
 		long executeAt = System.currentTimeMillis() + (callRingingTimeoutSeconds * 1000);
 
@@ -92,6 +93,7 @@ public class CallLifeCycleTracker {
 		data.put(CallSessionMetadata.FROM.getKey(), fromJid);
 		data.put(CallSessionMetadata.CALL_TYPE.getKey(), callType);
 		data.put(CallSessionMetadata.TENANT_ID.getKey(), principal.getTenantId().toString()); 
+		data.put(CallSessionMetadata.GROUP_ID.getKey(), roomId); 		
 		data.put(CallSessionMetadata.USERNAME.getKey(), principal.getUsername()); 
 
 		redisTemplate.opsForHash().putAll(metaKey, data);
@@ -105,7 +107,7 @@ public class CallLifeCycleTracker {
 		log.info("Call [{}] initiated. SID: {}. Timeout scheduled in {}s", callType, sid, callRingingTimeoutSeconds);
 		
 		// Track call initiation for duration calculation
-		callTrackerService.trackInitiation(sid, principal.getUserKey(), principal.getSessionId(), XmppUtil.getUserKey(toJid), callType)
+		mucCallTrackerService.trackInitiation(sid, principal.getUserKey(), principal.getSessionId(), XmppUtil.getUserKey(toJid), callType, roomId)
 		.subscribe();
 	}
 
@@ -129,7 +131,7 @@ public class CallLifeCycleTracker {
 		handleResolution(sid);
 		
 		// Track call acceptance for duration calculation
-		callTrackerService.trackAcceptance(sid, calleeUserKey, calleeSid).subscribe();
+		mucCallTrackerService.trackAcceptance(sid, calleeUserKey, calleeSid).subscribe();
 	}
 
 	/**
@@ -152,7 +154,7 @@ public class CallLifeCycleTracker {
 		if (xml.contains("<success/>")) {			
 			
 			// Calculate and send call logs
-			callTrackerService.finalizeAndNotify(sid, principal.getSessionId(), "success").subscribe();
+			mucCallTrackerService.finalizeAndNotify(sid, principal.getSessionId(), "success").subscribe();
 		}
 		else if (xml.contains("<decline/>")) {
 			// 1. To Initiator: "The other person rejected your call"
@@ -162,7 +164,7 @@ public class CallLifeCycleTracker {
 		    sendCallLog(ctx, toJid, fromJid, sid, "declined", "Call Declined", callType);		
 		    
 		    // Remove call session for declined call
-			callTrackerService.remove(sid).subscribe();
+		    mucCallTrackerService.remove(sid).subscribe();
 		} 		
 		// Case: Caller hung up before the recipient answered
 		else if (xml.contains("<cancel/>")) {
@@ -173,7 +175,7 @@ public class CallLifeCycleTracker {
 		    sendCallLog(ctx, fromJid, toJid, sid, "missed", "Missed Call", callType);
 		    
 		    // Remove call session for canceled call
-		    callTrackerService.remove(sid);
+		    mucCallTrackerService.remove(sid);
 		}	
 		else if (xml.contains("<busy/>")) {
 			// 1. To Initiator (Self): "You missed an incoming call"
@@ -183,7 +185,7 @@ public class CallLifeCycleTracker {
 			sendCallLog(ctx, fromJid, toJid, sid, "missed", "Line Busy", callType);
 
 			// Remove call session for busy call
-			callTrackerService.remove(sid);
+			mucCallTrackerService.remove(sid);
 		} else if (xml.contains("<alternative-session>")) {
 			// 1. To Initiator (Self): "You missed an incoming call"
 			sendCallLog(ctx, toJid, fromJid, sid, "missed", "Alternative Session", callType);
@@ -192,7 +194,7 @@ public class CallLifeCycleTracker {
 			sendCallLog(ctx, fromJid, toJid, sid, "missed", "Alternative Session", callType);
 
 			// Remove call session for busy call
-			callTrackerService.remove(sid);
+			mucCallTrackerService.remove(sid);
 		} else if (xml.contains("<unsupported-transports/>")) {
 			// 1. To Initiator (Self): "You missed an incoming call"
 			sendCallLog(ctx, toJid, fromJid, sid, "missed", "Unsupported Transports", callType);
@@ -201,7 +203,7 @@ public class CallLifeCycleTracker {
 			sendCallLog(ctx, fromJid, toJid, sid, "missed", "Unsupported Transportsn", callType);
 
 			// Remove call session for busy call
-			callTrackerService.remove(sid).subscribe();
+			mucCallTrackerService.remove(sid).subscribe();
 		}
 	}
 

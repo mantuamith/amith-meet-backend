@@ -13,6 +13,7 @@ import com.algomeet.xmpp.chatservice.enums.MucAffiliation;
 import com.algomeet.xmpp.chatservice.enums.XmppErrorType;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.service.GroupCacheService;
+import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.algomeet.xmpp.chatservice.util.MucCommandUtil;
 import com.algomeet.xmpp.chatservice.util.MucRoleUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
@@ -47,6 +48,7 @@ public class MucAdminCommandDispatcher {
 	private final ClusterMessagePublisher clusterMessagePublisher;
 	private final DomainProperties domainProperties;
 	private final GroupCacheService groupCacheService;
+	private final JidUtil jidUtil;
 
 	/**
 	 * Routes an incoming XML command stanza to the appropriate internal handler.
@@ -104,7 +106,7 @@ public class MucAdminCommandDispatcher {
 			return;
 		}
 
-		String targetJid = victimOpt.get().getUserKey() + "@" + domainProperties.getDomain();
+		String targetJid = jidUtil.getBareJid(victimOpt.get().getUserKey());
 		String roomBareJid = XmppUtil.getRoomBareJid(roomJid);
 		String kickPresence = buildKickPresence(roomBareJid, victimNick, targetJid, sender.getNickname(), reason);
 
@@ -138,7 +140,7 @@ public class MucAdminCommandDispatcher {
 			return;
 		}
 
-		String targetJid = victimOpt.get().getUserKey() + "@" + domainProperties.getDomain();
+		String targetJid = jidUtil.getBareJid(victimOpt.get().getUserKey());
 		String roomBareJid = XmppUtil.getRoomBareJid(roomJid);
 		String affiliation = MucAffiliation.fromString(victimOpt.get().getRole()).getValue();
 		String mutePresence = buildMutePresence(roomBareJid, victimNick, affiliation, targetJid, sender.getNickname(), reason);
@@ -173,7 +175,7 @@ public class MucAdminCommandDispatcher {
 			return;
 		}
 		
-		String targetJid = victimOpt.get().getUserKey() + "@" + domainProperties.getDomain();
+		String targetJid = jidUtil.getBareJid(victimOpt.get().getUserKey());
 		String roomBareJid = XmppUtil.getRoomBareJid(roomJid);
 		String affiliation = MucAffiliation.fromString(victimOpt.get().getRole()).getValue();
 		String unmutePresence = buildUnmutePresence(roomBareJid, victimNick, affiliation, targetJid, sender.getNickname(), reason);

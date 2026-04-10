@@ -20,6 +20,7 @@ import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.routing.call.CallLifeCycleTracker;
 import com.algomeet.xmpp.chatservice.routing.call.JingleNotificationHandler;
 import com.algomeet.xmpp.chatservice.service.OfflineMessageService;
+import com.algomeet.xmpp.chatservice.service.UnreadCountService;
 import com.algomeet.xmpp.chatservice.session.UserSessionRegistry;
 import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
 import com.algomeet.xmpp.chatservice.session.model.UserSession;
@@ -44,6 +45,7 @@ public class XmppChatHandler {
     private final JingleNotificationHandler jingleNotificationHandler;
     private final CallLifeCycleTracker callTracker;
     private final DomainProperties domainProperties;
+    private final UnreadCountService unreadCountService;
     
 	 /**
      * Handles 1-to-1 message routing, persistence for offline storage, 
@@ -64,6 +66,13 @@ public class XmppChatHandler {
         if (msgType.supportsOfflineStorage() && XmppStanzaUtil.isArchiveable(xmlHeader, originalXml)) {
             offlineMessageService.save(id, toUserKey, fromUserKey, type, originalXml)
                 .doOnSuccess(savedDoc -> {
+                	// Increment unread message count
+                	unreadCountService.incrementUnreadCount(fromUserKey, toUserKey)
+                	.doOnError(error -> {
+                		log.error("Storage failure for increment messages count {}: {}", id, error.getMessage(), error);
+                	})
+                    .subscribe();
+                	
                 	// XEP-0198: Increment the inbound handled count and send 'h' ack to the sender
         			XmppStreamManagementUtil.incrementAndSendInboundH(ctx);                    
                 })

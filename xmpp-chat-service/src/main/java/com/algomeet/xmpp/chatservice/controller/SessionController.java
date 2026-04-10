@@ -6,6 +6,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.algomeet.xmpp.chatservice.controller.doc.SessionControllerDoc;
 import com.algomeet.xmpp.chatservice.dto.CommonResponse;
 import com.algomeet.xmpp.chatservice.enums.ResponseCode;
 import com.algomeet.xmpp.chatservice.service.SessionService;
@@ -33,7 +34,7 @@ import lombok.extern.slf4j.Slf4j;
 @RestController
 @RequestMapping("/api/chat/sessions")
 @RequiredArgsConstructor
-public class SessionController {
+public class SessionController implements SessionControllerDoc{
 
     private final SessionService sessionService;
 

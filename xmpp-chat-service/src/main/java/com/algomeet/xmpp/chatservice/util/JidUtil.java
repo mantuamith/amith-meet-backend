@@ -31,7 +31,7 @@ public class JidUtil {
     	
     	String roomJidArr[] = roomJid.split(NICKNAME_SEPARATOR);
     	if(roomJidArr.length > 1) {
-    		return roomJidArr[1];
+    		return roomJidArr[1].trim();
     	}
     	
     	return null;
