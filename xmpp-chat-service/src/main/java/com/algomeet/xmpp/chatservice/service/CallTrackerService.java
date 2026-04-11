@@ -4,7 +4,10 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
+import org.redisson.api.RLockReactive;
+import org.redisson.api.RedissonReactiveClient;
 import org.springframework.stereotype.Service;
 
 import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
@@ -27,6 +30,7 @@ public class CallTrackerService {
     private final ClusterMessagePublisher clusterMessagePublisher;
     private final OfflineMessageService offlineMessageService;    
     private final JidUtil jidUtil;
+    private final RedissonReactiveClient redissonReactiveClient;
 
     /**
      * Initiates the call record reactively.
@@ -75,47 +79,87 @@ public class CallTrackerService {
      * Finalizes session, notifies parties, and then handles the document lifecycle.
      */
     public Mono<Void> finalizeAndNotify(String sid, String userSessionId, String reason) {
-        return repository.findAllBySidAndRoomIdIsNull(sid) // Now returns Flux<CallSession>
-                .flatMap(session -> {                	
-                	// Check the session ID
-                	if(!((session.getCallerSid() != null && session.getCallerSid().equalsIgnoreCase(userSessionId)) 
-                			|| (session.getCalleeSid() != null && session.getCalleeSid().equalsIgnoreCase(userSessionId)))) {                		
-                	    return Mono.empty();
-                	}
- 
-                    long now = Instant.now().toEpochMilli();
+        String lockKey = "lock:call:" + sid;
+        RLockReactive lock = redissonReactiveClient.getLock(lockKey);
 
-                    long duration = 0;
-                    if (session.getAcceptedAt() != null && session.getAcceptedAt() > 0) {
-                        duration = (now - session.getAcceptedAt()) / 1000;
-                    }
+        return Mono.usingWhen(
+            // 1. ACQUIRE: Wait 5s, Lease 10s (prevents ghost locks)
+            lock.tryLock(5000, 10000, TimeUnit.MILLISECONDS),
+            
+            acquired -> {
+                if (!acquired) {
+                    log.warn("Lock acquisition failed for SID: {}. Skipping to prevent duplicates.", sid);
+                    return Mono.empty();
+                }
+                
+                // 2. PROCESS: The core logic now protected by the lock
+                return executeFinalization(sid, userSessionId, reason);
+            },
+            
+            // 3. RELEASE: Success/Cancel/Error - Always unlock
+            acquired -> acquired ? lock.unlock() : Mono.empty()
+        )
+        .doOnError(e -> log.error("Critical failure in finalizeAndNotify for SID: {}", sid, e));
+    }
 
-                    String isoTimestamp = Instant.ofEpochMilli(now)
-                            .atOffset(ZoneOffset.UTC)
-                            .format(DateTimeFormatter.ISO_INSTANT);
+    private Mono<Void> executeFinalization(String sid, String userSessionId, String reason) {
+        return repository.findAllBySidAndRoomIdIsNull(sid)
+            .switchIfEmpty(Mono.fromRunnable(() -> log.debug("SID {} already processed or not found.", sid)))
+            .flatMap(session -> {
+                // Validate participant
+                if (!isParticipant(session, userSessionId)) return Mono.empty();
 
-                    // Logic check for status
-                    String status = "success".equalsIgnoreCase(reason) ? "success" : "dropped";
-                    
-                    String callerJid = jidUtil.getBareJid(session.getCaller());
-                    String calleeJid = jidUtil.getBareJid(session.getCallee());
-                    
-                    String callerMsgId = UUID.randomUUID().toString();
-                    String calleeMsgId = UUID.randomUUID().toString(); // Corrected spelling
-                                     	
-                    String callerMsg = composeCallLogStanza(callerMsgId, callerJid, calleeJid, sid, session.getCallType(), duration, status, isoTimestamp);                    
-                    publish(callerMsgId, session.getCaller(), session.getCallee(), ChatType.CHAT, callerMsg);
-                    
-                    String calleeMsg = composeCallLogStanza(calleeMsgId, calleeJid, callerJid, sid, session.getCallType(), duration, status, isoTimestamp);
-                    publish(calleeMsgId, session.getCallee(), session.getCaller(), ChatType.CHAT, calleeMsg);
-                    
-                    // We return the delete operation for this specific session
-                    // If sid is shared across documents, this runs per document found
-                    return repository.deleteBySid(sid);
-                })
-                .then() // Combines all inner publishers into a single Mono<Void>
-                .doOnSuccess(v -> log.info("All call sessions for SID {} successfully finalized", sid))
-                .doOnError(e -> log.error("Finalize failed for SID: {}", sid, e));
+                // Prepare Data
+                long now = Instant.now().toEpochMilli();
+                long duration = calculateDuration(session, now);
+                String timestamp = formatIso(now);
+                String status = "success".equalsIgnoreCase(reason) ? "success" : "dropped";
+
+                // Notification Logic
+                sendCallLogs(session, sid, duration, status, timestamp);
+
+                // 4. ATOMICITY: Delete after notifications are queued
+                // In a true production environment, consider a 'processed' flag instead of deletion
+                return repository.deleteBySid(sid);
+            })
+            .then();
+    }
+    
+    // --- Helper Methods for Cleanliness ---    
+    /**
+     * Formats a millisecond timestamp into a UTC ISO-8601 string.
+     * Example: 2026-04-10T13:24:22Z
+     */
+    private String formatIso(long now) {
+        return Instant.ofEpochMilli(now)
+                .atOffset(ZoneOffset.UTC)
+                .format(DateTimeFormatter.ISO_INSTANT);
+    }
+
+    private boolean isParticipant(CallSession session, String userSessionId) {
+        return (userSessionId.equalsIgnoreCase(session.getCallerSid()) || 
+                userSessionId.equalsIgnoreCase(session.getCalleeSid()));
+    }
+
+    private long calculateDuration(CallSession session, long now) {
+        if (session.getAcceptedAt() != null && session.getAcceptedAt() > 0) {
+            return (now - session.getAcceptedAt()) / 1000;
+        }
+        return 0;
+    }
+
+    private void sendCallLogs(CallSession session, String sid, long duration, String status, String ts) {
+        String callerJid = jidUtil.getBareJid(session.getCaller());
+        String calleeJid = jidUtil.getBareJid(session.getCallee());
+
+        String callerMsgId = UUID.randomUUID().toString();
+        String calleeMsgId = UUID.randomUUID().toString();
+
+        String callerMsg = composeCallLogStanza(callerMsgId, callerJid, calleeJid, sid, session.getCallType(), duration, status, ts);
+        publish(callerMsgId, session.getCaller(), session.getCallee(), ChatType.CHAT, callerMsg);
+
+        String calleeMsg = composeCallLogStanza(calleeMsgId, calleeJid, callerJid, sid, session.getCallType(), duration, status, ts);
+        publish(calleeMsgId, session.getCallee(), session.getCaller(), ChatType.CHAT, calleeMsg);
     }
     
     private void publish(String id, String to, String from, ChatType chatType, String payload) {    	
@@ -127,7 +171,6 @@ public class CallTrackerService {
     	
     	// publish to cluster for synchronization
     	clusterMessagePublisher.convertAndSendToUser(id, to, from, chatType, payload);
-
     }
 
     private String composeCallLogStanza(String id, String to, String from, String sid, String type, long duration, String status, String timestamp) {
@@ -153,7 +196,7 @@ public class CallTrackerService {
     private String capitalize(String str) {
         return (str == null || str.isEmpty()) ? "" : str.substring(0, 1).toUpperCase() + str.substring(1);
     }   
-           
+
     public void reconcileDroppedCall(String userSessionId) {
         repository.findByCallerSidOrCalleeSid(userSessionId, userSessionId)
             .flatMap(callSession -> {

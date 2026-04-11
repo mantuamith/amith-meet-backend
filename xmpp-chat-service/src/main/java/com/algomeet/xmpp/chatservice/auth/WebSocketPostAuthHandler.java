@@ -4,7 +4,7 @@ import org.springframework.stereotype.Component;
 
 import com.algomeet.xmpp.chatservice.connection.ConnectionLifecycleHandler;
 import com.algomeet.xmpp.chatservice.connection.registry.LocalChannelRegistry;
-import com.algomeet.xmpp.chatservice.connection.stream.XmppStreamManagementBuffer;
+import com.algomeet.xmpp.chatservice.routing.sm.XmppStreamManagementOutboundBuffer;
 import com.algomeet.xmpp.chatservice.session.UserSessionRegistry;
 import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
 
@@ -27,7 +27,7 @@ import lombok.extern.slf4j.Slf4j;
  *     <li>Initializes Stream Management (XEP-0198) counters (Inbound/Outbound 'h').</li>
  *     <li>Registers the session in the {@link LocalChannelRegistry} for routing.</li>
  *     <li>Updates the {@link UserSessionRegistry} to mark the user as ACTIVE.</li>
- *     <li>Initializes the {@link XmppStreamManagementBuffer} for reliable delivery.</li>
+ *     <li>Initializes the {@link XmppStreamManagementOutboundBuffer} for reliable delivery.</li>
  *     <li>Attaches a lifecycle listener to ensure clean resource teardown on disconnect.</li>
  * </ul>
  * 

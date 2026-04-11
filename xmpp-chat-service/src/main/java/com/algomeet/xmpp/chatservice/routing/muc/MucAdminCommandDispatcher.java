@@ -62,7 +62,7 @@ public class MucAdminCommandDispatcher {
 	 */
 	public void handleCommandStanza(ChannelHandlerContext ctx, String roomJid, String senderJid, String xml, MucMember sender) {
 		// Force refresh group cache
-		MucRoomDto group = groupCacheService.getCachedGroup(Long.parseLong(XmppUtil.getRoomId(roomJid)), true);
+		MucRoomDto group = groupCacheService.getCachedGroup(XmppUtil.getRoomId(roomJid), true);
 				
 		if (MucCommandUtil.isKickPayload(xml)) {
 			handleKickRequest(ctx, roomJid, senderJid, xml, group, sender);
@@ -97,7 +97,7 @@ public class MucAdminCommandDispatcher {
 		log.info("Admin {} attempting to kick {} from {}", senderJid, victimNick, roomJid);
 
 		Optional<MucMember> victimOpt = group.getMembers().stream()
-				.filter(m -> m.getNickname() != null && m.getNickname().equalsIgnoreCase(victimNick))
+				.filter(m -> m.getUserKey() != null && m.getUserKey().equalsIgnoreCase(victimNick))
 				.findFirst();        
 		
 		if (victimOpt.isPresent() && !(MucCommandUtil.isAuthorized(sender, victimOpt.get()))) {        	
@@ -108,7 +108,7 @@ public class MucAdminCommandDispatcher {
 
 		String targetJid = jidUtil.getBareJid(victimOpt.get().getUserKey());
 		String roomBareJid = XmppUtil.getRoomBareJid(roomJid);
-		String kickPresence = buildKickPresence(roomBareJid, victimNick, targetJid, sender.getNickname(), reason);
+		String kickPresence = buildKickPresence(roomBareJid, victimNick, targetJid, sender.getUserKey(), reason);
 
 		broadcastToRoom(id, sender.getUserKey(), group, kickPresence);
 		sendSuccessResponse(ctx, senderJid, roomJid, id);
@@ -131,7 +131,7 @@ public class MucAdminCommandDispatcher {
 		log.info("Admin {} attempting to mute {} from {}", senderJid, victimNick, roomJid);
 
 		Optional<MucMember> victimOpt = group.getMembers().stream()
-				.filter(m -> m.getNickname() != null && m.getNickname().equalsIgnoreCase(victimNick))
+				.filter(m -> m.getUserKey() != null && m.getUserKey().equalsIgnoreCase(victimNick))
 				.findFirst();        
 		
 		if (victimOpt.isPresent() && !(MucCommandUtil.isAuthorized(sender, victimOpt.get()))) {        	
@@ -143,7 +143,7 @@ public class MucAdminCommandDispatcher {
 		String targetJid = jidUtil.getBareJid(victimOpt.get().getUserKey());
 		String roomBareJid = XmppUtil.getRoomBareJid(roomJid);
 		String affiliation = MucAffiliation.fromString(victimOpt.get().getRole()).getValue();
-		String mutePresence = buildMutePresence(roomBareJid, victimNick, affiliation, targetJid, sender.getNickname(), reason);
+		String mutePresence = buildMutePresence(roomBareJid, victimNick, affiliation, targetJid, sender.getUserKey(), reason);
 
 		broadcastToRoom(id, sender.getUserKey(), group, mutePresence);
 		sendSuccessResponse(ctx, senderJid, roomJid, id);
@@ -166,7 +166,7 @@ public class MucAdminCommandDispatcher {
 		log.info("Admin {} attempting to unmute {} from {}", senderJid, victimNick, roomJid);
 
 		Optional<MucMember> victimOpt = group.getMembers().stream()
-				.filter(m -> m.getNickname() != null && m.getNickname().equalsIgnoreCase(victimNick))
+				.filter(m -> m.getUserKey() != null && m.getUserKey().equalsIgnoreCase(victimNick))
 				.findFirst();        
 		
 		if (victimOpt.isPresent() && !(MucCommandUtil.isAuthorized(sender, victimOpt.get()))) {        	
@@ -178,7 +178,7 @@ public class MucAdminCommandDispatcher {
 		String targetJid = jidUtil.getBareJid(victimOpt.get().getUserKey());
 		String roomBareJid = XmppUtil.getRoomBareJid(roomJid);
 		String affiliation = MucAffiliation.fromString(victimOpt.get().getRole()).getValue();
-		String unmutePresence = buildUnmutePresence(roomBareJid, victimNick, affiliation, targetJid, sender.getNickname(), reason);
+		String unmutePresence = buildUnmutePresence(roomBareJid, victimNick, affiliation, targetJid, sender.getUserKey(), reason);
 
 		broadcastToRoom(id, sender.getUserKey(), group, unmutePresence);
 		sendSuccessResponse(ctx, senderJid, roomJid, id);
@@ -206,7 +206,7 @@ public class MucAdminCommandDispatcher {
 		Optional<MucMember> newMemberOpt = group.getMembers().stream()
 				.filter(m -> m.getUserKey() != null && m.getUserKey().equalsIgnoreCase(XmppUtil.getUserKey(newMemberJid)))
 				.findFirst();  
-		String addMemberPresence = buildMemberPromotionPresence(roomBareJid, newMemberOpt.get().getNickname(), mucAffiliation, newMemberJid, reason);
+		String addMemberPresence = buildMemberPromotionPresence(roomBareJid, newMemberOpt.get().getUserKey(), mucAffiliation, newMemberJid, reason);
 		
 		broadcastToRoom(id, sender.getUserKey(), group, addMemberPresence);
 		sendSuccessResponse(ctx, senderJid, roomJid, id);

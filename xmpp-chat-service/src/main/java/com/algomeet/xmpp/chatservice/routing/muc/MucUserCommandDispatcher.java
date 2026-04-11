@@ -49,7 +49,7 @@ public class MucUserCommandDispatcher {
      */
     public void handleCommandStanza(ChannelHandlerContext ctx, String roomJid, String senderJid, String xml, XmppPrincipal principal) {
     	// Force refresh group cache
-    	MucRoomDto group = groupCacheService.getCachedGroup(Long.parseLong(XmppUtil.getRoomId(roomJid)), true);
+    	MucRoomDto group = groupCacheService.getCachedGroup(XmppUtil.getRoomId(roomJid), true);
     	Optional<MucMember> senderMucMember = group.getMembers().stream()
 				.filter(m -> m.getUserKey().equals(principal.getUserKey()))
 				.findFirst();
@@ -88,7 +88,7 @@ public class MucUserCommandDispatcher {
         log.info("User {} attempting to change nickname {} from room {}", senderJid, newNickname, roomJid);
 
         // 2. Construct the rename presence 
-        String renamePresence = buildRenamePresence(roomBareJid, sender.getNickname(), newNickname, mucAffiliation,
+        String renamePresence = buildRenamePresence(roomBareJid, sender.getUserKey(), newNickname, mucAffiliation,
                 MucRoleUtil.getMucRole(sender.getRole()).getValue());
 
         // 3. Broadcast "Old Nick" exit to the Room

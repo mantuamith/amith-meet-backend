@@ -70,7 +70,7 @@ public class OfflineMessageService {
      * Deletes a message from the persistent store after successful delivery.
      * 
      * <p>This is typically called when an {@code <a h='...'/>} acknowledgment 
-     * is processed by the {@code XmppStreamManagementHandler}.</p>
+     * is processed by the {@code XmppStreamManagementStanzaHandler}.</p>
      * 
      * @param messageId The unique Stanza ID to be removed.
      * @return A {@link Mono<Void>} signaling completion of the deletion.

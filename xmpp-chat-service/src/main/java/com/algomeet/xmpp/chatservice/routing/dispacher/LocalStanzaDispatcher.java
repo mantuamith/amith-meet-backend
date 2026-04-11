@@ -4,8 +4,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.springframework.stereotype.Component;
 
 import com.algomeet.xmpp.chatservice.connection.registry.LocalChannelRegistry;
-import com.algomeet.xmpp.chatservice.connection.stream.XmppStreamManagementBuffer;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
+import com.algomeet.xmpp.chatservice.routing.sm.XmppStreamManagementOutboundBuffer;
 import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
 
 import io.netty.channel.Channel;
@@ -25,7 +25,7 @@ import lombok.extern.slf4j.Slf4j;
  * <ul>
  *     <li><b>Reliable Delivery (XEP-0198):</b> Every dispatched stanza is assigned a 
  *         monotonically increasing sequence number ({@code smOutboundH}).</li>
- *     <li><b>Ack Tracking:</b> Stanzas are registered with the {@link XmppStreamManagementBuffer} 
+ *     <li><b>Ack Tracking:</b> Stanzas are registered with the {@link XmppStreamManagementOutboundBuffer} 
  *         before being flushed, allowing the server to handle potential reconnection 
  *         resumptions or delivery confirmations.</li>
  *     <li><b>Session Validation:</b> Verifies that the target channel is active and 
@@ -40,7 +40,7 @@ import lombok.extern.slf4j.Slf4j;
 public class LocalStanzaDispatcher {
 
 	private final LocalChannelRegistry localChannelRegistry; 
-	private final XmppStreamManagementBuffer xmppStreamAckTracker;
+	private final XmppStreamManagementOutboundBuffer xmppStreamAckTracker;
 
 	/**
 	 * Routes a stanza to a specific local user session.

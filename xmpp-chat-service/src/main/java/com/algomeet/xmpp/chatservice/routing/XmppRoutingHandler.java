@@ -17,7 +17,7 @@ import com.algomeet.xmpp.chatservice.routing.chat.XmppChatHandler;
 import com.algomeet.xmpp.chatservice.routing.discovery.XmppDiscoveryHandler;
 import com.algomeet.xmpp.chatservice.routing.muc.XmppMamHandler;
 import com.algomeet.xmpp.chatservice.routing.muc.XmppMucHandler;
-import com.algomeet.xmpp.chatservice.routing.sm.XmppStreamManagementHandler;
+import com.algomeet.xmpp.chatservice.routing.sm.XmppStreamManagementStanzaHandler;
 import com.algomeet.xmpp.chatservice.routing.state.XmppUserStateHandler;
 import com.algomeet.xmpp.chatservice.service.OfflineMessageService;
 import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
@@ -58,135 +58,132 @@ import lombok.extern.slf4j.Slf4j;
 @Component
 @RequiredArgsConstructor
 public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocketFrame> {
-   
-    private final XmppDiscoveryHandler xmppDiscoveryHandler;
-    private final XmppUserStateHandler xmppUserStateHandler;
-    private final XmppStreamManagementHandler xmppStreamManagementHandler;
-    private final XmppChatHandler xmppDirectChatHandler;
-    private final XmppMucHandler xmppMucHandler;
-    private final XmppMamHandler xmppMamHandler;
-    private final DomainProperties domainProperties;
 
-    /**
-     * Entry point for incoming WebSocket text frames.
-     * 
-     * @param ctx   The channel context.
-     * @param frame The WebSocket frame containing the XMPP XML string.
-     */
-    @Override
-    protected void channelRead0(ChannelHandlerContext ctx, TextWebSocketFrame frame) {
-        String xml = frame.text();
-        XmppPrincipal principal = ctx.channel().attr(XmppSessionAttributes.PRINCIPAL).get();
+	private final XmppDiscoveryHandler xmppDiscoveryHandler;
+	private final XmppUserStateHandler xmppUserStateHandler;
+	private final XmppStreamManagementStanzaHandler xmppStreamManagementHandler;
+	private final XmppChatHandler xmppDirectChatHandler;
+	private final XmppMucHandler xmppMucHandler;
+	private final XmppMamHandler xmppMamHandler;
+	private final DomainProperties domainProperties;
 
-        try {
-            // 1. Lifecycle & Presence logic (XEP-0186 / XEP-0085)
-            if (principal != null) {
-                handleStatusUpdates(ctx, principal, xml);
-            }
+	/**
+	 * Entry point for incoming WebSocket text frames.
+	 * 
+	 * @param ctx   The channel context.
+	 * @param frame The WebSocket frame containing the XMPP XML string.
+	 */
+	@Override
+	protected void channelRead0(ChannelHandlerContext ctx, TextWebSocketFrame frame) {  
+		XmppPrincipal principal = ctx.channel().attr(XmppSessionAttributes.PRINCIPAL).get();
+		String xml = frame.text();
 
-            // 2. Extract routing metadata without fully unmarshalling the whole stanza
-            Map<String, String> attributes = XmppStanzaUtil.parseStanzaAttributes(xml);
-            String toJid = attributes.get("to");
-            String fromJid = attributes.get("from");
-            String id = attributes.get("id");
-            String type = attributes.get("type");
-                        
+		try {
+			// 1. Lifecycle & Presence logic (XEP-0186 / XEP-0085)
+			if (principal != null) {
+				handleStatusUpdates(ctx, principal, xml);
+			}
 
-            // 3. Handle Missing 'from' Attribute (Server Stamping)
-            if(toJid != null) {
-            	if (fromJid == null || fromJid.isEmpty()) {
-            		String authorizedFullJid = principal.getFullJid();
+			// 2. Extract routing metadata without fully unmarshalling the whole stanza
+			Map<String, String> attributes = XmppStanzaUtil.parseStanzaAttributes(xml);
+			String toJid = attributes.get("to");
+			String fromJid = attributes.get("from");
+			String id = attributes.get("id");
+			String type = attributes.get("type");
 
-            		// Inject the 'from' attribute into the root element
-            		// We look for the first space or the closing bracket of the start tag
-            		if (!xml.contains("from=")) {
-            			xml = injectFromAttribute(xml, authorizedFullJid);
-            		}
+			// 3. Handle Missing 'from' Attribute (Server Stamping)
+			if(toJid != null) {
+				if (fromJid == null) {
+					String tempFromJid = principal.getBareJid();
 
-            		fromJid = authorizedFullJid;
-            	} else {
-            		// 4. Security: Validate provided 'from' against authorized Bare JID
-            		String authorizedBareJid = principal.getBareJid();
-            		boolean isValid = fromJid.regionMatches(true, 0, authorizedBareJid, 0, authorizedBareJid.length());
+					if (fromJid == null) {
+						xml = injectFromAttribute(xml, tempFromJid);
+						fromJid = tempFromJid;
+					} 
+				} else {
+					// 4. Security: Validate provided 'from' against authorized Bare JID
+					String authorizedBareJid = principal.getBareJid();
+					boolean isValid = fromJid.regionMatches(true, 0, authorizedBareJid, 0, authorizedBareJid.length());
 
-            		if (!isValid) {
-            			log.warn("Unauthorized 'from' JID attempt: {} by {}", fromJid, authorizedBareJid);
-            			XmppUtil.sendError(ctx, id, fromJid, domainProperties.getDomain(), XmppErrorType.AUTH, 
-            					XmppErrorConditions.FORBIDDEN, "Invalid from attribute");
-            			return;
-            		}
-            	}
-            }
+					if (!isValid) {
+						log.warn("Unauthorized 'from' JID attempt: {} by {}", fromJid, authorizedBareJid);
+						XmppUtil.sendError(ctx, id, fromJid, domainProperties.getDomain(), XmppErrorType.AUTH, 
+								XmppErrorConditions.FORBIDDEN, "Invalid from attribute");
+						return;
+					}
+				}
+			}
 
-            // 5. Identify MAM once
-            boolean mam = isMamRequest(type, xml);
+			// 5. Identify MAM once
+			boolean mam = isMamRequest(type, xml);
 
-            // 6. Branch based on logic: MAM and Server-directed queries go to InfoQueryHandler
-            // Direct/Group messages go to respective handlers
-            if (!mam && (XmppMessageType.GROUPCHAT == XmppMessageType.fromString(type) || isGroupChat(toJid))) {
-                xmppMucHandler.handleGroupChatRouting(ctx, id, toJid, fromJid, type, xml);
-                
-            } else if (!mam && StringUtils.hasText(toJid)) {
-                xmppDirectChatHandler.handleDirectChatRouting(ctx, id, toJid, fromJid, type, xml);
-                
-            } else {
-            	
-                // This block catches MAM, Service Discovery, and Stream Management
-                if (xmppStreamManagementHandler.isStreamManagementStanza(xml)) {
-                    xmppStreamManagementHandler.process(ctx, xml, principal);
-                } else if (mam) {
-                	// XEP-0313: Message Archive Management
-                	xmppMamHandler.handleMamRequest(ctx, toJid, xml);
-                } else {
-                	xmppDiscoveryHandler.handleQuery(ctx, xml);
-                }     
-            }
+			// 6. Branch based on logic: MAM and Server-directed queries go to InfoQueryHandler
+			// Direct/Group messages go to respective handlers
 
-        } catch (XMLStreamException e) {
-            log.error("Malformed XML received: {} , {}", xml, e.getMessage());
-            XmppUtil.sendError(ctx, null, principal.getBareJid(), domainProperties.getDomain(), XmppErrorType.CANCEL,
-            		XmppErrorConditions.NOT_WELL_FORMED, "XML parsing failed");
-        } catch (Exception e) {
-             log.error("Routing error for XML {}: {}", xml, e.getMessage(), e);
-        }
-    }
-    
-    private boolean isMamRequest(String type, String xml) {
-    	return (XmppMessageType.SET == XmppMessageType.fromString(type) 
-    			&& xml.contains("urn:xmpp:mam:2"));
-    }
+			if (!mam && (XmppMessageType.GROUPCHAT == XmppMessageType.fromString(type) || isGroupChat(toJid))) {
+				xmppMucHandler.handleGroupChatRouting(ctx, id, toJid, fromJid, type, xml);
 
-    /**
-     * Delegates status, presence, and chat state updates to the lifecycle handler.
-     */   
-    private void handleStatusUpdates(ChannelHandlerContext ctx, XmppPrincipal principal, String xml) {
-    	xmppUserStateHandler.processPresence(ctx, principal, xml);
-    }  
-    
-    public boolean isGroupChat(String to) {        
-        // Check if the 'to' address contains a known MUC service domain
-        // (This is useful if the stanza is malformed but the routing is correct)
-        if (to != null && to.contains("@" + domainProperties.getGroupChatDomain())) {
-            return true;
-        }
+			} else if (!mam && StringUtils.hasText(toJid)) {
+				xmppDirectChatHandler.handleDirectChatRouting(ctx, id, toJid, fromJid, type, xml);
 
-        return false;
-    }   
-    
-    
-    /**
-     * Safely injects the 'from' attribute into the first XML tag.
-     */
-    private String injectFromAttribute(String xml, String jid) {
-        String replacement = String.format(" from='%s'", jid);
-        // Find the end of the first tag name (either a space or the end of the tag '>')
-        int firstSpace = xml.indexOf(' ');
-        int firstTagEnd = xml.indexOf('>');
-        
-        int insertAt = (firstSpace != -1 && firstSpace < firstTagEnd) ? firstSpace : firstTagEnd;
-        
-        return new StringBuilder(xml)
-                .insert(insertAt, replacement)
-                .toString();
-    }    
+			} else {
+				
+				// This block catches MAM, Service Discovery, and Stream Management
+				if (xmppStreamManagementHandler.isStreamManagementStanza(xml)) {
+					xmppStreamManagementHandler.process(ctx, xml, principal);
+				} else if (mam) {
+					// XEP-0313: Message Archive Management
+					xmppMamHandler.handleMamRequest(ctx, toJid, xml);
+				} else {
+					xmppDiscoveryHandler.handleQuery(ctx, xml);
+				}     
+			}
+
+		} catch (XMLStreamException e) {
+			log.error("Malformed XML received: {} , {}", xml, e.getMessage());
+			XmppUtil.sendError(ctx, null, principal.getBareJid(), domainProperties.getDomain(), XmppErrorType.CANCEL,
+					XmppErrorConditions.NOT_WELL_FORMED, "XML parsing failed");
+		} catch (Exception e) {
+			log.error("Routing error for XML {}: {}", xml, e.getMessage(), e);
+		}
+	}
+
+	private boolean isMamRequest(String type, String xml) {
+		return (XmppMessageType.SET == XmppMessageType.fromString(type) 
+				&& xml.contains("urn:xmpp:mam:2"));
+	}
+
+	/**
+	 * Delegates status, presence, and chat state updates to the lifecycle handler.
+	 */   
+	private void handleStatusUpdates(ChannelHandlerContext ctx, XmppPrincipal principal, String xml) {
+		xmppUserStateHandler.processPresence(ctx, principal, xml);
+	}  
+
+	public boolean isGroupChat(String to) {        
+		// Check if the 'to' address contains a known MUC service domain
+		// (This is useful if the stanza is malformed but the routing is correct)
+		if (to != null && to.contains("@" + domainProperties.getGroupChatDomain())) {
+			return true;
+		}
+
+		return false;
+	}   
+
+
+	/**
+	 * Safely injects the 'from' attribute into the first XML tag.
+	 */
+	private String injectFromAttribute(String xml, String jid) {
+		String replacement = String.format(" from='%s'", jid);
+		// Find the end of the first tag name (either a space or the end of the tag '>')
+		int firstSpace = xml.indexOf(' ');
+		int firstTagEnd = xml.indexOf('>');
+
+		int insertAt = (firstSpace != -1 && firstSpace < firstTagEnd) ? firstSpace : firstTagEnd;
+
+		return new StringBuilder(xml)
+				.insert(insertAt, replacement)
+				.toString();
+	}    
 }

@@ -21,7 +21,7 @@ public class MucUnreadCount {
     private String userKey; 
     
     @Field("room_id")
-    private Long roomId; 
+    private String roomId; 
     
     @Field("unread_count")
     private int unreadCount = 0;

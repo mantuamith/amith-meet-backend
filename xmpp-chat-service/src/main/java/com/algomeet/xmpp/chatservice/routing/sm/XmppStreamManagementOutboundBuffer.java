@@ -1,4 +1,4 @@
-package com.algomeet.xmpp.chatservice.connection.stream;
+package com.algomeet.xmpp.chatservice.routing.sm;
 
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
@@ -31,7 +31,7 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 @Component
 @Slf4j
-public class XmppStreamManagementBuffer {
+public class XmppStreamManagementOutboundBuffer {
 
     /**
      * Map structure: userKey -> (Sequence Number (h) -> Stanza ID)
@@ -114,6 +114,6 @@ public class XmppStreamManagementBuffer {
     @PreDestroy
     public void shutdown() {
         sessionBuffers.clear();
-        log.info("XmppStreamManagementBuffer cleared during shutdown.");
+        log.info("XmppStreamManagementOutboundBuffer cleared during shutdown.");
     }
 }

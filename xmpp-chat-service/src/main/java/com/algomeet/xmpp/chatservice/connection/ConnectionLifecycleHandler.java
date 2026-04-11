@@ -7,8 +7,8 @@ import org.springframework.stereotype.Component;
 
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.connection.registry.LocalChannelRegistry;
-import com.algomeet.xmpp.chatservice.connection.stream.XmppStreamManagementBuffer;
 import com.algomeet.xmpp.chatservice.enums.UserState;
+import com.algomeet.xmpp.chatservice.routing.sm.XmppStreamManagementOutboundBuffer;
 import com.algomeet.xmpp.chatservice.service.CallTrackerService;
 import com.algomeet.xmpp.chatservice.session.UserSessionRegistry;
 import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
@@ -36,7 +36,7 @@ public class ConnectionLifecycleHandler {
 
     private final UserSessionRegistry userSessionRegistry;
     private final LocalChannelRegistry localChannelRegistry;
-    private final XmppStreamManagementBuffer xmppStreamManagementBuffer;
+    private final XmppStreamManagementOutboundBuffer xmppStreamManagementBuffer;
     private final CallTrackerService callTrackerService;
 
     /**
@@ -59,7 +59,8 @@ public class ConnectionLifecycleHandler {
             String sessionId = principal.getSessionId();
 
             // 1. Initialize Stream Management Counters (XEP-0198)
-            // These counters are attached to the channel attribute for thread-safe access
+            // These counters are attached to the channel attribute for thread-safe access     
+            ctx.channel().attr(XmppSessionAttributes.SM_INBOUND_H_KEY).set(new AtomicLong(0));            
             ctx.channel().attr(XmppSessionAttributes.SM_OUTBOUND_H_KEY).set(new AtomicLong(0));
             // Initialize Initial Presence flag to false
             ctx.channel().attr(XmppSessionAttributes.INITIAL_PRESENCE_SENT).set(false);

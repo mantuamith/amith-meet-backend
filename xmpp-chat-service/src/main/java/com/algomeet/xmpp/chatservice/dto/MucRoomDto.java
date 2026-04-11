@@ -9,7 +9,7 @@ import lombok.Data;
 @JsonIgnoreProperties(ignoreUnknown = true)
 @Data 
 public class MucRoomDto {
-    private Long roomId; // Changed from Long id to String to match XMPP JIDs
+    private String roomId; // Changed from Long id to String to match XMPP JIDs
     private String name;
     private List<MucMember> members;
 }
