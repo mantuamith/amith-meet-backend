@@ -1,6 +1,7 @@
 package com.algomeet.xmpp.chatservice.util;
 
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 
 import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
 
@@ -22,8 +23,13 @@ public class XmppSmSessionUtil {
      */
     public static void initSmSession(ChannelHandlerContext ctx,
                                      boolean resumeRequested,
-                                     String smId) {
-
+                                     String smId,
+                                     Long h) {
+    	// Initialize SM Inbound H
+    	ctx.channel()
+    	.attr(XmppSessionAttributes.SM_INBOUND_H_KEY)
+    	.set(new AtomicLong(h));  
+    	
         // Enable inbound SM tracking (h counter)
         ctx.channel()
            .attr(XmppSessionAttributes.SM_INBOUND_H_ENABLED_KEY)

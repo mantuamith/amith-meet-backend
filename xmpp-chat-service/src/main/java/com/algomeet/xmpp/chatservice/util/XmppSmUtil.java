@@ -3,40 +3,125 @@ package com.algomeet.xmpp.chatservice.util;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
+import org.springframework.stereotype.Component;
+
 import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
 import com.algomeet.xmpp.chatservice.stanza.StreamAck;
 
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Utility class for managing XEP-0198 Stream Management state and signaling.
+ * XEP-0198 Stream Management Utility
+ * -----------------------------------
  *
- * Handles:
- * - Incrementing inbound handled counter (h)
- * - Sending <a h='N'/> acknowledgements
- * - Retrieving current SM state
+ * This class manages Stream Management (SM) state for XMPP connections.
+ *
+ * Responsibilities:
+ * <ul>
+ *   <li>Maintain inbound handled counter (h)</li>
+ *   <li>Send cumulative acknowledgements (<a h='N'/>)</li>
+ *   <li>Persist SM state for session resumption (Redis-backed)</li>
+ *   <li>Expose current SM sequence state for debugging/resume</li>
+ * </ul>
+ *
+ * IMPORTANT ARCHITECTURE RULES:
+ * <ul>
+ *   <li>SM ACK is TRANSPORT LAYER ONLY (NOT business-level success)</li>
+ *   <li>ACK does NOT guarantee DB persistence or message delivery</li>
+ *   <li>h is strictly monotonically increasing per connection</li>
+ *   <li>This class must be thread-safe per Netty channel</li>
+ * </ul>
  */
 @Slf4j
+@Component
+@RequiredArgsConstructor
 public class XmppSmUtil {
 
     /**
-     * Increments inbound handled counter (h) and sends ACK.
+     * Redis utility used for persisting last acknowledged SM state
+     * for session resumption (XEP-0198 resume support).
      */
-    public static void incrementAndSendInboundH(ChannelHandlerContext ctx) {
-        ctx.executor().execute(() -> {
-            AtomicBoolean isEnabled = ctx.channel()
-                    .attr(XmppSessionAttributes.SM_INBOUND_H_ENABLED_KEY).get();
+    private final XmppSmRedisUtil xmppSmRedisUtil;
 
+    /**
+     * Increments the inbound SM handled counter (h) and sends a cumulative ACK.
+     *
+     * <p>
+     * Flow:
+     * <ol>
+     *   <li>Verify Stream Management is enabled for the session</li>
+     *   <li>Increment local handled counter (h)</li>
+     *   <li>Persist h to Redis (if session is resumable)</li>
+     *   <li>Send <a h='N'/> back to client via WebSocket</li>
+     * </ol>
+     * </p>
+     *
+     * <p>
+     * ⚠ IMPORTANT:
+     * - This ACK is transport-level only
+     * - It does NOT reflect message processing success
+     * - It may be sent before DB persistence completes
+     * </p>
+     *
+     * @param ctx Netty channel context for active XMPP session
+     */
+    public void incrementAndSendInboundH(ChannelHandlerContext ctx) {
+
+        // Ensure execution is tied to Netty EventLoop (thread-safe per channel)
+        ctx.executor().execute(() -> {
+
+            // Check if Stream Management is enabled (<enable xmlns='urn:xmpp:sm:3'/>)
+            AtomicBoolean isEnabled = ctx.channel()
+                    .attr(XmppSessionAttributes.SM_INBOUND_H_ENABLED_KEY)
+                    .get();
+
+            // Local per-session handled counter (h)
             AtomicLong handledCount = ctx.channel()
-                    .attr(XmppSessionAttributes.SM_INBOUND_H_KEY).get();
+                    .attr(XmppSessionAttributes.SM_INBOUND_H_KEY)
+                    .get();
 
             if (isEnabled != null && isEnabled.get() && handledCount != null) {
 
+                // Increment SM sequence (monotonic counter)
                 long h = handledCount.incrementAndGet();
-                log.debug("Acknowledging stanza h={}", h);
 
+                log.debug("SM ACK generated: h={}", h);
+
+                /**
+                 * Persist SM state for session resumption (optional).
+                 *
+                 * Only persist when:
+                 * - session is resumable
+                 * - smId (previd) exists
+                 *
+                 * This allows client to resume session after disconnect
+                 */
+                AtomicBoolean resumable =
+                        ctx.channel().attr(XmppSessionAttributes.SM_RESUMABLE_KEY).get();
+
+                if (resumable != null && resumable.get()) {
+
+                    String smId =
+                            ctx.channel().attr(XmppSessionAttributes.SM_ID_KEY).get();
+
+                    if (smId != null) {
+                        xmppSmRedisUtil.saveLastAck(smId, h)
+                                .subscribe(); // async non-blocking persistence
+                    }
+                }
+
+                /**
+                 * Send XEP-0198 ACK to client:
+                 *
+                 * <a xmlns='urn:xmpp:sm:3' h='N'/>
+                 *
+                 * This tells the client:
+                 * - Server has received all stanzas up to h
+                 * - Client can safely drop its resend buffer
+                 */
                 ctx.writeAndFlush(
                         new TextWebSocketFrame(new StreamAck(h).toXml())
                 );
@@ -45,19 +130,23 @@ public class XmppSmUtil {
     }
 
     /**
-     * Retrieves the current inbound handled counter (h).
+     * Retrieves the current inbound SM handled counter (h).
+     *
+     * <p>
+     * This value represents:
+     * - Number of stanzas received from client
+     * - Transport-level delivery acknowledgment state
+     * </p>
      *
      * @param ctx Netty channel context
-     * @return current value of h, or 0 if not initialized
+     * @return current SM handled counter (h), or 0 if not initialized
      */
     public static long getInboundH(ChannelHandlerContext ctx) {
+
         AtomicLong handledCount = ctx.channel()
-                .attr(XmppSessionAttributes.SM_INBOUND_H_KEY).get();
+                .attr(XmppSessionAttributes.SM_INBOUND_H_KEY)
+                .get();
 
-        if (handledCount == null) {
-            return 0L;
-        }
-
-        return handledCount.get();
+        return handledCount != null ? handledCount.get() : 0L;
     }
 }

@@ -102,7 +102,7 @@ public class XmppStreamManagementStanzaHandler {
 			String smId = resumeRequested ? UUID.randomUUID().toString() : null;
 
 			// 3. Initialize Stream Management Counters (XEP-0198)       
-			XmppSmSessionUtil.initSmSession(ctx, resumeRequested, smId);
+			XmppSmSessionUtil.initSmSession(ctx, resumeRequested, smId, 0L);
 
 			// 4. Build the <enabled /> response
 			StringBuilder response = new StringBuilder("<enabled xmlns='urn:xmpp:sm:3'");
@@ -114,7 +114,7 @@ public class XmppStreamManagementStanzaHandler {
 			// 5. Send the confirmation back to the client
 			ctx.writeAndFlush(new TextWebSocketFrame(response.toString()));
 
-			log.info("Stream Management enabled for session. Resumable: {}", resumeRequested);
+			log.debug("Stream Management enabled for session. Resumable: {}", resumeRequested);
 
 		} else if(xml.contains("<resume")) {    			
 			String smId = XmppStanzaUtil.getAttribute(xml, "previd");
@@ -123,7 +123,7 @@ public class XmppStreamManagementStanzaHandler {
 			.doOnNext(lastAck -> {
 				if (lastAck > 0) {						
 					// Initialize Stream Management Counters (XEP-0198)       
-					XmppSmSessionUtil.initSmSession(ctx, true, smId);
+					XmppSmSessionUtil.initSmSession(ctx, true, smId, lastAck);
 
 					// Send response
 					sendResumeResponse(ctx, lastAck);

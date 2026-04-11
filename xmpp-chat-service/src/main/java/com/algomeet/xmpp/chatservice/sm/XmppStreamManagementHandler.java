@@ -14,6 +14,7 @@ import com.algomeet.xmpp.chatservice.util.XmppSmUtil;
 import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
+import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -35,8 +36,8 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 @Component
 public class XmppStreamManagementHandler extends ChannelDuplexHandler {
-
-	private final XmppSmRedisUtil xmppSmRedisUtil;
+	private final XmppSmUtil xmppSmUtil;
+	
     /**
      * Intercepts all inbound XMPP traffic before it reaches business handlers.
      *
@@ -50,19 +51,19 @@ public class XmppStreamManagementHandler extends ChannelDuplexHandler {
      */
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
-        String xml = msg.toString();
+    	TextWebSocketFrame frame = (TextWebSocketFrame) msg;
+    	String xml = frame.text();
 
         // Only XMPP stanzas (<message/>, <iq/>, <presence/>) are part of SM tracking
         // Control frames like <r/>, <a/>, whitespace keep-alives are NOT counted
         if (XmppStanzaUtil.isCountableStanza(xml)) {
-
             // SM must be explicitly enabled for the session (<enable xmlns='urn:xmpp:sm:3'/>)
             AtomicBoolean isEnabledSM =
                     ctx.channel().attr(XmppSessionAttributes.SM_INBOUND_H_ENABLED_KEY).get();
 
             // If SM is active, we increment the inbound sequence counter (h)
             if (isEnabledSM != null && isEnabledSM.get()) {
-
+            	
                 /**
                  * Increment SM counter and optionally trigger ACK logic.
                  *
@@ -74,16 +75,7 @@ public class XmppStreamManagementHandler extends ChannelDuplexHandler {
                  * - This does NOT mean message was delivered to recipient
                  * - This is ONLY transport-level acknowledgment tracking
                  */
-                XmppSmUtil.incrementAndSendInboundH(ctx);
-                
-                AtomicBoolean resumable = ctx.channel().attr(XmppSessionAttributes.SM_RESUMABLE_KEY).get();
-    			if (resumable != null && resumable.get()) {
-    				String smId = ctx.channel().attr(XmppSessionAttributes.SM_ID_KEY).get();
-    				
-    				if(smId != null) {
-    					xmppSmRedisUtil.saveLastAck(xml, XmppSmUtil.getInboundH(ctx));
-    				}    				
-    			}        
+             	xmppSmUtil.incrementAndSendInboundH(ctx);        
             }
         }
 
