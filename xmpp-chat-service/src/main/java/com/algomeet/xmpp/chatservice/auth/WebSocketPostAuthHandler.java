@@ -4,7 +4,6 @@ import org.springframework.stereotype.Component;
 
 import com.algomeet.xmpp.chatservice.connection.ConnectionLifecycleHandler;
 import com.algomeet.xmpp.chatservice.connection.registry.LocalChannelRegistry;
-import com.algomeet.xmpp.chatservice.routing.sm.XmppStreamManagementOutboundBuffer;
 import com.algomeet.xmpp.chatservice.session.UserSessionRegistry;
 import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
 

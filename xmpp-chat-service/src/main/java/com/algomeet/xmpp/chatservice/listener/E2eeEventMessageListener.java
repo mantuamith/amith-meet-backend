@@ -36,7 +36,6 @@ import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 @Component
 @RequiredArgsConstructor
 public class E2eeEventMessageListener {	
-    private final DomainProperties domainProperties;
     private final JidUtil jidUtil;
 
     /** Dispatcher used to route stanzas to local Netty channels/sessions. */

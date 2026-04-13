@@ -1,10 +1,12 @@
 package com.algomeet.xmpp.chatservice.routing.chat;
 
 import java.util.Set;
+import java.util.UUID;
 
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
+import org.springframework.util.StringUtils;
 
 import com.algomeet.notificationservice.dto.Notification;
 import com.algomeet.notificationservice.enums.NotificationType;
@@ -24,7 +26,8 @@ import com.algomeet.xmpp.chatservice.service.UnreadCountService;
 import com.algomeet.xmpp.chatservice.session.UserSessionRegistry;
 import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
 import com.algomeet.xmpp.chatservice.session.model.UserSession;
-import com.algomeet.xmpp.chatservice.stanza.XmppServerAckSender;
+import com.algomeet.xmpp.chatservice.util.XmppReadUtil;
+import com.algomeet.xmpp.chatservice.util.XmppReceiptUtil;
 import com.algomeet.xmpp.chatservice.util.XmppServerAckUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
@@ -47,6 +50,8 @@ public class XmppChatHandler {
 	private final CallLifeCycleTracker callTracker;
 	private final DomainProperties domainProperties;
 	private final UnreadCountService unreadCountService;
+	private final XmppReceiptUtil xmppReceiptUtil;
+	private final XmppReadUtil xmppReadUtil;
 
 	/**
 	 * Handles 1-to-1 message routing, persistence for offline storage, 
@@ -69,23 +74,70 @@ public class XmppChatHandler {
 			offlineMessageService.save(id, toUserKey, fromUserKey, type, originalXml)
 		            .flatMap(saved -> unreadCountService.incrementUnreadCount(fromUserKey, toUserKey))
 		            .doOnSuccess(v -> {
-		            	// Send server ACK
-						XmppServerAckUtil.send(ctx, id, domainProperties.getDomain(), fromJid);
+		            	boolean isAckMessage = false;
+		            	// Send an immediate server-level acknowledgment to the sender.
+		            	//
+		            	// This acknowledgment confirms that:
+		            	// 1. The server has successfully received the stanza.
+		            	// 2. The stanza has been persisted to the database.
+		            	// 3. The server has taken full responsibility for further routing/delivery.
+		            	//
+		            	// This is a custom acknowledgment (not client XEP-0198 ack),
+		            	// used to provide early delivery assurance back to the sender.
+		            	XmppServerAckUtil.send(ctx, id, domainProperties.getDomain(), fromJid);		                	               						
 						
-						// Increment unread messages
-						unreadCountService.incrementUnreadCount(fromUserKey, toUserKey)
-						.doOnError(e -> {
-							log.error("Storage failure for increment muc messages count {}: {}", id, e.getMessage(), e);
-						})
-						.subscribe();
+						// --- XEP-0184: Message Delivery Receipts ---
+					    // If the stanza contains the 'urn:xmpp:receipts' namespace, the recipient's 
+					    // device has successfully received the message.
+					    if (xmlHeader.contains(XmppReceiptUtil.NS_RECEIPTS)) {
+					    	isAckMessage = true;
+					        String ackMessageId = xmppReceiptUtil.getAckMessageId(originalXml);
+					        
+					        if (StringUtils.hasText(ackMessageId)) {
+					            // Once delivery is confirmed, the message is no longer "offline" 
+					            // and can be safely removed from the temporary offline storage.
+					            offlineMessageService.deleteById(id).subscribe();
+					        }
+					    }
+					    
+					    // --- XEP-0333: Chat Markers (Read Receipts) ---
+					    // If the stanza contains the 'urn:xmpp:chat-markers:0' namespace (displayed), 
+					    // the user has actively viewed the conversation.
+					    if (xmlHeader.contains(XmppReadUtil.NS_DISPLAYS)) {
+					    	isAckMessage = true;
+					        String ackMessageId = xmppReadUtil.getAckMessageId(originalXml);
+					        
+					        if (StringUtils.hasText(ackMessageId)) {
+					            // Decrement the unread counter for this specific sender-recipient pair.
+					            // Note: fromUserKey is the person who read it, toUserKey is the original sender.
+					            unreadCountService.decrementUnreadCount(toUserKey, fromUserKey).subscribe();
+					        }
+					    }
+					    
+					    if (!isAckMessage) {
+					    	// Asynchronous Unread Tracking
+					    	// Increment the unread counter for the recipient (toUserKey) relative to the sender (fromUserKey).
+					    	// This is handled reactively to avoid blocking the Netty event loop during DB writes.
+					    	unreadCountService.incrementUnreadCount(fromUserKey, toUserKey)
+					    	.doOnError(e -> {
+					    		// Critical: Log storage failures specifically for audit trails 
+					    		// in case of "lost" message notifications in production.
+					    		log.error("Storage failure for incrementing unread count for message {}: {}", id, e.getMessage(), e);
+					    	})
+					    	// Use subscribe() to trigger the operation since the Netty pipeline 
+					    	// does not natively await this Mono's completion.
+					    	.subscribe();
+					    }
 					})
 					.doOnError(e -> {					
 						log.error("Storage failure for message {}: {}", id, e.getMessage(), e);
 						if (e instanceof DuplicateKeyException) {
-							// Ignore this error to support re-sending of failed messages using SM ACK.
-							/*
-							XmppUtil.sendError(ctx, id, fromJid, domainProperties.getDomain(), XmppErrorType.CANCEL, 
-									XmppErrorConditions.DUPLICATE_KEY_ERROR, "Stanza has duplicate key"); */
+							// Duplicate stanza detected (idempotent case).
+							// Client MUST ignore this error; used only to support safe retries.
+							XmppUtil.sendError(ctx, id, fromJid, domainProperties.getDomain(),
+							        XmppErrorType.CANCEL,
+							        XmppErrorConditions.DUPLICATE_KEY_ERROR,
+							        "Stanza has duplicate key");
 						} else {
 							XmppUtil.sendError(ctx, id, fromJid, domainProperties.getDomain(), XmppErrorType.WAIT, 
 									XmppErrorConditions.INTERNAL_SERVER_ERROR, "Storage failure");
@@ -103,13 +155,19 @@ public class XmppChatHandler {
 			callTracker.track(ctx, toJid, fromJid, originalXml, principal);
 		}   
 		
+		
+		
 		Set<UserSession> sessions = userSessionRegistry.getSessions(toUserKey);
 		if (!CollectionUtils.isEmpty(sessions)) {
 			// Broadast to Redis: Even if they are AWAY/DND, we attempt delivery 
 			// to their active WebSocket channels across the cluster.
 			clusterMessagePublisher.convertAndSendToUser(id, toUserKey, fromUserKey, ChatType.CHAT, originalXml);
-		}		
+		}
+						
 		pushNotification(ctx, id, toUserKey, fromUserKey, type, xmlHeader, originalXml, sessions, principal);
+		
+		// Handle Carbon copy
+		handleSentMessageCarbonCopy(originalXml, principal);
 	}
 
 	private void pushNotification(ChannelHandlerContext ctx,
@@ -154,8 +212,48 @@ public class XmppChatHandler {
 				}
 			}     
 		}
-	}    
+	}  
+	
+	/**
+     * Implements XEP-0280: Message Carbons.
+     * Synchronizes a message sent from one device (e.g., Mobile) to all other 
+     * active sessions of the same user (e.g., Desktop/Web).
+     *
+     * @param sentStanza The raw XML of the original outgoing message.
+     * @param senderKey  The unique identifier/JID of the user who sent the message.
+     */
+    public void handleSentMessageCarbonCopy(String sentStanza, XmppPrincipal principal) {
+        // 1. Retrieve all active user sessions from the registry.
+        // Carbons are only necessary if the user is multi-homed (logged in on >1 device).
+        Set<UserSession> sessions = userSessionRegistry.getSessions(principal.getUserKey());
 
+        if (sessions != null && sessions.size() > 1) {            
+            // 2. Wrap the original stanza according to XEP-0280 and XEP-0297 (Forwarding).
+            // The 'sent' element notifies other clients that this is a copy of a message 
+            // sent from another of the user's devices, preventing 'echo' loops.
+            String carbonPayload = String.format(
+                    "<message xmlns='jabber:client' from='%s' to='%s' type='chat'>" +
+                            "  <sent xmlns='urn:xmpp:carbons:2'>" +
+                            "    <forwarded xmlns='urn:xmpp:forward:0'>%s</forwarded>" +
+                            "  </sent>" +
+                            "</message>",
+                            principal.getFullJid(), 
+                            principal.getBareJid(), 
+                            sentStanza
+                    );
+            
+            // 3. Broadcast to the cluster.
+            // Using clusterMessagePublisher ensures that sessions living on different 
+            // server nodes in the AlgoMeet cluster receive the synchronization stanza.
+            clusterMessagePublisher.convertAndSendToUser(
+                    UUID.randomUUID().toString(), 
+                    principal.getUserKey(), // Recipient is the sender themselves (self-sync)
+                    principal.getUserKey(), 
+                    ChatType.CHAT,
+                    carbonPayload);
+        }        
+    }
+    
 	/**
 	 * Used to send push notification for new message
 	 *

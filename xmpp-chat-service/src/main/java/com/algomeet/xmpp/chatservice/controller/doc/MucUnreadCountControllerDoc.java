@@ -48,7 +48,7 @@ public interface MucUnreadCountControllerDoc {
     })
     public Mono<CommonResponse<Integer>> getRoomUnread(
             @Parameter(description = "ID of the chat room", example = "1001")
-            @PathVariable Long roomId);
+            @PathVariable String roomId);
 
     @Operation(
         summary = "Reset unread count",
@@ -61,5 +61,5 @@ public interface MucUnreadCountControllerDoc {
     })
     public Mono<CommonResponse<Void>> resetRoomCount(
             @Parameter(description = "ID of the chat room", example = "1001")
-            @PathVariable Long roomId);
+            @PathVariable String roomId);
 }

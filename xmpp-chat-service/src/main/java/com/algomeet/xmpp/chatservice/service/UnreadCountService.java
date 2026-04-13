@@ -43,6 +43,34 @@ public class UnreadCountService {
         return reactiveMongoTemplate.upsert(query, update, UnreadCount.class)
                 .then(reactiveMongoTemplate.findById(id, UnreadCount.class));
     }
+    
+    /**
+     * Non-blocking decrement of the unread count.
+     * Ensures the count does not drop below zero.
+     */
+    public Mono<UnreadCount> decrementUnreadCount(String senderKey, String recipientKey) {
+        String id = String.format("%s_%s", senderKey, recipientKey);
+        
+        // Use a query that only decrements if the current count is greater than 0
+        Query query = new Query(Criteria.where("_id").is(id).and("unread_count").gt(0));
+        Update update = new Update().inc("unread_count", -1);
+
+        return reactiveMongoTemplate.updateFirst(query, update, UnreadCount.class)
+                .then(reactiveMongoTemplate.findById(id, UnreadCount.class))
+                .flatMap(unreadCount -> {
+                    // Sync the new count across other user sessions
+                    if (userSessionRegistry.getSessions(recipientKey).size() > 1) {
+                        String payload = MucCountUtil.composeCountSync(
+                            domainProperties.getDomain(), 
+                            jidUtil.getBareJid(recipientKey), 
+                            senderKey, 
+                            unreadCount.getUnreadCount()
+                        );
+                        clusterMessagePublisher.convertAndSendToUser(id, recipientKey, recipientKey, ChatType.CHAT, payload);
+                    }
+                    return Mono.just(unreadCount);
+                });
+    }
 
     /**
      * Non-blocking reset of the unread count.

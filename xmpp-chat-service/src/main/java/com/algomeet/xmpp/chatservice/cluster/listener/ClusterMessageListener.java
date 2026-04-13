@@ -10,23 +10,22 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * <p>Subscriber/Listener responsible for receiving XMPP stanzas synchronized 
- * across the server cluster.</p>
- * 
- * <p>In a multi-node deployment, when a message is routed to a user not 
- * connected to the current node, it is published to a global cluster topic. 
- * This listener intercepts those messages, de-serializes the 
- * {@link ClusterSyncMessage} payload, and attempts local delivery.</p>
- * 
- * <p><b>Execution Flow:</b></p>
+ * <p>Subscriber/Listener responsible for inter-node XMPP stanza synchronization.</p>
+ * * <p>In a distributed AlgoMeet deployment, a user's WebSocket session resides on a 
+ * single specific server node. When a stanza (Message, Carbon, or Sync) is routed 
+ * to a user not connected to the originating node, the server publishes a 
+ * {@link ClusterSyncMessage} to a global Redis/PubSub topic.</p>
+ * * <p>This listener acts as the "Receiver" on every node in the cluster, ensuring 
+ * that no matter which server holds the physical TCP/WebSocket connection, the 
+ * message is delivered seamlessly.</p>
+ * * <p><b>Execution Flow:</b></p>
  * <ol>
- *     <li>Receives raw JSON from the cluster message broker (Redis/RabbitMQ).</li>
- *     <li>De-serializes the JSON into a {@code ClusterSyncMessage} DTO.</li>
- *     <li>Calls {@link LocalStanzaDispatcher} to check if the recipient 
- *         is physically connected to <i>this</i> specific server instance.</li>
+ * <li>Intercepts the broadcasted JSON payload from the cluster backbone.</li>
+ * <li>De-serializes the payload into a structured {@code ClusterSyncMessage}.</li>
+ * <li>Invokes {@link LocalStanzaDispatcher} to perform a local Registry lookup 
+ * and push the data to the client if the session is present on this node.</li>
  * </ol>
- * 
- * @author Algomeet Core Team
+ * * @author Algomeet Core Team
  */
 @Slf4j
 @Component
@@ -36,51 +35,52 @@ public class ClusterMessageListener {
     private final LocalStanzaDispatcher localStanzaDispatcher;
 
     /**
-     * Entry point for messages arriving from the cluster infrastructure.
-     * 
-     * @param rawMessage The JSON string representing the {@link ClusterSyncMessage}.
-     * @param channel    The name of the cluster topic or channel the message arrived on.
+     * Entry point for messages arriving from the cluster infrastructure (e.g., Redis Pub/Sub).
+     * * @param rawMessage The raw JSON string representing the {@link ClusterSyncMessage}.
+     * @param channel    The cluster-wide topic or channel name (e.g., 'xmpp.sync.stanzas').
      */
     public void onMessage(String rawMessage, String channel) {
-        log.debug("Received cluster sync message on channel [{}]: {}", channel, rawMessage);
+        log.debug("Intercepted cluster sync message on channel [{}]: {}", channel, rawMessage);
         
-        // De-serialize JSON message back to ClusterSyncMessage        
+        // Convert the wire-format JSON back into a typed DTO
         ClusterSyncMessage message = convertToObject(rawMessage, ClusterSyncMessage.class);
 
         if (message != null) {
-            // Hand off to the dispatcher. If the user is on this node, the message 
-            // is pushed over the WebSocket; otherwise, the dispatcher ignores it.
+            // Hand off to the local dispatcher. 
+            // The dispatcher performs a non-blocking lookup in the LocalChannelRegistry.
+            // If the 'to' JID matches a local session, the XML is pushed over the WebSocket.
             localStanzaDispatcher.dispatchLocally(
                 message.getTo(), 
                 message.getFrom(), 
                 message.getId(), 
                 message.getChatType(),
-                message.getPayload()
+                Boolean.valueOf(message.getIsCarbonCopy()),
+                message.getSessionId(),
+                message.getPayload()                
             );
             
-            log.info("Received cluster sync message ID {}", message.getId());
+            log.info("Successfully processed cluster sync for Stanza ID: {}", message.getId());
         }
     }
 
     /**
-     * Utility to de-serialize JSON strings into specific Java types.
-     * 
-     * <p>Note: Uses {@code findAndRegisterModules()} to support Java 8+ 
-     * Time API (Instant/LocalDateTime) which are common in Stanza timestamps.</p>
-     * 
-     * @param json The JSON input string.
-     * @param t    The class type to map the JSON to.
-     * @param <T>  The generic type of the destination object.
-     * @return The de-serialized object, or null if an error occurred.
+     * Internal utility to de-serialize JSON strings into DTOs.
+     * * <p><b>Performance Note:</b> Current implementation instantiates a new 
+     * {@link ObjectMapper} per call. In high-throughput production environments, 
+     * this should be replaced with a shared, thread-safe Bean to reduce 
+     * GC pressure and improve latency.</p>
+     * * @param json The raw JSON payload.
+     * @param t    The target Class type.
+     * @param <T>  The generic type.
+     * @return The de-serialized object, or null if parsing fails.
      */
     private <T> T convertToObject(String json, Class<T> t) {
         try {
-            // Configuration is performed inline for isolation; 
-            // Consideration: Move ObjectMapper to a @Bean for better performance.
+            // findAndRegisterModules() ensures support for JSR-310 (Instant/LocalDateTime)
             ObjectMapper mapper = new ObjectMapper().findAndRegisterModules(); 
             return mapper.readValue(json, t);
         } catch (Exception ex) {
-            log.error("Failed to de-serialize cluster message. Payload: {}, Error: {}", 
+            log.error("Critical: Failed to de-serialize cluster message. Data: {}, Error: {}", 
                 json, ex.getMessage(), ex);
         }
         return null;

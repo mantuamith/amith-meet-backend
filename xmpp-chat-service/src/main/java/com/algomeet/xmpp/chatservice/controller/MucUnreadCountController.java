@@ -46,7 +46,7 @@ public class MucUnreadCountController implements MucUnreadCountControllerDoc{
      * Gets the unread count for a specific room.
      */
     @GetMapping("/room/{roomId}")
-    public Mono<CommonResponse<Integer>> getRoomUnread(@PathVariable Long roomId) {
+    public Mono<CommonResponse<Integer>> getRoomUnread(@PathVariable String roomId) {
         String userKey = SecurityUtil.getUserKey();
         return mucUnreadCountService.getUnreadCount(userKey, roomId)
                 .map(count -> CommonResponse.from(ResponseCode.SUCCESS, count));
@@ -56,7 +56,7 @@ public class MucUnreadCountController implements MucUnreadCountControllerDoc{
      * Resets the unread counter for a specific room to zero.
      */
     @PostMapping("/room/{roomId}/reset")
-    public Mono<CommonResponse<Void>> resetRoomCount(@PathVariable Long roomId) {
+    public Mono<CommonResponse<Void>> resetRoomCount(@PathVariable String roomId) {
         String userKey = SecurityUtil.getUserKey();
         return mucUnreadCountService.resetUnreadCount(userKey, roomId)
                 .then(Mono.fromCallable(() -> CommonResponse.from(ResponseCode.SUCCESS)));

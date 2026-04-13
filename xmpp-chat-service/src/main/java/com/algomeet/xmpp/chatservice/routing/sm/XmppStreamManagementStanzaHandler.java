@@ -1,12 +1,8 @@
 package com.algomeet.xmpp.chatservice.routing.sm;
 
-import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-
-import javax.xml.stream.XMLStreamException;
 
 import org.springframework.stereotype.Component;
 
@@ -17,7 +13,6 @@ import com.algomeet.xmpp.chatservice.stanza.StreamAck;
 import com.algomeet.xmpp.chatservice.util.XmppSmRedisUtil;
 import com.algomeet.xmpp.chatservice.util.XmppSmSessionUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
-import com.algomeet.xmpp.chatservice.util.XmppUtil;
 
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
@@ -44,8 +39,6 @@ import lombok.extern.slf4j.Slf4j;
 @Component
 @RequiredArgsConstructor
 public class XmppStreamManagementStanzaHandler {
-	private final XmppStreamManagementOutboundBuffer xmppStreamAckTracker;
-	private final OfflineMessageService offlineMessageService; 
 	private final XmppSmRedisUtil xmppSmRedisUtil;
 
 
@@ -71,21 +64,6 @@ public class XmppStreamManagementStanzaHandler {
 				Long h = handledCount != null ? handledCount.get() : 0;
 				ctx.writeAndFlush(new TextWebSocketFrame(new StreamAck(h).toXml()));
 				log.trace("Responded to ack request from {} with h={}", principal.getUserKey(), h);
-			}
-		} else if(isStreamManagementResp(xml)) {
-			// The client is providing its 'h' value (how many stanzas it handled)
-			long clientHandledCount = XmppUtil.parseHAttribute(xml);
-
-			// 1. Identify which server-sent stanzas are now fully acknowledged by the client
-			List<String> acknowledgedStanzaIds = xmppStreamAckTracker.acknowledgeUpTo(principal.getUserKey(), clientHandledCount);
-
-			// 2. Clear acknowledged messages from the persistent 'offline' store
-			if (!acknowledgedStanzaIds.isEmpty()) {
-				for (String stanzaId : acknowledgedStanzaIds) {
-					offlineMessageService.deleteById(stanzaId).subscribe();
-				}
-
-				log.info("Purged {} acknowledged messages from store for {}, client handled count {}", acknowledgedStanzaIds, principal.getUserKey(), clientHandledCount);
 			}
 		} else {
 			processSmEnable(ctx, xml);

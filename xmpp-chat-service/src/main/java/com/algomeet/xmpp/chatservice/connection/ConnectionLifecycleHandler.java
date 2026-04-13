@@ -8,7 +8,6 @@ import org.springframework.stereotype.Component;
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.connection.registry.LocalChannelRegistry;
 import com.algomeet.xmpp.chatservice.enums.UserState;
-import com.algomeet.xmpp.chatservice.routing.sm.XmppStreamManagementOutboundBuffer;
 import com.algomeet.xmpp.chatservice.service.CallTrackerService;
 import com.algomeet.xmpp.chatservice.session.UserSessionRegistry;
 import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
@@ -36,7 +35,6 @@ public class ConnectionLifecycleHandler {
 
     private final UserSessionRegistry userSessionRegistry;
     private final LocalChannelRegistry localChannelRegistry;
-    private final XmppStreamManagementOutboundBuffer xmppStreamManagementBuffer;
     private final CallTrackerService callTrackerService;
 
     /**
@@ -61,14 +59,12 @@ public class ConnectionLifecycleHandler {
             // 1. Initialize Stream Management Counters (XEP-0198)
             // These counters are attached to the channel attribute for thread-safe access     
             ctx.channel().attr(XmppSessionAttributes.SM_INBOUND_H_KEY).set(new AtomicLong(0));            
-            ctx.channel().attr(XmppSessionAttributes.SM_OUTBOUND_H_KEY).set(new AtomicLong(0));
             // Initialize Initial Presence flag to false
             ctx.channel().attr(XmppSessionAttributes.INITIAL_PRESENCE_SENT).set(false);
 
             // 2. Register in Local Channel Registry (Stateful registration)
             localChannelRegistry.register(userKey, ctx.channel());
             userSessionRegistry.addSession(userKey, new UserSession(sessionId, UserState.ACTIVE, Instant.now().toEpochMilli()));
-            xmppStreamManagementBuffer.register(userKey);
 
             // 3. Send Bind Result (Confirmation of session establishment)
             // This informs the client of their full JID and the assigned Session ID
@@ -98,7 +94,6 @@ public class ConnectionLifecycleHandler {
             // Execute each cleanup task safely to ensure one failure doesn't block the entire teardown
             safeExecute(() -> localChannelRegistry.unregister(userKey), "Local Channel Registry", userKey);
             safeExecute(() -> userSessionRegistry.removeSession(userKey, sessionId), "User Session Registry", userKey);
-            safeExecute(() -> xmppStreamManagementBuffer.unregister(userKey), "XMPP Stream Management Buffer", userKey);
 
             // Process dropped calls (Reactive reconciliation)
             callTrackerService.reconcileDroppedCall(sessionId);

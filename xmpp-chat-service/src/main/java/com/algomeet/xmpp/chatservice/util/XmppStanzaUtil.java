@@ -81,6 +81,38 @@ public class XmppStanzaUtil {
 		// If it survived the negative filters, it is likely a conversational <message/>
 		return true;
 	}
+	
+	/**
+	 * <p><strong>Optimized Message Archive Filter (XEP-0313 Compliance)</strong></p>
+	 * * <p>Determines if a stanza should be persisted to long-term storage (MongoDB).
+	 * This method uses a <b>Negative-First, Early-Exit</b> strategy to minimize 
+	 * CPU cycles and memory scanning for high-throughput routing.</p>
+	 * * @param xml The raw XMPP stanza string.
+	 * @return {@code true} if the stanza contains conversational content; 
+	 * {@code false} if it is transient signaling.
+	 */
+	public static boolean isArchiveableGroupChat(String xmlHeader, String xml) {
+		// Defensive check for malformed or empty stream fragments
+		if (xml == null) {
+			return false;
+		}
+
+		// 1. Filter Presence: Standard Roster updates and MUC (XEP-0045) occupancy 
+		// are state-based and should never be stored in message history.
+		if (XmppStanzaUtil.isPresenceStanza(xmlHeader)) {
+			return false; 
+		}
+
+		// 2. Conditional Filter for Chat States (XEP-0085):
+		// Typing notifications ("is typing...") are transient. We only archive 
+		// if the stanza ALSO contains a <body> element (e.g., a message with a state).
+		if (xmlHeader.contains("http://jabber.org/protocol/chatstates")) {
+			return xml.contains("<body");
+		}
+
+		// If it survived the negative filters, it is likely a conversational <message/>
+		return true;
+	}
 
 	/**
 	 * Extracts the value of a specific field (tag) from the XML.

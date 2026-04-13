@@ -5,6 +5,8 @@ import java.time.Instant;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
+import jakarta.validation.constraints.Size;
+
 import org.springframework.data.annotation.Id;
 import lombok.Builder;
 import lombok.Data;
@@ -24,6 +26,7 @@ public class OfflineMessage {
 
     private String messageType; // "chat" or "normal"
     
+    @Size(max = 66560, message = "XML stanza is too large") // Max length 65kb
     private String stanzaXml;   // The raw <message> XML string
 
     @Builder.Default

@@ -58,6 +58,20 @@ public class ClusterSyncMessage {
      * "chat" or "groupchat" 
      */
     private ChatType chatType;  
+    
+    /**
+     * Flag indicating if this message is an XEP-0280 Carbon Copy.
+     * When TRUE, this stanza is a synchronization copy intended for other devices 
+     * belonging to the same user (multi-device sync).
+     */
+    private Boolean isCarbonCopy;
+    
+    /** * The unique identifier of the originating WebSocket/XMPP session.
+     * This is used exclusively when isCarbonCopy is TRUE to perform 'Echo Suppression,'
+     * ensuring the server does not route a carbon copy back to the device that 
+     * initially authored the message.
+     */
+    private String sessionId;
 
     /**
      * The system time (in milliseconds) when this message was 
