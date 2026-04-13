@@ -64,7 +64,7 @@ public class ClusterSyncMessage {
      * When TRUE, this stanza is a synchronization copy intended for other devices 
      * belonging to the same user (multi-device sync).
      */
-    private Boolean isCarbonCopy;
+    private boolean isCarbonCopy;
     
     /** * The unique identifier of the originating WebSocket/XMPP session.
      * This is used exclusively when isCarbonCopy is TRUE to perform 'Echo Suppression,'

@@ -54,7 +54,7 @@ public class ClusterMessageListener {
                 message.getFrom(), 
                 message.getId(), 
                 message.getChatType(),
-                Boolean.valueOf(message.getIsCarbonCopy()),
+                message.isCarbonCopy(),
                 message.getSessionId(),
                 message.getPayload()                
             );

@@ -250,6 +250,8 @@ public class XmppChatHandler {
                     principal.getUserKey(), // Recipient is the sender themselves (self-sync)
                     principal.getUserKey(), 
                     ChatType.CHAT,
+                    true,
+                    principal.getSessionId(),
                     carbonPayload);
         }        
     }
