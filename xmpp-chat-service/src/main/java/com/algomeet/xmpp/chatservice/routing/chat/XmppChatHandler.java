@@ -95,7 +95,7 @@ public class XmppChatHandler {
 					        if (StringUtils.hasText(ackMessageId)) {
 					            // Once delivery is confirmed, the message is no longer "offline" 
 					            // and can be safely removed from the temporary offline storage.
-					            offlineMessageService.deleteById(id).subscribe();
+					            offlineMessageService.deleteById(ackMessageId).subscribe();
 					        }
 					    }
 					    
