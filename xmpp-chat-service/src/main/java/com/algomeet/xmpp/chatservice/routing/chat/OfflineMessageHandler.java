@@ -6,7 +6,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.springframework.stereotype.Component;
 
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
-import com.algomeet.xmpp.chatservice.connection.stream.XmppStreamManagementBuffer;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.service.OfflineMessageService;
 import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
@@ -28,7 +27,7 @@ import lombok.extern.slf4j.Slf4j;
  *     <li><b>XEP-0203 Integration:</b> Wraps stanzas with {@code <delay/>} tags so the 
  *         client knows the original timestamp of the message.</li>
  *     <li><b>Stream Management (XEP-0198):</b> Automatically registers these outbound 
- *         messages with the {@link XmppStreamManagementBuffer} to ensure they are actually 
+ *         messages with the {@link XmppStreamManagementOutboundBuffer} to ensure they are actually 
  *         received by the client's device.</li>
  *     <li><b>Sequence Alignment:</b> Updates the session's outbound 'h' counter 
  *         proportionally to the number of offline messages delivered.</li>
@@ -42,7 +41,6 @@ import lombok.extern.slf4j.Slf4j;
 public class OfflineMessageHandler {
 
     private final OfflineMessageService offlineMessageService;
-    private final XmppStreamManagementBuffer xmppStreamAckTracker;
     private final DomainProperties domainProperties;
 
     /**
@@ -72,10 +70,6 @@ public class OfflineMessageHandler {
                 
                 // Push to WebSocket
                 ctx.writeAndFlush(new TextWebSocketFrame(xmlWithDelay));
-                
-                // Track for Stream Management Acknowledgment
-                // We use the incremented counter as the 'h' value
-                xmppStreamAckTracker.track(userKey, outboundH.incrementAndGet(), msg.getId());
             })
             .doOnComplete(() -> log.info("Completed offline message delivery for user: {}", userKey))
             .doOnError(e -> log.error("Failed to deliver offline messages for {}: {}", userKey, e.getMessage()))

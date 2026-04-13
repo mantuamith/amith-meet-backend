@@ -1,7 +1,7 @@
 package com.algomeet.xmpp.chatservice.util;
 
 public class MucCountUtil {
-	public static String composeMucCountSync(String from, String to, Long roomId, int count) {
+	public static String composeMucCountSync(String from, String to, String roomId, int count) {
         return new StringBuilder(256) // Pre-size buffer to avoid resizing
             .append("<message from='").append(from).append("' ")
             .append("to='").append(to).append("' ")

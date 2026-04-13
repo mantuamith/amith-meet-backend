@@ -5,6 +5,7 @@ import org.springframework.stereotype.Component;
 import com.algomeet.xmpp.chatservice.auth.WebSocketPostAuthHandler;
 import com.algomeet.xmpp.chatservice.auth.WebSocketPreAuthHandler;
 import com.algomeet.xmpp.chatservice.routing.XmppRoutingHandler;
+import com.algomeet.xmpp.chatservice.sm.XmppStreamManagementHandler;
 
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelPipeline;
@@ -39,6 +40,8 @@ public class XmppChannelInitializer extends ChannelInitializer<SocketChannel> {
      * - Sends XMPP bind response
      */
     private WebSocketPostAuthHandler webSocketPostAuthHandler;
+    
+    private XmppStreamManagementHandler xmppStreamManagementHandler;
 
     @Override
     protected void initChannel(SocketChannel ch) {
@@ -89,9 +92,22 @@ public class XmppChannelInitializer extends ChannelInitializer<SocketChannel> {
          * - Sends initial XMPP bind response
          */
         p.addLast(webSocketPostAuthHandler);
+        
+        
+		/**
+		 * Step 6: XEP-0198 Stream Management handler Responsible for tracking inbound stanzas
+		 * at transport level and maintaining the SM counter (h value) for cumulative
+		 * acknowledgements (<a h='N'/>).
+		 * 
+		 * IMPORTANT: - Must be placed BEFORE business logic handlers (chat, routing,
+		 * persistence) - Only counts XMPP stanzas (<message/>, <iq/>, <presence/>) -
+		 * Does NOT depend on DB, routing, or delivery success - Ensures reliable
+		 * transport-level session recovery (resume support)
+		 */         
+        p.addLast("smHandler", xmppStreamManagementHandler); 
 
         /**
-         * Step 6: XMPP routing handler
+         * Step 7: XMPP routing handler
          * - Processes incoming WebSocket frames (XMPP stanzas)
          * - Routes messages to appropriate services (chat, presence, etc.)
          */

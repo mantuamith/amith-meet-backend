@@ -81,6 +81,38 @@ public class XmppStanzaUtil {
 		// If it survived the negative filters, it is likely a conversational <message/>
 		return true;
 	}
+	
+	/**
+	 * <p><strong>Optimized Message Archive Filter (XEP-0313 Compliance)</strong></p>
+	 * * <p>Determines if a stanza should be persisted to long-term storage (MongoDB).
+	 * This method uses a <b>Negative-First, Early-Exit</b> strategy to minimize 
+	 * CPU cycles and memory scanning for high-throughput routing.</p>
+	 * * @param xml The raw XMPP stanza string.
+	 * @return {@code true} if the stanza contains conversational content; 
+	 * {@code false} if it is transient signaling.
+	 */
+	public static boolean isArchiveableGroupChat(String xmlHeader, String xml) {
+		// Defensive check for malformed or empty stream fragments
+		if (xml == null) {
+			return false;
+		}
+
+		// 1. Filter Presence: Standard Roster updates and MUC (XEP-0045) occupancy 
+		// are state-based and should never be stored in message history.
+		if (XmppStanzaUtil.isPresenceStanza(xmlHeader)) {
+			return false; 
+		}
+
+		// 2. Conditional Filter for Chat States (XEP-0085):
+		// Typing notifications ("is typing...") are transient. We only archive 
+		// if the stanza ALSO contains a <body> element (e.g., a message with a state).
+		if (xmlHeader.contains("http://jabber.org/protocol/chatstates")) {
+			return xml.contains("<body");
+		}
+
+		// If it survived the negative filters, it is likely a conversational <message/>
+		return true;
+	}
 
 	/**
 	 * Extracts the value of a specific field (tag) from the XML.
@@ -185,5 +217,51 @@ public class XmppStanzaUtil {
         Matcher matcher = pattern.matcher(xml);
 
         return matcher.find() ? matcher.group(1) : null;
+    }
+    
+    /**
+     * Determines if the incoming XML string is one of the three core XMPP stanzas:
+     * <message/>, <presence/>, or <iq/>.
+     * * This check is vital for XEP-0198 Stream Management to ensure we only increment
+     * the 'h' (handled) counter for top-level stanzas and not for protocol control 
+     * elements like <r/>, <a/>, or <sm/>.
+     *
+     * @param xml The raw XML string from the WebSocket frame.
+     * @return true if it is a core stanza, false otherwise.
+     */
+    public static boolean isCountableStanza(String xml) {
+        if (xml == null) return false;
+
+        // 1. Locate the first actual XML tag.
+        // XMPP over WebSockets usually doesn't have leading whitespace, 
+        // but we look for '<' to be safe.
+        int firstTag = xml.indexOf('<');
+
+        // If no '<' is found, it's not valid XML.
+        if (firstTag == -1) {
+            return false;
+        }
+
+        // 2. Perform Case-Insensitive Zero-Allocation Checks
+        // We check the first few characters after the '<' to identify the stanza type.
+        
+        // Check for <message (8 chars)
+        if (xml.regionMatches(true, firstTag, "<message", 0, 8)) {
+        	return true;
+        }
+
+        // Check for <presence (9 chars)
+        if (xml.regionMatches(true, firstTag, "<presence", 0, 9)) {
+        	return true;
+        } 
+
+        // Check for <iq (3 chars)
+        if (xml.regionMatches(true, firstTag, "<iq", 0, 3)) {
+            return true;
+        }
+
+        // If it reaches here, it's either a protocol control element (like <r/> or <a/>)
+        // or a stream-level tag (like <stream:features/>).
+        return false;
     }
 }

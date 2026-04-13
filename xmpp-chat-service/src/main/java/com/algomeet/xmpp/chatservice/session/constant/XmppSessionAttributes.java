@@ -1,12 +1,12 @@
 package com.algomeet.xmpp.chatservice.session.constant;
 
-import io.netty.channel.Channel;
-import io.netty.util.AttributeKey;
-
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
+
+import io.netty.channel.Channel;
+import io.netty.util.AttributeKey;
 
 /**
  * <p>Static registry of {@link AttributeKey} constants used to store and retrieve 
@@ -90,5 +90,5 @@ public class XmppSessionAttributes {
      */
     public static XmppPrincipal getPrincipal(Channel channel) {
         return channel.attr(PRINCIPAL).get();
-    }
+    }   
 }

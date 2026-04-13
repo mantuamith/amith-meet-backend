@@ -10,7 +10,7 @@ import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
 public interface GroupClient {
 
     @GetMapping("/internal/groups/{groupId}")
-    MucRoomDto getGroupById(@PathVariable("groupId") Long groupId);
+    MucRoomDto getGroupById(@PathVariable("groupId") String groupId);
 
 
 }

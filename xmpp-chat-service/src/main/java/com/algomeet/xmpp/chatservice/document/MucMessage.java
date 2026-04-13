@@ -7,6 +7,9 @@ import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
+
+import jakarta.validation.constraints.Size;
+
 import java.time.Instant;
 
 @Data
@@ -29,8 +32,11 @@ public class MucMessage {
     private String roomId;
     
     private String from;
-    // USed for DIRECT PRIVATE MESSAGE (PM) WITHIN MUC 
+    
+    // Used for DIRECT PRIVATE MESSAGE (PM) WITHIN MUC 
     private String to;
+    
+    @Size(max = 66560, message = "XML stanza is too large") // Max length 65kb
     private String stanzaXml;
     
     private String category;

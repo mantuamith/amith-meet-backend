@@ -1,10 +1,9 @@
 package com.algomeet.xmpp.chatservice.routing.dispacher;
 
-import java.util.concurrent.atomic.AtomicLong;
 import org.springframework.stereotype.Component;
 
+import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.connection.registry.LocalChannelRegistry;
-import com.algomeet.xmpp.chatservice.connection.stream.XmppStreamManagementBuffer;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
 
@@ -25,7 +24,7 @@ import lombok.extern.slf4j.Slf4j;
  * <ul>
  *     <li><b>Reliable Delivery (XEP-0198):</b> Every dispatched stanza is assigned a 
  *         monotonically increasing sequence number ({@code smOutboundH}).</li>
- *     <li><b>Ack Tracking:</b> Stanzas are registered with the {@link XmppStreamManagementBuffer} 
+ *     <li><b>Ack Tracking:</b> Stanzas are registered with the {@link XmppStreamManagementOutboundBuffer} 
  *         before being flushed, allowing the server to handle potential reconnection 
  *         resumptions or delivery confirmations.</li>
  *     <li><b>Session Validation:</b> Verifies that the target channel is active and 
@@ -40,46 +39,41 @@ import lombok.extern.slf4j.Slf4j;
 public class LocalStanzaDispatcher {
 
 	private final LocalChannelRegistry localChannelRegistry; 
-	private final XmppStreamManagementBuffer xmppStreamAckTracker;
 
 	/**
-	 * Routes a stanza to a specific local user session.
-	 * 
-	 * @param to          The User Key/ JID (Jabber ID) of the recipient.
-	 * @param from        The User Key/ JID of the sender.
-	 * @param id          The unique Stanza ID (used for tracking and DB status updates).
-	 * @param originalXml The raw XML content to be delivered.
+	 * Routes a stanza to a specific local user session managed by this node.
+	 * * @param to           The User Key/JID of the recipient.
+	 * @param from         The User Key/JID of the sender.
+	 * @param id           The unique Stanza ID (used for tracking and DB status updates).
+	 * @param chatType     The type of chat (e.g., CHAT, GROUPCHAT).
+	 * @param isCarbonCopy Flag indicating if this is an XEP-0280 synchronization message.
+	 * @param sessionId    The ID of the originating session (to prevent echo loops).
+	 * @param xml          The raw XML content to be delivered over the WebSocket.
 	 */
-	public void dispatchLocally(String to, String from, String id, ChatType chatType, String originalXml) {
+	public void dispatchLocally(String to, String from, String id, ChatType chatType, Boolean isCarbonCopy, String sessionId, String xml) {		
+		// 1. Retrieve the physical Netty Channel associated with the destination JID.
 		Channel targetChannel = localChannelRegistry.getChannel(to);
 
+		// 2. Fail-fast if the connection is dead or non-existent to prevent unnecessary processing.
 		if (targetChannel == null || !targetChannel.isActive()) {
 			log.debug("Routing failed: No active local channel found for JID: {}", to);
 			return;
 		}
 
-		if (chatType == ChatType.GROUPCHAT) {			
-			// No need to track the SM buffer
-			targetChannel.writeAndFlush(new TextWebSocketFrame(originalXml));
-		} else {
+		XmppPrincipal principal = targetChannel.attr(XmppSessionAttributes.PRINCIPAL).get();
 
-			// Retrieve the session's outbound counter to maintain protocol sequence
-			AtomicLong outboundH = targetChannel.attr(XmppSessionAttributes.SM_OUTBOUND_H_KEY).get();
-			if (outboundH != null) { 
-				// Write to the WebSocket
-				targetChannel.writeAndFlush(new TextWebSocketFrame(originalXml));
+		// 3. XEP-0280: Carbon Copy Loop Prevention.
+		// If this is a carbon copy intended for device synchronization, we must ensure
+		// it is NOT sent back to the session that originally authored the message.
+		if (isCarbonCopy && principal.getSessionId().equals(sessionId)) {
+			log.trace("Suppressed carbon copy for originating session: {}", sessionId);
+			return;
+		} 
 
-				// Track in the SM buffer so we can update DB status when the client eventually acks
-				long sequence = outboundH.incrementAndGet();
-				xmppStreamAckTracker.track(to, sequence, id);
-
-				log.trace("Stanza {} dispatched to {} with sequence h={}", id, to, sequence);
-			} else {
-				log.error("Outbound SM counter missing for active channel: {}. Reliability broken.", to);
-				// Fallback: send without tracking or close the corrupted session
-				targetChannel.writeAndFlush(new TextWebSocketFrame(originalXml));
-			}
-		}
+		// 4. Final Delivery.
+		// Encapsulate the raw XML stanza in a TextWebSocketFrame for transmission.
+		// writeAndFlush ensures the message is immediately pushed down the Netty pipeline.
+		targetChannel.writeAndFlush(new TextWebSocketFrame(xml));	
 	}
 
 

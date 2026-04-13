@@ -1,5 +1,7 @@
 package com.algomeet.xmpp.chatservice.service;
 
+import java.util.List;
+
 import org.springframework.stereotype.Service;
 
 import com.algomeet.xmpp.chatservice.document.OfflineMessage;
@@ -70,12 +72,25 @@ public class OfflineMessageService {
      * Deletes a message from the persistent store after successful delivery.
      * 
      * <p>This is typically called when an {@code <a h='...'/>} acknowledgment 
-     * is processed by the {@code XmppStreamManagementHandler}.</p>
+     * is processed by the {@code XmppStreamManagementStanzaHandler}.</p>
      * 
      * @param messageId The unique Stanza ID to be removed.
      * @return A {@link Mono<Void>} signaling completion of the deletion.
      */
     public Mono<Void> deleteById(String messageId) {
         return offlineMessageRepository.deleteById(messageId);
+    }
+    
+    /**
+     * Deletes a messages from the persistent store after successful delivery.
+     * 
+     * <p>This is typically called when an {@code <a h='...'/>} acknowledgment 
+     * is processed by the {@code XmppStreamManagementStanzaHandler}.</p>
+     * 
+     * @param messageIds The list of unique Stanza ID to be removed.
+     * @return A {@link Mono<Void>} signaling completion of the deletion.
+     */
+    public Mono<Void> deleteAllByIds(List<String> messageIds) {
+        return offlineMessageRepository.deleteAllById(messageIds);
     }
 }

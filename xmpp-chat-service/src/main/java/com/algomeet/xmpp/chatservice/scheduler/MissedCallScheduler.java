@@ -209,14 +209,14 @@ public class MissedCallScheduler {
 		String fromUserKey = XmppUtil.getUserKey(fromJid);
 		String toUserKey = XmppUtil.getUserKey(toJid);	
 
-		MucRoomDto group = groupCacheService.getCachedGroup(Long.parseLong(groupId));
+		MucRoomDto group = groupCacheService.getCachedGroup(groupId);
 
 		// Identify the caller's MUC nickname for the 'from' attribute
 		Optional<MucMember> callerMucMember = group.getMembers().stream()
 				.filter(m -> m.getUserKey().equals(fromUserKey)).findFirst();
 
 		String caller = jidUtil.getGroupBareJid(groupId) + "/" + 
-				(callerMucMember.isPresent() ? callerMucMember.get().getNickname() : "Unknown");
+				(callerMucMember.isPresent() ? callerMucMember.get().getUserKey() : "Unknown");
 
 		String xml = String.format(
 				"<message from='%s' to='%s' type='groupchat' id='%s'>" +

@@ -33,7 +33,7 @@ public class MucUnreadCountService {
 	 * Increments the unread count for a specific user in a specific room.
 	 * Uses upsert to ensure the document exists.
 	 */
-	public Mono<Void> incrementUnreadCount(String userKey, Long roomId) {
+	public Mono<Void> incrementUnreadCount(String userKey, String roomId) {
 		String id = String.format("%s_%d", userKey, roomId);
 
 		Query query = new Query(Criteria.where("_id").is(id));
@@ -45,17 +45,47 @@ public class MucUnreadCountService {
 		return reactiveMongoTemplate.upsert(query, update, MucUnreadCount.class).then();
 	}
 
-	public Mono<Void> incrementForRoomMembers(Long roomId, List<String> memberKeys, String senderKey) {
+	public Mono<Void> incrementForRoomMembers(String roomId, List<String> memberKeys, String senderKey) {
 		return Flux.fromIterable(memberKeys)
 				//.filter(memberKey -> !memberKey.equals(senderKey)) // Don't notify the sender
 				.flatMap(memberKey -> incrementUnreadCount(memberKey, roomId))
 				.then();
 	}
+	
+	/**
+	 * Non-blocking decrement of the unread count for a specific MUC room.
+	 * Ensures the count does not drop below zero using an atomic operation.
+	 */
+	public Mono<MucUnreadCount> decrementUnreadCount(String userKey, String roomId) {
+		String id = String.format("%s_%d", userKey, roomId);
+
+		// Atomic decrement: only execute if the current count is greater than 0
+		Query query = new Query(Criteria.where("_id").is(id).and("unread_count").gt(0));
+		Update update = new Update().inc("unread_count", -1);
+
+		return reactiveMongoTemplate.updateFirst(query, update, MucUnreadCount.class)
+				.then(reactiveMongoTemplate.findById(id, MucUnreadCount.class))
+				.flatMap(mucUnreadCount -> {
+					// --- XMPP Device Synchronization ---
+					// If the user has multiple active sessions, broadcast the new count 
+					// to ensure consistent UI badges across all devices.
+					if (userSessionRegistry.getSessions(userKey).size() > 1) {
+						String payload = MucCountUtil.composeMucCountSync(
+								domainProperties.getDomain(),
+								jidUtil.getBareJid(userKey),
+								roomId,
+								mucUnreadCount.getUnreadCount()
+						);
+						clusterMessagePublisher.convertAndSendToUser(id, userKey, userKey, ChatType.CHAT, payload);
+					}
+					return Mono.just(mucUnreadCount);
+				});
+	}
 
 	/**
 	 * Resets the unread count to zero when the user views the room.
 	 */
-	public Mono<Void> resetUnreadCount(String userKey, Long roomId) {
+	public Mono<Void> resetUnreadCount(String userKey, String roomId) {
 		String id = String.format("%s_%d", userKey, roomId);
 
 		Query query = new Query(Criteria.where("_id").is(id));
@@ -96,7 +126,7 @@ public class MucUnreadCountService {
 				.reduce(0, Integer::sum);
 	}
 
-	public Mono<Integer> getUnreadCount(String userKey, Long roomId) {
+	public Mono<Integer> getUnreadCount(String userKey, String roomId) {
 		String id = String.format("%s_%d", userKey, roomId);
 		return reactiveMongoTemplate.findById(id, MucUnreadCount.class)
 				.map(MucUnreadCount::getUnreadCount)

@@ -43,8 +43,8 @@ server:
 xmpp:
   server:
     port: 8098
-    domain: algomeet.com
-    group-chat-domain: conference.algomeet.com
+    domain: algomeet.app
+    group-chat-domain: conference.algomeet.app
 
 jwt:
   secret: Y0h4TkFxWkd6Um9TTktOVlFobU9naFN3SzY5cWhVY08=

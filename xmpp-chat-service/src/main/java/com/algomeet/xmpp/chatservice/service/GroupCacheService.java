@@ -52,7 +52,7 @@ public class GroupCacheService {
      * @param groupId The unique identifier of the room/group.
      * @return {@link MucRoomDto} containing room configuration and member list.
      */
-    public MucRoomDto getCachedGroup(Long groupId) {
+    public MucRoomDto getCachedGroup(String groupId) {
         return getCachedGroup(groupId, false);
     }
     
@@ -71,7 +71,7 @@ public class GroupCacheService {
      * @param isForceRefreshCache If true, bypasses the cache lookup and fetches fresh data.
      * @return The {@link MucRoomDto} retrieved from cache or the source service.
      */
-    public MucRoomDto getCachedGroup(Long groupId, boolean isForceRefreshCache) {
+    public MucRoomDto getCachedGroup(String groupId, boolean isForceRefreshCache) {
         String key = CACHE_KEY_PREFIX + groupId;
 
         // 1. Try to get from Redis
