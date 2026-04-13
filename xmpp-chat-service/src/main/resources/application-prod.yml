@@ -39,8 +39,8 @@ server:
 xmpp:
   server:
     port: 8098
-    domain: algomeet.com
-    group-chat-domain: conference.algomeet.com
+    domain: ${XMPP_DOMAIN:algomeet.app}
+    group-chat-domain: conference.${XMPP_DOMAIN:algomeet.app}
 
 jwt:
   secret: ${SPRING_JWT_SECRET}
