@@ -1,8 +1,11 @@
 package com.algomeet.groupservice.service;
 
 import java.util.Base64;
+import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.time.Instant;
@@ -15,9 +18,12 @@ import org.springframework.web.server.ResponseStatusException;
 
 import com.algomeet.groupservice.dto.AddGroupMembersRequest;
 import com.algomeet.groupservice.dto.GroupInviteLinkResponse;
+import com.algomeet.groupservice.dto.GroupPermissionsPatchRequest;
+import com.algomeet.groupservice.dto.GroupPermissionsResponse;
 import com.algomeet.groupservice.dto.GroupRequest;
 import com.algomeet.groupservice.dto.GroupResponse;
 import com.algomeet.groupservice.dto.MemberRequest;
+import com.algomeet.groupservice.dto.RolePermissionsPatchRequest;
 import com.algomeet.groupservice.dto.UpdateGroupRequest;
 import com.algomeet.groupservice.enums.GroupRole;
 import com.algomeet.groupservice.enums.ResponseCode;
@@ -25,6 +31,7 @@ import com.algomeet.groupservice.exceptions.GroupNotFoundException;
 import com.algomeet.groupservice.mapper.GroupMapper;
 import com.algomeet.groupservice.model.Group;
 import com.algomeet.groupservice.model.Member;
+import com.algomeet.groupservice.model.RolePermissions;
 import com.algomeet.groupservice.repository.GroupRepository;
 
 import lombok.RequiredArgsConstructor;
@@ -36,12 +43,14 @@ import java.security.SecureRandom;
 public class GroupService {
 
 	private static final SecureRandom INVITE_CODE_RANDOM = new SecureRandom();
+	private static final Set<GroupRole> MANAGED_PERMISSION_ROLES = EnumSet.of(GroupRole.OWNER, GroupRole.ADMIN, GroupRole.MEMBER);
 
 	private final GroupRepository groupRepository;
 	private final GroupInviteLinkFactory groupInviteLinkFactory;
 
 	public GroupResponse createGroup(GroupRequest request, String username, String userKey) {
 		Group group = GroupMapper.toEntity(request);
+		initializeRolePermissions(group);
 
 		if(request.isEmptyGroup()) {
 			//Ignore member list
@@ -58,6 +67,31 @@ public class GroupService {
 		// Use for audit
 		group.setCreatedBy(userKey);
 		return GroupMapper.toResponse(groupRepository.save(group));
+	}
+
+	public GroupPermissionsResponse patchGroupPermissions(Long groupId, GroupPermissionsPatchRequest request, String userKey) {
+		Group group = getGroupOrThrow(groupId);
+		initializeRolePermissions(group);
+
+		GroupRole actorRole = resolveActorRole(group, userKey);
+		if (actorRole == null) {
+			throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You are not a member of this group");
+		}
+
+		if (!isPermissionManagementAllowed(actorRole)) {
+			throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You are not allowed to update role permissions");
+		}
+
+		validateManagedRoles(request.getRolePermissions());
+		request.getRolePermissions().forEach((role, patch) -> {
+			RolePermissions permissions = group.getRolePermissions()
+					.computeIfAbsent(role, this::defaultPermissionsForRole);
+			mergeRolePermissions(permissions, patch);
+			normalizeRolePermissions(role, permissions);
+		});
+
+		Group savedGroup = groupRepository.save(group);
+		return GroupMapper.toPermissionsResponse(savedGroup);
 	}
 
 	public void removeGroup(Long groupId) throws GroupNotFoundException {
@@ -304,6 +338,103 @@ public class GroupService {
 		return userRole == GroupRole.OWNER
 				|| userRole == GroupRole.ADMIN
 				|| userRole == GroupRole.MEMBER;
+	}
+
+	private boolean isPermissionManagementAllowed(GroupRole userRole) {
+		return userRole == GroupRole.OWNER || userRole == GroupRole.ADMIN;
+	}
+
+	private void initializeRolePermissions(Group group) {
+		if (group.getRolePermissions() == null) {
+			group.setRolePermissions(new EnumMap<>(GroupRole.class));
+		}
+
+		for (GroupRole role : MANAGED_PERMISSION_ROLES) {
+			group.getRolePermissions().computeIfAbsent(role, this::defaultPermissionsForRole);
+		}
+
+		group.getRolePermissions().entrySet().removeIf(entry -> !MANAGED_PERMISSION_ROLES.contains(entry.getKey()));
+		group.getRolePermissions().forEach(this::normalizeRolePermissions);
+	}
+
+	private GroupRole resolveActorRole(Group group, String userKey) {
+		if (StringUtils.hasText(group.getOwnerUserKey()) && group.getOwnerUserKey().equals(userKey)) {
+			return GroupRole.OWNER;
+		}
+
+		if (CollectionUtils.isEmpty(group.getMembers())) {
+			return null;
+		}
+
+		Member member = findMember(group.getMembers(), userKey);
+		return member != null ? member.getRole() : null;
+	}
+
+	private void validateManagedRoles(Map<GroupRole, RolePermissionsPatchRequest> rolePermissions) {
+		if (rolePermissions == null) {
+			return;
+		}
+
+		for (GroupRole role : rolePermissions.keySet()) {
+			if (!MANAGED_PERMISSION_ROLES.contains(role)) {
+				throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unsupported role for permission update: " + role);
+			}
+		}
+	}
+
+	private RolePermissions defaultPermissionsForRole(GroupRole role) {
+		return switch (role) {
+		case OWNER -> RolePermissions.ownerDefaults();
+		case ADMIN -> RolePermissions.adminDefaults();
+		case MEMBER -> RolePermissions.memberDefaults();
+		default -> RolePermissions.memberDefaults();
+		};
+	}
+
+	private void mergeRolePermissions(RolePermissions target, RolePermissionsPatchRequest patch) {
+		if (patch == null) {
+			return;
+		}
+
+		if (patch.getEditGroupSettings() != null) {
+			target.setEditGroupSettings(patch.getEditGroupSettings());
+		}
+		if (patch.getSendNewMessages() != null) {
+			target.setSendNewMessages(patch.getSendNewMessages());
+		}
+		if (patch.getAddOtherMembers() != null) {
+			target.setAddOtherMembers(patch.getAddOtherMembers());
+		}
+		if (patch.getSendMessageHistory() != null) {
+			target.setSendMessageHistory(patch.getSendMessageHistory());
+		}
+		if (patch.getInviteViaLinkOrQrCode() != null) {
+			target.setInviteViaLinkOrQrCode(patch.getInviteViaLinkOrQrCode());
+		}
+		if (patch.getApproveNewMembers() != null) {
+			target.setApproveNewMembers(patch.getApproveNewMembers());
+		}
+		if (patch.getEditGroupAdmins() != null) {
+			target.setEditGroupAdmins(patch.getEditGroupAdmins());
+		}
+		if (patch.getRemoveMembers() != null) {
+			target.setRemoveMembers(patch.getRemoveMembers());
+		}
+		if (patch.getDisableChatForMembers() != null) {
+			target.setDisableChatForMembers(patch.getDisableChatForMembers());
+		}
+		if (patch.getDeleteGroup() != null) {
+			target.setDeleteGroup(patch.getDeleteGroup());
+		}
+	}
+
+	private void normalizeRolePermissions(GroupRole role, RolePermissions permissions) {
+		if (role == GroupRole.OWNER) {
+			permissions.setDeleteGroup(true);
+			return;
+		}
+
+		permissions.setDeleteGroup(false);
 	}
 
 	private String generateInviteCode() {

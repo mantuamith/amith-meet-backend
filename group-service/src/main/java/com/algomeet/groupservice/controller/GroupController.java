@@ -8,6 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -20,6 +21,8 @@ import com.algomeet.groupservice.controller.swagger.GroupControllerDoc;
 import com.algomeet.groupservice.dto.AddGroupMembersRequest;
 import com.algomeet.groupservice.dto.CommonResponse;
 import com.algomeet.groupservice.dto.GroupInviteLinkResponse;
+import com.algomeet.groupservice.dto.GroupPermissionsPatchRequest;
+import com.algomeet.groupservice.dto.GroupPermissionsResponse;
 import com.algomeet.groupservice.dto.GroupRequest;
 import com.algomeet.groupservice.dto.GroupResponse;
 import com.algomeet.groupservice.dto.UpdateGroupRequest;
@@ -66,6 +69,19 @@ public class GroupController implements GroupControllerDoc {
 	public ResponseEntity<CommonResponse<GroupResponse>> updateGroup(@PathVariable Long groupId, @Valid @RequestBody UpdateGroupRequest request) {
 		try {
 			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, groupService.updateGroup(groupId, request, SecurityUtil.getUserKey())));
+		} catch(GroupNotFoundException ex) {
+			return ResponseEntity.status(HttpStatus.NOT_FOUND)
+					.body(CommonResponse.from(ResponseCode.GROUP_ID_NOT_FOUND));
+		}
+	}
+
+	@PatchMapping("/{groupId}/permissions")
+	public ResponseEntity<CommonResponse<GroupPermissionsResponse>> patchGroupPermissions(
+			@PathVariable Long groupId,
+			@Valid @RequestBody GroupPermissionsPatchRequest request) {
+		try {
+			GroupPermissionsResponse response = groupService.patchGroupPermissions(groupId, request, SecurityUtil.getUserKey());
+			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, response));
 		} catch(GroupNotFoundException ex) {
 			return ResponseEntity.status(HttpStatus.NOT_FOUND)
 					.body(CommonResponse.from(ResponseCode.GROUP_ID_NOT_FOUND));
