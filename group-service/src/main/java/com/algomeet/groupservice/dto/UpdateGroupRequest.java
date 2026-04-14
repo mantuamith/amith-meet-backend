@@ -8,6 +8,7 @@ import lombok.Data;
 @Data
 public class UpdateGroupRequest {
 	private String name;
+	private String description;
 	
     /**
      * Members to be updated to the group.

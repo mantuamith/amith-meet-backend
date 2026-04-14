@@ -5,6 +5,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.time.Instant;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -68,6 +69,7 @@ public class GroupService {
 		Group group = getGroupOrThrow(groupId);
 
 		Member member = new Member(userKey, username, nickname);
+		member.setMemberStartDate(Instant.now().toEpochMilli());
 		if (group.getMembers().contains(member)) {
 			throw new IllegalStateException(ResponseCode.USER_ALREADY_GROUP_MEMBER.name());
 		}
@@ -99,10 +101,11 @@ public class GroupService {
 
 		Set<Member> newMembers = request.getMembers().stream()
 				.map(m -> {
+					long memberStartDate = Instant.now().toEpochMilli();
 					if(m.getRole() != null) {
-						return new Member(m.getUserKey(), m.getUsername(), m.getNikname(), m.getRole());
+						return new Member(m.getUserKey(), m.getUsername(), m.getNikname(), m.getRole(), memberStartDate);
 					} else {
-						return new Member(m.getUserKey(), m.getUsername(), m.getNikname());
+						return new Member(m.getUserKey(), m.getUsername(), m.getNikname(), null, memberStartDate);
 					}
 				}                
 						)
@@ -195,6 +198,10 @@ public class GroupService {
 
 		if (StringUtils.hasText(request.getName())) {
 			group.setName(request.getName());
+		}
+
+		if (request.getDescription() != null) {
+			group.setDescription(request.getDescription());
 		}
 
 		Member user = findMember(group.getMembers(), userKey);

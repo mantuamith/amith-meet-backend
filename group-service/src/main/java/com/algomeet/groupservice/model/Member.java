@@ -4,7 +4,6 @@ import jakarta.persistence.Embeddable;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Column;
-import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -13,22 +12,28 @@ import java.util.Objects;
 import com.algomeet.groupservice.enums.GroupRole;
 
 @Data
-@AllArgsConstructor
 @NoArgsConstructor
 @Embeddable
 public class Member {
 	
 	public Member(String userKey, String username) {
-		this.userKey = userKey;
-		this.username = username;
-		this.role = GroupRole.MEMBER;
+		this(userKey, username, null, GroupRole.MEMBER, null);
 	}
 	
 	public Member(String userKey, String username, String nickname) {
+		this(userKey, username, nickname, GroupRole.MEMBER, null);
+	}
+
+	public Member(String userKey, String username, String nickname, GroupRole role) {
+		this(userKey, username, nickname, role, null);
+	}
+
+	public Member(String userKey, String username, String nickname, GroupRole role, Long memberStartDate) {
 		this.userKey = userKey;
 		this.username = username;
 		this.nickname = nickname;
-		this.role = GroupRole.MEMBER;
+		this.role = role != null ? role : GroupRole.MEMBER;
+		this.memberStartDate = memberStartDate;
 	}
 
     @Column(name = "user_key", nullable = false)
@@ -47,6 +52,9 @@ public class Member {
         columnDefinition = "varchar(20) default 'MEMBER'"
     )
     private GroupRole role;
+
+    @Column(name = "member_start_date")
+    private Long memberStartDate;
 
     @Override
     public boolean equals(Object o) {

@@ -28,6 +28,9 @@ public class Group {
 
     private String name;
 
+    @Column(name = "description")
+    private String description;
+
     @ElementCollection
     @CollectionTable(
         name = "chat_group_members",
