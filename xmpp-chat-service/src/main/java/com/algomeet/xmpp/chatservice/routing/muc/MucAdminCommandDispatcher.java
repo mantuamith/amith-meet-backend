@@ -1,23 +1,34 @@
 package com.algomeet.xmpp.chatservice.routing.muc;
 
 import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
 
 import org.springframework.stereotype.Component;
+import org.springframework.util.CollectionUtils;
 
 import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.constant.XmppErrorConditions;
 import com.algomeet.xmpp.chatservice.dto.MucMember;
 import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
+import com.algomeet.xmpp.chatservice.dto.StanzaInfo;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.enums.MucAffiliation;
+import com.algomeet.xmpp.chatservice.enums.MucRole;
 import com.algomeet.xmpp.chatservice.enums.XmppErrorType;
+import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
+import com.algomeet.xmpp.chatservice.parser.GroupChatParser;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.service.GroupCacheService;
+import com.algomeet.xmpp.chatservice.service.XmppArchiveService;
+import com.algomeet.xmpp.chatservice.session.UserSessionRegistry;
+import com.algomeet.xmpp.chatservice.session.model.UserSession;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.algomeet.xmpp.chatservice.util.MucCommandUtil;
 import com.algomeet.xmpp.chatservice.util.MucRoleUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
+import com.github.f4b6a3.ulid.UlidCreator;
 
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
@@ -49,7 +60,9 @@ public class MucAdminCommandDispatcher {
 	private final DomainProperties domainProperties;
 	private final GroupCacheService groupCacheService;
 	private final JidUtil jidUtil;
-
+	private final UserSessionRegistry userSessionRegistry;
+	private final XmppBroadCastHandler xmppBroadCastHandler;
+	private final XmppArchiveService xmppArchiveService;
 	/**
 	 * Routes an incoming XML command stanza to the appropriate internal handler.
 	 *
@@ -206,9 +219,27 @@ public class MucAdminCommandDispatcher {
 		Optional<MucMember> newMemberOpt = group.getMembers().stream()
 				.filter(m -> m.getUserKey() != null && m.getUserKey().equalsIgnoreCase(XmppUtil.getUserKey(newMemberJid)))
 				.findFirst();  
-		String addMemberPresence = buildMemberPromotionPresence(roomBareJid, newMemberOpt.get().getUserKey(), mucAffiliation, newMemberJid, reason);
 		
+		Set<UserSession> newMemberSessions = userSessionRegistry.getSessions(newMemberOpt.get().getUserKey());		
+		String mucRole = CollectionUtils.isEmpty(newMemberSessions) ? MucRole.NONE.getValue() : MucRoleUtil.getMucRole(affiliation).getValue();
+		
+		// Broad cast presence
+		String addMemberPresence = buildMemberPromotionPresence(roomBareJid, mucAffiliation, mucRole, newMemberJid, reason);		
 		broadcastToRoom(id, sender.getUserKey(), group, addMemberPresence);
+		
+		
+		// Broadcast added user message for logging
+		String stanzaId = UUID.randomUUID().toString();
+		String body = sender.getUsername() + " added " + newMemberOpt.get().getUsername();
+		String xmlStanza = buildMemberAddedLogStanza(stanzaId, senderJid, roomBareJid, body, newMemberJid);
+		
+		// Save to database 
+		saveToDatabase(stanzaId, roomBareJid, senderJid, group, sender, xml);
+		
+		// Broadcast message
+		xmppBroadCastHandler.broadcastToOccupants(ctx, stanzaId, roomJid, senderJid, XmppMessageType.GROUPCHAT, group, sender, null, xmlStanza, xmlStanza);
+		
+		// Send success response
 		sendSuccessResponse(ctx, senderJid, roomJid, id);
 
 		log.info("New member: {} broadcasted from {}", newMemberJid, roomJid);
@@ -221,6 +252,23 @@ public class MucAdminCommandDispatcher {
 		for(MucMember receiver : group.getMembers()) {
 			clusterMessagePublisher.convertAndSendToUser(id, receiver.getUserKey(), senderKey, ChatType.GROUPCHAT, presence);
 		}
+	}
+	
+	private void saveToDatabase(String id, String roomBareJid, String senderJid, MucRoomDto group, MucMember sender, String xml) {
+		StanzaInfo info = StanzaInfo.builder()
+				.stanzaId(id)
+				.stanzaType(XmppMessageType.GROUPCHAT.getXmlValue())
+				.build();
+		
+		String ulidString = UlidCreator.getMonotonicUlid().toLowerCase();
+		
+		// Inject Stanza-ID (XEP-0359) to facilitate client-side de-duplication and synchronization
+		String stanzaIdExtension = String.format("<stanza-id xmlns='urn:xmpp:sid:0' by='%s' id='%s'/>", 
+				domainProperties.getDomain(), ulidString);
+		xml = xml.replace("</message>", stanzaIdExtension + "</message>");
+
+		xmppArchiveService.archiveEvent(xml, info, roomBareJid, null, 
+				senderJid, ulidString);
 	}
 
 	/**
@@ -280,16 +328,29 @@ public class MucAdminCommandDispatcher {
 	/**
 	 * Formats a Presence stanza for member promotion/affiliation changes.
 	 */
-	private String buildMemberPromotionPresence(String roomJid, String nick, String affiliation, String targetJid,  String reason) {
+	private String buildMemberPromotionPresence(String roomJid, String affiliation, String mucRole, String targetJid,  String reason) {
 	    return String.format(
-	            "<presence from='%s/%s'>" +
+	            "<presence from='%s'>" +
 	            "  <x xmlns='http://jabber.org/protocol/muc#user'>" +
 	            "    <item affiliation='%s' role='%s' jid='%s'>" +
 	            "      <reason>%s</reason>" +
 	            "    </item>" +
 	            "  </x>" +
 	            "</presence>",
-	            roomJid, nick, affiliation, MucRoleUtil.getMucRole(affiliation).getValue(), targetJid, reason
+	            roomJid, affiliation, mucRole, targetJid, reason
+	    );
+	}
+	
+	
+	private String buildMemberAddedLogStanza(String id, String fromJid, String roomJid, String body, String newlyAddedUserJid) {
+	    return String.format(
+	            "<message id='%s' from='%s' to='%s' type='groupchat'>" +
+	            "  <body>%s</body>" +
+	            "  <x xmlns='http://algomeet.app/protocol/system'>" +
+	            "    <event type='member_added' jid='%s'/>" +
+	            "  </x>" +
+	            "</message>",
+	            id, fromJid, roomJid, body, newlyAddedUserJid
 	    );
 	}
 	

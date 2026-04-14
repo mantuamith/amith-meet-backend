@@ -4,17 +4,25 @@ import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.stereotype.Component;
+import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.dto.MucMember;
 import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
+import com.algomeet.xmpp.chatservice.dto.StanzaInfo;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.enums.MucAffiliation;
+import com.algomeet.xmpp.chatservice.enums.MucRole;
+import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
+import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.service.GroupCacheService;
+import com.algomeet.xmpp.chatservice.service.XmppArchiveService;
+import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.algomeet.xmpp.chatservice.util.MucRoleUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
+import com.github.f4b6a3.ulid.UlidCreator;
 
 import io.netty.channel.ChannelHandlerContext;
 import lombok.RequiredArgsConstructor;
@@ -33,10 +41,13 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class MucUserCommandDispatcher {
-    
+public class MucUserCommandDispatcher {    
     private final ClusterMessagePublisher clusterMessagePublisher;
     private final GroupCacheService groupCacheService;
+    private final JidUtil jidUtil;
+    private final XmppArchiveService xmppArchiveService;
+	private final DomainProperties domainProperties;
+	private final XmppBroadCastHandler xmppBroadCastHandler;
 
     /**
      * Top-level handler for incoming command stanzas targeting a specific room.
@@ -53,10 +64,109 @@ public class MucUserCommandDispatcher {
     	Optional<MucMember> senderMucMember = group.getMembers().stream()
 				.filter(m -> m.getUserKey().equals(principal.getUserKey()))
 				.findFirst();
-    			
-        handleChangeNicknameRequest(ctx, roomJid, senderJid, xml, group, senderMucMember.get());
+    	
+    	if (inviteAcceptedRequest(xml)) {
+    		handleAcceptedInvited(ctx,  roomJid, senderJid,  xml, group, senderMucMember.get());
+    	} else {
+    		handleChangeNicknameRequest(ctx, roomJid, senderJid, xml, group, senderMucMember.get());
+    	}
     }
 
+    
+    private boolean inviteAcceptedRequest(String xml) {
+    	return xml.contains("http://jabber.org/protocol/muc");
+    }
+    
+    private void handleAcceptedInvited(ChannelHandlerContext ctx, String roomJid, String senderJid, String xml, MucRoomDto group, MucMember sender) {    	
+    	String selfPresenceXml = buildSelfPresenceSuccess(roomJid, sender.getUserKey(), senderJid, sender.getRole());
+    	clusterMessagePublisher.convertAndSendToUser(UUID.randomUUID().toString(), sender.getUserKey(), sender.getUserKey(), ChatType.GROUPCHAT, selfPresenceXml);
+    	
+    	 for(MucMember receiverMucMember : group.getMembers()) {
+    		 String toUserKey = receiverMucMember.getUserKey();
+    		 String availablePresence = buildOccupantPresence(roomJid, sender.getUserKey(), sender.getRole(), jidUtil.getBareJid(toUserKey));    		 
+             
+             clusterMessagePublisher.convertAndSendToUser(UUID.randomUUID().toString(), toUserKey, sender.getUserKey(), ChatType.GROUPCHAT, availablePresence);
+         }
+    	     	 
+    	// Broadcast added user message for logging
+ 		String stanzaId = UUID.randomUUID().toString();
+ 		String body = sender.getUsername() + " has joined the group";
+ 		 String logXml = buildAcceptInviteLog(roomJid, body, sender.getUserKey(), senderJid);
+ 		
+ 		// Save to database 
+ 		saveToDatabase(stanzaId, roomJid, senderJid, group, sender, xml);
+ 		
+ 		// Broadcast message
+ 		xmppBroadCastHandler.broadcastToOccupants(ctx, stanzaId, roomJid, senderJid, XmppMessageType.GROUPCHAT, group, sender, null, logXml, logXml);
+    }
+    
+    /**
+     * Builds the self-presence acknowledgment (Status 110).
+     * Sent by the server to the joining user to confirm successful entry.
+     */
+    private String buildSelfPresenceSuccess(String roomJid, String nick, String userJid, String affiliation) {
+        // Determine role based on affiliation using your existing utility
+        String role = MucRoleUtil.getMucRole(affiliation).getValue();
+
+        return String.format(
+                "<presence from='%s/%s' to='%s'>" +
+                "  <x xmlns='http://jabber.org/protocol/muc#user'>" +
+                "    <item affiliation='%s' role='%s' jid='%s'/>" +
+                "    <status code='110'/>" +
+                "  </x>" +
+                "</presence>",
+                roomJid, nick, userJid, affiliation, role, userJid
+        );
+    }
+    
+    /**
+     * Builds the presence stanza to notify other room members about an occupant.
+     * Sent to everyone EXCEPT the user described in the stanza.
+     */
+    private String buildOccupantPresence(String roomJid, String nick, String affiliation, String userJid) {
+        // Determine role based on affiliation
+        String role = MucRoleUtil.getMucRole(affiliation).getValue();
+
+        return String.format(
+                "<presence from='%s/%s' to='%s'>" +
+                "  <x xmlns='http://jabber.org/protocol/muc#user'>" +
+                "    <item affiliation='%s' role='%s' jid='%s'/>" +
+                "  </x>" +
+                "</presence>",
+                roomJid, nick,  affiliation, role, userJid
+        );
+    }
+    
+
+	private void saveToDatabase(String id, String roomBareJid, String senderJid, MucRoomDto group, MucMember sender, String xml) {
+		StanzaInfo info = StanzaInfo.builder()
+				.stanzaId(id)
+				.stanzaType(XmppMessageType.GROUPCHAT.getXmlValue())
+				.build();
+		
+		String ulidString = UlidCreator.getMonotonicUlid().toLowerCase();
+		
+		// Inject Stanza-ID (XEP-0359) to facilitate client-side de-duplication and synchronization
+		String stanzaIdExtension = String.format("<stanza-id xmlns='urn:xmpp:sid:0' by='%s' id='%s'/>", 
+				domainProperties.getDomain(), ulidString);
+		xml = xml.replace("</message>", stanzaIdExtension + "</message>");
+
+		xmppArchiveService.archiveEvent(xml, info, roomBareJid, null, 
+				senderJid, ulidString);
+	}
+    
+    private String buildAcceptInviteLog(String roomJid,String body, String userNick, String userJid) {
+        return String.format(
+                "<message from='%s' type='groupchat'>" +
+                "  <body>%s</body>" +
+                "  <x xmlns='http://algomeet.app/protocol/system'>" +
+                "    <event type='member_joined' jid='%%s'/>" +
+                "  </x>" +
+                "</message>",
+                roomJid, body, userNick, userJid
+        );
+    }
+        
     /**
      * Processes a nickname change request (XEP-0045).
      * <p>
