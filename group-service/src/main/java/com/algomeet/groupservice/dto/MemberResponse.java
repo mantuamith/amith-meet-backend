@@ -10,4 +10,5 @@ public class MemberResponse {
     private String username;
     private String nickname;
     private GroupRole role;
+    private Long memberStartDate;
 }

@@ -7,6 +7,7 @@ import com.algomeet.groupservice.dto.MemberResponse;
 import com.algomeet.groupservice.model.Group;
 import com.algomeet.groupservice.model.Member;
 
+import java.time.Instant;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -23,18 +24,20 @@ public class GroupMapper {
 
 		Group group = new Group();
 		group.setName(req.getName());
+		group.setDescription(req.getDescription());
 
 		Set<Member> members = new HashSet<>();
+		long memberStartDate = Instant.now().toEpochMilli();
 		if (req.getMembers() != null) {
 			for (MemberRequest memberReq : req.getMembers()) {
 				Member member = null;
 				
 				if(memberReq.getRole() == null) {
 					member = new Member(memberReq.getUserKey(), 
-							memberReq.getUsername(), memberReq.getNikname());
+							memberReq.getUsername(), memberReq.getNikname(), null, memberStartDate);
 				} else {
 					member = new Member(memberReq.getUserKey(), 
-							memberReq.getUsername(), memberReq.getNikname(), memberReq.getRole());
+							memberReq.getUsername(), memberReq.getNikname(), memberReq.getRole(), memberStartDate);
 				}
 				
 				members.add(member);
@@ -56,6 +59,7 @@ public class GroupMapper {
 		GroupResponse dto = new GroupResponse();
 		dto.setId(entity.getId());
 		dto.setName(entity.getName());
+		dto.setDescription(entity.getDescription());
 		dto.setOwnerUserKey(entity.getOwnerUserKey());
 
 		Set<MemberResponse> members = new HashSet<>();
@@ -67,6 +71,7 @@ public class GroupMapper {
 				memberResp.setNickname(member.getNickname());
 
 				memberResp.setRole(member.getRole());
+				memberResp.setMemberStartDate(member.getMemberStartDate());
 				members.add(memberResp);
 			}
 		}

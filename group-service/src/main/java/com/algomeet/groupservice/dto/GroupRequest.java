@@ -15,6 +15,11 @@ public class GroupRequest {
     private String name;
 
     /**
+     * Optional description of the group.
+     */
+    private String description;
+
+    /**
      * Initial members to be added to the group.
      * <p>
      * Behavior:
