@@ -11,6 +11,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import com.algomeet.groupservice.dto.AddGroupMembersRequest;
 import com.algomeet.groupservice.dto.CommonResponse;
 import com.algomeet.groupservice.dto.GroupInviteLinkResponse;
+import com.algomeet.groupservice.dto.GroupPermissionsPatchRequest;
+import com.algomeet.groupservice.dto.GroupPermissionsResponse;
 import com.algomeet.groupservice.dto.GroupRequest;
 import com.algomeet.groupservice.dto.GroupResponse;
 import com.algomeet.groupservice.dto.UpdateGroupRequest;
@@ -26,7 +28,7 @@ import jakarta.validation.Valid;
 
 @Tag(
     name = "Group Management",
-    description = "APIs for creating groups, joining, leaving, and managing group members"
+    description = "APIs for creating groups, joining, leaving, managing group members, and updating role permissions"
 )
 public interface GroupControllerDoc {
     @Operation(
@@ -112,6 +114,54 @@ public interface GroupControllerDoc {
                     )
                 )
                 @Valid @RequestBody UpdateGroupRequest request);
+
+        @Operation(
+            summary = "Partially update group role permissions",
+            description = """
+                    Uses PATCH merge semantics. Only the supplied roles and permission fields are updated.
+                    This endpoint does not replace the full role-permission matrix.
+                    Supported roles for this contract are OWNER, ADMIN, and MEMBER.
+                    """
+        )
+        @ApiResponses(value = {
+            @ApiResponse(
+                responseCode = "200",
+                description = "Group role permissions updated successfully",
+                content = @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(implementation = GroupPermissionsResponse.class)
+                )
+            ),
+            @ApiResponse(responseCode = "400", description = "Invalid patch request or unsupported role"),
+            @ApiResponse(responseCode = "403", description = "User is not allowed to update role permissions"),
+            @ApiResponse(responseCode = "404", description = "Group ID not found")
+        })
+        public ResponseEntity<CommonResponse<GroupPermissionsResponse>> patchGroupPermissions(
+                @Parameter(description = "Unique ID of the group", example = "1")
+                @PathVariable Long groupId,
+
+                @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                    description = """
+                            Partial role-permission update request.
+                            Example:
+                            {
+                              "rolePermissions": {
+                                "ADMIN": {
+                                  "approveNewMembers": true
+                                },
+                                "MEMBER": {
+                                  "sendNewMessages": false
+                                }
+                              }
+                            }
+                            """,
+                    required = true,
+                    content = @Content(
+                        mediaType = "application/json",
+                        schema = @Schema(implementation = GroupPermissionsPatchRequest.class)
+                    )
+                )
+                @Valid @RequestBody GroupPermissionsPatchRequest request);
         
     
     @Operation(

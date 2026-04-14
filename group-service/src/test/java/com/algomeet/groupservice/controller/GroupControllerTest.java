@@ -7,6 +7,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -38,10 +39,15 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import com.algomeet.groupservice.config.LocalizationConfig;
 import com.algomeet.groupservice.dto.AddGroupMembersRequest;
-import com.algomeet.groupservice.dto.GroupRequest;
 import com.algomeet.groupservice.dto.GroupInviteLinkResponse;
+import com.algomeet.groupservice.dto.GroupPermissionsPatchRequest;
+import com.algomeet.groupservice.dto.GroupPermissionsResponse;
+import com.algomeet.groupservice.dto.GroupRequest;
 import com.algomeet.groupservice.dto.GroupResponse;
 import com.algomeet.groupservice.dto.MemberRequest;
+import com.algomeet.groupservice.dto.RolePermissionsPatchRequest;
+import com.algomeet.groupservice.dto.RolePermissionsResponse;
+import com.algomeet.groupservice.enums.GroupRole;
 import com.algomeet.groupservice.enums.ResponseCode;
 import com.algomeet.groupservice.exceptions.GroupNotFoundException;
 import com.algomeet.groupservice.service.GroupService;
@@ -127,6 +133,33 @@ class GroupControllerTest {
 
 	    // Verify service interaction
 	    verify(groupService).createGroup(any(), eq(USERNAME), eq(USER_KEY));
+	}
+
+	@Test
+	void patchGroupPermissions_success() throws Exception {
+		GroupPermissionsPatchRequest request = new GroupPermissionsPatchRequest();
+		RolePermissionsPatchRequest adminPatch = new RolePermissionsPatchRequest();
+		adminPatch.setApproveNewMembers(true);
+		request.setRolePermissions(Map.of(GroupRole.ADMIN, adminPatch));
+
+		GroupPermissionsResponse response = new GroupPermissionsResponse();
+		response.setGroupId(1L);
+		RolePermissionsResponse adminPermissions = new RolePermissionsResponse();
+		adminPermissions.setApproveNewMembers(true);
+		response.setRolePermissions(Map.of(GroupRole.ADMIN, adminPermissions));
+
+		when(groupService.patchGroupPermissions(eq(1L), any(), eq(USER_KEY)))
+				.thenReturn(response);
+
+		mockMvc.perform(patch("/api/groups/{id}/permissions", 1L)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(objectMapper.writeValueAsString(request)))
+		.andExpect(status().isOk())
+		.andExpect(jsonPath("$.code").value(ResponseCode.SUCCESS.name()))
+		.andExpect(jsonPath("$.data.groupId").value(1L))
+		.andExpect(jsonPath("$.data.rolePermissions.ADMIN.approveNewMembers").value(true));
+
+		verify(groupService).patchGroupPermissions(eq(1L), any(), eq(USER_KEY));
 	}
 
 
