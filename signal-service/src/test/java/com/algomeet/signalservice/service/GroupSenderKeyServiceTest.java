@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.when;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -21,6 +22,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import com.algomeet.signalservice.dto.GroupSenderKeyRequest;
 import com.algomeet.signalservice.dto.GroupSenderKeyResponse;
 import com.algomeet.signalservice.entity.GroupSenderKey;
+import com.algomeet.signalservice.view.GroupSenderKeyView;
 import com.algomeet.signalservice.entity.GroupSenderKeyId;
 import com.algomeet.signalservice.entity.UserDevice;
 import com.algomeet.signalservice.entity.UserDeviceId;
@@ -101,9 +103,39 @@ class GroupSenderKeyServiceTest {
         when(deviceRepository.findById(new UserDeviceId(SENDER_USER_KEY, SENDER_DEVICE_ID)))
                 .thenReturn(Optional.of(userDevice));
 
-        GroupSenderKey groupSenderKey = new GroupSenderKey();
-        groupSenderKey.setId(new GroupSenderKeyId(SENDER_USER_KEY, SENDER_DEVICE_ID, RECEIVER_USER_KEY, RECEIVER_DEVICE_ID, GROUP_ID));
-        
+        GroupSenderKeyView groupSenderKey = new GroupSenderKeyView() {
+
+			@Override
+			public String getGroupId() {
+				return GROUP_ID;
+			}
+
+			@Override
+			public UUID getReceiverUserKey() {
+				return RECEIVER_USER_KEY;
+			}
+
+			@Override
+			public Integer getReceiverDeviceId() {
+				return RECEIVER_DEVICE_ID;
+			}
+
+			@Override
+			public UUID getSenderUserKey() {
+				return SENDER_USER_KEY;
+			}
+
+			@Override
+			public Integer getSenderDeviceId() {
+				return SENDER_DEVICE_ID;
+			}
+
+			@Override
+			public Instant getCreatedAt() {
+				return null;
+			}        	
+        };
+       
         when(repository.findByIdSenderUserKeyAndIdSenderDeviceIdAndIdGroupId(
                 SENDER_USER_KEY, SENDER_DEVICE_ID, GROUP_ID))
                 .thenReturn(List.of(groupSenderKey));

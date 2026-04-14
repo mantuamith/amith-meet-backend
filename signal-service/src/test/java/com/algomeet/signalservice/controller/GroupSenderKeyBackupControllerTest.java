@@ -4,6 +4,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -45,6 +47,7 @@ import com.algomeet.signalservice.enums.ResponseCode;
 import com.algomeet.signalservice.exceptions.GroupSenderKeyBackupExistsException;
 import com.algomeet.signalservice.exceptions.RecordNotFoundException;
 import com.algomeet.signalservice.service.GroupSenderKeyBackupService;
+import com.algomeet.signalservice.util.MessageUtil;
 import com.algomeet.signalservice.util.SecurityUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -81,6 +84,7 @@ class GroupSenderKeyBackupControllerTest {
     void setup() {
         securityUtilMock = Mockito.mockStatic(SecurityUtil.class);
         securityUtilMock.when(SecurityUtil::getUserKey).thenReturn(USER_KEY.toString());
+        new MessageUtil(messageSource);
     }
 
     @AfterEach
@@ -105,7 +109,7 @@ class GroupSenderKeyBackupControllerTest {
         // Optional fields
         request.setAesAlg("AES/GCM/NoPadding"); // max 32 chars
         request.setVersion("v1"); // max 10 chars
-        request.setSalt("U0FsdGVkX1+Zm9yVGVzdA=="); // Base64, max 88 chars
+        request.setSalt("YWxnb21lZXR0ZXN0c2FsdA=="); // Base64, max 88 chars
 
         GroupSenderKeyBackupResponse response = new GroupSenderKeyBackupResponse();
 
@@ -131,7 +135,7 @@ class GroupSenderKeyBackupControllerTest {
         // Optional fields
         request.setAesAlg("AES/GCM/NoPadding"); // max 32 chars
         request.setVersion("v1"); // max 10 chars
-        request.setSalt("U0FsdGVkX1+Zm9yVGVzdA=="); // Base64, max 88 chars
+        request.setSalt("c2FsdFZhbHVlMTIz"); // Base64, max 88 chars
 
         when(service.save(eq(USER_KEY), any()))
                 .thenThrow(new GroupSenderKeyBackupExistsException("exists"));
@@ -228,15 +232,22 @@ class GroupSenderKeyBackupControllerTest {
      * ------------------------------------------------- */
     @Test
     void getByUser_success() throws Exception {
-        when(service.findByUser(USER_KEY))
-                .thenReturn(List.of(new GroupSenderKeyBackupResponse()));
+    	// 1. Stub the static method using try-with-resources
+    	securityUtilMock.when(SecurityUtil::getUserKey).thenReturn(USER_KEY.toString());
 
-        mockMvc.perform(get("/signal/group-sender-key-backups"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(ResponseCode.SUCCESS.name()))
-                .andExpect(jsonPath("$.data.length()").value(1));
+    	// 2. Existing service stubbing
+    	when(service.findByUser(USER_KEY))
+    	.thenReturn(List.of(new GroupSenderKeyBackupResponse()));
+
+    	// 3. Execution and Assertion
+    	mockMvc.perform(get("/signal/group-sender-key-backups"))
+    	.andExpect(status().isOk())
+    	.andExpect(jsonPath("$.code").value(ResponseCode.SUCCESS.name()))
+    	.andExpect(jsonPath("$.data.length()").value(1));
+
+    	// Verification (Optional but recommended)
+    	securityUtilMock.verify(SecurityUtil::getUserKey, times(1));
     }
-
     /* -------------------------------------------------
      * GET BY GROUP
      * ------------------------------------------------- */

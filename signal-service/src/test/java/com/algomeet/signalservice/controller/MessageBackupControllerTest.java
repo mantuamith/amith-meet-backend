@@ -121,7 +121,7 @@ class MessageBackupControllerTest {
 
         when(messageBackupService.insert(any())).thenReturn(request);
 
-        mockMvc.perform(post("/signaling/backup/chat-messages")
+        mockMvc.perform(post("/signal/backup/chat-messages")
                 .with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
@@ -138,7 +138,7 @@ class MessageBackupControllerTest {
 
         when(messageBackupService.getMessages(List.of("msg-1"))).thenReturn(List.of(doc));
 
-        mockMvc.perform(get("/signaling/backup/chat-messages")
+        mockMvc.perform(get("/signal/backup/chat-messages")
                 .param("messageIds", "msg-1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(ResponseCode.SUCCESS.name()))
@@ -151,7 +151,7 @@ class MessageBackupControllerTest {
 
         when(messageBackupService.getMessage("msg-1")).thenReturn(doc);
 
-        mockMvc.perform(get("/signaling/backup/chat-messages/msg-1"))
+        mockMvc.perform(get("/signal/backup/chat-messages/msg-1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(ResponseCode.SUCCESS.name()))
                 .andExpect(jsonPath("$.data.messageId").value("msg-1234567890abcdef"));
@@ -161,7 +161,7 @@ class MessageBackupControllerTest {
     void getMessage_notFound() throws Exception {
         when(messageBackupService.getMessage("msg-1")).thenThrow(new RecordNotFoundException("not found"));
 
-        mockMvc.perform(get("/signaling/backup/chat-messages/msg-1"))
+        mockMvc.perform(get("/signal/backup/chat-messages/msg-1"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value(ResponseCode.MESSAGE_BACKUP_NOT_FOUND.name()));
     }
@@ -177,7 +177,7 @@ class MessageBackupControllerTest {
 
         when(messageBackupService.update(eq("msg-1"), any())).thenReturn(saved);
 
-        mockMvc.perform(put("/signaling/backup/chat-messages/msg-1")
+        mockMvc.perform(put("/signal/backup/chat-messages/msg-1")
                 .with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
@@ -192,7 +192,7 @@ class MessageBackupControllerTest {
 
         when(messageBackupService.update(eq("msg-1"), any())).thenThrow(new RecordNotFoundException("not found"));
 
-        mockMvc.perform(put("/signaling/backup/chat-messages/msg-1")
+        mockMvc.perform(put("/signal/backup/chat-messages/msg-1")
                 .with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
@@ -207,7 +207,7 @@ class MessageBackupControllerTest {
     void deleteMessage_success() throws Exception {
         doNothing().when(messageBackupService).delete("msg-1");
 
-        mockMvc.perform(delete("/signaling/backup/chat-messages/msg-1")
+        mockMvc.perform(delete("/signal/backup/chat-messages/msg-1")
                 .with(csrf()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(ResponseCode.SUCCESS.name()));
@@ -218,7 +218,7 @@ class MessageBackupControllerTest {
         doThrow(new RecordNotFoundException("not found"))
                 .when(messageBackupService).delete("msg-1");
 
-        mockMvc.perform(delete("/signaling/backup/chat-messages/msg-1")
+        mockMvc.perform(delete("/signal/backup/chat-messages/msg-1")
                 .with(csrf()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value(ResponseCode.MESSAGE_BACKUP_NOT_FOUND.name()));
@@ -231,7 +231,7 @@ class MessageBackupControllerTest {
     void deleteByConversation_success() throws Exception {
         doNothing().when(messageBackupService).deleteConversation(USER_KEY, "peer-1");
 
-        mockMvc.perform(delete("/signaling/backup/chat-messages/peer-1/conversation")
+        mockMvc.perform(delete("/signal/backup/chat-messages/peer-1/conversation")
                 .with(csrf()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(ResponseCode.SUCCESS.name()));
@@ -244,7 +244,7 @@ class MessageBackupControllerTest {
     void deleteByUserKey_success() throws Exception {
         doNothing().when(messageBackupService).deleteByUserKey(USER_KEY);
 
-        mockMvc.perform(delete("/signaling/backup/chat-messages")
+        mockMvc.perform(delete("/signal/backup/chat-messages")
                 .with(csrf()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(ResponseCode.SUCCESS.name()));

@@ -96,11 +96,11 @@ class UserDeviceServiceTest {
         UserDevice device = new UserDevice();
         device.setId(new UserDeviceId(USER_KEY, 1));
 
-        when(repository.findByIdUserKey(USER_KEY))
+        when(repository.findByIdUserKeyIn(List.of(USER_KEY)))
                 .thenReturn(List.of(device));
 
         List<UserDeviceResponse> result =
-                service.getDevicesByUser(USER_KEY);
+                service.getDevicesByUserKeys(List.of(USER_KEY));
 
         assertEquals(1, result.size());
     }
