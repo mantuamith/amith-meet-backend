@@ -72,8 +72,8 @@ public class UserDeviceService {
 		return userDeviceResponse;
 	}
 
-	public List<UserDeviceResponse> getDevicesByUser(UUID userKey) {
-		return repository.findByIdUserKey(userKey)
+	public List<UserDeviceResponse> getDevicesByUserKeys(List<UUID> userKeys) {
+		return repository.findByIdUserKeyIn(userKeys)
 				.stream()
 				.map(UserDeviceMapper::toResponse)
 				.collect(Collectors.toList());

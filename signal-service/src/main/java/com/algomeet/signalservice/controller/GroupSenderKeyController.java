@@ -71,11 +71,12 @@ public class GroupSenderKeyController implements GroupSenderKeyControllerDoc{
 	}
 	
 	/** Receiver device polls for SKDM */
+	@Deprecated
 	@GetMapping("/{receiverDeviceId}/groups/{groupId}/sender-keys/poll")
 	public ResponseEntity<CommonResponse<List<GroupSenderKeyResponse>>> poll(
 			@PathVariable Integer receiverDeviceId,
 			@PathVariable String groupId,
-	        @RequestParam(defaultValue = "100") long timeoutMs) {
+	        @RequestParam(defaultValue = "0") long timeoutMs) {
 		try {
 			UUID receiverUserKey = UUID.fromString(SecurityUtil.getUserKey());
 			List<GroupSenderKeyResponse> list =
@@ -88,6 +89,24 @@ public class GroupSenderKeyController implements GroupSenderKeyControllerDoc{
 					CommonResponse.from(ResponseCode.USER_DEVICE_GROUP_SENDER_KEY_NOT_FOUND));
 		}
 	}	
+	
+	/** Receiver device polls for SKDM */
+	@GetMapping("/{receiverDeviceId}/groups/{groupId}/sender-keys/receiver")
+	public ResponseEntity<CommonResponse<List<GroupSenderKeyResponse>>> getSenderKeys(
+			@PathVariable Integer receiverDeviceId,
+			@PathVariable String groupId) {
+		try {
+			UUID receiverUserKey = UUID.fromString(SecurityUtil.getUserKey());
+			List<GroupSenderKeyResponse> list =
+					service.getSenderKeys(receiverUserKey, receiverDeviceId, groupId);
+
+			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS,
+					list));
+		} catch (RecordNotFoundException ex) {
+			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+					CommonResponse.from(ResponseCode.USER_DEVICE_GROUP_SENDER_KEY_NOT_FOUND));
+		}
+	}
 
 	@DeleteMapping("/{senderDeviceId}/groups/{groupId}/sender-keys")
 	public ResponseEntity<CommonResponse<List<GroupSenderKeyResponse>>> delete(
