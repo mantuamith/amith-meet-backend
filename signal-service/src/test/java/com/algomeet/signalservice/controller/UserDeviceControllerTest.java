@@ -153,7 +153,7 @@ class UserDeviceControllerTest {
 
 	@Test
 	void getDevices_success() throws Exception {
-		when(service.getDevicesByUser(USER_KEY))
+		when(service.getDevicesByUserKeys(List.of(USER_KEY)))
 		.thenReturn(List.of(new UserDeviceResponse()));
 
 		mockMvc.perform(get("/signal/v2/devices"))
@@ -167,7 +167,7 @@ class UserDeviceControllerTest {
 	void getDevices_withUserKeyParam() throws Exception {
 		UUID otherUser = UUID.randomUUID();
 
-		when(service.getDevicesByUser(otherUser))
+		when(service.getDevicesByUserKeys(List.of(otherUser)))
 		.thenReturn(List.of());
 
 		mockMvc.perform(get("/signal/v2/devices")

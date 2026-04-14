@@ -13,8 +13,10 @@ import com.algomeet.signalservice.entity.GroupSenderKey;
 import com.algomeet.signalservice.entity.UserDeviceId;
 import com.algomeet.signalservice.exceptions.RecordNotFoundException;
 import com.algomeet.signalservice.mapper.GroupSenderKeyMapper;
+import com.algomeet.signalservice.mapper.GroupSenderKeyViewMapper;
 import com.algomeet.signalservice.repository.GroupSenderKeyRepository;
 import com.algomeet.signalservice.repository.UserDeviceRepository;
+import com.algomeet.signalservice.view.GroupSenderKeyView;
 
 import lombok.RequiredArgsConstructor;
 
@@ -39,40 +41,30 @@ public class GroupSenderKeyService {
 		deviceRepository.findById(new UserDeviceId(senderUserKey, senderDeviceId))
 		.orElseThrow(() -> new RecordNotFoundException("User device ID not found"));
 
-		List<GroupSenderKey> list = repository.findByIdSenderUserKeyAndIdSenderDeviceIdAndIdGroupId(
+		List<GroupSenderKeyView> list = repository.findByIdSenderUserKeyAndIdSenderDeviceIdAndIdGroupId(
 				senderUserKey, senderDeviceId, groupId);
 
-		return list.stream().map(GroupSenderKeyMapper::toDto).toList();
+		return list.stream().map(GroupSenderKeyViewMapper::toDto).toList();
 	}
 
 	public List<GroupSenderKeyResponse> longPoll(
 			UUID receiverUserKey, Integer receiverDeviceId, String groupId, long timeoutMs) {
+		return getSenderKeys(
+				receiverUserKey, receiverDeviceId, groupId);
+	}
+	
+	public List<GroupSenderKeyResponse> getSenderKeys(
+			UUID receiverUserKey, Integer receiverDeviceId, String groupId) {
 
 		deviceRepository.findById(new UserDeviceId(receiverUserKey, receiverDeviceId))
 		.orElseThrow(() -> new RecordNotFoundException("User device ID not found"));
 
-		long start = System.currentTimeMillis();        
-		
-		do {
-			List<GroupSenderKey> pending = repository.findByIdReceiverUserKeyAndIdReceiverDeviceIdAndIdGroupId(
-					receiverUserKey, receiverDeviceId, groupId);
-
-			if (!pending.isEmpty()) {
-				return pending.stream()
-						.map(GroupSenderKeyMapper::toDto)
-						.collect(Collectors.toList());
-			}
-
-			try {
-				if (timeoutMs >= 500) {
-					Thread.sleep(500); // small wait
-				} else {
-					break; 
-				}
-			} catch (InterruptedException ignored) {}
-		} while (System.currentTimeMillis() - start < timeoutMs);
-
-		return List.of(); // timeout
+		return repository
+		        .findByIdReceiverUserKeyAndIdReceiverDeviceIdAndIdGroupId(
+		                receiverUserKey, receiverDeviceId, groupId)
+		        .stream()
+		        .map(GroupSenderKeyMapper::toDto)
+		        .toList();
 	}
 
 	@Transactional

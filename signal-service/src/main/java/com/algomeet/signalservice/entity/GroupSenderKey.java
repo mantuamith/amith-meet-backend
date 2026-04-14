@@ -19,6 +19,10 @@ import lombok.Data;
 	            name = "idx_receiver_user_device_group",
 	            columnList = "receiver_user_key, receiver_device_id, group_id"
 	        ),
+	        @Index(
+		            name = "idx_sender_user_device_group",
+		            columnList = "sender_user_key, sender_device_id, group_id"
+		        ),
 
 	        @Index(
 	            name = "idx_sender_receiver_group",

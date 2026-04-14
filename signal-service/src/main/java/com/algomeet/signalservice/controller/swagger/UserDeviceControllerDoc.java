@@ -41,6 +41,7 @@ public interface UserDeviceControllerDoc {
 			@Parameter(description = "Device registration information", required = true)
 			@RequestBody UserDeviceRequest request);
 
+	@Deprecated
 	@Operation(
 			summary = "Get all devices for a user",
 			description = "Fetches all registered devices for the authenticated user or the specified userKey",
@@ -55,6 +56,21 @@ public interface UserDeviceControllerDoc {
 	public ResponseEntity<CommonResponse<List<UserDeviceResponse>>> getDevices(
 			@Parameter(description = "Optional user key (UUID) to fetch devices for")
 			@RequestParam Optional<UUID> userKey);
+	
+	@Operation(
+			summary = "Get all devices for a user keys",
+			description = "Fetches all registered devices for the authenticated user or the userKeys",
+			responses = {
+					@ApiResponse(
+							responseCode = "200",
+							description = "List of user devices retrieved successfully",
+							content = @Content(schema = @Schema(implementation = UserDeviceResponse.class))
+							)
+			}
+			)
+	public ResponseEntity<CommonResponse<List<UserDeviceResponse>>> getDevicesV3(
+			@Parameter(description = "Optional list of user keys (UUID) to fetch devices for")
+			@RequestParam Optional<List<UUID>> userKeys);
 
 	@Operation(
 			summary = "Update a user device",

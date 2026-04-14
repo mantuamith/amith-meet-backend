@@ -15,17 +15,21 @@ import com.algomeet.signalservice.entity.UserDeviceId;
 
 @Repository
 public interface UserDeviceRepository extends JpaRepository<UserDevice, UserDeviceId> {
-	List<UserDevice> findByIdUserKey(UUID userKey);
+	@Query("""
+		    SELECT ud FROM UserDevice ud
+		    WHERE ud.id.userKey IN :userKeys
+		""")
+	List<UserDevice> findByIdUserKeyIn(@Param("userKeys") List<UUID> userKeys);
 
 	// Get the maximum deviceId for a given userKey
 	@Query("SELECT MAX(ud.id.deviceId) FROM UserDevice ud WHERE ud.id.userKey = :userKey")
-	Optional<Integer> findMaxDeviceIdByUserKey(UUID userKey);
+	Optional<Integer> findMaxDeviceIdByUserKey(@Param("userKey") UUID userKey);
 
 	/**
 	 * Finds all UserDevices for a user and eagerly fetches SignedPreKey and KyberPreKey.
 	 * This avoids N+1 queries when fetching all devices for a user.
 	 */
-	@Query("SELECT ud FROM UserDevice ud "
+	@Query("SELECT DISTINCT ud FROM UserDevice ud "
 			+ "LEFT JOIN FETCH ud.signedPreKey spk "
 			+ "LEFT JOIN FETCH ud.kyberPreKey kpk "
 			+ "WHERE ud.id.userKey = :userKey")

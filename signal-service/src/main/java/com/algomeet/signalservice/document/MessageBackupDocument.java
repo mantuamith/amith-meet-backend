@@ -51,6 +51,15 @@ public class MessageBackupDocument {
 		)
     private String encryptedMessage; 
 	
+	@Field("sentAt")
+	private Long sentAt;
+
+	@Field("deliveredAt")
+	private Long deliveredAt;
+
+	@Field("readAt")
+	private Long readAt;
+	
 	@Field("size")
 	private Long size;
     

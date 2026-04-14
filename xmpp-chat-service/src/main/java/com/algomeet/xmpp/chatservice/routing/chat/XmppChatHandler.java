@@ -72,8 +72,7 @@ public class XmppChatHandler {
 		// Instead of .subscribe(), return the Mono and handle the sequence
 		if (msgType.supportsOfflineStorage() && XmppStanzaUtil.isArchiveable(xmlHeader, originalXml)) {			
 			offlineMessageService.save(id, toUserKey, fromUserKey, type, originalXml)
-		            .flatMap(saved -> unreadCountService.incrementUnreadCount(fromUserKey, toUserKey))
-		            .doOnSuccess(v -> {
+		            .doOnSuccess(saved -> {
 		            	boolean isAckMessage = false;
 		            	// Send an immediate server-level acknowledgment to the sender.
 		            	//
@@ -96,7 +95,7 @@ public class XmppChatHandler {
 					        if (StringUtils.hasText(ackMessageId)) {
 					            // Once delivery is confirmed, the message is no longer "offline" 
 					            // and can be safely removed from the temporary offline storage.
-					            offlineMessageService.deleteById(id).subscribe();
+					            offlineMessageService.deleteById(ackMessageId).subscribe();
 					        }
 					    }
 					    

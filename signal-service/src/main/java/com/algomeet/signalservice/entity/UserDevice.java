@@ -12,12 +12,17 @@ import jakarta.persistence.OneToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
+import jakarta.persistence.Index;
 import lombok.Data;
 
 @Data
 @Entity
 @Table(
 	    name = "signal_user_devices",
+	    indexes = {
+	    		@Index(name = "idx_user_device_userKey", columnList = "userKey"),
+	    		@Index(name = "idx_user_device_userKey_deviceId", columnList = "userKey, deviceId")
+	    },
 	    uniqueConstraints = {
 	        @jakarta.persistence.UniqueConstraint(
 	            name = "uc_userKey_registrationId_identityKey",

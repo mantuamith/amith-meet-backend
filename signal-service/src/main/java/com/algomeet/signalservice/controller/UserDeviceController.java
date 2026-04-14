@@ -33,13 +33,13 @@ import com.algomeet.signalservice.util.SecurityUtil;
 import lombok.RequiredArgsConstructor;
 
 @RestController
-@RequestMapping("/signal/v2/devices")
+@RequestMapping("/signal")
 @RequiredArgsConstructor
 public class UserDeviceController implements UserDeviceControllerDoc{
 	private final UserDeviceService service;
 
 	@Override
-	@PostMapping
+	@PostMapping("/v2/devices")
 	public ResponseEntity<CommonResponse<UserDeviceResponse>> createDevice(@Validated @RequestBody UserDeviceRequest request) {
 		try {
 			return ResponseEntity.ok(
@@ -52,16 +52,25 @@ public class UserDeviceController implements UserDeviceControllerDoc{
 		}
 	}
 
+	@Deprecated
 	@Override
-	@GetMapping
+	@GetMapping("/v2/devices")
 	public ResponseEntity<CommonResponse<List<UserDeviceResponse>>> getDevices(@RequestParam Optional<UUID> userKey) {
 		return ResponseEntity.ok(
 				CommonResponse.from(ResponseCode.SUCCESS,
-						service.getDevicesByUser(userKey.orElse(UUID.fromString(SecurityUtil.getUserKey())))));
+						service.getDevicesByUserKeys(List.of(userKey.orElse(UUID.fromString(SecurityUtil.getUserKey()))))));
+	}
+	
+	@Override
+	@GetMapping("/v3/devices")
+	public ResponseEntity<CommonResponse<List<UserDeviceResponse>>> getDevicesV3(@RequestParam Optional<List<UUID>> userKeys) {
+		return ResponseEntity.ok(
+				CommonResponse.from(ResponseCode.SUCCESS,
+						service.getDevicesByUserKeys(userKeys.orElse(List.of(UUID.fromString(SecurityUtil.getUserKey()))))));
 	}
 
 	@Override
-	@PutMapping("/{deviceId}")
+	@PutMapping("/v2/devices/{deviceId}")
 	public ResponseEntity<CommonResponse<UserDeviceResponse>> updateDevice(@PathVariable Integer deviceId, @Validated @RequestBody UserDeviceRequest request) {  
 		try {
 			return ResponseEntity.ok(
@@ -74,7 +83,7 @@ public class UserDeviceController implements UserDeviceControllerDoc{
 	}
 
 	@Override
-	@DeleteMapping("/{deviceId}")
+	@DeleteMapping("/v2/devices/{deviceId}")
 	public ResponseEntity<CommonResponse<?>> deleteDevice(@PathVariable Integer deviceId) {
 		try {
 			service.deleteDevice(UUID.fromString(SecurityUtil.getUserKey()), deviceId);
@@ -86,7 +95,7 @@ public class UserDeviceController implements UserDeviceControllerDoc{
 	}
 
 	@Override
-	@PostMapping("/{deviceId}/keys")
+	@PostMapping("/v2/devices/{deviceId}/keys")
 	public ResponseEntity<CommonResponse<DevicePreKeyBundleResponse>> createDevicePreKeyBundle(@PathVariable Integer deviceId, 
 			@Validated @RequestBody DevicePreKeyBundleRequest request) {
 		try {

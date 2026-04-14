@@ -77,6 +77,7 @@ public interface GroupSenderKeyControllerDoc {
     /**
      * Receiver device polls for SKDM (long polling)
      */
+    @Deprecated
     @Operation(
         summary = "Long-poll for new Sender Keys (SKDM)",
         description = """
@@ -124,7 +125,62 @@ public interface GroupSenderKeyControllerDoc {
             @RequestParam(defaultValue = "3000") long timeoutMs
     );
     
-    
+
+    @Operation(
+    		summary = "Fetch Sender Keys (SKDM) for a group",
+    		description = """
+    				    Retrieves all Sender Key Distribution Messages (SKDM) for the specified receiver device
+    				    within a given group.
+
+    				    This API returns all pending sender keys that have not yet been consumed by the client.
+    				    Once the keys are fetched successfully, the client is expected to acknowledge consumption
+    				    using the ACK endpoint.
+    				"""
+    		)
+
+    @ApiResponse(
+    		responseCode = "200",
+    		description = "Sender keys retrieved successfully",
+    		content = @Content(
+    				mediaType = "application/json",
+    				schema = @Schema(implementation = GroupSenderKeyResponse.class)
+    				)
+    		)
+
+    @ApiResponse(
+    		responseCode = "404",
+    		description = "No sender key records found for this user/device and group",
+    		content = @Content(
+    				mediaType = "application/json",
+    				schema = @Schema(implementation = CommonResponse.class)
+    				)
+    		)
+
+    @ApiResponse(
+    		responseCode = "500",
+    		description = "Internal server error",
+    		content = @Content(
+    				mediaType = "application/json",
+    				schema = @Schema(implementation = CommonResponse.class)
+    				)
+    		)
+    public ResponseEntity<CommonResponse<List<GroupSenderKeyResponse>>> getSenderKeys(
+
+    		@Parameter(
+    				description = "Receiver device ID requesting SKDM",
+    				required = true,
+    				example = "2"
+    				)
+    		@PathVariable Integer receiverDeviceId,
+
+    		@Parameter(
+    				description = "Group ID where the SKDM belongs",
+    				required = true,
+    				example = "group-1234"
+    				)
+    		@PathVariable String groupId
+    		);    
+
     /**
      * Delete records
      */
