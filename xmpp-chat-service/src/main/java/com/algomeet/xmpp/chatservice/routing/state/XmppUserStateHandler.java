@@ -1,5 +1,6 @@
 package com.algomeet.xmpp.chatservice.routing.state;
 
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
@@ -41,7 +42,7 @@ public class XmppUserStateHandler {
     private final UserSessionRegistry userSessionRegistry;
     private final OfflineMessageHandler offlineMessageHandler;
     private final XmppUserPresenceHandler xmppUserPresenceHandler;
-
+     
     /**
      * Processes incoming XML for status-related updates and lifecycle triggers.
      * It synchronizes the user's availability and activates the session by 
@@ -52,6 +53,7 @@ public class XmppUserStateHandler {
      * @param xml       The raw XML stanza content.
      */
     public void processPresence(ChannelHandlerContext ctx, XmppPrincipal principal, String xml) {
+    	// Extract human-readable status from the XML before processing
         UserState newState = determineState(xml);
 
         if (newState == null) return;
@@ -61,7 +63,7 @@ public class XmppUserStateHandler {
         
         // 2. Handle user notifying user presence to user contacts and group chat rooms, take not this method must
         //    be invoke after "userSessionRegistry.updateSessionStatus"
-        xmppUserPresenceHandler.handleUserPresence(ctx, principal, newState, xml);
+        xmppUserPresenceHandler.handleUserPresenceAsync(ctx, principal, newState, xml);
         
         // 3. Lifecycle Activation (Offline Catch-up)
         if (newState != UserState.GONE) {

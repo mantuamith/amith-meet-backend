@@ -5,6 +5,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 
@@ -52,7 +53,8 @@ public class XmppUserPresenceHandler {
 	 * @param principal The security principal representing the authenticated user.
 	 * @param newState  The target UserState (ACTIVE, AWAY, DND, etc.).
 	 */
-	public void handleUserPresence(ChannelHandlerContext ctx, XmppPrincipal principal, UserState newState, String xml) {    
+	@Async
+	public void handleUserPresenceAsync(ChannelHandlerContext ctx, XmppPrincipal principal, UserState newState, String xml) {    
 		if (!isSelfBroadcastPresence(xml)) {
 			// Return if not self broadcast presence
 			return;
