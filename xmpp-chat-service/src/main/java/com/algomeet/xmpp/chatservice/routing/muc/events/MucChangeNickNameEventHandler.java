@@ -66,7 +66,7 @@ public class MucChangeNickNameEventHandler {
         // 5. Broadcast "New Nick" entry to the Room
         mucMessageRouter.broadcastToOccupants(UUID.randomUUID().toString(), sender.getUserKey(), group, availablePresence);
 
-        log.info("User successful: {} changed nickname from {}", newNickname, senderJid);
+        log.info("User successful: Changed nickname to {}", newNickname);
     }
 
     /**
