@@ -5,11 +5,10 @@ import java.util.UUID;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
-import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.dto.MucMember;
 import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
-import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.enums.MucAffiliation;
+import com.algomeet.xmpp.chatservice.routing.muc.MucMessageRouter;
 import com.algomeet.xmpp.chatservice.util.MucRoleUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
 
@@ -21,7 +20,7 @@ import lombok.extern.slf4j.Slf4j;
 @Component
 @RequiredArgsConstructor
 public class MucChangeNickNameEventHandler {
-    private final ClusterMessagePublisher clusterMessagePublisher;
+    private final MucMessageRouter mucMessageRouter;
 
 	 /**
      * Processes a nickname change request (XEP-0045).
@@ -58,20 +57,14 @@ public class MucChangeNickNameEventHandler {
                 MucRoleUtil.getMucRole(sender.getRole()).getValue());
 
         // 3. Broadcast "Old Nick" exit to the Room
-        for(MucMember receiverMucMember : group.getMembers()) {
-            String toUserKey = receiverMucMember.getUserKey();
-            clusterMessagePublisher.convertAndSendToUser(UUID.randomUUID().toString(), toUserKey, sender.getUserKey(), ChatType.GROUPCHAT, renamePresence);
-        }
+        mucMessageRouter.broadcastToOccupants(UUID.randomUUID().toString(), sender.getUserKey(), group, renamePresence);
         
         // 4. Construct the available presence 
         String availablePresence = buildAvailablePresence(roomBareJid, sender.getUserKey(), mucAffiliation, 
                 MucRoleUtil.getMucRole(sender.getRole()).getValue()); 
 
         // 5. Broadcast "New Nick" entry to the Room
-        for(MucMember receiverMucMember : group.getMembers()) {
-            String toUserKey = receiverMucMember.getUserKey();
-            clusterMessagePublisher.convertAndSendToUser(UUID.randomUUID().toString(), toUserKey, sender.getUserKey(), ChatType.GROUPCHAT, availablePresence);
-        }
+        mucMessageRouter.broadcastToOccupants(UUID.randomUUID().toString(), sender.getUserKey(), group, availablePresence);
 
         log.info("User successful: {} changed nickname from {}", newNickname, senderJid);
     }
