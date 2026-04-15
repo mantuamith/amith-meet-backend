@@ -27,6 +27,7 @@
     <module>signal-service</module>
     <module>opaque-service</module>
     <module>subscription-service</module>
+    <module>xmpp-chat-service</module>
   </modules>
 
   <properties>
