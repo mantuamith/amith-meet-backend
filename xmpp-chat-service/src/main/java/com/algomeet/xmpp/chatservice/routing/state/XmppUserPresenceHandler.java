@@ -94,9 +94,6 @@ public class XmppUserPresenceHandler {
 					// Generate the room-specific JID (e.g., room_id@conference.algomeet.app)
 					String roomJid = jidUtil.getGroupBareJid(group.getId());
 
-					// Generate the compliant XMPP <presence/> XML string
-					String presenceXml = buildGroupPresence(newState, principal.getBareJid(), roomJid);
-
 					// Locate the user's specific membership metadata within the group context
 					Optional<MucMember> senderMucMember = group.getMembers().stream()
 							.filter(m -> m.getUserKey().equals(principal.getUserKey()))
@@ -108,9 +105,10 @@ public class XmppUserPresenceHandler {
 								ctx, 
 								roomJid, 
 								principal.getBareJid(), 
-								presenceXml, 
+								null, 
 								group, 
-								senderMucMember.get()
+								senderMucMember.get(),
+								newState
 								);
 					}
 				}
@@ -141,15 +139,7 @@ public class XmppUserPresenceHandler {
 			log.error("Error retrieving contacts for presence update using user key: {}", principal.getUserKey(), ex);
 		}
 	}
-
-	/**
-	 * Builds presence for Multi-User Chat (includes MUC namespace).
-	 */
-	public String buildGroupPresence(UserState state, String from, String to) {
-		String innerElements = getPresenceStatusElements(state) + "  <x xmlns='http://jabber.org/protocol/muc'/>";
-		return wrapInPresenceStanza(state, from, to, innerElements);
-	}
-
+	
 	/**
 	 * Builds presence for 1:1 direct chat (standard XMPP).
 	 */

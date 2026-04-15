@@ -12,7 +12,6 @@ import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.enums.UserState;
 import com.algomeet.xmpp.chatservice.parser.StateStanzaParser;
 import com.algomeet.xmpp.chatservice.routing.muc.MucMessageRouter;
-import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.algomeet.xmpp.chatservice.util.MucRoleUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
@@ -33,7 +32,6 @@ public class MucMemberOrdinaryPresenceEventHandler {
 
     private final ClusterMessagePublisher clusterMessagePublisher;
     private final MucMessageRouter mucMessageRouter;
-    private final JidUtil jidUtil;
 
     /**
      * Handles the successful entry of a member into a room by broadcasting presence.
@@ -45,7 +43,13 @@ public class MucMemberOrdinaryPresenceEventHandler {
      * @param sender    The MUC member profile of the person joining.
      */
     public void handleMemberPresence(ChannelHandlerContext ctx, String roomJid, String senderJid, String xml, MucRoomDto group, MucMember sender) { 
-    	 UserState newState = determineState(xml);
+    	handleMemberPresence(ctx, roomJid, senderJid, xml, group, sender, null);
+    }
+    
+    public void handleMemberPresence(ChannelHandlerContext ctx, String roomJid, String senderJid, String xml, MucRoomDto group, MucMember sender, UserState newState) { 
+    	if (newState == null) {
+    		newState = determineState(xml);
+    	}
          if (newState == null) {return;}
          
         String roomBareJid = XmppUtil.getRoomBareJid(roomJid);
