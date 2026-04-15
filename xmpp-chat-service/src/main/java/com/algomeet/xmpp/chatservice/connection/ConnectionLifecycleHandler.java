@@ -8,6 +8,7 @@ import org.springframework.stereotype.Component;
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.connection.registry.LocalChannelRegistry;
 import com.algomeet.xmpp.chatservice.enums.UserState;
+import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.service.CallTrackerService;
 import com.algomeet.xmpp.chatservice.session.UserSessionRegistry;
 import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
@@ -36,6 +37,7 @@ public class ConnectionLifecycleHandler {
     private final UserSessionRegistry userSessionRegistry;
     private final LocalChannelRegistry localChannelRegistry;
     private final CallTrackerService callTrackerService;
+    private final DomainProperties domainProperties;
 
     /**
      * <p>Finalizes the session establishment process after a successful WebSocket handshake 
@@ -69,7 +71,7 @@ public class ConnectionLifecycleHandler {
             // 3. Send Bind Result (Confirmation of session establishment)
             // This informs the client of their full JID and the assigned Session ID
             ctx.channel().writeAndFlush(new TextWebSocketFrame(
-                    new BindResult(principal.getFullJid(), sessionId).toXml()
+                    new BindResult(principal.getFullJid(), sessionId, domainProperties.getDomain(), domainProperties.getGroupChatDomain()).toXml()
             ));
 
             log.info("WebSocket Handshake Complete. User {} is now ACTIVE with Session ID: {}.", userKey, sessionId);
