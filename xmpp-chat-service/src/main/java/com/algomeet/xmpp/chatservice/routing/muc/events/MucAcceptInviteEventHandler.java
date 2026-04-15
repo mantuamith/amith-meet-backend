@@ -13,7 +13,6 @@ import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.routing.muc.MucMessageRouter;
 import com.algomeet.xmpp.chatservice.service.XmppArchiveService;
-import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.algomeet.xmpp.chatservice.util.MucRoleUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
 import com.github.f4b6a3.ulid.UlidCreator;
@@ -35,10 +34,10 @@ import lombok.extern.slf4j.Slf4j;
 public class MucAcceptInviteEventHandler {
 
     private final ClusterMessagePublisher clusterMessagePublisher;
-    private final JidUtil jidUtil;
     private final XmppArchiveService xmppArchiveService;
     private final DomainProperties domainProperties;
     private final MucMessageRouter xmppBroadCastHandler;
+    private final MucMessageRouter mucMessageRouter;
 
     /**
      * Entry point for handling an invitation acceptance. 
@@ -53,13 +52,9 @@ public class MucAcceptInviteEventHandler {
         clusterMessagePublisher.convertAndSendToUser(UUID.randomUUID().toString(), sender.getUserKey(), sender.getUserKey(), ChatType.GROUPCHAT, selfPresenceXml);
         
         // 2. Notify all existing members of the new occupant and sync occupant list for the joiner.
-        for(MucMember receiverMucMember : group.getMembers()) {
-            String toUserKey = receiverMucMember.getUserKey();
-            String availablePresence = buildOccupantPresence(roomBareJid, sender.getUserKey(), sender.getRole(), jidUtil.getBareJid(toUserKey));            
-             
-            clusterMessagePublisher.convertAndSendToUser(UUID.randomUUID().toString(), toUserKey, sender.getUserKey(), ChatType.GROUPCHAT, availablePresence);
-        }
-              
+        String availablePresence = buildOccupantPresence(roomBareJid, sender.getUserKey(), sender.getRole(), senderJid);  
+        mucMessageRouter.broadcastToOccupants(UUID.randomUUID().toString(), sender.getUserKey(), group, availablePresence);
+                      
         // 3. Prepare a system message to log the join event in the chat stream.
         String stanzaId = UUID.randomUUID().toString();
         String body = sender.getUsername() + " has joined the group";
