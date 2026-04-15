@@ -143,9 +143,6 @@ public class XmppChatHandler {
 						}
 					})
 					.subscribe();		
-		} else {
-			// Send server ACK
-			XmppServerAckUtil.send(ctx, id, domainProperties.getDomain(), fromJid);
 		}
 
 		// Handle call life cycle 

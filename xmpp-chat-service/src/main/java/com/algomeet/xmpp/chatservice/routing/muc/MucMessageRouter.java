@@ -33,7 +33,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class XmppBroadCastHandler {
+public class MucMessageRouter {
 	private final UserSessionRegistry userSessionRegistry;
 	private final ClusterMessagePublisher clusterMessagePublisher;
 	private final NotificationService notificationService;
@@ -112,6 +112,18 @@ public class XmppBroadCastHandler {
 		}
 	}
 	
+	/**
+	 * Iterates through all room occupants and publishes the presence update to the cluster.
+	 */
+	public void broadcastToOccupants(String id, String senderKey, MucRoomDto group, String presence) {
+		if(group == null || group.getMembers() == null) {
+			return;
+		}
+		
+		for(MucMember receiver : group.getMembers()) {
+			clusterMessagePublisher.convertAndSendToUser(id, receiver.getUserKey(), senderKey, ChatType.GROUPCHAT, presence);
+		}
+	}	
 
 	/**
 	 * Dispatches a push notification via the internal Notification Service.
