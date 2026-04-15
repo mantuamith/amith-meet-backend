@@ -28,4 +28,9 @@ public class InternalGroupController implements InternalGroupControllerDoc{
 	public List<GroupResponse> getGroupsForUsername(@PathVariable String username) {
 		return groupService.getGroupsByUsername(username);
 	}
+	
+	@GetMapping("/member/userkey/{userkey}")
+	public List<GroupResponse> getGroupsForUserKey(@PathVariable String userkey) {
+		return groupService.getGroupsByUserKey(userkey);
+	}
 }
