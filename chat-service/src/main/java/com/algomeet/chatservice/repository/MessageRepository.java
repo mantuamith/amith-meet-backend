@@ -35,6 +35,12 @@ public interface MessageRepository extends MongoRepository<MessageDocument, Stri
 
     List<MessageDocument> findBySenderOrReceiver(String userId, String userId1);
 
+    @Query("{ '$or': [ { 'groupId': { '$in': ?0 } }, { 'receiver': { '$in': ?0 } } ] }")
+    List<MessageDocument> findByGroupIdInOrReceiverIn(Collection<String> groupIds, Collection<String> receiverIds);
+
+    @Query("{ '$or': [ { 'groupId': ?0 }, { 'receiver': ?1 } ] }")
+    List<MessageDocument> findByGroupIdOrReceiver(String groupId, String receiver);
+
     @Query("{ '$or': [ { 'sender': ?0, 'receiver': ?1 }, { 'sender': ?1, 'receiver': ?0 } ] }")
     Page<MessageDocument> findConversation(String userA, String userB, Pageable pageable);
 

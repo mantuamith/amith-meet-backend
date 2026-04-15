@@ -1,5 +1,7 @@
 package com.algomeet.groupservice.controller.swagger;
 
+import java.util.List;
+
 import org.springframework.web.bind.annotation.PathVariable;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -30,4 +32,19 @@ public interface InternalGroupControllerDoc {
                 required = true
             )
             @PathVariable Long groupId);
+
+    @Operation(
+        summary = "Get groups by member username",
+        description = "Returns all groups that contain the given username for internal service-to-service communication"
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Groups returned successfully")
+    })
+    public List<?> getGroupsForUsername(
+            @Parameter(
+                description = "Username of the member",
+                example = "puneethaf",
+                required = true
+            )
+            @PathVariable String username);
 }

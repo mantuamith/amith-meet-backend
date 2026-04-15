@@ -1,13 +1,20 @@
 package com.algomeet.groupservice.mapper;
 
 import com.algomeet.groupservice.dto.GroupRequest;
+import com.algomeet.groupservice.dto.GroupPermissionsResponse;
 import com.algomeet.groupservice.dto.GroupResponse;
 import com.algomeet.groupservice.dto.MemberRequest;
 import com.algomeet.groupservice.dto.MemberResponse;
+import com.algomeet.groupservice.dto.RolePermissionsResponse;
+import com.algomeet.groupservice.enums.GroupRole;
 import com.algomeet.groupservice.model.Group;
 import com.algomeet.groupservice.model.Member;
+import com.algomeet.groupservice.model.RolePermissions;
 
+import java.time.Instant;
+import java.util.EnumMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
 public class GroupMapper {
@@ -23,18 +30,20 @@ public class GroupMapper {
 
 		Group group = new Group();
 		group.setName(req.getName());
+		group.setDescription(req.getDescription());
 
 		Set<Member> members = new HashSet<>();
+		long memberStartDate = Instant.now().toEpochMilli();
 		if (req.getMembers() != null) {
 			for (MemberRequest memberReq : req.getMembers()) {
 				Member member = null;
 				
 				if(memberReq.getRole() == null) {
 					member = new Member(memberReq.getUserKey(), 
-							memberReq.getUsername(), memberReq.getNikname());
+							memberReq.getUsername(), memberReq.getNikname(), null, memberStartDate);
 				} else {
 					member = new Member(memberReq.getUserKey(), 
-							memberReq.getUsername(), memberReq.getNikname(), memberReq.getRole());
+							memberReq.getUsername(), memberReq.getNikname(), memberReq.getRole(), memberStartDate);
 				}
 				
 				members.add(member);
@@ -56,6 +65,7 @@ public class GroupMapper {
 		GroupResponse dto = new GroupResponse();
 		dto.setId(entity.getId());
 		dto.setName(entity.getName());
+		dto.setDescription(entity.getDescription());
 		dto.setOwnerUserKey(entity.getOwnerUserKey());
 
 		Set<MemberResponse> members = new HashSet<>();
@@ -67,11 +77,49 @@ public class GroupMapper {
 				memberResp.setNickname(member.getNickname());
 
 				memberResp.setRole(member.getRole());
+				memberResp.setMemberStartDate(member.getMemberStartDate());
 				members.add(memberResp);
 			}
 		}
 
 		dto.setMembers(members);
 		return dto;
+	}
+
+	public static GroupPermissionsResponse toPermissionsResponse(Group entity) {
+		if (entity == null) {
+			return null;
+		}
+
+		GroupPermissionsResponse response = new GroupPermissionsResponse();
+		response.setGroupId(entity.getId());
+
+		Map<GroupRole, RolePermissionsResponse> rolePermissions = new EnumMap<>(GroupRole.class);
+		if (entity.getRolePermissions() != null) {
+			entity.getRolePermissions().forEach((role, permissions) ->
+					rolePermissions.put(role, toPermissionsResponse(permissions)));
+		}
+
+		response.setRolePermissions(rolePermissions);
+		return response;
+	}
+
+	private static RolePermissionsResponse toPermissionsResponse(RolePermissions permissions) {
+		RolePermissionsResponse response = new RolePermissionsResponse();
+		if (permissions == null) {
+			return response;
+		}
+
+		response.setEditGroupSettings(permissions.isEditGroupSettings());
+		response.setSendNewMessages(permissions.isSendNewMessages());
+		response.setAddOtherMembers(permissions.isAddOtherMembers());
+		response.setSendMessageHistory(permissions.isSendMessageHistory());
+		response.setInviteViaLinkOrQrCode(permissions.isInviteViaLinkOrQrCode());
+		response.setApproveNewMembers(permissions.isApproveNewMembers());
+		response.setEditGroupAdmins(permissions.isEditGroupAdmins());
+		response.setRemoveMembers(permissions.isRemoveMembers());
+		response.setDisableChatForMembers(permissions.isDisableChatForMembers());
+		response.setDeleteGroup(permissions.isDeleteGroup());
+		return response;
 	}
 }

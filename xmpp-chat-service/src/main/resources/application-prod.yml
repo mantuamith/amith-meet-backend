@@ -1,0 +1,53 @@
+spring:
+  config:
+    activate:
+      on-profile: prod
+  application:
+    name: xmpp-chat-service
+
+  datasource:
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+
+  data:
+    mongodb:
+      uri: ${SPRING_DATASOURCE_URL_MONGODB}
+      auto-index-creation: true
+
+    redis:
+      host: redis-svc
+      port: 6379
+      password: ${REDIS_PASSWORD}
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  jackson:
+    serialization:
+      INDENT_OUTPUT: true
+
+server:
+  port: 8097
+
+xmpp:
+  server:
+    port: 8098
+    domain: ${XMPP_DOMAIN:algomeet.app}
+    group-chat-domain: conference.${XMPP_DOMAIN:algomeet.app}
+
+jwt:
+  secret: ${SPRING_JWT_SECRET}
+
+feign:
+  client:
+    group-service:
+      url: http://group-service:8087
+    media-service:
+      url: http://media-service:8095

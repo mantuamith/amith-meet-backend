@@ -28,3 +28,7 @@ server:
 
 jwt:
   secret: ${SPRING_JWT_SECRET}
+
+algomeet:
+  group:
+    invite-base-url: ${ALGOMEET_GROUP_INVITE_BASE_URL:https://api.algoframe.in/invite}

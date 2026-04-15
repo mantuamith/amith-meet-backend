@@ -74,7 +74,7 @@ jobs:
         run: |
           SERVICES=()
           if [ "${{ github.event.inputs.auth-service }}" == "true" ]; then SERVICES+=("\"auth-service\""); fi
-          if [ "${{ github.event.inputs.chat-service }}" == "true" ]; then SERVICES+=("\"chat-service\""); fi
+          if [ "${{ github.event.inputs.chat-service }}" == "true" ]; then SERVICES+=("\"chat-service\"" "\"xmpp-chat-service\""); fi
           if [ "${{ github.event.inputs.contact-service }}" == "true" ]; then SERVICES+=("\"contact-service\""); fi
           if [ "${{ github.event.inputs.meeting-service }}" == "true" ]; then SERVICES+=("\"meeting-service\""); fi
           if [ "${{ github.event.inputs.user-service }}" == "true" ]; then SERVICES+=("\"user-service\""); fi

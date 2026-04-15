@@ -7,19 +7,19 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.MockedStatic;
-import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.autoconfigure.data.mongo.MongoDataAutoConfiguration;
@@ -33,19 +33,25 @@ import org.springframework.context.annotation.FilterType;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.algomeet.groupservice.config.LocalizationConfig;
 import com.algomeet.groupservice.dto.AddGroupMembersRequest;
+import com.algomeet.groupservice.dto.GroupInviteLinkResponse;
+import com.algomeet.groupservice.dto.GroupPermissionsPatchRequest;
+import com.algomeet.groupservice.dto.GroupPermissionsResponse;
 import com.algomeet.groupservice.dto.GroupRequest;
 import com.algomeet.groupservice.dto.GroupResponse;
 import com.algomeet.groupservice.dto.MemberRequest;
+import com.algomeet.groupservice.dto.RolePermissionsPatchRequest;
+import com.algomeet.groupservice.dto.RolePermissionsResponse;
+import com.algomeet.groupservice.enums.GroupRole;
 import com.algomeet.groupservice.enums.ResponseCode;
 import com.algomeet.groupservice.exceptions.GroupNotFoundException;
 import com.algomeet.groupservice.service.GroupService;
 import com.algomeet.groupservice.util.MessageUtil;
-import com.algomeet.groupservice.util.SecurityUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 
@@ -68,8 +74,6 @@ class GroupControllerTest {
 
 	@Autowired
 	private ObjectMapper objectMapper;
-
-	private MockedStatic<SecurityUtil> securityUtilMock;
 	
 	@MockBean
 	private MessageSource messageSource;
@@ -79,17 +83,16 @@ class GroupControllerTest {
 
 	@BeforeEach
 	void setup() {
-		securityUtilMock = Mockito.mockStatic(SecurityUtil.class);
-		securityUtilMock.when(SecurityUtil::getUserKey).thenReturn(USER_KEY);
-
 		when(authentication.getName()).thenReturn(USERNAME);
+		when(authentication.getDetails()).thenReturn(Map.of("user_key", USER_KEY));
+		SecurityContextHolder.getContext().setAuthentication(authentication);
 		
 		new MessageUtil(messageSource);
 	}
 
 	@AfterEach
 	void tearDown() {
-		securityUtilMock.close();
+		SecurityContextHolder.clearContext();
 	}
 
 	/*
@@ -130,6 +133,33 @@ class GroupControllerTest {
 
 	    // Verify service interaction
 	    verify(groupService).createGroup(any(), eq(USERNAME), eq(USER_KEY));
+	}
+
+	@Test
+	void patchGroupPermissions_success() throws Exception {
+		GroupPermissionsPatchRequest request = new GroupPermissionsPatchRequest();
+		RolePermissionsPatchRequest adminPatch = new RolePermissionsPatchRequest();
+		adminPatch.setApproveNewMembers(true);
+		request.setRolePermissions(Map.of(GroupRole.ADMIN, adminPatch));
+
+		GroupPermissionsResponse response = new GroupPermissionsResponse();
+		response.setGroupId(1L);
+		RolePermissionsResponse adminPermissions = new RolePermissionsResponse();
+		adminPermissions.setApproveNewMembers(true);
+		response.setRolePermissions(Map.of(GroupRole.ADMIN, adminPermissions));
+
+		when(groupService.patchGroupPermissions(eq(1L), any(), eq(USER_KEY)))
+				.thenReturn(response);
+
+		mockMvc.perform(patch("/api/groups/{id}/permissions", 1L)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(objectMapper.writeValueAsString(request)))
+		.andExpect(status().isOk())
+		.andExpect(jsonPath("$.code").value(ResponseCode.SUCCESS.name()))
+		.andExpect(jsonPath("$.data.groupId").value(1L))
+		.andExpect(jsonPath("$.data.rolePermissions.ADMIN.approveNewMembers").value(true));
+
+		verify(groupService).patchGroupPermissions(eq(1L), any(), eq(USER_KEY));
 	}
 
 
@@ -182,6 +212,30 @@ class GroupControllerTest {
 		.andExpect(status().isConflict())
 		.andExpect(jsonPath("$.code")
 				.value(ResponseCode.USER_ALREADY_GROUP_MEMBER.name()));
+	}
+
+	@Test
+	void joinGroupByInvite_success() throws Exception {
+		when(groupService.joinGroupByInviteCode(1L, "abc123", USERNAME, USER_KEY, null))
+		.thenReturn(new GroupResponse());
+
+		mockMvc.perform(post("/api/groups/{id}/join-by-invite", 1L)
+				.param("inviteCode", "abc123")
+				.principal(authentication))
+		.andExpect(status().isOk())
+		.andExpect(jsonPath("$.code").value(ResponseCode.SUCCESS.name()));
+	}
+
+	@Test
+	void joinGroupByInvite_invalidCode() throws Exception {
+		when(groupService.joinGroupByInviteCode(1L, "bad-code", USERNAME, USER_KEY, null))
+		.thenThrow(new IllegalArgumentException());
+
+		mockMvc.perform(post("/api/groups/{id}/join-by-invite", 1L)
+				.param("inviteCode", "bad-code")
+				.principal(authentication))
+		.andExpect(status().isBadRequest())
+		.andExpect(jsonPath("$.code").value(ResponseCode.GROUP_INVITE_CODE_INVALID.name()));
 	}
 
 	/*
@@ -275,5 +329,51 @@ class GroupControllerTest {
 				.principal(authentication))
 		.andExpect(status().isOk())
 		.andExpect(jsonPath("$.code").value(ResponseCode.SUCCESS.name()));
+	}
+
+	@Test
+	void getInviteLink_success() throws Exception {
+		when(groupService.getOrCreateInviteLink(1L, USER_KEY))
+		.thenReturn(new GroupInviteLinkResponse("https://yourapp.com/invite?groupId=1&inviteCode=abc"));
+
+		mockMvc.perform(get("/api/groups/{id}/invite-link", 1L))
+		.andExpect(status().isOk())
+		.andExpect(jsonPath("$.code").value(ResponseCode.SUCCESS.name()))
+		.andExpect(jsonPath("$.data.inviteLink").value("https://yourapp.com/invite?groupId=1&inviteCode=abc"));
+
+		verify(groupService).getOrCreateInviteLink(1L, USER_KEY);
+	}
+
+	@Test
+	void getInviteLink_notFound() throws Exception {
+		when(groupService.getOrCreateInviteLink(1L, USER_KEY))
+		.thenThrow(new GroupNotFoundException("not found"));
+
+		mockMvc.perform(get("/api/groups/{id}/invite-link", 1L))
+		.andExpect(status().isNotFound())
+		.andExpect(jsonPath("$.code").value(ResponseCode.GROUP_ID_NOT_FOUND.name()));
+	}
+
+	@Test
+	void resetInviteLink_success() throws Exception {
+		when(groupService.resetInviteLink(1L, USER_KEY))
+		.thenReturn(new GroupInviteLinkResponse("https://yourapp.com/invite?groupId=1&inviteCode=def"));
+
+		mockMvc.perform(post("/api/groups/{id}/invite-link/reset", 1L))
+		.andExpect(status().isOk())
+		.andExpect(jsonPath("$.code").value(ResponseCode.SUCCESS.name()))
+		.andExpect(jsonPath("$.data.inviteLink").value("https://yourapp.com/invite?groupId=1&inviteCode=def"));
+
+		verify(groupService).resetInviteLink(1L, USER_KEY);
+	}
+
+	@Test
+	void resetInviteLink_notFound() throws Exception {
+		when(groupService.resetInviteLink(1L, USER_KEY))
+		.thenThrow(new GroupNotFoundException("not found"));
+
+		mockMvc.perform(post("/api/groups/{id}/invite-link/reset", 1L))
+		.andExpect(status().isNotFound())
+		.andExpect(jsonPath("$.code").value(ResponseCode.GROUP_ID_NOT_FOUND.name()));
 	}
 }

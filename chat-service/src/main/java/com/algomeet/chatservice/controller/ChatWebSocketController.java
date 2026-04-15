@@ -77,30 +77,35 @@ public class ChatWebSocketController {
         if (message.getStatus() == null) {
             message.setStatus(MessageStatus.SENT);
         }
+        messageService.initializeReadTracking(message);
         try {
 
             MessageDocument savedMessage = messageRepository.save(message);
+
             MessageResponse response = messageMapper.toResponse(savedMessage);
             List<String> failedMembers = new ArrayList<>();
+
             if (message.isGroupMessage()) {
                 GroupDto group = groupClient.getGroupById(Long.parseLong(message.getGroupId()));   
                 response.setType(MessageType.GROUP);
+                response.setTo(group.getId().toString());
                 // If a message has media files, grant media access permissions to the
                 // message recipients.
                 mediaService.share(message, group);
-                
+                messagingSyncTemplate.convertAndSendToUser(message.getSender(), "/queue/update_message", response);
                 for (Member member : group.members) {
                     try {
                         if (!member.getUsername().equals(message.getSender())) {
                         	messagingSyncTemplate.convertAndSendToUser(member.getUsername(), "/queue/messages", response);
                             messageService.sendUnreadCountUpdate(member.getUsername()); // real-time update
-
                             // Send push notification
                             sendPushNotification(member.getUserKey(), message.getContent(), NotificationType.GROUP_MESSAGE, member.getUsername());
+
                         }
                     } catch (Exception e) {
+                        e.printStackTrace();
                         // Fallback if one group member fails
-                        // log.error("Failed to deliver to group member {}: {}", member, e.getMessage());
+                        log.error("Failed to deliver to group member {}: {}", member, e.getMessage());
                         failedMembers.add(member.getUsername());
                     }
                     if (!failedMembers.isEmpty()) {
