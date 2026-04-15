@@ -264,4 +264,56 @@ public class XmppStanzaUtil {
         // or a stream-level tag (like <stream:features/>).
         return false;
     }
+        
+    /**
+     * Determines if the provided XML string represents an XMPP Ping request.
+     * <p>
+     * This method uses low-level string matching to avoid the high overhead of 
+     * full XML DOM parsing. It specifically targets XEP-0199 Ping requests 
+     * which are always wrapped in an {@code <iq/>} stanza.
+     * </p>
+     *
+     * @param xml The raw inbound XMPP string from the WebSocket frame.
+     * @return {@code true} if the stanza is an IQ containing the Ping namespace.
+     */
+    public static boolean isPingStanza(String xml) {
+        // 1. Safety check for null or empty payloads.
+        if (xml == null || xml.isEmpty()) {
+            return false;
+        }
+
+        // 2. Locate the first actual XML tag.
+        // While XMPP over WebSockets usually lacks leading whitespace, 
+        // we search for '<' to ensure robustness against malformed or padded streams.
+        int firstTag = xml.indexOf('<');
+        if (firstTag == -1) {
+            return false;
+        }
+
+        /**
+         * 3. Perform a case-insensitive region match for the IQ start tag.
+         * * We use regionMatches instead of startsWith because:
+         * - It handles potential leading whitespace (via firstTag offset).
+         * - It is faster than regex or full XML parsing.
+         * - XEP-0199 specifies pings MUST be sent via <iq/>.
+         */
+        if (xml.regionMatches(true, firstTag, "<iq", 0, 3)) {
+            
+            /**
+             * 4. Verify the Ping Namespace (XEP-0199).
+             * * We look for the "urn:xmpp:ping" string. While a full parser would 
+             * verify the namespace is inside the 'xmlns' attribute, a simple 
+             * contains() check is an acceptable performance trade-off for 
+             * initial routing in the Netty pipeline.
+             */
+            return xml.contains("urn:xmpp:ping");
+        }
+
+        /**
+         * 5. Fallback for non-IQ stanzas.
+         * * If the tag is <message/>, <presence/>, or Stream Management elements 
+         * (like <r/> or <a/>), it cannot be a standard XMPP Ping.
+         */
+        return false;
+    }
 }

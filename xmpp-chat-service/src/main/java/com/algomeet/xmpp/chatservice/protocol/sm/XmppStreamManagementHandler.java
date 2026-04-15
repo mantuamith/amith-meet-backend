@@ -1,15 +1,12 @@
-package com.algomeet.xmpp.chatservice.sm;
+package com.algomeet.xmpp.chatservice.protocol.sm;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 import org.springframework.stereotype.Component;
 
-import com.algomeet.xmpp.chatservice.properties.XmppSmRedisProperties;
 import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
-import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
-import com.algomeet.xmpp.chatservice.util.XmppSmRedisUtil;
 import com.algomeet.xmpp.chatservice.util.XmppSmUtil;
+import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 
 import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelHandler;
