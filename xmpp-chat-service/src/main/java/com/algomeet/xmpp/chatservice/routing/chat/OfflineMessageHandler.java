@@ -53,16 +53,8 @@ public class OfflineMessageHandler {
      */
     public void deliverOfflineMessages(ChannelHandlerContext ctx, XmppPrincipal principal) {
         String userKey = principal.getUserKey();
-        
-        // 1. Get the Stream Management counter (XEP-0198)
-        AtomicLong outboundH = ctx.channel().attr(XmppSessionAttributes.SM_OUTBOUND_H_KEY).get();
-        
-        if (outboundH == null) {
-            log.error("Outbound SM counter not initialized for JID: {}. Cannot deliver safely.", userKey);
-            return;
-        }
 
-        // 2. Subscribe to the Flux of offline messages
+        // Subscribe to the Flux of offline messages
         offlineMessageService.getOfflineMessages(userKey)
             .doOnNext(msg -> {
                 // Add XEP-0203 Delay metadata
