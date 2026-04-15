@@ -1,40 +1,27 @@
 package com.algomeet.xmpp.chatservice.routing.muc;
 
 import java.util.Optional;
-import java.util.Set;
 
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Component;
-import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
-import com.algomeet.notificationservice.dto.Notification;
-import com.algomeet.notificationservice.enums.NotificationType;
-import com.algomeet.notificationservice.service.NotificationService;
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
-import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.constant.XmppErrorConditions;
 import com.algomeet.xmpp.chatservice.dto.MucMember;
 import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
 import com.algomeet.xmpp.chatservice.dto.StanzaInfo;
-import com.algomeet.xmpp.chatservice.enums.ChatType;
-import com.algomeet.xmpp.chatservice.enums.UserState;
 import com.algomeet.xmpp.chatservice.enums.XmppErrorType;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
 import com.algomeet.xmpp.chatservice.parser.GroupChatParser;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
-import com.algomeet.xmpp.chatservice.routing.call.JingleNotificationHandler;
-import com.algomeet.xmpp.chatservice.routing.call.MucCallLifeCycleTracker;
 import com.algomeet.xmpp.chatservice.service.GroupCacheService;
 import com.algomeet.xmpp.chatservice.service.MucUnreadCountService;
 import com.algomeet.xmpp.chatservice.service.XmppArchiveService;
-import com.algomeet.xmpp.chatservice.session.UserSessionRegistry;
 import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
-import com.algomeet.xmpp.chatservice.session.model.UserSession;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.algomeet.xmpp.chatservice.util.XmppReadUtil;
 import com.algomeet.xmpp.chatservice.util.XmppServerAckUtil;
-import com.algomeet.xmpp.chatservice.util.XmppStanzaMucUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
 import com.github.f4b6a3.ulid.UlidCreator;
@@ -63,14 +50,10 @@ import lombok.extern.slf4j.Slf4j;
 public class XmppMucHandler {
 	private final XmppArchiveService xmppArchiveService;
 	private final GroupCacheService groupCacheService;
-	private final UserSessionRegistry userSessionRegistry;
-	private final ClusterMessagePublisher clusterMessagePublisher;
-	private final NotificationService notificationService;
-	private final MucAdminCommandDispatcher mucAdminCmdHandler;
+	private final MucAdminCommandRouter mucAdminCommandRouter;
 	private final DomainProperties domainProperties;
-	private final MucUserCommandDispatcher mucUserCommandDispatcher;
-	private final JingleNotificationHandler jingleNotificationHandler;
-	private final MucCallLifeCycleTracker mucCallTracker;
+	private final MucUserCommandRouter mucUserCommandRouter;
+	private final MucMessageRouter mucMessageRouter;
 	private final JidUtil jidUtil;
 	private final MucUnreadCountService mucUnreadCountService;
 	private final XmppReadUtil xmppReadUtil;
@@ -110,174 +93,105 @@ public class XmppMucHandler {
 			return;
 		}
 
-		// 2. DIRECT PRIVATE MESSAGE (PM) WITHIN MUC CHECK
-		MucMember directPmRecipientMucMember = resolveDirectPmRecipient(ctx, id, fromJid, toRoomJid, group);
-
 		// Optimization: Peek at headers for routing decisions
 		String xmlHeader = originalXml.substring(0, Math.min(originalXml.length(), 500));
 
-		// 3. ARCHIVING (MAM - XEP-0313)
-		// Only archive messages that are storage-eligible (e.g., contain a <body>)
-		if(msgType.supportsOfflineStorage() && XmppStanzaUtil.isArchiveable(xmlHeader, originalXml)) {
-			StanzaInfo info = GroupChatParser.parse(originalXml);
-			String ulidString = UlidCreator.getMonotonicUlid().toLowerCase();
-
-			// Inject Stanza-ID (XEP-0359) to facilitate client-side de-duplication and synchronization
-			String stanzaIdExtension = String.format("<stanza-id xmlns='urn:xmpp:sid:0' by='%s' id='%s'/>", 
-					principal.getDomain(), ulidString);
-			forArchiveXml = originalXml.replace("</message>", stanzaIdExtension + "</message>");
-
-			xmppArchiveService.archiveEvent(forArchiveXml, info, toRoomJid, (directPmRecipientMucMember != null ? directPmRecipientMucMember.getUserKey() : null), 
-					fromJid, ulidString)
-			.doOnSuccess(saved -> {
-				boolean isAckMessage = false;
-				// Send an immediate server-level acknowledgment to the sender.
-				//
-				// This acknowledgment confirms that:
-				// 1. The server has successfully received the stanza.
-				// 2. The stanza has been persisted to the database.
-				// 3. The server has taken full responsibility for further routing/delivery.
-				//
-				// This is a custom acknowledgment (not client XEP-0198 ack),
-				// used to provide early delivery assurance back to the sender.
-				XmppServerAckUtil.send(ctx, id, domainProperties.getDomain(), fromJid);
-
-				// --- XEP-0333: Chat Markers (Read Receipts) ---
-				// If the stanza contains the 'urn:xmpp:chat-markers:0' namespace (displayed), 
-				// the user has actively viewed the conversation.
-				if (xmlHeader.contains(XmppReadUtil.NS_DISPLAYS)) {
-					isAckMessage = true;
-					String ackMessageId = xmppReadUtil.getAckMessageId(originalXml);
-
-					if (StringUtils.hasText(ackMessageId)) {
-						// Decrement the unread counter for this specific sender-recipient pair.
-						// Note: fromUserKey is the person who read it, toUserKey is the original sender.
-						mucUnreadCountService.decrementUnreadCount(senderMucMember.get().getUserKey(), toRoomId).subscribe();
-					}
-				}
-
-
-				if (directPmRecipientMucMember != null) {
-					if(!isAckMessage) {
-						// Increment MUC unread messages count 
-						mucUnreadCountService.incrementUnreadCount(directPmRecipientMucMember.getUserKey(), 
-								XmppUtil.getRoomId(toRoomJid))
-						.doOnError(e -> {
-							log.error("Storage failure for increment muc messages count {}: {}", id, e.getMessage(), e);
-						})
-						.subscribe();
-					}
-				} else {
-					if(!isAckMessage) {
-						// Increment MUC unread messages count 
-						mucUnreadCountService.incrementForRoomMembers(XmppUtil.getRoomId(toRoomJid),
-								group.getMembers().stream().map(m -> m.getUserKey()).toList(), 
-								senderMucMember.get().getUserKey())
-						.doOnError(e -> {
-							log.error("Storage failure for increment muc messages count {}: {}", id, e.getMessage(), e);
-						})
-						.subscribe();
-					}
-				}	
-
-				log.debug("MAM Archive Success: ID={} Room={}", ulidString, toRoomId);
-			})
-			.doOnError(e -> {
-				log.error("MAM Archive Failure: {}", e.getMessage(), e);
-				handleArchiveError(ctx, id, fromJid, e);
-			})
-			.subscribe();
+		if (isModerationCommand(type, xmlHeader)) {
+			// MUC Admin actions (kick, ban, mute)
+			mucAdminCommandRouter.handleCommandStanza(ctx, toRoomJid, principal.getBareJid(), originalXml, senderMucMember.get());
+		} else if(isUserCommandStanza(originalXml, toRoomJid)) {
+			// MUC User actions (nickname changes, room entry)
+			mucUserCommandRouter.handleCommandStanza(ctx, toRoomJid, principal.getBareJid(), originalXml, principal);		
 		} else {
+			
+			// 2. DIRECT PRIVATE MESSAGE (PM) WITHIN MUC CHECK
+			MucMember directPmRecipientMucMember = resolveDirectPmRecipient(ctx, id, fromJid, toRoomJid, group);
 
-			// Server ACK
-			XmppServerAckUtil.send(ctx, id, domainProperties.getDomain(), fromJid);		
-		}
+			// 3. ARCHIVING (MAM - XEP-0313)
+			// Only archive messages that are storage-eligible (e.g., contain a <body>)
+			if(msgType.supportsOfflineStorage() && XmppStanzaUtil.isArchiveable(xmlHeader, originalXml)) {
+				StanzaInfo info = GroupChatParser.parse(originalXml);
+				String ulidString = UlidCreator.getMonotonicUlid().toLowerCase();
 
-		// 4. DISPATCHING
-		try {			
-			if (isModerationCommand(type, xmlHeader)) {
-				// MUC Admin actions (kick, ban, mute)
-				mucAdminCmdHandler.handleCommandStanza(ctx, toRoomJid, principal.getBareJid(), originalXml, senderMucMember.get());
-			} else if(isUserCommandStanza(originalXml, toRoomJid)) {
-				// MUC User actions (nickname changes, room entry)
-				mucUserCommandDispatcher.handleCommandStanza(ctx, toRoomJid, principal.getBareJid(), originalXml, principal);		
-			} else {
+				// Inject Stanza-ID (XEP-0359) to facilitate client-side de-duplication and synchronization
+				String stanzaIdExtension = String.format("<stanza-id xmlns='urn:xmpp:sid:0' by='%s' id='%s'/>", 
+						principal.getDomain(), ulidString);
+				forArchiveXml = originalXml.replace("</message>", stanzaIdExtension + "</message>");
+
+				xmppArchiveService.archiveEvent(forArchiveXml, info, toRoomJid, (directPmRecipientMucMember != null ? directPmRecipientMucMember.getUserKey() : null), 
+						fromJid, ulidString)
+				.doOnSuccess(saved -> {
+					boolean isAckMessage = false;
+					// Send an immediate server-level acknowledgment to the sender.
+					//
+					// This acknowledgment confirms that:
+					// 1. The server has successfully received the stanza.
+					// 2. The stanza has been persisted to the database.
+					// 3. The server has taken full responsibility for further routing/delivery.
+					//
+					// This is a custom acknowledgment (not client XEP-0198 ack),
+					// used to provide early delivery assurance back to the sender.
+					XmppServerAckUtil.send(ctx, id, domainProperties.getDomain(), fromJid);
+
+					// --- XEP-0333: Chat Markers (Read Receipts) ---
+					// If the stanza contains the 'urn:xmpp:chat-markers:0' namespace (displayed), 
+					// the user has actively viewed the conversation.
+					if (xmlHeader.contains(XmppReadUtil.NS_DISPLAYS)) {
+						isAckMessage = true;
+						String ackMessageId = xmppReadUtil.getAckMessageId(originalXml);
+
+						if (StringUtils.hasText(ackMessageId)) {
+							// Decrement the unread counter for this specific sender-recipient pair.
+							// Note: fromUserKey is the person who read it, toUserKey is the original sender.
+							mucUnreadCountService.decrementUnreadCount(senderMucMember.get().getUserKey(), toRoomId).subscribe();
+						}
+					}
+
+
+					if (directPmRecipientMucMember != null) {
+						if(!isAckMessage) {
+							// Increment MUC unread messages count 
+							mucUnreadCountService.incrementUnreadCount(directPmRecipientMucMember.getUserKey(), 
+									XmppUtil.getRoomId(toRoomJid))
+							.doOnError(e -> {
+								log.error("Storage failure for increment muc messages count {}: {}", id, e.getMessage(), e);
+							})
+							.subscribe();
+						}
+					} else {
+						if(!isAckMessage) {
+							// Increment MUC unread messages count 
+							mucUnreadCountService.incrementForRoomMembers(XmppUtil.getRoomId(toRoomJid),
+									group.getMembers().stream().map(m -> m.getUserKey()).toList(), 
+									senderMucMember.get().getUserKey())
+							.doOnError(e -> {
+								log.error("Storage failure for increment muc messages count {}: {}", id, e.getMessage(), e);
+							})
+							.subscribe();
+						}
+					}	
+
+					log.debug("MAM Archive Success: ID={} Room={}", ulidString, toRoomId);
+				})
+				.doOnError(e -> {
+					log.error("MAM Archive Failure: {}", e.getMessage(), e);
+					handleArchiveError(ctx, id, fromJid, e);
+				})
+				.subscribe();
+			}
+
+			// 4. DISPATCHING
+			try {			
 				// Standard message propagation to members
-				handleReq(ctx, id, toRoomJid, fromJid, msgType, group, senderMucMember.get(), directPmRecipientMucMember, xmlHeader, originalXml);
-			}
-		} catch (NumberFormatException e) {
-			log.error("Critical: Invalid roomId format in routing: {}", toRoomId);
-		}
-	}
+				mucMessageRouter.broadcastToOccupants(ctx, id, toRoomJid, fromJid, msgType, group, senderMucMember.get(), 
+						directPmRecipientMucMember, xmlHeader, originalXml);
 
-	/**
-	 * Handles distribution logic. Iterates through members or targets a specific occupant 
-	 * for Private Messages.
-	 */
-	private void handleReq(ChannelHandlerContext ctx, String id, String roomJid, String fromJid, XmppMessageType msgType, MucRoomDto group, 
-			MucMember senderMucMember, MucMember directReceiverMucMember, String xmlHeader, String originalXml) {
-
-		XmppPrincipal principal = ctx.channel().attr(XmppSessionAttributes.PRINCIPAL).get();
-		boolean isJingleStanza = XmppStanzaUtil.isJingleStanza(msgType, xmlHeader);
-		boolean isJingleSessionInitiate = isJingleStanza && originalXml.contains("session-initiate");
-
-		if (directReceiverMucMember != null) {			
-			// Target: Single recipient (Private Message within MUC)
-			publishOrNotify(ctx, id, roomJid, fromJid, msgType, senderMucMember, xmlHeader, originalXml, 
-					directReceiverMucMember.getUserKey(), isJingleStanza, isJingleSessionInitiate, principal);
-		} else {						
-			// Target: All room members (Broadcast)
-			for(MucMember receiverMucMember : group.getMembers()) {
-				publishOrNotify(ctx, id, roomJid, fromJid, msgType, senderMucMember, xmlHeader, originalXml, 
-						receiverMucMember.getUserKey(), isJingleStanza, isJingleSessionInitiate, principal);
+			} catch (NumberFormatException e) {
+				log.error("Critical: Invalid roomId format in routing: {}", toRoomId);
 			}
 		}
 	}
 
-	/**
-	 * Core delivery method. Performs JID rewriting, cluster publishing, and push notification triggering.
-	 */
-	private void publishOrNotify(ChannelHandlerContext ctx, String id, String roomJid, String fromJid, XmppMessageType msgType, 
-			MucMember senderMucMember, String xmlHeader, String originalXml, String toUserKey, boolean isJingleStanza,
-			boolean isJingleSessionInitiate, XmppPrincipal principal) {
-
-		// 1. Call Tracking (For VoIP/Video logic)
-		if (isJingleStanza) {	        	
-			mucCallTracker.track(ctx, jidUtil.getBareJid(toUserKey), fromJid, originalXml, principal, XmppUtil.getRoomId(roomJid));
-		}
-
-		// 2. Anonymization (JID Rewriting)
-		// We MUST hide the real JID of the sender and use the room nickname to comply with MUC anonymity.
-		/*
-		 * JID REWRITING:
-		 * 1. Change 'from' from UserJID to OccupantJID (Room anonymity).
-		 * 2. Change 'to' from RoomJID to the specific Recipient's JID for routing.
-		 */
-		String finalForwardXml = XmppStanzaMucUtil.rewriteMucStanzaForRecipient(originalXml, roomJid, fromJid, 
-				toUserKey, domainProperties.getDomain(), senderMucMember);
-
-		// 3. Live Delivery
-		Set<UserSession> userSessions = userSessionRegistry.getSessions(toUserKey);
-		boolean hasSessions = !CollectionUtils.isEmpty(userSessions);
-
-		if (hasSessions) {
-			clusterMessagePublisher.convertAndSendToUser(id, toUserKey, principal.getUserKey(), ChatType.GROUPCHAT, finalForwardXml);
-		}
-
-		// 4. Push Notifications (Offline Storage logic)
-		boolean hasActiveSession = hasSessions && userSessions.stream().anyMatch(s -> UserState.ACTIVE == s.getState());
-
-		if (!hasActiveSession) {					
-			if ((msgType.supportsOfflineStorage() && XmppStanzaUtil.isArchiveable(xmlHeader, originalXml)) || isJingleSessionInitiate) {
-				if (isJingleSessionInitiate) {
-					jingleNotificationHandler.handlePush(ctx, id, toUserKey, XmppUtil.getUserKey(fromJid), originalXml, principal);
-				} else {
-					String body = XmppUtil.getMessageBody(originalXml);
-					sendPushNotification(toUserKey, body, NotificationType.GROUP_MESSAGE, principal);
-				}
-			}
-		}
-	}
 
 	/**
 	 * Resolves a MUC occupant for Private Messaging (PM).
@@ -338,20 +252,5 @@ public class XmppMucHandler {
 			return jidArr.length > 1 && StringUtils.hasText(jidArr[1]);
 		}
 		return false;
-	}
-
-	/**
-	 * Dispatches a push notification via the internal Notification Service.
-	 */
-	private void sendPushNotification(String toKey, String message, NotificationType notificationType, XmppPrincipal principal) {
-		Notification notif = Notification.builder()
-				.receiverIds(Set.of(toKey))
-				.type(notificationType)
-				.title("You have a new message")
-				.body(message)
-				.tenantId(principal.getTenantId())
-				.build();
-
-		notificationService.sendPush(notif);
 	}	
 }

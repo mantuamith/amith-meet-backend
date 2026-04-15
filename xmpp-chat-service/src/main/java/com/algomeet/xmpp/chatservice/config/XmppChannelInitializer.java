@@ -4,8 +4,9 @@ import org.springframework.stereotype.Component;
 
 import com.algomeet.xmpp.chatservice.auth.WebSocketPostAuthHandler;
 import com.algomeet.xmpp.chatservice.auth.WebSocketPreAuthHandler;
+import com.algomeet.xmpp.chatservice.protocol.ping.XmppPingHandler;
+import com.algomeet.xmpp.chatservice.protocol.sm.XmppStreamManagementHandler;
 import com.algomeet.xmpp.chatservice.routing.XmppRoutingHandler;
-import com.algomeet.xmpp.chatservice.sm.XmppStreamManagementHandler;
 
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelPipeline;
@@ -42,6 +43,7 @@ public class XmppChannelInitializer extends ChannelInitializer<SocketChannel> {
     private WebSocketPostAuthHandler webSocketPostAuthHandler;
     
     private XmppStreamManagementHandler xmppStreamManagementHandler;
+    private XmppPingHandler xmppPingHandler;
 
     @Override
     protected void initChannel(SocketChannel ch) {
@@ -91,8 +93,7 @@ public class XmppChannelInitializer extends ChannelInitializer<SocketChannel> {
          * - Initializes XMPP session state (e.g., stream management)
          * - Sends initial XMPP bind response
          */
-        p.addLast(webSocketPostAuthHandler);
-        
+        p.addLast(webSocketPostAuthHandler);      
         
 		/**
 		 * Step 6: XEP-0198 Stream Management handler Responsible for tracking inbound stanzas
@@ -105,6 +106,12 @@ public class XmppChannelInitializer extends ChannelInitializer<SocketChannel> {
 		 * transport-level session recovery (resume support)
 		 */         
         p.addLast("smHandler", xmppStreamManagementHandler); 
+        
+        /**
+         *  Protocol-level ping handler; placed before routing to short-circuit 
+         *  heartbeats and after Stream Management to ensure pongs are counted.
+         */
+        p.addLast(xmppPingHandler);
 
         /**
          * Step 7: XMPP routing handler
