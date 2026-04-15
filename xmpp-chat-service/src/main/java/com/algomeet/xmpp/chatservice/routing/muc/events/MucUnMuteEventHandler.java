@@ -76,7 +76,7 @@ public class MucUnMuteEventHandler {
 		// This notifies all occupants that the user has regained voice.
 		String unmutePresence = buildUnmutePresence(roomBareJid, victimUserKey, affiliation, targetJid, senderJid, reason);
 
-		mucMessageRouter.broadcastToOccupants(id, sender.getUserKey(), group, unmutePresence);
+		mucMessageRouter.broadcastToOccupants(id, sender.getUserKey(), group, unmutePresence, true);
 		
 		// 6. Send IQ Result back to the admin to confirm success
 		sendSuccessResponse(ctx, senderJid, roomJid, id);

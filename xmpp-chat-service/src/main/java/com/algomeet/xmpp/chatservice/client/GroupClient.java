@@ -1,5 +1,7 @@
 package com.algomeet.xmpp.chatservice.client;
 
+import java.util.List;
+
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -11,6 +13,9 @@ public interface GroupClient {
 
     @GetMapping("/internal/groups/{groupId}")
     MucRoomDto getGroupById(@PathVariable("groupId") String groupId);
+    
+    @GetMapping("/internal/groups/member/userkey/{userkey}")
+	List<MucRoomDto> getGroupsForUserKey(@PathVariable String userkey);
 
 
 }

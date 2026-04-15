@@ -76,7 +76,7 @@ public class MucAddMemberEventHandler {
 		// 4. Broadcast Presence Update
 		// Informs all occupants that the user's affiliation has changed (XEP-0045).
 		String addMemberPresence = buildMemberPromotionPresence(roomBareJid, mucAffiliation, mucRole, newMemberJid, reason);		
-		mucMessageRouter.broadcastToOccupants(id, sender.getUserKey(), group, addMemberPresence);
+		mucMessageRouter.broadcastToOccupants(id, sender.getUserKey(), group, addMemberPresence, true);
 		
 		// 5. Generate and Broadcast System Log Message
 		// Creates a human-readable "Admin added User" message for the chat history.

@@ -53,7 +53,7 @@ public class MucAcceptInviteEventHandler {
         
         // 2. Notify all existing members of the new occupant and sync occupant list for the joiner.
         String availablePresence = buildOccupantPresence(roomBareJid, sender.getUserKey(), sender.getRole(), senderJid);  
-        mucMessageRouter.broadcastToOccupants(UUID.randomUUID().toString(), sender.getUserKey(), group, availablePresence);
+        mucMessageRouter.broadcastToOccupants(UUID.randomUUID().toString(), sender.getUserKey(), group, availablePresence, false);
                       
         // 3. Prepare a system message to log the join event in the chat stream.
         String stanzaId = UUID.randomUUID().toString();

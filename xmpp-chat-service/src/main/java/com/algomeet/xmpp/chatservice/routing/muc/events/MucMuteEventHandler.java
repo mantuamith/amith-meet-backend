@@ -75,7 +75,7 @@ public class MucMuteEventHandler {
 		// Status 104 specifically informs the client that their voice has been revoked.
 		String mutePresence = buildMutePresence(roomBareJid, victimUserKey, affiliation, targetJid, senderJid, reason);
 
-		mucMessageRouter.broadcastToOccupants(id, sender.getUserKey(), group, mutePresence);
+		mucMessageRouter.broadcastToOccupants(id, sender.getUserKey(), group, mutePresence, true);
 		
 		// 6. Acknowledge the success of the command to the moderator
 		sendSuccessResponse(ctx, senderJid, roomJid, id);
