@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -32,6 +33,8 @@ import com.algomeet.groupservice.repository.GroupRepository;
 @ExtendWith(MockitoExtension.class)
 class GroupServiceInviteLinkTest {
 
+	private static final UUID GROUP_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
+
 	@Mock
 	private GroupRepository groupRepository;
 
@@ -47,53 +50,53 @@ class GroupServiceInviteLinkTest {
 	@Test
 	void getOrCreateInviteLink_generatesAndPersistsCodeWhenMissing() {
 		Group group = groupWithMember("group-user", GroupRole.MEMBER);
-		when(groupRepository.findById(1L)).thenReturn(Optional.of(group));
+		when(groupRepository.findById(GROUP_ID)).thenReturn(Optional.of(group));
 		when(groupRepository.save(any(Group.class))).thenAnswer(invocation -> invocation.getArgument(0));
-		when(groupInviteLinkFactory.build(org.mockito.ArgumentMatchers.eq(1L), anyString()))
-				.thenReturn("https://yourapp.com/invite?groupId=1&inviteCode=generated");
+		when(groupInviteLinkFactory.build(org.mockito.ArgumentMatchers.eq(GROUP_ID), anyString()))
+				.thenReturn("https://yourapp.com/invite?groupId=11111111-1111-1111-1111-111111111111&inviteCode=generated");
 
-		GroupInviteLinkResponse response = groupService.getOrCreateInviteLink(1L, "group-user");
+		GroupInviteLinkResponse response = groupService.getOrCreateInviteLink(GROUP_ID, "group-user");
 
 		verify(groupRepository).save(groupCaptor.capture());
 		assertThat(groupCaptor.getValue().getInviteCode()).isNotBlank();
-		assertThat(response.getInviteLink()).isEqualTo("https://yourapp.com/invite?groupId=1&inviteCode=generated");
+		assertThat(response.getInviteLink()).isEqualTo("https://yourapp.com/invite?groupId=11111111-1111-1111-1111-111111111111&inviteCode=generated");
 	}
 
 	@Test
 	void getOrCreateInviteLink_reusesExistingCode() {
 		Group group = groupWithMember("group-user", GroupRole.ADMIN);
 		group.setInviteCode("existing-code");
-		when(groupRepository.findById(1L)).thenReturn(Optional.of(group));
-		when(groupInviteLinkFactory.build(1L, "existing-code")).thenReturn("https://yourapp.com/invite?groupId=1&inviteCode=existing-code");
+		when(groupRepository.findById(GROUP_ID)).thenReturn(Optional.of(group));
+		when(groupInviteLinkFactory.build(GROUP_ID, "existing-code")).thenReturn("https://yourapp.com/invite?groupId=11111111-1111-1111-1111-111111111111&inviteCode=existing-code");
 
-		GroupInviteLinkResponse response = groupService.getOrCreateInviteLink(1L, "group-user");
+		GroupInviteLinkResponse response = groupService.getOrCreateInviteLink(GROUP_ID, "group-user");
 
 		verify(groupRepository, never()).save(any(Group.class));
-		assertThat(response.getInviteLink()).isEqualTo("https://yourapp.com/invite?groupId=1&inviteCode=existing-code");
+		assertThat(response.getInviteLink()).isEqualTo("https://yourapp.com/invite?groupId=11111111-1111-1111-1111-111111111111&inviteCode=existing-code");
 	}
 
 	@Test
 	void resetInviteLink_rotatesCode() {
 		Group group = groupWithMember("group-user", GroupRole.OWNER);
 		group.setInviteCode("old-code");
-		when(groupRepository.findById(1L)).thenReturn(Optional.of(group));
+		when(groupRepository.findById(GROUP_ID)).thenReturn(Optional.of(group));
 		when(groupRepository.save(any(Group.class))).thenAnswer(invocation -> invocation.getArgument(0));
-		when(groupInviteLinkFactory.build(org.mockito.ArgumentMatchers.eq(1L), anyString()))
-				.thenReturn("https://yourapp.com/invite?groupId=1&inviteCode=new-code");
+		when(groupInviteLinkFactory.build(org.mockito.ArgumentMatchers.eq(GROUP_ID), anyString()))
+				.thenReturn("https://yourapp.com/invite?groupId=11111111-1111-1111-1111-111111111111&inviteCode=new-code");
 
-		GroupInviteLinkResponse response = groupService.resetInviteLink(1L, "group-user");
+		GroupInviteLinkResponse response = groupService.resetInviteLink(GROUP_ID, "group-user");
 
 		verify(groupRepository).save(groupCaptor.capture());
 		assertThat(groupCaptor.getValue().getInviteCode()).isNotBlank().isNotEqualTo("old-code");
-		assertThat(response.getInviteLink()).isEqualTo("https://yourapp.com/invite?groupId=1&inviteCode=new-code");
+		assertThat(response.getInviteLink()).isEqualTo("https://yourapp.com/invite?groupId=11111111-1111-1111-1111-111111111111&inviteCode=new-code");
 	}
 
 	@Test
 	void getOrCreateInviteLink_rejectsNonMember() {
 		Group group = groupWithMember("someone-else", GroupRole.MEMBER);
-		when(groupRepository.findById(1L)).thenReturn(Optional.of(group));
+		when(groupRepository.findById(GROUP_ID)).thenReturn(Optional.of(group));
 
-		assertThatThrownBy(() -> groupService.getOrCreateInviteLink(1L, "missing-user"))
+		assertThatThrownBy(() -> groupService.getOrCreateInviteLink(GROUP_ID, "missing-user"))
 				.isInstanceOf(ResponseStatusException.class)
 				.extracting(ex -> ((ResponseStatusException) ex).getStatusCode())
 				.isEqualTo(HttpStatus.FORBIDDEN);
@@ -103,9 +106,9 @@ class GroupServiceInviteLinkTest {
 	void joinGroupByInviteCode_rejectsInvalidCode() {
 		Group group = groupWithMember("someone-else", GroupRole.MEMBER);
 		group.setInviteCode("valid-code");
-		when(groupRepository.findById(1L)).thenReturn(Optional.of(group));
+		when(groupRepository.findById(GROUP_ID)).thenReturn(Optional.of(group));
 
-		assertThatThrownBy(() -> groupService.joinGroupByInviteCode(1L, "bad-code", "john", "new-user", null))
+		assertThatThrownBy(() -> groupService.joinGroupByInviteCode(GROUP_ID, "bad-code", "john", "new-user", null))
 				.isInstanceOf(IllegalArgumentException.class)
 				.hasMessage(ResponseCode.GROUP_INVITE_CODE_INVALID.name());
 	}
@@ -114,10 +117,10 @@ class GroupServiceInviteLinkTest {
 	void joinGroupByInviteCode_joinsWhenCodeMatches() {
 		Group group = groupWithMember("someone-else", GroupRole.MEMBER);
 		group.setInviteCode("valid-code");
-		when(groupRepository.findById(1L)).thenReturn(Optional.of(group));
+		when(groupRepository.findById(GROUP_ID)).thenReturn(Optional.of(group));
 		when(groupRepository.save(any(Group.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-		groupService.joinGroupByInviteCode(1L, "valid-code", "john", "new-user", "Nick");
+		groupService.joinGroupByInviteCode(GROUP_ID, "valid-code", "john", "new-user", "Nick");
 
 		verify(groupRepository).save(groupCaptor.capture());
 		assertThat(groupCaptor.getValue().getMembers())
@@ -127,7 +130,7 @@ class GroupServiceInviteLinkTest {
 
 	private Group groupWithMember(String userKey, GroupRole role) {
 		Group group = new Group();
-		group.setId(1L);
+		group.setId(GROUP_ID);
 		Set<Member> members = new HashSet<>();
 		members.add(new Member(userKey, "john", "John", role));
 		group.setMembers(members);

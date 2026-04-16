@@ -147,7 +147,7 @@ public class MessageActionService {
         var resp = messageMapper.toResponse(doc);
         if (doc.isGroupMessage()) {
             try {
-                GroupDto group = groupClient.getGroupById(Long.parseLong(doc.getGroupId()));
+                GroupDto group = groupClient.getGroupById(doc.getGroupId());
                 for (Member member : group.members) {
                     messagingSyncTemplate.convertAndSendToUser(member.getUsername(), "/queue/update_message", resp);
                 }
@@ -168,7 +168,7 @@ public class MessageActionService {
         if (doc.isGroupMessage()) {
             try {
                 
-                GroupDto group = groupClient.getGroupById(Long.parseLong(doc.getGroupId()));
+                GroupDto group = groupClient.getGroupById(doc.getGroupId());
                 // If a message includes media files, grant media access permissions to the
                 // message recipients.
                 mediaService.share(doc, group);

@@ -86,9 +86,9 @@ public class ChatWebSocketController {
             List<String> failedMembers = new ArrayList<>();
 
             if (message.isGroupMessage()) {
-                GroupDto group = groupClient.getGroupById(Long.parseLong(message.getGroupId()));   
+                GroupDto group = groupClient.getGroupById(message.getGroupId());   
                 response.setType(MessageType.GROUP);
-                response.setTo(group.getId().toString());
+                response.setTo(group.getId());
                 // If a message has media files, grant media access permissions to the
                 // message recipients.
                 mediaService.share(message, group);

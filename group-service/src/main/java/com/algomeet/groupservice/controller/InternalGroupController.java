@@ -1,6 +1,7 @@
 package com.algomeet.groupservice.controller;
 
 import java.util.List;
+import java.util.UUID;
 
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -20,7 +21,7 @@ public class InternalGroupController implements InternalGroupControllerDoc{
 	private final GroupService groupService;
 
 	@GetMapping("/{groupId}")
-	public GroupResponse getGroup(@PathVariable Long groupId) {
+	public GroupResponse getGroup(@PathVariable UUID groupId) {
 		return groupService.getGroupById(groupId);
 	}
 

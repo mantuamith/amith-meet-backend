@@ -45,7 +45,7 @@ class MessageServiceTest {
     @Test
     void getRecentMessages_countsUnreadGroupMessagesPerUser() {
         GroupDto group = new GroupDto();
-        group.setId(51L);
+        group.setId("51");
 
         MessageDocument unreadFromOther = new MessageDocument();
         unreadFromOther.setId("g1");
@@ -86,7 +86,7 @@ class MessageServiceTest {
     @Test
     void markMessagesAsRead_marksGroupMessageForReader() {
         GroupDto group = new GroupDto();
-        group.setId(51L);
+        group.setId("51");
 
         MessageDocument groupMessage = new MessageDocument();
         groupMessage.setId("g1");

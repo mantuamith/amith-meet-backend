@@ -128,7 +128,7 @@ public class MediaService {
 
 		if (message.isGroupMessage()) {
 			// Add logic for group message
-			GroupDto group = groupClient.getGroupById(Long.parseLong(message.getGroupId()));
+			GroupDto group = groupClient.getGroupById(message.getGroupId());
 			deleteWithUserKeys = group.members.stream().map(m -> m.getUserKey()).collect(Collectors.toSet());
 		} else {
 			deleteWithUserKeys = Set.of(message.getSenderKey(), message.getReceiverKey());

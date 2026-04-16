@@ -143,7 +143,7 @@ public class MissedCallScheduler {
 		 * Differentiates between 1-on-1 calls and Group (MUC) calls to ensure correct 
 		 * stanza addressing and history archiving.
 		 */
-		if(StringUtils.hasText(groupId) && Long.parseLong(groupId) > 0) {
+		if(StringUtils.hasText(groupId)) {
 			sendGroupChatMissedCallStanza(fromJid, toJid, sid, type, groupId);
 		} else {
 			// Notify both parties in a 1-on-1 call for consistent history logs
