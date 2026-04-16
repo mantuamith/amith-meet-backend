@@ -192,6 +192,18 @@ public class GroupService {
 				.map(GroupMapper::toResponse)
 				.collect(Collectors.toList());
 	}
+	
+	public List<GroupResponse> getGroupsByUserKey(String userkey) {
+		List<Group> groups = groupRepository.findByMembers_UserKey(userkey);
+
+		if (CollectionUtils.isEmpty(groups)) {
+			return List.of();
+		}
+
+		return groups.stream()
+				.map(GroupMapper::toResponse)
+				.collect(Collectors.toList());
+	}
 
 	private Group getGroupOrThrow(Long groupId) throws GroupNotFoundException {
 		return groupRepository.findById(groupId)

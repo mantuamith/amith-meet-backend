@@ -10,7 +10,7 @@ import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
 import com.algomeet.xmpp.chatservice.enums.PresenceMetaAction;
 import com.algomeet.xmpp.chatservice.routing.muc.events.MucAcceptInviteEventHandler;
 import com.algomeet.xmpp.chatservice.routing.muc.events.MucChangeNickNameEventHandler;
-import com.algomeet.xmpp.chatservice.routing.muc.events.MucMemberPresenceEventHandler;
+import com.algomeet.xmpp.chatservice.routing.muc.events.MucMemberOrdinaryPresenceEventHandler;
 import com.algomeet.xmpp.chatservice.service.GroupCacheService;
 import com.algomeet.xmpp.chatservice.util.MucMetaActionParser;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
@@ -36,7 +36,7 @@ public class MucUserCommandRouter {
     private final GroupCacheService groupCacheService;
 	private final MucAcceptInviteEventHandler mucAcceptInviteEventHandler;
 	private final MucChangeNickNameEventHandler mucChangeNickNameEventHandler;
-	private final MucMemberPresenceEventHandler mucMemberPresenceEventHandler;
+	private final MucMemberOrdinaryPresenceEventHandler mucMemberPresenceEventHandler;
     /**
      * Top-level handler for incoming command stanzas targeting a specific room.
      * * @param ctx       The Netty channel context for the current session.

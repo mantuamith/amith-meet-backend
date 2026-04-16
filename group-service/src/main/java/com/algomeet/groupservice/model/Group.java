@@ -42,7 +42,11 @@ public class Group {
     @ElementCollection
     @CollectionTable(
         name = "chat_group_members",
-        joinColumns = @JoinColumn(name = "group_id")
+        joinColumns = @JoinColumn(name = "group_id"),
+        indexes = {
+        		@jakarta.persistence.Index(name = "idx_group_members_group_id", columnList = "group_id"),
+        		@jakarta.persistence.Index(name = "idx_group_members_user_key", columnList = "user_key")
+        }
     )
     private Set<Member> members = new HashSet<>();
 

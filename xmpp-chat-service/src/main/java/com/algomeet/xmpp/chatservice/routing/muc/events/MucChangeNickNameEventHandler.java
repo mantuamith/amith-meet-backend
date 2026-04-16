@@ -57,14 +57,14 @@ public class MucChangeNickNameEventHandler {
                 MucRoleUtil.getMucRole(sender.getRole()).getValue());
 
         // 3. Broadcast "Old Nick" exit to the Room
-        mucMessageRouter.broadcastToOccupants(UUID.randomUUID().toString(), sender.getUserKey(), group, renamePresence);
+        mucMessageRouter.broadcastToOccupants(UUID.randomUUID().toString(), sender.getUserKey(), group, renamePresence, true);
         
         // 4. Construct the available presence 
         String availablePresence = buildAvailablePresence(roomBareJid, sender.getUserKey(), mucAffiliation, 
                 MucRoleUtil.getMucRole(sender.getRole()).getValue()); 
 
         // 5. Broadcast "New Nick" entry to the Room
-        mucMessageRouter.broadcastToOccupants(UUID.randomUUID().toString(), sender.getUserKey(), group, availablePresence);
+        mucMessageRouter.broadcastToOccupants(UUID.randomUUID().toString(), sender.getUserKey(), group, availablePresence, true);
 
         log.info("User successful: Changed nickname to {}", newNickname);
     }

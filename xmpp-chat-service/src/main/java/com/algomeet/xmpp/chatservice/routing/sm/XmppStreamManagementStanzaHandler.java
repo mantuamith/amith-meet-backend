@@ -7,7 +7,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.springframework.stereotype.Component;
 
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
-import com.algomeet.xmpp.chatservice.service.OfflineMessageService;
 import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
 import com.algomeet.xmpp.chatservice.stanza.StreamAck;
 import com.algomeet.xmpp.chatservice.util.XmppSmRedisUtil;

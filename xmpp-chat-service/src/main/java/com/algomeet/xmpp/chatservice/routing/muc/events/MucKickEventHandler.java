@@ -63,7 +63,7 @@ public class MucKickEventHandler {
 		String roomBareJid = XmppUtil.getRoomBareJid(roomJid);
 		String kickPresence = buildKickPresence(roomBareJid, victimUserKey, targetJid, senderJid, reason);
 
-		mucMessageRouter.broadcastToOccupants(id, sender.getUserKey(), group, kickPresence);
+		mucMessageRouter.broadcastToOccupants(id, sender.getUserKey(), group, kickPresence, true);
 		sendSuccessResponse(ctx, senderJid, roomJid, id);
 
 		log.info("Kick successful: {} removed from {}", victimJid, roomJid);

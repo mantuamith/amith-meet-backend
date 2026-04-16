@@ -31,7 +31,7 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/contacts/**").authenticated()
-                        
+                        .requestMatchers("/internal/contacts/**").permitAll()
                         // Swagger - start
                         .requestMatchers("/swagger-ui.html").permitAll() 
                         .requestMatchers("/swagger-ui/index.html").permitAll()   

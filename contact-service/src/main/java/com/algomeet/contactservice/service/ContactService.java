@@ -164,6 +164,14 @@ public class ContactService {
 
     }
 
+    public List<UUID> getContactListUserKeys(UUID userKey) {
+        log.debug("Fetching accepted contacts for userId={}", userKey);
+        List<UUID> contactList = contactRepository.findAccepted(userKey);
+
+        log.info("Accepted contact list size for {}: {}", userKey, contactList.size());
+        return contactList;
+    }
+    
     public List<UserDto> getContactList(UUID userKey) {
         log.debug("Fetching accepted contacts for userId={}", userKey);
         List<UUID> accepted = contactRepository.findAccepted(userKey);
