@@ -1,6 +1,7 @@
 package com.algomeet.groupservice.controller.swagger;
 
 import java.util.Optional;
+import java.util.UUID;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -68,8 +69,8 @@ public interface GroupControllerDoc {
             )
         })
         public ResponseEntity<CommonResponse<GroupResponse>> getGroup(
-                @Parameter(description = "Unique ID of the group", example = "1")
-                @PathVariable Long groupId);
+                @Parameter(description = "Unique ID of the group", example = "11111111-1111-1111-1111-111111111111")
+                @PathVariable UUID groupId);
 
         @Operation(
             summary = "Update group",
@@ -102,8 +103,8 @@ public interface GroupControllerDoc {
             )
         })
         public ResponseEntity<CommonResponse<GroupResponse>> updateGroup(
-                @Parameter(description = "Unique ID of the group", example = "1")
-                @PathVariable Long groupId,
+                @Parameter(description = "Unique ID of the group", example = "11111111-1111-1111-1111-111111111111")
+                @PathVariable UUID groupId,
 
                 @io.swagger.v3.oas.annotations.parameters.RequestBody(
                     description = "Group update request payload",
@@ -137,8 +138,8 @@ public interface GroupControllerDoc {
             @ApiResponse(responseCode = "404", description = "Group ID not found")
         })
         public ResponseEntity<CommonResponse<GroupPermissionsResponse>> patchGroupPermissions(
-                @Parameter(description = "Unique ID of the group", example = "1")
-                @PathVariable Long groupId,
+                @Parameter(description = "Unique ID of the group", example = "11111111-1111-1111-1111-111111111111")
+                @PathVariable UUID groupId,
 
                 @io.swagger.v3.oas.annotations.parameters.RequestBody(
                     description = """
@@ -176,10 +177,10 @@ public interface GroupControllerDoc {
     public ResponseEntity<CommonResponse<?>> removeGroup(
     		@Parameter(
     				description = "Unique identifier of the group",
-    				example = "1",
+    				example = "11111111-1111-1111-1111-111111111111",
     				required = true
     				)
-    		@PathVariable Long groupId);
+    		@PathVariable UUID groupId);
 
     @Operation(
         summary = "Join a group",
@@ -191,8 +192,8 @@ public interface GroupControllerDoc {
         @ApiResponse(responseCode = "409", description = "User is already a group member")
     })
     public ResponseEntity<CommonResponse<?>> joinGroup(
-            @Parameter(description = "Group ID", example = "1")
-            @PathVariable Long groupId,
+            @Parameter(description = "Group ID", example = "11111111-1111-1111-1111-111111111111")
+            @PathVariable UUID groupId,
             @RequestParam Optional<String> nickname,
             Authentication authentication);
 
@@ -207,8 +208,8 @@ public interface GroupControllerDoc {
         @ApiResponse(responseCode = "409", description = "User is already a group member")
     })
     public ResponseEntity<CommonResponse<?>> joinGroupByInvite(
-            @Parameter(description = "Group ID", example = "1")
-            @PathVariable Long groupId,
+            @Parameter(description = "Group ID", example = "11111111-1111-1111-1111-111111111111")
+            @PathVariable UUID groupId,
             @Parameter(description = "Invite code for the group", example = "abc123")
             @RequestParam String inviteCode,
             @RequestParam Optional<String> nickname,
@@ -224,8 +225,8 @@ public interface GroupControllerDoc {
         @ApiResponse(responseCode = "409", description = "All users are already members")
     })
     public ResponseEntity<CommonResponse<?>> addGroupMembers(
-            @Parameter(description = "Group ID", example = "1")
-            @PathVariable Long groupId,
+            @Parameter(description = "Group ID", example = "11111111-1111-1111-1111-111111111111")
+            @PathVariable UUID groupId,
 
             @io.swagger.v3.oas.annotations.parameters.RequestBody(
                 description = "List of userKeys to add to the group",
@@ -246,8 +247,8 @@ public interface GroupControllerDoc {
         @ApiResponse(responseCode = "403", description = "User is not allowed to access the invite link")
     })
     public ResponseEntity<CommonResponse<GroupInviteLinkResponse>> getInviteLink(
-            @Parameter(description = "Group ID", example = "1")
-            @PathVariable Long groupId);
+            @Parameter(description = "Group ID", example = "11111111-1111-1111-1111-111111111111")
+            @PathVariable UUID groupId);
 
     @Operation(
         summary = "Reset a group invite link",
@@ -259,8 +260,8 @@ public interface GroupControllerDoc {
         @ApiResponse(responseCode = "403", description = "User is not allowed to reset the invite link")
     })
     public ResponseEntity<CommonResponse<GroupInviteLinkResponse>> resetInviteLink(
-            @Parameter(description = "Group ID", example = "1")
-            @PathVariable Long groupId);
+            @Parameter(description = "Group ID", example = "11111111-1111-1111-1111-111111111111")
+            @PathVariable UUID groupId);
     
     @Operation(
         summary = "Leave a group",
@@ -271,8 +272,8 @@ public interface GroupControllerDoc {
         @ApiResponse(responseCode = "404", description = "Group or member not found")
     })
     public ResponseEntity<CommonResponse<?>> leaveGroup(
-            @Parameter(description = "Group ID", example = "1")
-            @PathVariable Long groupId,
+            @Parameter(description = "Group ID", example = "11111111-1111-1111-1111-111111111111")
+            @PathVariable UUID groupId,
             Authentication authentication);
 
     @Operation(
@@ -297,10 +298,10 @@ public interface GroupControllerDoc {
     public ResponseEntity<CommonResponse<?>> removeGroupMember(
     		@Parameter(
     				description = "Unique identifier of the group",
-    				example = "1",
+    				example = "11111111-1111-1111-1111-111111111111",
     				required = true
     				)
-    		@PathVariable Long groupId,
+    		@PathVariable UUID groupId,
 
     		@Parameter(
     				description = "User key (UUID) of the member to remove",

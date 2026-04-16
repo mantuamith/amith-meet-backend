@@ -2,6 +2,7 @@ package com.algomeet.groupservice.controller;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -56,7 +57,7 @@ public class GroupController implements GroupControllerDoc {
 	}
 	
 	@GetMapping("/{groupId}")
-	public ResponseEntity<CommonResponse<GroupResponse>> getGroup(@PathVariable Long groupId) {
+	public ResponseEntity<CommonResponse<GroupResponse>> getGroup(@PathVariable UUID groupId) {
 		try {
 			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, groupService.getGroupById(groupId)));
 		} catch(GroupNotFoundException ex) {
@@ -66,7 +67,7 @@ public class GroupController implements GroupControllerDoc {
 	}
 	
 	@PutMapping("/{groupId}")
-	public ResponseEntity<CommonResponse<GroupResponse>> updateGroup(@PathVariable Long groupId, @Valid @RequestBody UpdateGroupRequest request) {
+	public ResponseEntity<CommonResponse<GroupResponse>> updateGroup(@PathVariable UUID groupId, @Valid @RequestBody UpdateGroupRequest request) {
 		try {
 			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, groupService.updateGroup(groupId, request, SecurityUtil.getUserKey())));
 		} catch(GroupNotFoundException ex) {
@@ -77,7 +78,7 @@ public class GroupController implements GroupControllerDoc {
 
 	@PatchMapping("/{groupId}/permissions")
 	public ResponseEntity<CommonResponse<GroupPermissionsResponse>> patchGroupPermissions(
-			@PathVariable Long groupId,
+			@PathVariable UUID groupId,
 			@Valid @RequestBody GroupPermissionsPatchRequest request) {
 		try {
 			GroupPermissionsResponse response = groupService.patchGroupPermissions(groupId, request, SecurityUtil.getUserKey());
@@ -89,7 +90,7 @@ public class GroupController implements GroupControllerDoc {
 	}
 
 	@DeleteMapping("/{groupId}")
-	public ResponseEntity<CommonResponse<?>> removeGroup(@PathVariable Long groupId) {
+	public ResponseEntity<CommonResponse<?>> removeGroup(@PathVariable UUID groupId) {
 		try {
 			groupService.removeGroup(groupId);
 		} catch(GroupNotFoundException ex) {
@@ -102,7 +103,7 @@ public class GroupController implements GroupControllerDoc {
 
 	@PostMapping("/{groupId}/join")
 	public ResponseEntity<CommonResponse<?>> joinGroup(
-			@PathVariable Long groupId,
+			@PathVariable UUID groupId,
 			@RequestParam Optional<String> nickname,
 			Authentication authentication) {
 
@@ -128,7 +129,7 @@ public class GroupController implements GroupControllerDoc {
 
 	@PostMapping("/{groupId}/join-by-invite")
 	public ResponseEntity<CommonResponse<?>> joinGroupByInvite(
-			@PathVariable Long groupId,
+			@PathVariable UUID groupId,
 			@RequestParam String inviteCode,
 			@RequestParam Optional<String> nickname,
 			Authentication authentication) {
@@ -159,7 +160,7 @@ public class GroupController implements GroupControllerDoc {
 
 	@PostMapping("/{groupId}/add")
 	public ResponseEntity<CommonResponse<?>> addGroupMembers(
-			@PathVariable Long groupId,
+			@PathVariable UUID groupId,
 			@Valid @RequestBody AddGroupMembersRequest request) {
 
 		GroupResponse response = null;
@@ -179,7 +180,7 @@ public class GroupController implements GroupControllerDoc {
 	}
 
 	@GetMapping("/{groupId}/invite-link")
-	public ResponseEntity<CommonResponse<GroupInviteLinkResponse>> getInviteLink(@PathVariable Long groupId) {
+	public ResponseEntity<CommonResponse<GroupInviteLinkResponse>> getInviteLink(@PathVariable UUID groupId) {
 		try {
 			GroupInviteLinkResponse response = groupService.getOrCreateInviteLink(groupId, SecurityUtil.getUserKey());
 			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, response));
@@ -190,7 +191,7 @@ public class GroupController implements GroupControllerDoc {
 	}
 
 	@PostMapping("/{groupId}/invite-link/reset")
-	public ResponseEntity<CommonResponse<GroupInviteLinkResponse>> resetInviteLink(@PathVariable Long groupId) {
+	public ResponseEntity<CommonResponse<GroupInviteLinkResponse>> resetInviteLink(@PathVariable UUID groupId) {
 		try {
 			GroupInviteLinkResponse response = groupService.resetInviteLink(groupId, SecurityUtil.getUserKey());
 			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, response));
@@ -202,7 +203,7 @@ public class GroupController implements GroupControllerDoc {
 
 	@DeleteMapping("/{groupId}/leave")
 	public ResponseEntity<CommonResponse<?>> leaveGroup(
-			@PathVariable Long groupId,
+			@PathVariable UUID groupId,
 			Authentication authentication) {     
 
 		try {
@@ -221,7 +222,7 @@ public class GroupController implements GroupControllerDoc {
 
 	@DeleteMapping("/{groupId}/remove")
 	public ResponseEntity<CommonResponse<?>> removeGroupMember(
-			@PathVariable Long groupId,
+			@PathVariable UUID groupId,
 			@RequestParam String userKey) {
 
 		try {

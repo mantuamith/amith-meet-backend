@@ -10,7 +10,7 @@ import lombok.Data;
 @Data
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class GroupDto {
-    public Long id;
+    public String id;
     public String name;
     public List<Member> members;
 }

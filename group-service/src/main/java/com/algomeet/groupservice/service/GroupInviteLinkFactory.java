@@ -1,5 +1,7 @@
 package com.algomeet.groupservice.service;
 
+import java.util.UUID;
+
 import org.springframework.stereotype.Component;
 import org.springframework.web.util.UriComponentsBuilder;
 
@@ -13,7 +15,7 @@ public class GroupInviteLinkFactory {
 
     private final GroupInviteLinkProps props;
 
-    public String build(Long groupId, String inviteCode) {
+    public String build(UUID groupId, String inviteCode) {
         return UriComponentsBuilder
                 .fromUriString(props.getInviteBaseUrl())
                 .queryParam("groupId", groupId)

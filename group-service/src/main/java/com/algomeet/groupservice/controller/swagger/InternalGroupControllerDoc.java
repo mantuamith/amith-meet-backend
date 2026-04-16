@@ -1,6 +1,7 @@
 package com.algomeet.groupservice.controller.swagger;
 
 import java.util.List;
+import java.util.UUID;
 
 import org.springframework.web.bind.annotation.PathVariable;
 
@@ -28,10 +29,10 @@ public interface InternalGroupControllerDoc {
     public Object getGroup(
             @Parameter(
                 description = "Unique identifier of the group",
-                example = "1",
+                example = "11111111-1111-1111-1111-111111111111",
                 required = true
             )
-            @PathVariable Long groupId);
+            @PathVariable UUID groupId);
 
     @Operation(
         summary = "Get groups by member username",

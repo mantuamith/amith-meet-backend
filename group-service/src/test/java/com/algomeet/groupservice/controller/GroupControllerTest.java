@@ -16,6 +16,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -80,6 +81,7 @@ class GroupControllerTest {
 
 	private static final String USER_KEY = "2fc35cae-e0b7-40a5-b2aa-e86206730e88";
 	private static final String USERNAME = "john";
+	private static final UUID GROUP_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
 
 	@BeforeEach
 	void setup() {
@@ -143,23 +145,23 @@ class GroupControllerTest {
 		request.setRolePermissions(Map.of(GroupRole.ADMIN, adminPatch));
 
 		GroupPermissionsResponse response = new GroupPermissionsResponse();
-		response.setGroupId(1L);
+		response.setGroupId(GROUP_ID);
 		RolePermissionsResponse adminPermissions = new RolePermissionsResponse();
 		adminPermissions.setApproveNewMembers(true);
 		response.setRolePermissions(Map.of(GroupRole.ADMIN, adminPermissions));
 
-		when(groupService.patchGroupPermissions(eq(1L), any(), eq(USER_KEY)))
+		when(groupService.patchGroupPermissions(eq(GROUP_ID), any(), eq(USER_KEY)))
 				.thenReturn(response);
 
-		mockMvc.perform(patch("/api/groups/{id}/permissions", 1L)
+		mockMvc.perform(patch("/api/groups/{id}/permissions", GROUP_ID)
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(objectMapper.writeValueAsString(request)))
 		.andExpect(status().isOk())
 		.andExpect(jsonPath("$.code").value(ResponseCode.SUCCESS.name()))
-		.andExpect(jsonPath("$.data.groupId").value(1L))
+		.andExpect(jsonPath("$.data.groupId").value(GROUP_ID.toString()))
 		.andExpect(jsonPath("$.data.rolePermissions.ADMIN.approveNewMembers").value(true));
 
-		verify(groupService).patchGroupPermissions(eq(1L), any(), eq(USER_KEY));
+		verify(groupService).patchGroupPermissions(eq(GROUP_ID), any(), eq(USER_KEY));
 	}
 
 
@@ -169,19 +171,19 @@ class GroupControllerTest {
 
 	@Test
 	void removeGroup_success() throws Exception {
-		mockMvc.perform(delete("/api/groups/{id}", 1L))
+		mockMvc.perform(delete("/api/groups/{id}", GROUP_ID))
 		.andExpect(status().isOk())
 		.andExpect(jsonPath("$.code").value(ResponseCode.SUCCESS.name()));
 
-		verify(groupService).removeGroup(1L);
+		verify(groupService).removeGroup(GROUP_ID);
 	}
 
 	@Test
 	void removeGroup_notFound() throws Exception {
 		doThrow(new GroupNotFoundException("not found"))
-		.when(groupService).removeGroup(1L);
+		.when(groupService).removeGroup(GROUP_ID);
 
-		mockMvc.perform(delete("/api/groups/{id}", 1L))
+		mockMvc.perform(delete("/api/groups/{id}", GROUP_ID))
 		.andExpect(status().isNotFound())
 		.andExpect(jsonPath("$.code")
 				.value(ResponseCode.GROUP_ID_NOT_FOUND.name()));
@@ -193,10 +195,10 @@ class GroupControllerTest {
 
 	@Test
 	void joinGroup_success() throws Exception {
-		when(groupService.joinGroup(1L, USERNAME, USER_KEY, null))
+		when(groupService.joinGroup(GROUP_ID, USERNAME, USER_KEY, null))
 		.thenReturn(new GroupResponse());
 
-		mockMvc.perform(post("/api/groups/{id}/join", 1L)
+		mockMvc.perform(post("/api/groups/{id}/join", GROUP_ID)
 				.principal(authentication))
 		.andExpect(status().isOk())
 		.andExpect(jsonPath("$.code").value(ResponseCode.SUCCESS.name()));
@@ -207,7 +209,7 @@ class GroupControllerTest {
 		when(groupService.joinGroup(any(), any(), any(), any()))
 		.thenThrow(new IllegalStateException());
 
-		mockMvc.perform(post("/api/groups/{id}/join", 1L)
+		mockMvc.perform(post("/api/groups/{id}/join", GROUP_ID)
 				.principal(authentication))
 		.andExpect(status().isConflict())
 		.andExpect(jsonPath("$.code")
@@ -216,10 +218,10 @@ class GroupControllerTest {
 
 	@Test
 	void joinGroupByInvite_success() throws Exception {
-		when(groupService.joinGroupByInviteCode(1L, "abc123", USERNAME, USER_KEY, null))
+		when(groupService.joinGroupByInviteCode(GROUP_ID, "abc123", USERNAME, USER_KEY, null))
 		.thenReturn(new GroupResponse());
 
-		mockMvc.perform(post("/api/groups/{id}/join-by-invite", 1L)
+		mockMvc.perform(post("/api/groups/{id}/join-by-invite", GROUP_ID)
 				.param("inviteCode", "abc123")
 				.principal(authentication))
 		.andExpect(status().isOk())
@@ -228,10 +230,10 @@ class GroupControllerTest {
 
 	@Test
 	void joinGroupByInvite_invalidCode() throws Exception {
-		when(groupService.joinGroupByInviteCode(1L, "bad-code", USERNAME, USER_KEY, null))
+		when(groupService.joinGroupByInviteCode(GROUP_ID, "bad-code", USERNAME, USER_KEY, null))
 		.thenThrow(new IllegalArgumentException());
 
-		mockMvc.perform(post("/api/groups/{id}/join-by-invite", 1L)
+		mockMvc.perform(post("/api/groups/{id}/join-by-invite", GROUP_ID)
 				.param("inviteCode", "bad-code")
 				.principal(authentication))
 		.andExpect(status().isBadRequest())
@@ -261,18 +263,18 @@ class GroupControllerTest {
 	    request.setMembers(members);
 
 	    // Mock service behavior
-	    when(groupService.addGroupMembers(eq(1L), any(), any()))
+	    when(groupService.addGroupMembers(eq(GROUP_ID), any(), any()))
 	        .thenReturn(new GroupResponse());
 
 	    // Perform the POST request
-	    mockMvc.perform(post("/api/groups/{id}/add", 1L)
+	    mockMvc.perform(post("/api/groups/{id}/add", GROUP_ID)
 	            .contentType(MediaType.APPLICATION_JSON)
 	            .content(objectMapper.writeValueAsString(request)))
 	        .andExpect(status().isOk())
 	        .andExpect(jsonPath("$.code").value(ResponseCode.SUCCESS.name()));
 
 	    // Verify service call
-	    verify(groupService).addGroupMembers(eq(1L), any(), any());
+	    verify(groupService).addGroupMembers(eq(GROUP_ID), any(), any());
 	}
 
 
@@ -282,12 +284,12 @@ class GroupControllerTest {
 
 	@Test
 	void leaveGroup_success() throws Exception {
-		mockMvc.perform(delete("/api/groups/{id}/leave", 1L)
+		mockMvc.perform(delete("/api/groups/{id}/leave", GROUP_ID)
 				.principal(authentication))
 		.andExpect(status().isOk())
 		.andExpect(jsonPath("$.code").value(ResponseCode.SUCCESS.name()));
 
-		verify(groupService).leaveGroup(1L, USER_KEY);
+		verify(groupService).leaveGroup(GROUP_ID, USER_KEY);
 	}
 
 	@Test
@@ -295,7 +297,7 @@ class GroupControllerTest {
 		doThrow(new IllegalStateException())
 		.when(groupService).leaveGroup(any(), any());
 
-		mockMvc.perform(delete("/api/groups/{id}/leave", 1L)
+		mockMvc.perform(delete("/api/groups/{id}/leave", GROUP_ID)
 				.principal(authentication))
 		.andExpect(status().isConflict())
 		.andExpect(jsonPath("$.code")
@@ -308,12 +310,12 @@ class GroupControllerTest {
 
 	@Test
 	void removeGroupMember_success() throws Exception {
-		mockMvc.perform(delete("/api/groups/{id}/remove", 1L)
+		mockMvc.perform(delete("/api/groups/{id}/remove", GROUP_ID)
 				.param("userKey", "u2"))
 		.andExpect(status().isOk())
 		.andExpect(jsonPath("$.code").value(ResponseCode.SUCCESS.name()));
 
-		verify(groupService).removeGroupMember(1L, "u2");
+		verify(groupService).removeGroupMember(GROUP_ID, "u2");
 	}
 
 	/*
@@ -333,46 +335,46 @@ class GroupControllerTest {
 
 	@Test
 	void getInviteLink_success() throws Exception {
-		when(groupService.getOrCreateInviteLink(1L, USER_KEY))
-		.thenReturn(new GroupInviteLinkResponse("https://yourapp.com/invite?groupId=1&inviteCode=abc"));
+		when(groupService.getOrCreateInviteLink(GROUP_ID, USER_KEY))
+		.thenReturn(new GroupInviteLinkResponse("https://yourapp.com/invite?groupId=11111111-1111-1111-1111-111111111111&inviteCode=abc"));
 
-		mockMvc.perform(get("/api/groups/{id}/invite-link", 1L))
+		mockMvc.perform(get("/api/groups/{id}/invite-link", GROUP_ID))
 		.andExpect(status().isOk())
 		.andExpect(jsonPath("$.code").value(ResponseCode.SUCCESS.name()))
-		.andExpect(jsonPath("$.data.inviteLink").value("https://yourapp.com/invite?groupId=1&inviteCode=abc"));
+		.andExpect(jsonPath("$.data.inviteLink").value("https://yourapp.com/invite?groupId=11111111-1111-1111-1111-111111111111&inviteCode=abc"));
 
-		verify(groupService).getOrCreateInviteLink(1L, USER_KEY);
+		verify(groupService).getOrCreateInviteLink(GROUP_ID, USER_KEY);
 	}
 
 	@Test
 	void getInviteLink_notFound() throws Exception {
-		when(groupService.getOrCreateInviteLink(1L, USER_KEY))
+		when(groupService.getOrCreateInviteLink(GROUP_ID, USER_KEY))
 		.thenThrow(new GroupNotFoundException("not found"));
 
-		mockMvc.perform(get("/api/groups/{id}/invite-link", 1L))
+		mockMvc.perform(get("/api/groups/{id}/invite-link", GROUP_ID))
 		.andExpect(status().isNotFound())
 		.andExpect(jsonPath("$.code").value(ResponseCode.GROUP_ID_NOT_FOUND.name()));
 	}
 
 	@Test
 	void resetInviteLink_success() throws Exception {
-		when(groupService.resetInviteLink(1L, USER_KEY))
-		.thenReturn(new GroupInviteLinkResponse("https://yourapp.com/invite?groupId=1&inviteCode=def"));
+		when(groupService.resetInviteLink(GROUP_ID, USER_KEY))
+		.thenReturn(new GroupInviteLinkResponse("https://yourapp.com/invite?groupId=11111111-1111-1111-1111-111111111111&inviteCode=def"));
 
-		mockMvc.perform(post("/api/groups/{id}/invite-link/reset", 1L))
+		mockMvc.perform(post("/api/groups/{id}/invite-link/reset", GROUP_ID))
 		.andExpect(status().isOk())
 		.andExpect(jsonPath("$.code").value(ResponseCode.SUCCESS.name()))
-		.andExpect(jsonPath("$.data.inviteLink").value("https://yourapp.com/invite?groupId=1&inviteCode=def"));
+		.andExpect(jsonPath("$.data.inviteLink").value("https://yourapp.com/invite?groupId=11111111-1111-1111-1111-111111111111&inviteCode=def"));
 
-		verify(groupService).resetInviteLink(1L, USER_KEY);
+		verify(groupService).resetInviteLink(GROUP_ID, USER_KEY);
 	}
 
 	@Test
 	void resetInviteLink_notFound() throws Exception {
-		when(groupService.resetInviteLink(1L, USER_KEY))
+		when(groupService.resetInviteLink(GROUP_ID, USER_KEY))
 		.thenThrow(new GroupNotFoundException("not found"));
 
-		mockMvc.perform(post("/api/groups/{id}/invite-link/reset", 1L))
+		mockMvc.perform(post("/api/groups/{id}/invite-link/reset", GROUP_ID))
 		.andExpect(status().isNotFound())
 		.andExpect(jsonPath("$.code").value(ResponseCode.GROUP_ID_NOT_FOUND.name()));
 	}
