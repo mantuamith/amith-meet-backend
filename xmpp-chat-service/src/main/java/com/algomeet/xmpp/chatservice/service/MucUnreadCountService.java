@@ -34,7 +34,7 @@ public class MucUnreadCountService {
 	 * Uses upsert to ensure the document exists.
 	 */
 	public Mono<Void> incrementUnreadCount(String userKey, String roomId) {
-		String id = String.format("%s_%d", userKey, roomId);
+		String id = String.format("%s_%s", userKey, roomId);
 
 		Query query = new Query(Criteria.where("_id").is(id));
 		Update update = new Update()
