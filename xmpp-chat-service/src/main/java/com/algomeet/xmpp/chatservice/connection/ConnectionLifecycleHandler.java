@@ -9,6 +9,7 @@ import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.connection.registry.LocalChannelRegistry;
 import com.algomeet.xmpp.chatservice.enums.UserState;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
+import com.algomeet.xmpp.chatservice.routing.state.XmppBroadcastUserPresenceHandler;
 import com.algomeet.xmpp.chatservice.service.CallTrackerService;
 import com.algomeet.xmpp.chatservice.session.UserSessionRegistry;
 import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
@@ -38,6 +39,7 @@ public class ConnectionLifecycleHandler {
     private final LocalChannelRegistry localChannelRegistry;
     private final CallTrackerService callTrackerService;
     private final DomainProperties domainProperties;
+	private final XmppBroadcastUserPresenceHandler xmppBroadcastUserPresenceHandler;
 
     /**
      * <p>Finalizes the session establishment process after a successful WebSocket handshake 
@@ -62,7 +64,7 @@ public class ConnectionLifecycleHandler {
             // These counters are attached to the channel attribute for thread-safe access     
             ctx.channel().attr(XmppSessionAttributes.SM_INBOUND_H_KEY).set(new AtomicLong(0));            
             // Initialize Initial Presence flag to false
-            ctx.channel().attr(XmppSessionAttributes.INITIAL_PRESENCE_SENT).set(false);
+            ctx.channel().attr(XmppSessionAttributes.IS_INITIAL_PRESENCE_SENT).set(false);
 
             // 2. Register in Local Channel Registry (Stateful registration)
             localChannelRegistry.register(userKey, ctx.channel());
@@ -99,6 +101,9 @@ public class ConnectionLifecycleHandler {
 
             // Process dropped calls (Reactive reconciliation)
             callTrackerService.reconcileDroppedCall(sessionId);
+            
+            // Broadcast user presence GONE
+            xmppBroadcastUserPresenceHandler.broadUserPresenceAsync(ctx, principal, UserState.GONE);
 
             log.info("Cleanup completed for session {}", sessionId);
         }

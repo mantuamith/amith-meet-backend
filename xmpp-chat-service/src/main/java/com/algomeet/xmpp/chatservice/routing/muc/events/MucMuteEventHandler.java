@@ -43,7 +43,8 @@ public class MucMuteEventHandler {
 	 * @param group     The MUC room data object.
 	 * @param sender    The MUC profile of the moderator.
 	 */
-	public void handleMuteRequest(ChannelHandlerContext ctx, String roomJid, String senderJid, String xml, MucRoomDto group, MucMember sender) {
+	public void handleMuteRequest(ChannelHandlerContext ctx, String roomJid, String xml, MucRoomDto group, MucMember sender) {
+		String senderJid = jidUtil.getBareJid(sender.getUserKey());
 		// 1. Parse request attributes
 		String id = XmppStanzaUtil.getAttribute(xml, "id");
 		String victimJid = XmppStanzaUtil.getAttribute(xml, "item", "jid");

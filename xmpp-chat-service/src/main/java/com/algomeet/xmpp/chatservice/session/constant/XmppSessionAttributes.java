@@ -63,7 +63,7 @@ public class XmppSessionAttributes {
      * <p>Used to prevent duplicate presence broadcasts and to trigger MAM (Message 
      * Archive Management) catch-up logic upon first connection.</p>
      */
-    public static final AttributeKey<Boolean> INITIAL_PRESENCE_SENT = AttributeKey.valueOf("initial_presence_sent");
+    public static final AttributeKey<Boolean> IS_INITIAL_PRESENCE_SENT = AttributeKey.valueOf("initial_presence_sent");
     
     /**
      * Flag indicating if the current session is resumable (XEP-0198).

@@ -58,12 +58,12 @@ public class MucUserCommandRouter {
     	
     	
     	if (PresenceMetaAction.INVITE_ACCEPT == PresenceMetaAction.fromString(action)) {
-    		mucAcceptInviteEventHandler.handleAcceptedInvite(ctx,  roomJid, senderJid,  xml, group, senderMucMember.get());
+    		mucAcceptInviteEventHandler.handleAcceptedInvite(ctx,  roomJid, xml, group, senderMucMember.get());
     	} else if (isPublishPresenceRequest(xml)) {
-    		mucMemberPresenceEventHandler.handleMemberPresence(ctx,  roomJid, senderJid,  xml, group, senderMucMember.get());
+    		mucMemberPresenceEventHandler.handleMemberPresence(ctx,  roomJid, xml, group, senderMucMember.get());
     	}  	
     	else {
-    		mucChangeNickNameEventHandler.handleChangeNicknameRequest(ctx, roomJid, senderJid, xml, group, senderMucMember.get());
+    		mucChangeNickNameEventHandler.handleChangeNicknameRequest(ctx, roomJid, xml, group, senderMucMember.get());
     	}
     }
     

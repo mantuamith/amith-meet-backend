@@ -13,6 +13,7 @@ import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.routing.muc.MucMessageRouter;
 import com.algomeet.xmpp.chatservice.service.XmppArchiveService;
+import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.algomeet.xmpp.chatservice.util.MucRoleUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
 import com.github.f4b6a3.ulid.UlidCreator;
@@ -38,13 +39,15 @@ public class MucAcceptInviteEventHandler {
     private final DomainProperties domainProperties;
     private final MucMessageRouter xmppBroadCastHandler;
     private final MucMessageRouter mucMessageRouter;
+    private final JidUtil jidUtil;
 
     /**
      * Entry point for handling an invitation acceptance. 
      * Orchestrates presence synchronization and system notification.
      */
-    public void handleAcceptedInvite(ChannelHandlerContext ctx, String roomJid, String senderJid, String xml, MucRoomDto group, MucMember sender) { 
+    public void handleAcceptedInvite(ChannelHandlerContext ctx, String roomJid, String xml, MucRoomDto group, MucMember sender) { 
         String roomBareJid = XmppUtil.getRoomBareJid(roomJid);
+        String senderJid = jidUtil.getBareJid(sender.getUserKey());
         
         // 1. Send Self-Presence acknowledgment to the joining member.
         // The Status 110 code is mandatory for the client to confirm its own session join.
