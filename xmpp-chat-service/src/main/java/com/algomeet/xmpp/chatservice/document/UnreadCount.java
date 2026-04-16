@@ -16,9 +16,13 @@ public class UnreadCount {
 	@Field("user_key")
 	private String userKey; // The person who OWNS this unread count
 
+	@Indexed
 	@Field("sender_key")
 	private String senderKey; // The person who SEND this unread count
 
 	@Field("unread_count")
 	private int unreadCount = 0;
+		
+	@Field("updated_at")
+	private Long updatedAt;	
 }

@@ -12,6 +12,7 @@ import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.enums.UserState;
 import com.algomeet.xmpp.chatservice.parser.StateStanzaParser;
 import com.algomeet.xmpp.chatservice.routing.muc.MucMessageRouter;
+import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.algomeet.xmpp.chatservice.util.MucRoleUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
@@ -32,21 +33,23 @@ public class MucMemberOrdinaryPresenceEventHandler {
 
     private final ClusterMessagePublisher clusterMessagePublisher;
     private final MucMessageRouter mucMessageRouter;
+    private final JidUtil jidUtil;
 
     /**
      * Handles the successful entry of a member into a room by broadcasting presence.
      * * @param ctx       The Netty channel context for the current session.
      * @param roomJid   The full JID of the room.
-     * @param senderJid The real JID of the user who is sending the presence.
      * @param xml       The original incoming XML presence stanza.
      * @param group     The Data Transfer Object representing the current room state.
      * @param sender    The MUC member profile of the person joining.
      */
-    public void handleMemberPresence(ChannelHandlerContext ctx, String roomJid, String senderJid, String xml, MucRoomDto group, MucMember sender) { 
-    	handleMemberPresence(ctx, roomJid, senderJid, xml, group, sender, null);
+    public void handleMemberPresence(ChannelHandlerContext ctx, String roomJid, String xml, MucRoomDto group, MucMember sender) { 
+    	handleMemberPresence(ctx, roomJid, xml, group, sender, null);
     }
     
-    public void handleMemberPresence(ChannelHandlerContext ctx, String roomJid, String senderJid, String xml, MucRoomDto group, MucMember sender, UserState newState) { 
+    public void handleMemberPresence(ChannelHandlerContext ctx, String roomJid, String xml, MucRoomDto group, MucMember sender, UserState newState) { 
+    	 String senderJid = jidUtil.getBareJid(sender.getUserKey());
+    	 
     	if (newState == null) {
     		newState = determineState(xml);
     	}

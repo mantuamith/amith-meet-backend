@@ -39,12 +39,13 @@ public class MucUnMuteEventHandler {
 	 * Processes a request to restore an occupant's voice (unmute).
 	 * * @param ctx       The Netty channel context for the admin session.
 	 * @param roomJid   The JID of the room (room@conference.domain).
-	 * @param senderJid The JID of the moderator/admin performing the unmute.
 	 * @param xml       The original IQ request XML containing the target JID/nick.
 	 * @param group     The current MUC room state (DTO).
 	 * @param sender    The MUC profile of the moderator.
 	 */
-	public void handleUnMuteRequest(ChannelHandlerContext ctx, String roomJid, String senderJid, String xml, MucRoomDto group, MucMember sender) {
+	public void handleUnMuteRequest(ChannelHandlerContext ctx, String roomJid, String xml, MucRoomDto group, MucMember sender) {
+		String senderJid = jidUtil.getBareJid(sender.getUserKey());
+		
 		// 1. Extract request details
 		String id = XmppStanzaUtil.getAttribute(xml, "id");
 		String victimJid = XmppStanzaUtil.getAttribute(xml, "item", "jid");

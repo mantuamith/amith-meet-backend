@@ -41,10 +41,11 @@ public class MucKickEventHandler {
 	 * @param group     The room DTO.
 	 * @param sender    The moderator's profile.
 	 */
-	public void handleKickRequest(ChannelHandlerContext ctx, String roomJid, String senderJid, String xml, MucRoomDto group, MucMember sender) {
+	public void handleKickRequest(ChannelHandlerContext ctx, String roomJid, String xml, MucRoomDto group, MucMember sender) {
 		String id = XmppStanzaUtil.getAttribute(xml, "id");
 		String victimJid = XmppStanzaUtil.getAttribute(xml, "item", "jid");
 		String reason = extractReason(xml);
+		String senderJid = jidUtil.getBareJid(sender.getUserKey());
 
 		log.info("Admin {} attempting to kick {} from {}", senderJid, victimJid, roomJid);
 

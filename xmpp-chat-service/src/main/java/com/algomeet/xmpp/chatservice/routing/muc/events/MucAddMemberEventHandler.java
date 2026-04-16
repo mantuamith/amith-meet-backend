@@ -18,6 +18,7 @@ import com.algomeet.xmpp.chatservice.routing.muc.MucMessageRouter;
 import com.algomeet.xmpp.chatservice.service.XmppArchiveService;
 import com.algomeet.xmpp.chatservice.session.UserSessionRegistry;
 import com.algomeet.xmpp.chatservice.session.model.UserSession;
+import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.algomeet.xmpp.chatservice.util.MucRoleUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
@@ -42,22 +43,23 @@ public class MucAddMemberEventHandler {
 	private final MucMessageRouter xmppBroadCastHandler;
 	private final XmppArchiveService xmppArchiveService;
 	private final MucMessageRouter mucMessageRouter;
+    private final JidUtil jidUtil;
 	
 	/**
 	 * Processes a request to update a user's affiliation within the room.
 	 * * @param ctx       Netty context for the moderator's connection.
 	 * @param roomJid   The JID of the room where the action is occurring.
-	 * @param senderJid The JID of the administrator/moderator performing the action.
 	 * @param xml       The original IQ request XML.
 	 * @param group     The current state of the room (DTO).
 	 * @param sender    The MUC member profile of the administrator.
 	 */
-	public void handleAddMember(ChannelHandlerContext ctx, String roomJid, String senderJid, String xml, MucRoomDto group, MucMember sender) {
+	public void handleAddMember(ChannelHandlerContext ctx, String roomJid, String xml, MucRoomDto group, MucMember sender) {
 		// 1. Extract attributes from the incoming IQ stanza
 		String id = XmppStanzaUtil.getAttribute(xml, "id");
 		String newMemberJid = XmppStanzaUtil.getAttribute(xml, "item", "jid");
 		String affiliation = XmppStanzaUtil.getAttribute(xml, "item", "affiliation");
 		String reason = extractReason(xml);
+		String senderJid = jidUtil.getBareJid(sender.getUserKey());
 
 		log.info("Admin {} adding {} to {} with affiliation {}", senderJid, newMemberJid, roomJid, affiliation);
 		String mucAffiliation = MucAffiliation.fromString(affiliation).getValue();

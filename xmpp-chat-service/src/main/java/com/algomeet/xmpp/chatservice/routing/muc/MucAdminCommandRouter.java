@@ -52,18 +52,18 @@ public class MucAdminCommandRouter {
 	 * @param group     The data transfer object representing the current room state.
 	 * @param sender    The {@link MucMember} profile of the initiator for permission validation.
 	 */
-	public void handleCommandStanza(ChannelHandlerContext ctx, String roomJid, String senderJid, String xml, MucMember sender) {
+	public void handleCommandStanza(ChannelHandlerContext ctx, String roomJid, String xml, MucMember sender) {
 		// Force refresh group cache
 		MucRoomDto group = groupCacheService.getCachedGroup(XmppUtil.getRoomId(roomJid), true);
 				
 		if (MucCommandUtil.isKickPayload(xml)) {
-			mucKickEventHandler.handleKickRequest(ctx, roomJid, senderJid, xml, group, sender);
+			mucKickEventHandler.handleKickRequest(ctx, roomJid, xml, group, sender);
 		} else if (MucCommandUtil.isMutePayload(xml)) {
-			mucMuteEventHandler.handleMuteRequest(ctx, roomJid, senderJid, xml, group, sender);
+			mucMuteEventHandler.handleMuteRequest(ctx, roomJid, xml, group, sender);
 		} else if (MucCommandUtil.isUnMutePayload(xml)) {
-			mucUnMuteEventHandler.handleUnMuteRequest(ctx, roomJid, senderJid, xml, group, sender);
+			mucUnMuteEventHandler.handleUnMuteRequest(ctx, roomJid, xml, group, sender);
 		} else if (MucCommandUtil.isAddMemberStanza(xml)) {
-			mucAddMemberEventHandler.handleAddMember(ctx, roomJid, senderJid, xml, group, sender);
+			mucAddMemberEventHandler.handleAddMember(ctx, roomJid, xml, group, sender);
 		}
 	}	
 }

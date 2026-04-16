@@ -98,7 +98,7 @@ public class XmppMucHandler {
 
 		if (isModerationCommand(type, xmlHeader)) {
 			// MUC Admin actions (kick, ban, mute)
-			mucAdminCommandRouter.handleCommandStanza(ctx, toRoomJid, principal.getBareJid(), originalXml, senderMucMember.get());
+			mucAdminCommandRouter.handleCommandStanza(ctx, toRoomJid, originalXml, senderMucMember.get());
 		} else if(isUserCommandStanza(originalXml, toRoomJid)) {
 			// MUC User actions (nickname changes, room entry)
 			mucUserCommandRouter.handleCommandStanza(ctx, toRoomJid, principal.getBareJid(), originalXml, principal);		

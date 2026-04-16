@@ -9,6 +9,7 @@ import com.algomeet.xmpp.chatservice.dto.MucMember;
 import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
 import com.algomeet.xmpp.chatservice.enums.MucAffiliation;
 import com.algomeet.xmpp.chatservice.routing.muc.MucMessageRouter;
+import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.algomeet.xmpp.chatservice.util.MucRoleUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
 
@@ -21,6 +22,7 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class MucChangeNickNameEventHandler {
     private final MucMessageRouter mucMessageRouter;
+    private final JidUtil jidUtil;
 
 	 /**
      * Processes a nickname change request (XEP-0045).
@@ -34,12 +36,11 @@ public class MucChangeNickNameEventHandler {
      * </p>
      * * @param ctx       The Netty channel context.
      * @param roomJid   Requested JID (e.g., room@conference.domain/NewNick).
-     * @param senderJid Initiator's real JID.
      * @param xml       The presence stanza.
      * @param group     Current room state and member list.
      * @param sender    Sender's current member metadata.
      */
-    public void handleChangeNicknameRequest(ChannelHandlerContext ctx, String roomJid, String senderJid, String xml, MucRoomDto group, MucMember sender) {
+    public void handleChangeNicknameRequest(ChannelHandlerContext ctx, String roomJid, String xml, MucRoomDto group, MucMember sender) {
         // 1. Extract metadata (nickname)
         String[] jidArr = roomJid.split("/");
         String newNickname = null;
@@ -48,6 +49,7 @@ public class MucChangeNickNameEventHandler {
         }
 
         String mucAffiliation = MucAffiliation.fromString(sender.getRole()).getValue();
+        String senderJid = jidUtil.getBareJid(sender.getUserKey());
         
         String roomBareJid = XmppUtil.getRoomBareJid(roomJid);
         log.info("User {} attempting to change nickname {} from room {}", senderJid, newNickname, roomJid);

@@ -1,12 +1,16 @@
 package com.algomeet.xmpp.chatservice.session;
 
 import java.time.Instant;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.HashOperations;
+import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Repository;
 import org.springframework.util.CollectionUtils;
@@ -115,7 +119,7 @@ public class UserSessionRegistry {
      * Updates the availability status and timestamp of a specific session.
      * 
      * <p>This is typically triggered by XMPP Presence or Chat State stanzas 
-     * processed by the {@code XmppUserStateHandler}.</p>
+     * processed by the {@code XmppUserGlobalPresenceHandler}.</p>
      * 
      * @param userKey    The user's unique key.
      * @param sessionId The specific Netty channel ID.
@@ -202,5 +206,63 @@ public class UserSessionRegistry {
     public void deleteAllSessions(String userKey) {
         redisTemplate.delete(userKey(userKey));
         log.info("Force-deleted all sessions for user: {}", userKey);
+    }
+    
+    /**
+     * Retrieves sessions for multiple users in a single Redis round-trip using Pipelining.
+     * This is critical for performance when fetching presence for a user's contact list.
+     * * @param userKeys List of unique user identifiers.
+     * @return A Map where Key is the userKey and Value is the Set of their active UserSessions.
+     */
+    public Map<String, Set<UserSession>> getAllSessions(List<String> userKeys) {
+        if (CollectionUtils.isEmpty(userKeys)) {
+            return Collections.emptyMap();
+        }
+
+        try {
+            // executePipelined will use the Template's StringSerializers automatically
+            List<Object> pipelinedResults = redisTemplate.executePipelined((RedisCallback<Object>) connection -> {
+                for (String userKey : userKeys) {
+                    // Use the template's serializer to stay consistent with how data was saved
+                    byte[] keyBytes = redisTemplate.getStringSerializer().serialize(userKey(userKey));
+                    connection.hGetAll(keyBytes);
+                }
+                return null;
+            });
+
+            Map<String, Set<UserSession>> resultMap = new HashMap<>();
+
+            for (int i = 0; i < userKeys.size(); i++) {
+                String currentUserKey = userKeys.get(i);
+                Object result = pipelinedResults.get(i);
+
+                // FIX: Spring has already deserialized the bytes into Strings 
+                // because your template is RedisTemplate<String, String>
+                if (result instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Map<Object, Object> hashEntries = (Map<Object, Object>) result;
+                    Set<UserSession> sessions = new HashSet<>();
+
+                    for (Object value : hashEntries.values()) {
+                        if (value instanceof String json) {
+                            try {
+                                sessions.add(objectMapper.readValue(json, UserSession.class));
+                            } catch (JsonProcessingException e) {
+                                log.error("Failed to deserialize session JSON for user {}", currentUserKey, e);
+                            }
+                        }
+                    }
+                    resultMap.put(currentUserKey, sessions);
+                } else {
+                    resultMap.put(currentUserKey, new HashSet<>());
+                }
+            }
+
+            return resultMap;
+
+        } catch (Exception e) {
+            log.error("Failed to execute pipelined session retrieval for {} keys", userKeys.size(), e);
+            return Collections.emptyMap();
+        }
     }
 }

@@ -18,7 +18,7 @@ import com.algomeet.xmpp.chatservice.routing.discovery.XmppDiscoveryHandler;
 import com.algomeet.xmpp.chatservice.routing.muc.XmppMamHandler;
 import com.algomeet.xmpp.chatservice.routing.muc.XmppMucHandler;
 import com.algomeet.xmpp.chatservice.routing.sm.XmppStreamManagementStanzaHandler;
-import com.algomeet.xmpp.chatservice.routing.state.XmppUserStateHandler;
+import com.algomeet.xmpp.chatservice.routing.state.XmppUserGlobalPresenceHandler;
 import com.algomeet.xmpp.chatservice.service.OfflineMessageService;
 import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
@@ -60,7 +60,7 @@ import lombok.extern.slf4j.Slf4j;
 public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocketFrame> {
 
 	private final XmppDiscoveryHandler xmppDiscoveryHandler;
-	private final XmppUserStateHandler xmppUserStateHandler;
+	private final XmppUserGlobalPresenceHandler xmppUserStateHandler;
 	private final XmppStreamManagementStanzaHandler xmppStreamManagementHandler;
 	private final XmppChatHandler xmppDirectChatHandler;
 	private final XmppMucHandler xmppMucHandler;

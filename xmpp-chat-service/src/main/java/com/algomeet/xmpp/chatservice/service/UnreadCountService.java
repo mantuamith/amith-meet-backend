@@ -1,5 +1,9 @@
 package com.algomeet.xmpp.chatservice.service;
 
+import java.time.Instant;
+import java.util.List;
+import java.util.Map;
+
 import org.springframework.data.mongodb.core.ReactiveMongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -17,6 +21,9 @@ import com.algomeet.xmpp.chatservice.util.MucCountUtil;
 import lombok.AllArgsConstructor;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.mongodb.core.aggregation.Aggregation;
+import org.springframework.data.mongodb.core.aggregation.AggregationResults;
 
 @Service
 @AllArgsConstructor
@@ -37,7 +44,8 @@ public class UnreadCountService {
         Update update = new Update()
                 .inc("unread_count", 1)
                 .set("user_key", recipientKey)
-                .set("sender_key", senderKey);
+                .set("sender_key", senderKey)
+                .set("updated_at", Instant.now().toEpochMilli());
 
         // upsert returns the updated document
         return reactiveMongoTemplate.upsert(query, update, UnreadCount.class)
@@ -130,4 +138,37 @@ public class UnreadCountService {
                 .map(UnreadCount::getUnreadCount)
                 .defaultIfEmpty(0);
     }    
+    
+    /**
+     * Retrieves a paginated list of distinct database row IDs for interactions involving the target user.
+     * * @param targetUserKey The user key to filter by.
+     * @param page          The page number (starting from 0).
+     * @param size          The number of records per page.
+     * @return A Flux of document _ids, sorted by most recent activity, limited by the page size.
+     */
+    public Flux<String> getRecentContactKeysReactive(String targetUserKey, int page, int size) {
+        long skipValues = (long) page * size;
+
+        Aggregation aggregation = Aggregation.newAggregation(
+            // 1. USE SNAKE_CASE: Match the actual column names in MongoDB
+            Aggregation.match(new Criteria().orOperator(
+                Criteria.where("user_key").is(targetUserKey),
+                Criteria.where("sender_key").is(targetUserKey)
+            )),
+            
+            // 2. Group by _id (which is a string in your DB)
+            // Note: use "updated_at" here as well
+            Aggregation.group("_id")
+                .max("updated_at").as("lastInteraction"),
+
+            // 3. Sort by the alias we created in the Group stage
+            Aggregation.sort(Sort.Direction.DESC, "lastInteraction"),
+
+            Aggregation.skip(skipValues),
+            Aggregation.limit(size)
+        );
+
+        return reactiveMongoTemplate.aggregate(aggregation, "unread_counts", Map.class)
+                .map(m -> m.get("_id").toString()); 
+    }
 }
