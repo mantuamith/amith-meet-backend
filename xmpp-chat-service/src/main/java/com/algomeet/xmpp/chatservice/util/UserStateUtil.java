@@ -5,7 +5,7 @@ import java.util.Set;
 import com.algomeet.xmpp.chatservice.enums.UserState;
 import com.algomeet.xmpp.chatservice.session.model.UserSession;
 
-public class MucStateUtil {
+public class UserStateUtil {
 	/**
 	 * Arbitrates the "Global State" for a user with multiple active sessions.
 	 * Priority: DND > ACTIVE > AWAY > INACTIVE > GONE.
@@ -19,5 +19,4 @@ public class MucStateUtil {
 		if (sessions.stream().anyMatch(s -> s.getState() == UserState.INACTIVE)) return UserState.INACTIVE;
 		return UserState.GONE;
 	}
-
 }

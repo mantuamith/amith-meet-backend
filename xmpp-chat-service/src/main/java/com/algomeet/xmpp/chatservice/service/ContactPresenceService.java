@@ -20,6 +20,7 @@ import com.algomeet.xmpp.chatservice.session.UserSessionRegistry;
 import com.algomeet.xmpp.chatservice.session.model.UserSession;
 import com.algomeet.xmpp.chatservice.stanza.presence.DirectedPresenceBuilder;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
+import com.algomeet.xmpp.chatservice.util.UserStateUtil;
 
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
@@ -28,121 +29,117 @@ import lombok.extern.slf4j.Slf4j;
 
 /**
  * Service responsible for synchronizing and distributing contact presence information.
- * * <p>This service handles two main flows:</p>
+ * <p>This service manages the lifecycle of distributed user states stored in Redis, 
+ * ensuring that "zombie" or orphan session data is arbitrated correctly during presence pushes.</p>
+ * * <p>Two main distribution flows are handled:</p>
  * <ul>
- * <li><b>Inbound Synchronization:</b> Fetching the current status of all friends when a user logs in.</li>
- * <li><b>Outbound Broadcast:</b> Pushing a user's own status changes to their contact list across the cluster.</li>
+ * <li><b>Inbound Synchronization:</b> Initial fetch of friends' status from Redis upon login, 
+ * resolving conflicts if multiple session records exist for a single contact.</li>
+ * <li><b>Outbound Broadcast:</b> Real-time distribution of a user's presence (Active, Inactive, etc.) 
+ * to their roster across the cluster nodes.</li>
  * </ul>
- * * <p>To maintain high performance in Netty, heavy I/O operations (Redis batching and REST calls) 
- * are offloaded to a dedicated thread pool.</p>
  * * @author Algomeet Core Team
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class ContactPresenceService {
-    private final UserSessionRegistry userSessionRegistry;
-    private final ContactClient contactClient;
-    private final DomainProperties domainProperties;
-    private final JidUtil jidUtil;
-    private final ClusterMessagePublisher clusterMessagePublisher;
+	private final UserSessionRegistry userSessionRegistry;
+	private final ContactClient contactClient;
+	private final DomainProperties domainProperties;
+	private final JidUtil jidUtil;
+	private final ClusterMessagePublisher clusterMessagePublisher;
 
-    /**
-     * Internal logic for fetching and writing contact statuses.
-     * Uses Redis pipelining via the registry to avoid N+1 query performance degradation.
-     */
-    public void pushContactsPresenceToUser(ChannelHandlerContext ctx, XmppPrincipal principal) {
-        try {
-        	// Set tenant Id to support multi-tenancy 
-    		TenantContext.setCurrentTenant(principal.getTenantId());
-    		
-            // 1. Retrieve the list of accepted contacts from the Relationship Service
-            List<UUID> acceptedContacts = contactClient.getAcceptedContacts(UUID.fromString(principal.getUserKey()));
-            if (CollectionUtils.isEmpty(acceptedContacts)) return;
+	/**
+	 * Synchronizes and pushes current contact statuses to a newly connected user.
+	 * <p>
+	 * This method utilizes Redis batching to retrieve the current state of all accepted contacts. 
+	 * It acts as a primary filter for "zombie" data by using {@link #determineOverallState} 
+	 * to arbitrate between multiple session records (e.g., if an orphan session wasn't properly evicted).
+	 * </p>
+	 * * @param ctx       The Netty ChannelHandlerContext for direct WebSocket writes.
+	 * @param principal The principal of the user receiving the presence update.
+	 */
+	public void pushContactsPresenceToUser(ChannelHandlerContext ctx, XmppPrincipal principal) {
+		try {
+			// Set tenant Id for multi-tenant data isolation
+			TenantContext.setCurrentTenant(principal.getTenantId());
 
-            List<String> contactKeys = acceptedContacts.stream()
-                    .map(UUID::toString)
-                    .toList();
+			// 1. Retrieve the roster from the external Relationship Service
+			List<UUID> acceptedContacts = contactClient.getAcceptedContacts(UUID.fromString(principal.getUserKey()));
+			if (CollectionUtils.isEmpty(acceptedContacts)) return;
 
-            // 2. Batch fetch all session data for these contacts in one Redis round-trip
-            Map<String, Set<UserSession>> allSessionsMap = userSessionRegistry.getAllSessions(contactKeys);
+			List<String> contactKeys = acceptedContacts.stream()
+					.map(UUID::toString)
+					.toList();
 
-            // 3. Iterate through contacts to build and send individual presence stanzas
-            for (UUID contactUserKey : acceptedContacts) {
-                Set<UserSession> sessions = allSessionsMap.getOrDefault(contactUserKey.toString(), Collections.emptySet());
-                
-                UserState newState = UserState.GONE;
-                long updatedAt = 0L;
+			// 2. Batch fetch all Redis session/presence records to minimize round-trips
+			Map<String, Set<UserSession>> allSessionsMap = userSessionRegistry.getAllSessions(contactKeys);
 
-                // Determine the most relevant state if the contact has multiple devices online
-                if (!sessions.isEmpty()) {
-                    newState = determineOverallState(sessions);
-                    // Use the latest activity timestamp for the XEP-0203 delay stamp
-                    updatedAt = sessions.stream()
-                            .mapToLong(UserSession::getUpdatedAt)
-                            .max()
-                            .orElse(0L);
-                }
+			// 3. Construct presence stanzas based on current distributed state
+			for (UUID contactUserKey : acceptedContacts) {
+				Set<UserSession> sessions = allSessionsMap.getOrDefault(contactUserKey.toString(), Collections.emptySet());
 
-                // Construct the XMPP <presence/> element
-                String presenceXml = new DirectedPresenceBuilder()
-                        .from(jidUtil.getBareJid(contactUserKey.toString())) // From the contact
-                        .to(principal.getBareJid())                         // To the logged-in user
-                        .state(newState)
-                        .updatedAt(updatedAt)
-                        .domain(domainProperties.getDomain())
-                        .build();
+				// Default to GONE if no valid sessions or only orphan records exist
+				UserState newState = UserState.GONE;
+				long updatedAt = 0L;
 
-                // Directly write to the Netty channel (thread-safe operation)
-                ctx.writeAndFlush(new TextWebSocketFrame(presenceXml));
-            }
-            log.debug("Completed presence push for {}", principal.getUserKey());
+				if (!sessions.isEmpty()) {
+					// Arbitrate state to ensure zombie records don't override live "Active" sessions
+					newState = UserStateUtil.determineOverallState(sessions);
+					// Use latest activity for XEP-0203 delay stamp synchronization
+					updatedAt = sessions.stream()
+							.mapToLong(UserSession::getUpdatedAt)
+							.max()
+							.orElse(0L);
+				}
 
-        } catch (Exception ex) {
-            log.error("Failed to push presence for user {}: {}", principal.getUserKey(), ex.getMessage());
-        }
-    }
+				// Build directed presence stanza (from contact -> to receiving user)
+				String presenceXml = new DirectedPresenceBuilder()
+						.from(jidUtil.getBareJid(contactUserKey.toString())) 
+						.to(principal.getBareJid())                         
+						.state(newState)
+						.updatedAt(updatedAt)
+						.domain(domainProperties.getDomain())
+						.build();
 
-    /**
-     * Arbitrates the "Global State" for a user with multiple active sessions.
-     * Priority: DND > ACTIVE > INACTIVE > AWAY > GONE.
-     * * @param sessions A set of all concurrent sessions for a single user.
-     * @return The highest priority UserState.
-     */
-    private UserState determineOverallState(Set<UserSession> sessions) {
-        if (sessions.stream().anyMatch(s -> s.getState() == UserState.DND)) return UserState.DND;
-        if (sessions.stream().anyMatch(s -> s.getState() == UserState.ACTIVE)) return UserState.ACTIVE;
-        if (sessions.stream().anyMatch(s -> s.getState() == UserState.AWAY)) return UserState.AWAY;
-        if (sessions.stream().anyMatch(s -> s.getState() == UserState.INACTIVE)) return UserState.INACTIVE;
-        return UserState.GONE;
-    }
-        
-    /**
-     * Broadcasts a user's own status change to their roster across the cluster.
-     * This is the "Outbound" push triggered by a presence update from the client.
-     *
-     * @param ctx       The Netty context.
-     * @param principal The identity of the user changing their status.
-     * @param newState  The new state to be broadcasted (e.g., AWAY, DND).
-     */
-    public void broadcastPresenceToContacts(ChannelHandlerContext ctx, XmppPrincipal principal, UserState newState) {
-    	try {
-    		// Set tenant Id to support multi-tenancy 
-    		TenantContext.setCurrentTenant(principal.getTenantId());
-    		
-            // Fetch contacts who need to receive this update
+				// Direct write to the local Netty pipeline
+				ctx.writeAndFlush(new TextWebSocketFrame(presenceXml));
+			}
+			log.debug("Successfully pushed presence roster for user {}", principal.getUserKey());
+
+		} catch (Exception ex) {
+			log.error("Presence push failed for user {}: {}", principal.getUserKey(), ex.getMessage());
+		}
+	}
+
+	/**
+	 * Distributes a user's presence update to their entire contact list via the cluster.
+	 * <p>
+	 * When a user's state changes (e.g., via manual update or connection cleanup), 
+	 * this method broadcasts the new state to all nodes to ensure cluster-wide visibility.
+	 * </p>
+	 *
+	 * @param ctx       The Netty context.
+	 * @param principal The user initiating the status change.
+	 * @param newState  The new presence state to broadcast.
+	 */
+	public void broadcastPresenceToContacts(ChannelHandlerContext ctx, XmppPrincipal principal, UserState newState) {
+		try {
+			TenantContext.setCurrentTenant(principal.getTenantId());
+
 			List<UUID> acceptedContacts = contactClient.getAcceptedContacts(UUID.fromString(principal.getUserKey()));
 
 			if (!CollectionUtils.isEmpty(acceptedContacts)) {
 				for (UUID contactUserKey : acceptedContacts) {
-					// Build the presence stanza specifically for this recipient
+					// Construct the broadcast presence stanza
 					String directPresence = new DirectedPresenceBuilder()
-						    .from(principal.getBareJid())
-						    .to(jidUtil.getBareJid(contactUserKey.toString()))
-						    .state(newState)
-						    .build();					
+							.from(principal.getBareJid()) // Removed redundant "BROADCAST" string for standard JID compliance
+							.to(jidUtil.getBareJid(contactUserKey.toString()))
+							.state(newState)
+							.build();					
 
-                    // Publish to the cluster so users on other nodes receive the update
+					// Distribute via Cluster Message Publisher to handle users on different server nodes
 					clusterMessagePublisher.convertAndSendToUser(
 							UUID.randomUUID().toString(), 
 							contactUserKey.toString(), 
@@ -154,7 +151,7 @@ public class ContactPresenceService {
 			}
 
 		} catch (Exception ex) {
-			log.error("Error retrieving contacts for presence update using user key: {}", principal.getUserKey(), ex);
+			log.error("Failed to broadcast presence update for user {}: {}", principal.getUserKey(), ex.getMessage());
 		}
-    }
+	}
 }

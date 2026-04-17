@@ -23,8 +23,7 @@ import com.algomeet.xmpp.chatservice.session.UserSessionRegistry;
 import com.algomeet.xmpp.chatservice.session.model.UserSession;
 import com.algomeet.xmpp.chatservice.stanza.presence.MucUserPresenceBuilder;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
-import com.algomeet.xmpp.chatservice.util.MucRoleUtil;
-import com.algomeet.xmpp.chatservice.util.MucStateUtil;
+import com.algomeet.xmpp.chatservice.util.UserStateUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
 import com.github.f4b6a3.ulid.UlidCreator;
@@ -87,9 +86,9 @@ public class MucAddMemberEventHandler {
 		UserState newMemberState = UserState.GONE;
 		long updatedAt = 0L;
 
-		// 4. Multi-device arbitration for the room occupant
+		// 5. Multi-device arbitration for the room occupant
 		if (!newMemberSessions.isEmpty()) {
-			newMemberState = MucStateUtil.determineOverallState(newMemberSessions);
+			newMemberState = UserStateUtil.determineOverallState(newMemberSessions);
 			updatedAt = newMemberSessions.stream()
 					.mapToLong(UserSession::getUpdatedAt)
 					.max()
@@ -102,23 +101,24 @@ public class MucAddMemberEventHandler {
 				.show(newMemberState.name().toString().toLowerCase())
 				.affiliation(newMemberMucAffiliation)
 				.role(MucRole.fromString(newMemberMucAffiliation).getValue())
+				.targetJid(jidUtil.getBareJid(newMemberUserKey))
 				.updatedAt(Instant.ofEpochMilli(updatedAt).toString())
 				.reason(reason)
 				.build();
 		
-		mucMessageRouter.broadcastToOccupants(id, newMemberUserKey, group, presenceXml, true);
+		mucMessageRouter.broadcastToOccupants(id, sender.getUserKey(), group, presenceXml, true);
 		
-		// 5. Generate and Broadcast System Log Message
+		// 6. Generate and Broadcast System Log Message
 		// Creates a human-readable "Admin added User" message for the chat history.
 		String stanzaId = UUID.randomUUID().toString();
 		String body = sender.getUsername() + " added " + newMemberOpt.get().getUsername();
 		String xmlLogStanza = buildMemberAddedLogStanza(stanzaId, senderJid, roomBareJid, body, newMemberJid);
 		
-		// 6. Persistence
+		// 7. Persistence
 		// Archive the action for Message Archive Management (MAM) retrieval.
 		saveToDatabase(stanzaId, roomBareJid, senderJid, group, sender, xml);
 		
-		// 7. Dispatch the system message to all online occupants
+		// 8. Dispatch the system message to all online occupants
 		xmppBroadCastHandler.broadcastToOccupants(ctx, 
 				stanzaId, 
 				roomJid, 
@@ -130,7 +130,7 @@ public class MucAddMemberEventHandler {
 				xmlLogStanza, 
 				xmlLogStanza);
 		
-		// 8. Finalize the request with an IQ Result to the admin
+		// 9. Finalize the request with an IQ Result to the admin
 		sendSuccessResponse(ctx, senderJid, roomJid, id);
 		
 		// Push group members presence to user

@@ -20,12 +20,10 @@ import com.algomeet.xmpp.chatservice.enums.UserState;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.routing.muc.MucMessageRouter;
 import com.algomeet.xmpp.chatservice.session.UserSessionRegistry;
-import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
 import com.algomeet.xmpp.chatservice.session.model.UserSession;
-import com.algomeet.xmpp.chatservice.stanza.presence.DirectedPresenceBuilder;
 import com.algomeet.xmpp.chatservice.stanza.presence.MucUserPresenceBuilder;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
-import com.algomeet.xmpp.chatservice.util.MucStateUtil;
+import com.algomeet.xmpp.chatservice.util.UserStateUtil;
 
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
@@ -35,9 +33,12 @@ import lombok.extern.slf4j.Slf4j;
 /**
  * Service responsible for managing and distributing user presence updates within 
  * Multi-User Chat (MUC) environments.
- * * <p>This service manages the complex relationship between global user availability 
- * and specific room rosters, ensuring that occupants in a MUC always see 
- * synchronized presence for all participants.</p>
+ * <p>
+ * This service ensures that distributed presence states (Active, Inactive, etc.) 
+ * stored in Redis are synchronized across MUC room rosters. It plays a critical role 
+ * in resolving "zombie" session data to ensure occupants see an accurate, real-time 
+ * view of participant availability.
+ * </p>
  * * @author Algomeet Core Team
  */
 @Slf4j
@@ -45,7 +46,6 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class MucPresenceService {
 	private final UserSessionRegistry userSessionRegistry;
-	private final DomainProperties domainProperties;
 	private final JidUtil jidUtil;
 
 	private final GroupClient groupClient;
@@ -55,12 +55,12 @@ public class MucPresenceService {
 	 * Broadcasts the current user's status change to all participants in every MUC 
 	 * room they are currently joined in.
 	 * * @param ctx       The Netty context for the active connection.
-	 * @param principal The authenticated user identity.
-	 * @param newState  The new state to broadcast (ACTIVE, AWAY, etc.).
+	 * @param userkey   The unique identifier of the user updating their state.
+	 * @param newState  The new presence state (ACTIVE, AWAY, etc.) to push to all groups.
 	 */
 	public void broadcastPresenceToAllJoinedGroups(ChannelHandlerContext ctx, String userkey, UserState newState) {    
 		try {
-			// 1. Fetch all rooms the user is currently a member of
+			// 1. Fetch all room memberships to identify broadcast targets
 			List<MucRoomDto> groups = groupClient.getGroupsForUserKey(userkey);
 
 			if (!CollectionUtils.isEmpty(groups)) {
@@ -69,40 +69,40 @@ public class MucPresenceService {
 				}
 			}
 		} catch (Exception ex) {
-			log.error("Error broadcasting MUC presence for user key: {}", userkey, ex);
+			log.error("Error broadcasting MUC presence across groups for user key: {}", userkey, ex);
 		}
 	}
 
+	/**
+	 * Pushes a presence update for a specific user to all occupants of a targeted MUC room.
+	 * This method acts as the "Outbound Broadcast" to the group.
+	 */
 	public void broadcastPresenceToGroupParticipants(ChannelHandlerContext ctx, String userkey, MucRoomDto group, UserState newState) {    
 		try {
 			String roomJid = jidUtil.getGroupBareJid(group.getId());
 
-			// 2. Identify the sender's membership details for specific room metadata (nickname)
+			// 2. Identify the sender's membership details for specific room metadata (nickname/role)
 			Optional<MucMember> senderMucMember = group.getMembers().stream()
 					.filter(m -> m.getUserKey().equals(userkey))
 					.findFirst();
 
 			if (senderMucMember.isPresent()) {
-				// 3. Delegate to event handler to push XML stanzas to all room occupants
-				// 2. Broadcast the joiner's availability to all members in the room.
-				// This includes updating the joiner's view of existing members (Synchronizing State).     
-
-
+				// 3. Construct the XEP-0045 MUC presence stanza
 				String presenceXml = MucUserPresenceBuilder
 						.create()
-						.from(roomJid, senderMucMember.get().getUserKey()) // Resource-part is the member's room identity
+						.from(roomJid, senderMucMember.get().getUserKey()) 
 						.show(newState.name().toString().toLowerCase())
 						.affiliation(senderMucMember.get().getRole())
 						.role(MucRole.fromString(senderMucMember.get().getRole()).getValue())
 						.build();
 
+				// 4. Distribute via router to all active occupants in the room
 				mucMessageRouter.broadcastToOccupants(UUID.randomUUID().toString(), senderMucMember.get().getUserKey(), group, presenceXml, false);
 			}
 		} catch (Exception ex) {
-			log.error("Error broadcasting MUC presence for user key: {}", userkey, ex);
+			log.error("Error broadcasting MUC presence in group {} for user key: {}", group.getId(), userkey, ex);
 		}
 	}
-
 
 	public void pushGroupParticipantsPresenceToUser(ChannelHandlerContext ctx, String groupId, XmppPrincipal principal) {  
 		pushGroupParticipantsPresenceToUser(ctx, groupId, principal.getUserKey());
@@ -110,80 +110,86 @@ public class MucPresenceService {
 
 	public void pushGroupParticipantsPresenceToUser(ChannelHandlerContext ctx, String groupId, String userKey) {    
 		try {
-			// Fetch group the user belongs to
 			MucRoomDto group = groupClient.getGroupById(groupId);
-   
-			// Push to the group
 			pushGroupParticipantsPresenceToUser(ctx, group, userKey);
 		} catch (Exception ex) {
-			log.error("Error syncing MUC participant presence for user key: {}", userKey, ex);
+			log.error("Error syncing MUC participant presence for group {}: {}", groupId, ex.getMessage());
 		}
 	}
 
+	/**
+	 * Synchronizes the presence of all current group participants to a newly joined user.
+	 * <p>
+	 * This performs a "State Dump" by fetching all participant session data from Redis. 
+	 * It explicitly handles multi-device arbitration to ensure that if a participant 
+	 * has orphan or "zombie" records in Redis, the most relevant state is sent.
+	 * </p>
+	 */
 	public void pushGroupParticipantsPresenceToUser(ChannelHandlerContext ctx, MucRoomDto group, String userKey) { 
 		try {	
-			// If member is empty exit
 			if (CollectionUtils.isEmpty(group.getMembers())) {
 				return;
 			}
 
-			// Check if user belongs to the group
+			// Validate that the receiving user is a member of the target group
 			Optional<MucMember> userMucInfoOpt = group.getMembers().stream()
 					.filter(m -> m.getUserKey().equalsIgnoreCase(userKey))
 					.findFirst();
 
 			if (userMucInfoOpt.isEmpty()) {
-				log.error("Error pushing group participants presence to user key: {} not belong to group Id: {}", userKey, group.getId());
+				log.warn("Unauthorized presence sync attempt: user {} does not belong to group {}", userKey, group.getId());
 				return;
 			}
 
 			String roomJid = jidUtil.getGroupBareJid(group.getId());
 
-			// 2. Collect all member keys for batch processing
+			// 2. Collect all keys for batch fetching from Redis (Performance Optimization)
 			List<String> memberKeys = group.getMembers().stream()
 					.map(MucMember::getUserKey)
 					.toList();
 
-			// 3. Perform a single batch-fetch from Redis for all members in this room
+			// 3. Batch fetch session/state data for all occupants to avoid N+1 queries
 			Map<String, Set<UserSession>> allSessionsMap = userSessionRegistry.getAllSessions(memberKeys);
 
 			String toJid = jidUtil.getBareJid(userKey);
 					
 			for (MucMember member : group.getMembers()) {
+				// Skip the recipient themselves (Standard MUC self-presence is handled separately)
 				if (member.getUserKey().equalsIgnoreCase(userKey) ) {
 					continue;
 				}
 				
 				Set<UserSession> sessions = allSessionsMap.getOrDefault(member.getUserKey(), Collections.emptySet());
 
+				// Default to GONE if no active sessions are found (indicating a lack of presence)
 				UserState newState = UserState.GONE;
 				long updatedAt = 0L;
 
-				// 4. Multi-device arbitration for the room occupant
+				// 4. Arbitrate between multiple sessions to filter out orphan/zombie data
 				if (!sessions.isEmpty()) {
-					newState = MucStateUtil.determineOverallState(sessions);
+					newState = UserStateUtil.determineOverallState(sessions);
 					updatedAt = sessions.stream()
 							.mapToLong(UserSession::getUpdatedAt)
 							.max()
 							.orElse(0L);
 				}
 
-				// 5. Build a Group-Specific Presence Stanza (XEP-0045)
+				// 5. Build a Group-Specific Presence Stanza (XEP-0045) with Delay support (XEP-0203)
 				String presenceXml = MucUserPresenceBuilder
 						.create()
-						.from(roomJid, member.getUserKey()) // Resource-part is the member's room identity
-						.to(toJid)      // Delivered to the newly connected user
+						.from(roomJid, member.getUserKey()) 
+						.to(toJid)      
 						.status(newState.name().toString().toLowerCase())
 						.updatedAt(updatedAt != 0 ? Instant.ofEpochMilli(updatedAt).toString() : null)
 						.affiliation(member.getRole())
 						.role(MucRole.fromString(member.getRole()).getValue())
 						.build();
 
-				// Send to the Netty outbound pipeline
+				// Write directly to the Netty outbound pipeline for the receiving client
 				ctx.writeAndFlush(new TextWebSocketFrame(presenceXml));
 			}		            
 		} catch (Exception ex) {
-			log.error("Error syncing MUC participant presence for user key: {}", userKey, ex);
+			log.error("Failed to sync MUC participant presence for user key: {}", userKey, ex);
 		}
 	}
 }
