@@ -1,6 +1,7 @@
 package com.algomeet.xmpp.chatservice.document;
 
 import org.springframework.data.annotation.Id; // Corrected Import
+import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
@@ -8,6 +9,7 @@ import lombok.Data;
 
 @Data
 @Document(collection = "unread_counts")
+@CompoundIndex(name = "user_inbox_idx", def = "{'user_key': 1, 'last_increment_at': -1}")
 public class UnreadCount {    
 	@Id
 	private String id; // format: <senderKey>_<recipientKey>

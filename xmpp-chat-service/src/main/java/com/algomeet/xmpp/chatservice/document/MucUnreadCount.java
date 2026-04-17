@@ -1,5 +1,6 @@
 package com.algomeet.xmpp.chatservice.document;
 
+import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
@@ -9,6 +10,7 @@ import lombok.Data;
 
 @Data
 @Document(collection = "muc_unread_counts")
+@CompoundIndex(name = "user_room_idx", def = "{'user_key': 1, 'room_id': 1}")
 public class MucUnreadCount {    
     /**
      * Format: <recipient user key>_<room Id>
@@ -16,7 +18,6 @@ public class MucUnreadCount {
     @Id
     private String id;
     
-    @Indexed
     @Field("user_key")
     private String userKey; 
     
