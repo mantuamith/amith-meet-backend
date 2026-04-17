@@ -9,6 +9,7 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
+import com.algomeet.multitenancy.context.TenantContext;
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.client.ContactClient;
 import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
@@ -52,6 +53,9 @@ public class ContactPresenceService {
      */
     public void pushContactsPresenceToUser(ChannelHandlerContext ctx, XmppPrincipal principal) {
         try {
+        	// Set tenant Id to support multi-tenancy 
+    		TenantContext.setCurrentTenant(principal.getTenantId());
+    		
             // 1. Retrieve the list of accepted contacts from the Relationship Service
             List<UUID> acceptedContacts = contactClient.getAcceptedContacts(UUID.fromString(principal.getUserKey()));
             if (CollectionUtils.isEmpty(acceptedContacts)) return;
@@ -123,6 +127,9 @@ public class ContactPresenceService {
      */
     public void broadcastPresenceToContacts(ChannelHandlerContext ctx, XmppPrincipal principal, UserState newState) {
     	try {
+    		// Set tenant Id to support multi-tenancy 
+    		TenantContext.setCurrentTenant(principal.getTenantId());
+    		
             // Fetch contacts who need to receive this update
 			List<UUID> acceptedContacts = contactClient.getAcceptedContacts(UUID.fromString(principal.getUserKey()));
 

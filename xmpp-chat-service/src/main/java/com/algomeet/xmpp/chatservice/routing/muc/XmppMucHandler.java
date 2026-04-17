@@ -6,6 +6,7 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
+import com.algomeet.multitenancy.context.TenantContext;
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.constant.XmppErrorConditions;
 import com.algomeet.xmpp.chatservice.dto.MucMember;
@@ -78,6 +79,9 @@ public class XmppMucHandler {
 
 		// 1. AUTHORIZATION & ROOM LOOKUP
 		// Fetch room metadata and membership from the cache
+		// Set tenant Id to support multi-tenancy 
+		TenantContext.setCurrentTenant(principal.getTenantId());
+		
 		MucRoomDto group = groupCacheService.getCachedGroup(toRoomId);
 
 		// Verify if the sender is an authorized member and is not muted
@@ -98,7 +102,7 @@ public class XmppMucHandler {
 
 		if (isModerationCommand(type, xmlHeader)) {
 			// MUC Admin actions (kick, ban, mute)
-			mucAdminCommandRouter.handleCommandStanza(ctx, toRoomJid, originalXml, senderMucMember.get());
+			mucAdminCommandRouter.handleCommandStanza(ctx, toRoomJid, originalXml, senderMucMember.get(), principal);
 		} else if(isUserCommandStanza(originalXml, toRoomJid)) {
 			// MUC User actions (nickname changes, room entry)
 			mucUserCommandRouter.handleCommandStanza(ctx, toRoomJid, principal.getBareJid(), originalXml, principal);		

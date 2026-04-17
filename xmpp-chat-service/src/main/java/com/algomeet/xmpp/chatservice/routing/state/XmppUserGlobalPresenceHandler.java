@@ -53,7 +53,7 @@ public class XmppUserGlobalPresenceHandler {
 			userSessionRegistry.updateSessionStatus(principal.getUserKey(), principal.getSessionId(), newState);
 
 			// 2. Outbound Broadcast: Notify the world that this user is now reachable
-			xmppUserGlobalPresenceHandler.broadUserPresenceAsync(ctx, principal, newState);
+			xmppUserGlobalPresenceHandler.broadcastUserPresenceAsync(ctx, principal, newState);
 
 			// 3. Initial Session Activation Logic
 			// We use a Channel Attribute to ensure "Initial Sync" logic only runs once per session.

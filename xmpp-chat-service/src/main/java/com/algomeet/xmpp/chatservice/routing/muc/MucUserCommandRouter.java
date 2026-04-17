@@ -4,6 +4,7 @@ import java.util.Optional;
 
 import org.springframework.stereotype.Component;
 
+import com.algomeet.multitenancy.context.TenantContext;
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.dto.MucMember;
 import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
@@ -47,6 +48,9 @@ public class MucUserCommandRouter {
      * @param sender    The MUC member profile of the initiator.
      */
     public void handleCommandStanza(ChannelHandlerContext ctx, String roomJid, String senderJid, String xml, XmppPrincipal principal) {
+    	// Set tenant Id to support multi-tenancy 
+    	TenantContext.setCurrentTenant(principal.getTenantId());
+    	
     	// Force refresh group cache
     	MucRoomDto group = groupCacheService.getCachedGroup(XmppUtil.getRoomId(roomJid), true);
     	Optional<MucMember> senderMucMember = group.getMembers().stream()

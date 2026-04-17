@@ -16,11 +16,11 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * REST controller for managing active XMPP and WebSocket sessions.
+ * REST controller for managing active XMPP and WebSocket sessions, as well as Redis-based presence states.
  * <p>
- * This controller provides endpoints for session maintenance, allowing for the 
- * manual eviction of specific client connections (e.g., during logout, security 
- * breaches, or account suspension).
+ * This controller provides endpoints for session maintenance and state cleanup. It is primarily used 
+ * to synchronize the distributed state by removing stale or "zombie" records in Redis that 
+ * track user presence (e.g., Active, Inactive).
  * </p>
  * <p>
  * <b>Security:</b> All operations are scoped to the authenticated user's context 
@@ -28,30 +28,31 @@ import lombok.extern.slf4j.Slf4j;
  * </p>
  *
  * @author Algomeet Core Team
- * @version 1.0
+ * @version 1.1
  */
 @Slf4j
 @RestController
 @RequestMapping("/api/chat/sessions")
 @RequiredArgsConstructor
-public class SessionController implements SessionControllerDoc{
+public class SessionController implements SessionControllerDoc {
 
     private final SessionService sessionService;
 
     /**
-     * Manually removes and terminates a specific session for the authenticated user.
+     * Removes session state and clears user presence data from Redis.
      * <p>
-     * This endpoint triggers the following sequence:
+     * This endpoint is utilized to prune "zombie" or orphan records from the distributed cache. 
+     * It performs the following:
      * <ol>
-     * <li>Retrieves the unique {@code userKey} from the current security context.</li>
-     * <li>Invokes {@link SessionService#removeSession} to clear session metadata from the cluster.</li>
-     * <li>Forcefully closes the associated Netty channel if it is hosted on the local node.</li>
+     * <li>Retrieves the unique {@code userKey} from the security context.</li>
+     * <li>Invokes {@link SessionService#removeSession} to purge presence metadata (Active/Inactive status) from Redis.</li>
+     * <li>Ensures the local node terminates any hanging Netty channels associated with the session.</li>
      * </ol>
      * </p>
      *
-     * @param sessionId The unique identifier (Resource/UUID) of the session to be evicted.
-     * @return A {@link ResponseEntity} containing a {@link CommonResponse} with the operation status.
-     * @throws Exception if the session removal logic encounters a persistence or communication error.
+     * @param sessionId The unique identifier of the session/state to be evicted from Redis.
+     * @return A {@link ResponseEntity} containing a {@link CommonResponse} confirming the cleanup.
+     * @throws Exception if there is a failure communicating with the Redis cluster or the service layer.
      */
     @DeleteMapping("/{sessionId}")
     public ResponseEntity<CommonResponse<?>> removeSession(
@@ -60,16 +61,16 @@ public class SessionController implements SessionControllerDoc{
         // Retrieve the identifier for the currently authenticated user
         String userKey = SecurityUtil.getUserKey();
         
-        log.info("Request to manually evict session {} for user {}", sessionId, userKey);
+        log.info("Request to evict presence state and remove orphan session {} for user {}", sessionId, userKey);
         
         try {
-            // Execute the removal logic through the service layer
+            // Execute the removal logic to clean up Redis state and local channels
             sessionService.removeSession(userKey, sessionId);
             
             return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
         } catch (Exception e) {
-            log.error("Failed to remove session {} for user {}", sessionId, userKey, e);
-            // Re-throw to be handled by the GlobalExceptionHandler/ControllerAdvice
+            log.error("Failed to clear Redis session/presence for user {} and session {}", userKey, sessionId, e);
+            // Re-throw to be handled by GlobalExceptionHandler
             throw e;
         }
     }
