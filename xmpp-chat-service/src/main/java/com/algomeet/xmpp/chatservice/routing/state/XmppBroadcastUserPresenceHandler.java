@@ -73,6 +73,6 @@ public class XmppBroadcastUserPresenceHandler {
 		contactPresenceService.broadcastPresenceToContacts(ctx, principal, newState);
 
 		// Publish presence to contacts
-		mucPresenceService.broadcastPresenceToParticipants(ctx, principal, newState);
+		mucPresenceService.broadcastPresenceToAllJoinedGroups(ctx, principal.getUserKey(), newState);
 	}	
 }

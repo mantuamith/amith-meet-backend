@@ -83,7 +83,7 @@ public class MucMemberJoinEventHandler {
         mucMessageRouter.broadcastToOccupants(UUID.randomUUID().toString(), sender.getUserKey(), group, presenceXml, false);
         
         // Push group members presence to user
-        mucPresenceService.pushGroupParticipantsPresenceToUser(ctx, group);
+        mucPresenceService.pushGroupParticipantsPresenceToUser(ctx, group, sender.getUserKey());
         
         log.debug("Presence synchronization complete for user {} in room {}", sender.getUserKey(), roomBareJid);
     }

@@ -62,7 +62,7 @@ public enum MucRole {
      * @return The matching MucRole or MucRole.NONE.
      */
     public static MucRole fromString(String value) {
-        if (value == null) return NONE;
-        return LOOKUP.getOrDefault(value.toLowerCase(), NONE);
+        if (value == null) return VISITOR;
+        return LOOKUP.getOrDefault(value.toLowerCase(), VISITOR);
     }
 }

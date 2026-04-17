@@ -86,7 +86,7 @@ public class MucAcceptInviteEventHandler {
         xmppBroadCastHandler.broadcastToOccupants(ctx, stanzaId, roomJid, senderJid, XmppMessageType.GROUPCHAT, group, sender, null, logXml, logXml);
                 
         // Push group members presence to user
-        mucPresenceService.pushGroupParticipantsPresenceToUser(ctx, group);
+        mucPresenceService.pushGroupParticipantsPresenceToUser(ctx, group, sender.getUserKey());
         
         log.info("User {} successfully joined room {} via invitation", senderJid, roomBareJid);
     }
