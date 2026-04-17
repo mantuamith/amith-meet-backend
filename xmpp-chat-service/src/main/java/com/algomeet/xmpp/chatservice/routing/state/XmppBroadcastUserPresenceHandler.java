@@ -41,7 +41,7 @@ public class XmppBroadcastUserPresenceHandler {
 	 * @param newState  The target UserState (ACTIVE, AWAY, DND, etc.).
 	 */
 	@Async("presenceExecutor")
-	public void broadUserPresenceAsync(ChannelHandlerContext ctx, XmppPrincipal principal, UserState newState) { 
+	public void broadcastUserPresenceAsync(ChannelHandlerContext ctx, XmppPrincipal principal, UserState newState) { 
 		// 1. Multi-Session Arbitration:
 		// We check if the user has other active connections to prevent "Presence Flickering".
 		Set<UserSession> sessions = userSessionRegistry.getSessions(principal.getUserKey());
@@ -73,6 +73,6 @@ public class XmppBroadcastUserPresenceHandler {
 		contactPresenceService.broadcastPresenceToContacts(ctx, principal, newState);
 
 		// Publish presence to contacts
-		mucPresenceService.broadcastPresenceToParticipants(ctx, principal, newState);
+		mucPresenceService.broadcastPresenceToAllJoinedGroups(ctx, principal.getUserKey(), newState);
 	}	
 }

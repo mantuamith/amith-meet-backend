@@ -25,4 +25,24 @@ public class MucUnreadCount {
     
     @Field("unread_count")
     private int unreadCount = 0;
+    
+    /** * Timestamp of the last increment (new message received). 
+     * Used to determine the 'freshness' of the unread count.
+     */
+    @Field("last_increment_at")
+    private Long lastIncrementAt;	
+	
+    /** * Timestamp of the last decrement (user read the chat). 
+     * Critical for resolving race conditions between multiple devices.
+     */
+    @Field("last_decrement_at")
+    private Long lastDecrementAt;
+
+    /**
+     * Optional but Recommended: 
+     * Stores the ID of the last message that triggered a decrement.
+     * Prevents "double-decrement" logic errors.
+     */
+    @Field("last_read_mid")
+    private String lastReadMid;
 }

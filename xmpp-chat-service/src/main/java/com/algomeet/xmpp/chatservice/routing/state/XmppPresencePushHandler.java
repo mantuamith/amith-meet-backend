@@ -5,7 +5,6 @@ import org.springframework.stereotype.Component;
 
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.service.ContactPresenceService;
-import com.algomeet.xmpp.chatservice.service.MucPresenceService;
 
 import io.netty.channel.ChannelHandlerContext;
 import lombok.RequiredArgsConstructor;
@@ -22,9 +21,7 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 @Component
 public class XmppPresencePushHandler {
-
     private final ContactPresenceService contactPresenceService;
-    private final MucPresenceService mucPresenceService;
 
     /**
      * Executes a full presence synchronization asynchronously upon user connection.
@@ -44,10 +41,6 @@ public class XmppPresencePushHandler {
         // 1. Sync 1:1 Contact Presence (Roster)
         // Fetches statuses of all users in the user's accepted contact list.
         contactPresenceService.pushContactsPresenceToUser(ctx, principal);
-
-        // 2. Sync MUC Occupant Presence (Groups)
-        // Fetches statuses of all participants in all rooms the user is joined in.
-        mucPresenceService.pushGroupParticipantsPresenceToUser(ctx, principal);
         
         log.debug("Full presence sync task submitted for user: {}", principal.getUserKey());
     }	

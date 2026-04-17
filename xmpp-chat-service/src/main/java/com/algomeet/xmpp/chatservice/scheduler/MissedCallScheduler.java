@@ -12,6 +12,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
+import com.algomeet.multitenancy.context.TenantContext;
 import com.algomeet.notificationservice.dto.Notification;
 import com.algomeet.notificationservice.enums.NotificationType;
 import com.algomeet.notificationservice.service.NotificationService;
@@ -126,6 +127,9 @@ public class MissedCallScheduler {
 		String tenantId = (String) metadata.get(CallSessionMetadata.TENANT_ID.getKey());
 		String username = (String) metadata.get(CallSessionMetadata.USERNAME.getKey());
 		String groupId = (String) metadata.get(CallSessionMetadata.GROUP_ID.getKey());
+		
+		// Set tenant Id to support multi-tenancy 
+		TenantContext.setCurrentTenant(Integer.parseInt(tenantId));
 
 		log.info("Processing missed call log for SID: {} ({} -> {})", sid, fromJid, toJid);
 

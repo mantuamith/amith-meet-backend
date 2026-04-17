@@ -1,10 +1,11 @@
 package com.algomeet.xmpp.chatservice.service;
 
 import java.time.Instant;
-import java.util.List;
 import java.util.Map;
 
+import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.ReactiveMongoTemplate;
+import org.springframework.data.mongodb.core.aggregation.Aggregation;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -21,9 +22,6 @@ import com.algomeet.xmpp.chatservice.util.MucCountUtil;
 import lombok.AllArgsConstructor;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import org.springframework.data.domain.Sort;
-import org.springframework.data.mongodb.core.aggregation.Aggregation;
-import org.springframework.data.mongodb.core.aggregation.AggregationResults;
 
 @Service
 @AllArgsConstructor
@@ -45,7 +43,7 @@ public class UnreadCountService {
                 .inc("unread_count", 1)
                 .set("user_key", recipientKey)
                 .set("sender_key", senderKey)
-                .set("updated_at", Instant.now().toEpochMilli());
+                .set("last_increment_at", Instant.now().toEpochMilli());
 
         // upsert returns the updated document
         return reactiveMongoTemplate.upsert(query, update, UnreadCount.class)
@@ -61,7 +59,8 @@ public class UnreadCountService {
         
         // Use a query that only decrements if the current count is greater than 0
         Query query = new Query(Criteria.where("_id").is(id).and("unread_count").gt(0));
-        Update update = new Update().inc("unread_count", -1);
+        Update update = new Update().inc("unread_count", -1)
+        		.set("last_decrement_at", Instant.now().toEpochMilli());
 
         return reactiveMongoTemplate.updateFirst(query, update, UnreadCount.class)
                 .then(reactiveMongoTemplate.findById(id, UnreadCount.class))
@@ -87,7 +86,9 @@ public class UnreadCountService {
         String id = String.format("%s_%s", senderKey, recipientKey);
         
         Query query = new Query(Criteria.where("_id").is(id));
-        Update update = new Update().set("unread_count", 0);
+        Update update = new Update()
+        		.set("unread_count", 0)
+        		.set("last_decrement_at", Instant.now().toEpochMilli());
         
         // Publish message to other devices to sync the unread message counts
         /*
@@ -159,7 +160,7 @@ public class UnreadCountService {
             // 2. Group by _id (which is a string in your DB)
             // Note: use "updated_at" here as well
             Aggregation.group("_id")
-                .max("updated_at").as("lastInteraction"),
+                .max("last_increment_at").as("lastInteraction"),
 
             // 3. Sort by the alias we created in the Group stage
             Aggregation.sort(Sort.Direction.DESC, "lastInteraction"),

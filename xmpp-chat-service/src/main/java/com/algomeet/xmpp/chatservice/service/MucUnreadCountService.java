@@ -1,5 +1,6 @@
 package com.algomeet.xmpp.chatservice.service;
 
+import java.time.Instant;
 import java.util.List;
 
 import org.springframework.data.mongodb.core.ReactiveMongoTemplate;
@@ -40,7 +41,8 @@ public class MucUnreadCountService {
 		Update update = new Update()
 				.inc("unread_count", 1)
 				.set("user_key", userKey)
-				.set("room_id", roomId);
+				.set("room_id", roomId)
+				.set("last_increment_at", Instant.now().toEpochMilli());
 
 		return reactiveMongoTemplate.upsert(query, update, MucUnreadCount.class).then();
 	}
@@ -61,7 +63,9 @@ public class MucUnreadCountService {
 
 		// Atomic decrement: only execute if the current count is greater than 0
 		Query query = new Query(Criteria.where("_id").is(id).and("unread_count").gt(0));
-		Update update = new Update().inc("unread_count", -1);
+		Update update = new Update()
+				.inc("unread_count", -1)
+				.set("last_decrement_at", Instant.now().toEpochMilli());
 
 		return reactiveMongoTemplate.updateFirst(query, update, MucUnreadCount.class)
 				.then(reactiveMongoTemplate.findById(id, MucUnreadCount.class))
@@ -89,7 +93,9 @@ public class MucUnreadCountService {
 		String id = String.format("%s_%d", userKey, roomId);
 
 		Query query = new Query(Criteria.where("_id").is(id));
-		Update update = new Update().set("unread_count", 0);
+		Update update = new Update()
+				.set("unread_count", 0)
+				.set("last_decrement_at", Instant.now().toEpochMilli());
 
 		// Publish message to other devices to sync the unread message counts
 		/*

@@ -103,7 +103,7 @@ public class ConnectionLifecycleHandler {
             callTrackerService.reconcileDroppedCall(sessionId);
             
             // Broadcast user presence GONE
-            xmppBroadcastUserPresenceHandler.broadUserPresenceAsync(ctx, principal, UserState.GONE);
+            xmppBroadcastUserPresenceHandler.broadcastUserPresenceAsync(ctx, principal, UserState.GONE);
 
             log.info("Cleanup completed for session {}", sessionId);
         }

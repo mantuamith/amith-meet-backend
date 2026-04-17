@@ -2,6 +2,8 @@ package com.algomeet.xmpp.chatservice.routing.muc;
 
 import org.springframework.stereotype.Component;
 
+import com.algomeet.multitenancy.context.TenantContext;
+import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.dto.MucMember;
 import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
@@ -52,7 +54,10 @@ public class MucAdminCommandRouter {
 	 * @param group     The data transfer object representing the current room state.
 	 * @param sender    The {@link MucMember} profile of the initiator for permission validation.
 	 */
-	public void handleCommandStanza(ChannelHandlerContext ctx, String roomJid, String xml, MucMember sender) {
+	public void handleCommandStanza(ChannelHandlerContext ctx, String roomJid, String xml, MucMember sender, XmppPrincipal principal) {
+    	// Set tenant Id to support multi-tenancy 
+    	TenantContext.setCurrentTenant(principal.getTenantId());
+    	
 		// Force refresh group cache
 		MucRoomDto group = groupCacheService.getCachedGroup(XmppUtil.getRoomId(roomJid), true);
 				
