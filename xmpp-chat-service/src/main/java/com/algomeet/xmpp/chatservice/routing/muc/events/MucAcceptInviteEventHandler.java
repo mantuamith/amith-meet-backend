@@ -9,12 +9,14 @@ import com.algomeet.xmpp.chatservice.dto.MucMember;
 import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
 import com.algomeet.xmpp.chatservice.dto.StanzaInfo;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
+import com.algomeet.xmpp.chatservice.enums.MucRole;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.routing.muc.MucMessageRouter;
+import com.algomeet.xmpp.chatservice.service.MucPresenceService;
 import com.algomeet.xmpp.chatservice.service.XmppArchiveService;
+import com.algomeet.xmpp.chatservice.stanza.presence.MucUserPresenceBuilder;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
-import com.algomeet.xmpp.chatservice.util.MucRoleUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
 import com.github.f4b6a3.ulid.UlidCreator;
 
@@ -40,6 +42,7 @@ public class MucAcceptInviteEventHandler {
     private final MucMessageRouter xmppBroadCastHandler;
     private final MucMessageRouter mucMessageRouter;
     private final JidUtil jidUtil;
+    private final MucPresenceService mucPresenceService;
 
     /**
      * Entry point for handling an invitation acceptance. 
@@ -51,12 +54,25 @@ public class MucAcceptInviteEventHandler {
         
         // 1. Send Self-Presence acknowledgment to the joining member.
         // The Status 110 code is mandatory for the client to confirm its own session join.
-        String selfPresenceXml = buildSelfPresenceSuccess(roomBareJid, sender.getUserKey(), senderJid, sender.getRole());
+        String selfPresenceXml = MucUserPresenceBuilder
+        		.create()
+        		.from(roomJid, sender.getUserKey()) // Resource-part is the member's room identity
+				.affiliation(sender.getRole())
+				.role(MucRole.fromString(sender.getRole()).getValue())
+				.statusCode(110)
+        		.build();
+        
         clusterMessagePublisher.convertAndSendToUser(UUID.randomUUID().toString(), sender.getUserKey(), sender.getUserKey(), ChatType.GROUPCHAT, selfPresenceXml);
         
-        // 2. Notify all existing members of the new occupant and sync occupant list for the joiner.
-        String availablePresence = buildOccupantPresence(roomBareJid, sender.getUserKey(), sender.getRole(), senderJid);  
-        mucMessageRouter.broadcastToOccupants(UUID.randomUUID().toString(), sender.getUserKey(), group, availablePresence, false);
+        // 2. Notify all existing members of the new occupant and sync occupant list for the joiner.        
+        String presenceXml = MucUserPresenceBuilder
+				.create()
+				.from(roomJid, sender.getUserKey()) // Resource-part is the member's room identity
+				.affiliation(sender.getRole())
+				.role(MucRole.fromString(sender.getRole()).getValue())
+				.build();
+        
+        mucMessageRouter.broadcastToOccupants(UUID.randomUUID().toString(), sender.getUserKey(), group, presenceXml, false);
                       
         // 3. Prepare a system message to log the join event in the chat stream.
         String stanzaId = UUID.randomUUID().toString();
@@ -68,42 +84,11 @@ public class MucAcceptInviteEventHandler {
         
         // 5. Broadcast: Real-time notification to all online occupants via the MessageRouter.
         xmppBroadCastHandler.broadcastToOccupants(ctx, stanzaId, roomJid, senderJid, XmppMessageType.GROUPCHAT, group, sender, null, logXml, logXml);
+                
+        // Push group members presence to user
+        mucPresenceService.pushGroupParticipantsPresenceToUser(ctx, group);
         
         log.info("User {} successfully joined room {} via invitation", senderJid, roomBareJid);
-    }
-    
-    /**
-     * Generates a presence stanza with status code 110.
-     * Tells the client: "This presence stanza contains information about yourself."
-     */
-    private String buildSelfPresenceSuccess(String roomBareJid, String userKey, String userJid, String affiliation) {
-        String role = MucRoleUtil.getMucRole(affiliation).getValue();
-
-        return String.format(
-                "<presence from='%s/%s' to='%s'>" +
-                "  <x xmlns='http://jabber.org/protocol/muc#user'>" +
-                "    <item affiliation='%s' role='%s' jid='%s'/>" +
-                "    <status code='110'/>" +
-                "  </x>" +
-                "</presence>",
-                roomBareJid, userKey, userJid, affiliation, role, userJid
-        );
-    }
-    
-    /**
-     * Generates standard occupant presence for broadcasting to the room.
-     */
-    private String buildOccupantPresence(String roomBareJid, String userKey, String affiliation, String userJid) {
-        String role = MucRoleUtil.getMucRole(affiliation).getValue();
-
-        return String.format(
-                "<presence from='%s/%s'>" +
-                "  <x xmlns='http://jabber.org/protocol/muc#user'>" +
-                "    <item affiliation='%s' role='%s' jid='%s'/>" +
-                "  </x>" +
-                "</presence>",
-                roomBareJid, userKey,  affiliation, role, userJid
-        );
     }
     
     /**
