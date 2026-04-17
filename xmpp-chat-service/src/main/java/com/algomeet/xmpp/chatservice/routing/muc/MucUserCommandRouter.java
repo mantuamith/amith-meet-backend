@@ -61,7 +61,7 @@ public class MucUserCommandRouter {
 				.findFirst();
 
 		Optional<String> actionOpt = MucMetaActionParser.extractAction(xml);
-		String action = actionOpt.orElseGet(null);
+		String action = actionOpt.orElse(null);
 
 		if (PresenceMetaAction.INVITE_ACCEPT == PresenceMetaAction.fromString(action)) {
 			mucAcceptInviteEventHandler.handleAcceptedInvite(ctx,  roomJid, xml, group, senderMucMember.get());
