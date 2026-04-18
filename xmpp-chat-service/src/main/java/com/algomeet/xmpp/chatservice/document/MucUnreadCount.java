@@ -30,6 +30,7 @@ public class MucUnreadCount {
     /** * Timestamp of the last increment (new message received). 
      * Used to determine the 'freshness' of the unread count.
      */
+    @Indexed
     @Field("last_increment_at")
     private Long lastIncrementAt;	
 	

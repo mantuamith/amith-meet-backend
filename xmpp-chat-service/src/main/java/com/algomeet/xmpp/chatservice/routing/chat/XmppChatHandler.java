@@ -23,6 +23,7 @@ import com.algomeet.xmpp.chatservice.routing.call.CallLifeCycleTracker;
 import com.algomeet.xmpp.chatservice.routing.call.JingleNotificationHandler;
 import com.algomeet.xmpp.chatservice.service.OfflineMessageService;
 import com.algomeet.xmpp.chatservice.service.UnreadCountService;
+import com.algomeet.xmpp.chatservice.service.XmppSmBufferService;
 import com.algomeet.xmpp.chatservice.session.UserSessionRegistry;
 import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
 import com.algomeet.xmpp.chatservice.session.model.UserSession;
@@ -52,6 +53,7 @@ public class XmppChatHandler {
 	private final UnreadCountService unreadCountService;
 	private final XmppReceiptUtil xmppReceiptUtil;
 	private final XmppReadUtil xmppReadUtil;
+	private final XmppUtil xmppUtil;
 
 	/**
 	 * Handles 1-to-1 message routing, persistence for offline storage, 
@@ -63,6 +65,9 @@ public class XmppChatHandler {
 
 		String toUserKey = XmppUtil.getUserKey(toJid);
 		String fromUserKey = principal.getUserKey();
+		
+		// Get user sessions from redis
+		Set<UserSession> sessions = userSessionRegistry.getSessions(toUserKey);
 
 		// Only scan the first 500 characters for routing/type info
 		// Most XMPP metadata is at the start of the stanza
@@ -133,12 +138,12 @@ public class XmppChatHandler {
 						if (e instanceof DuplicateKeyException) {
 							// Duplicate stanza detected (idempotent case).
 							// Client MUST ignore this error; used only to support safe retries.
-							XmppUtil.sendError(ctx, id, fromJid, domainProperties.getDomain(),
+							xmppUtil.sendError(ctx, id, fromJid, domainProperties.getDomain(),
 							        XmppErrorType.CANCEL,
 							        XmppErrorConditions.DUPLICATE_KEY_ERROR,
 							        "Stanza has duplicate key");
 						} else {
-							XmppUtil.sendError(ctx, id, fromJid, domainProperties.getDomain(), XmppErrorType.WAIT, 
+							xmppUtil.sendError(ctx, id, fromJid, domainProperties.getDomain(), XmppErrorType.WAIT, 
 									XmppErrorConditions.INTERNAL_SERVER_ERROR, "Storage failure");
 						}
 					})
@@ -149,16 +154,11 @@ public class XmppChatHandler {
 		if (XmppMessageType.SET == XmppMessageType.fromString(type) 
 				&& originalXml.contains("urn:xmpp:jingle:1")) {
 			callTracker.track(ctx, toJid, fromJid, originalXml, principal);
-		}   
-		
-		
-		
-		Set<UserSession> sessions = userSessionRegistry.getSessions(toUserKey);
-		if (!CollectionUtils.isEmpty(sessions)) {
-			// Broadast to Redis: Even if they are AWAY/DND, we attempt delivery 
-			// to their active WebSocket channels across the cluster.
-			clusterMessagePublisher.convertAndSendToUser(id, toUserKey, fromUserKey, ChatType.CHAT, originalXml);
-		}
+		}   				
+
+		// Broadast to Redis: Even if they are AWAY/DND, we attempt delivery 
+		// to their active WebSocket channels across the cluster.
+		clusterMessagePublisher.convertAndSendToUser(id, toUserKey, fromUserKey, ChatType.CHAT, originalXml);
 						
 		pushNotification(ctx, id, toUserKey, fromUserKey, type, xmlHeader, originalXml, sessions, principal);
 		

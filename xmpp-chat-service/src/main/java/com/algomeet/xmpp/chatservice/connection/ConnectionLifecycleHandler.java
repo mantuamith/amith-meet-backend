@@ -11,6 +11,7 @@ import com.algomeet.xmpp.chatservice.enums.UserState;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.routing.state.XmppBroadcastUserPresenceHandler;
 import com.algomeet.xmpp.chatservice.service.CallTrackerService;
+import com.algomeet.xmpp.chatservice.service.XmppSmBufferService;
 import com.algomeet.xmpp.chatservice.session.UserSessionRegistry;
 import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
 import com.algomeet.xmpp.chatservice.session.model.UserSession;
@@ -40,6 +41,7 @@ public class ConnectionLifecycleHandler {
     private final CallTrackerService callTrackerService;
     private final DomainProperties domainProperties;
 	private final XmppBroadcastUserPresenceHandler xmppBroadcastUserPresenceHandler;
+	private final XmppSmBufferService xmppSmBufferService;
 
     /**
      * <p>Finalizes the session establishment process after a successful WebSocket handshake 
@@ -92,9 +94,12 @@ public class ConnectionLifecycleHandler {
         if (principal != null) {
             String userKey = principal.getUserKey();
             String sessionId = principal.getSessionId();
+            
+            // Kick-in SM buffer for resume session messages
+            xmppSmBufferService.save(ctx, principal).subscribe();
 
             log.info("Starting cleanup for session {} (User: {})", sessionId, userKey);
-
+                        
             // Execute each cleanup task safely to ensure one failure doesn't block the entire teardown
             safeExecute(() -> localChannelRegistry.unregister(userKey), "Local Channel Registry", userKey);
             safeExecute(() -> userSessionRegistry.removeSession(userKey, sessionId), "User Session Registry", userKey);

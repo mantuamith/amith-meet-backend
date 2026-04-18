@@ -17,7 +17,7 @@ import com.algomeet.xmpp.chatservice.dto.MucMember;
 import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
 import com.algomeet.xmpp.chatservice.enums.MucRole;
 import com.algomeet.xmpp.chatservice.enums.UserState;
-import com.algomeet.xmpp.chatservice.properties.DomainProperties;
+import com.algomeet.xmpp.chatservice.routing.dispacher.LocalStanzaDispatcher;
 import com.algomeet.xmpp.chatservice.routing.muc.MucMessageRouter;
 import com.algomeet.xmpp.chatservice.session.UserSessionRegistry;
 import com.algomeet.xmpp.chatservice.session.model.UserSession;
@@ -26,7 +26,6 @@ import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.algomeet.xmpp.chatservice.util.UserStateUtil;
 
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -50,6 +49,7 @@ public class MucPresenceService {
 
 	private final GroupClient groupClient;
 	private final MucMessageRouter mucMessageRouter;
+	private final LocalStanzaDispatcher localStanzaDispatcher;
 
 	/**
 	 * Broadcasts the current user's status change to all participants in every MUC 
@@ -186,7 +186,7 @@ public class MucPresenceService {
 						.build();
 
 				// Write directly to the Netty outbound pipeline for the receiving client
-				ctx.writeAndFlush(new TextWebSocketFrame(presenceXml));
+				localStanzaDispatcher.dispatchLocally(userKey, userKey, presenceXml);
 			}		            
 		} catch (Exception ex) {
 			log.error("Failed to sync MUC participant presence for user key: {}", userKey, ex);

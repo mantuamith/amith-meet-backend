@@ -7,6 +7,7 @@ import org.springframework.stereotype.Component;
 
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
+import com.algomeet.xmpp.chatservice.routing.dispacher.LocalStanzaDispatcher;
 import com.algomeet.xmpp.chatservice.service.OfflineMessageService;
 import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
 
@@ -42,6 +43,7 @@ public class OfflineMessageHandler {
 
     private final OfflineMessageService offlineMessageService;
     private final DomainProperties domainProperties;
+    private final LocalStanzaDispatcher localStanzaDispatcher;
 
     /**
      * Fetches offline stanzas for the given principal and flushes them to the channel.
@@ -61,7 +63,7 @@ public class OfflineMessageHandler {
                 String xmlWithDelay = wrapWithDelay(msg.getStanzaXml(), msg.getCreatedAt());
                 
                 // Push to WebSocket
-                ctx.writeAndFlush(new TextWebSocketFrame(xmlWithDelay));
+                localStanzaDispatcher.dispatchLocally(userKey, msg.getFrom(), xmlWithDelay);
             })
             .doOnComplete(() -> log.info("Completed offline message delivery for user: {}", userKey))
             .doOnError(e -> log.error("Failed to deliver offline messages for {}: {}", userKey, e.getMessage()))

@@ -93,11 +93,10 @@ public class MucMessageRouter {
 		Set<UserSession> userSessions = userSessionRegistry.getSessions(toUserKey);
 		boolean hasSessions = !CollectionUtils.isEmpty(userSessions);
 
-		if (hasSessions) {
-			clusterMessagePublisher.convertAndSendToUser(id, toUserKey, principal.getUserKey(), ChatType.GROUPCHAT, finalForwardXml);
-		}
+		// 4. Publish to cluster server
+		clusterMessagePublisher.convertAndSendToUser(id, toUserKey, principal.getUserKey(), ChatType.GROUPCHAT, finalForwardXml);
 
-		// 4. Push Notifications (Offline Storage logic)
+		// 5. Push Notifications (Offline Storage logic)
 		boolean hasActiveSession = hasSessions && userSessions.stream().anyMatch(s -> UserState.ACTIVE == s.getState());
 
 		if (!hasActiveSession) {					

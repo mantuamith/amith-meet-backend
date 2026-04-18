@@ -58,6 +58,7 @@ public class XmppMucHandler {
 	private final JidUtil jidUtil;
 	private final MucUnreadCountService mucUnreadCountService;
 	private final XmppReadUtil xmppReadUtil;
+	private final XmppUtil xmppUtil;
 
 	/**
 	 * Main entry point for MUC stanza processing.
@@ -92,7 +93,7 @@ public class XmppMucHandler {
 			log.error("Access Denied: User {} in room {}. (Member: {}, Muted: {})", 
 					principal.getUserKey(), toRoomId, senderMucMember.isPresent(), senderMucMember.map(MucMember::isMuted).orElse(false));
 
-			XmppUtil.sendError(ctx, id, fromJid, domainProperties.getGroupChatDomain(), XmppErrorType.CANCEL, 
+			xmppUtil.sendError(ctx, id, fromJid, domainProperties.getGroupChatDomain(), XmppErrorType.CANCEL, 
 					XmppErrorConditions.INTERNAL_SERVER_ERROR, "You are not allowed to send messages to this room");
 			return;
 		}
@@ -215,7 +216,7 @@ public class XmppMucHandler {
 				.findFirst()
 				.orElseGet(() -> {
 					log.error("PM Failure: Nickname {} not found in room {}", nickname, toRoomJid);
-					XmppUtil.sendError(ctx, id, fromJid, domainProperties.getGroupChatDomain(), 
+					xmppUtil.sendError(ctx, id, fromJid, domainProperties.getGroupChatDomain(), 
 							XmppErrorType.CANCEL, XmppErrorConditions.BAD_REQUEST, 
 							"Receiver is not member of the group/room.");
 
@@ -234,11 +235,11 @@ public class XmppMucHandler {
 		if (e instanceof DuplicateKeyException) {
 			// Duplicate stanza detected (idempotent case).
 			// Client MUST ignore this error; used only to support safe retries.
-			XmppUtil.sendError(ctx, id, fromJid, domainProperties.getGroupChatDomain(), XmppErrorType.CANCEL, 
+			xmppUtil.sendError(ctx, id, fromJid, domainProperties.getGroupChatDomain(), XmppErrorType.CANCEL, 
 					XmppErrorConditions.DUPLICATE_KEY_ERROR, "Stanza has duplicate key");
 
 		} else {
-			XmppUtil.sendError(ctx, id, fromJid, domainProperties.getGroupChatDomain(), XmppErrorType.WAIT, 
+			xmppUtil.sendError(ctx, id, fromJid, domainProperties.getGroupChatDomain(), XmppErrorType.WAIT, 
 					XmppErrorConditions.INTERNAL_SERVER_ERROR, "Storage failure");
 		}
 	}

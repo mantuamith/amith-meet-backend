@@ -66,6 +66,7 @@ public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocke
 	private final XmppMucHandler xmppMucHandler;
 	private final XmppMamHandler xmppMamHandler;
 	private final DomainProperties domainProperties;
+	private final XmppUtil xmppUtil;
 
 	/**
 	 * Entry point for incoming WebSocket text frames.
@@ -107,7 +108,7 @@ public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocke
 
 					if (!isValid) {
 						log.warn("Unauthorized 'from' JID attempt: {} by {}", fromJid, authorizedBareJid);
-						XmppUtil.sendError(ctx, id, fromJid, domainProperties.getDomain(), XmppErrorType.AUTH, 
+						xmppUtil.sendError(ctx, id, fromJid, domainProperties.getDomain(), XmppErrorType.AUTH, 
 								XmppErrorConditions.FORBIDDEN, "Invalid from attribute");
 						return;
 					}
@@ -141,7 +142,7 @@ public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocke
 
 		} catch (XMLStreamException e) {
 			log.error("Malformed XML received: {} , {}", xml, e.getMessage());
-			XmppUtil.sendError(ctx, null, principal.getBareJid(), domainProperties.getDomain(), XmppErrorType.CANCEL,
+			xmppUtil.sendError(ctx, principal.getBareJid(), principal.getBareJid(), domainProperties.getDomain(), XmppErrorType.CANCEL,
 					XmppErrorConditions.NOT_WELL_FORMED, "XML parsing failed");
 		} catch (Exception e) {
 			log.error("Routing error for XML {}: {}", xml, e.getMessage(), e);
@@ -169,7 +170,6 @@ public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocke
 
 		return false;
 	}   
-
 
 	/**
 	 * Safely injects the 'from' attribute into the first XML tag.

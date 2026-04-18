@@ -9,6 +9,7 @@ import com.algomeet.xmpp.chatservice.dto.MucMember;
 import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
 import com.algomeet.xmpp.chatservice.enums.XmppErrorType;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
+import com.algomeet.xmpp.chatservice.routing.dispacher.LocalStanzaDispatcher;
 import com.algomeet.xmpp.chatservice.routing.muc.MucMessageRouter;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.algomeet.xmpp.chatservice.util.MucCommandUtil;
@@ -16,7 +17,6 @@ import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
 
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -27,6 +27,9 @@ public class MucKickEventHandler {
 	private final DomainProperties domainProperties;
 	private final JidUtil jidUtil;
 	private final MucMessageRouter mucMessageRouter;
+	private final LocalStanzaDispatcher localStanzaDispatcher;
+	private final XmppUtil xmppUtil;
+	
 	/**
 	 * Processes a request to forcibly remove (kick) an occupant from the room.
 	 * <p>
@@ -55,7 +58,7 @@ public class MucKickEventHandler {
 				.findFirst();        
 		
 		if (victimOpt.isPresent() && !(MucCommandUtil.isAuthorized(sender, victimOpt.get()))) {        	
-			XmppUtil.sendError(ctx, id, senderJid, domainProperties.getGroupChatDomain(), 
+			xmppUtil.sendError(ctx, id, senderJid, domainProperties.getGroupChatDomain(), 
 					XmppErrorType.AUTH, XmppErrorConditions.FORBIDDEN, "Error code 403");
 			return;
 		}
@@ -75,7 +78,7 @@ public class MucKickEventHandler {
 	 */
 	private void sendSuccessResponse(ChannelHandlerContext ctx, String to, String from, String id) {
 		String resp = String.format("<iq from='%s' to='%s' id='%s' type='result'/>", from, to, id);
-		ctx.writeAndFlush(new TextWebSocketFrame(resp));
+		localStanzaDispatcher.dispatchLocally(to, from, resp);
 	}
 	
 	/**
