@@ -2,6 +2,7 @@ package com.algomeet.chatservice.service;
 
 import com.algomeet.chatservice.client.GroupClient;
 import com.algomeet.chatservice.document.*;
+import com.algomeet.chatservice.dto.Member;
 import com.algomeet.chatservice.dto.messageactions.ForwardRequest;
 import com.algomeet.chatservice.dto.messageactions.ReplyRequest;
 import com.algomeet.chatservice.mapper.MessageMapper;
@@ -17,6 +18,7 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.data.mongodb.core.query.UpdateDefinition;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -121,6 +123,47 @@ class MessageActionServiceTest {
     }
 
     @Test
+    void applyReaction_groupNonMember_doesNotMutateMessage() {
+        existing.setGroupId("51");
+        when(groupClient.getGroupById("51")).thenReturn(group("51", "alice", "bob"));
+
+        service.applyReaction("m1", "😀", true, "mallory");
+
+        verify(mongo, never()).updateFirst(any(Query.class), any(Update.class), eq(MessageDocument.class));
+    }
+
+    @Test
+    void replyTo_groupReply_usesOriginalSenderAndDoesNotEchoSender() {
+        MessageDocument original = new MessageDocument();
+        original.setId("orig");
+        original.setSender("bob");
+        original.setGroupId("51");
+        original.setContent("hello");
+        when(repo.findById("orig")).thenReturn(Optional.of(original));
+        when(groupClient.getGroupById("51")).thenReturn(group("51", "alice", "bob"));
+        when(repo.save(any(MessageDocument.class))).thenAnswer(inv -> {
+            MessageDocument d = inv.getArgument(0);
+            d.setId("replyId");
+            return d;
+        });
+
+        ReplyRequest req = new ReplyRequest();
+        req.setReplyToMessageId("orig");
+        req.setGroupId("51");
+        req.setContent("reply");
+        req.setMsgReplyTimeStamp(Instant.now().getEpochSecond());
+
+        MessageDocument saved = service.replyTo(req, "alice", "alice-key");
+
+        assertThat(saved.getReplyContent()).isNotNull();
+        assertThat(saved.getReplyContent().getOriginalFrom()).isEqualTo("bob");
+        assertThat(saved.getReplyContent().getOriginalMesg()).isEqualTo("hello");
+        verify(simp).convertAndSendToUser(eq("alice"), eq("/queue/update_message"), any());
+        verify(simp).convertAndSendToUser(eq("bob"), eq("/queue/messages"), any());
+        verify(simp, never()).convertAndSendToUser(eq("alice"), eq("/queue/messages"), any());
+    }
+
+    @Test
     void forward_missingOriginal_returnsNull() {
         MessageDocument result = service.forward(makeForward("missing","bob", null), "alice", null);
         assertThat(result).isNull();
@@ -157,5 +200,19 @@ class MessageActionServiceTest {
         fr.setGroupId(groupId);
         fr.setMsgForwardTimeStamp(Instant.now().toEpochMilli());
         return fr;
+    }
+
+    private GroupDto group(String id, String... usernames) {
+        GroupDto group = new GroupDto();
+        group.setId(id);
+        group.setMembers(List.of(usernames).stream().map(this::member).toList());
+        return group;
+    }
+
+    private Member member(String username) {
+        Member member = new Member();
+        member.setUsername(username);
+        member.setUserKey(username + "-key");
+        return member;
     }
 }

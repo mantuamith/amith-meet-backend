@@ -1,11 +1,13 @@
 package com.algomeet.chatservice.service;
 
 import com.algomeet.chatservice.client.GroupClient;
+import com.algomeet.chatservice.dto.Member;
 import com.algomeet.chatservice.document.GroupDto;
 import com.algomeet.chatservice.document.MessageDocument;
 import com.algomeet.chatservice.dto.MessageStatusUpdate;
 import com.algomeet.chatservice.dto.RecentReceivedMessageResponse;
 import com.algomeet.chatservice.mapper.MessageMapper;
+import com.algomeet.chatservice.model.MessageStatus;
 import com.algomeet.chatservice.repository.MessageRepository;
 import com.algomeet.chatservice.sync.messaging.SimpMessagingSyncTemplate;
 import com.algomeet.notificationservice.service.NotificationService;
@@ -23,6 +25,7 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -85,8 +88,7 @@ class MessageServiceTest {
 
     @Test
     void markMessagesAsRead_marksGroupMessageForReader() {
-        GroupDto group = new GroupDto();
-        group.setId("51");
+        GroupDto group = group("51", "alice", "bob");
 
         MessageDocument groupMessage = new MessageDocument();
         groupMessage.setId("g1");
@@ -100,6 +102,7 @@ class MessageServiceTest {
         update.setStatusTimeStamp(1_775_662_800L);
 
         when(messageRepository.findAllById(List.of("g1"))).thenReturn(List.of(groupMessage));
+        when(groupClient.getGroupById("51")).thenReturn(group);
         when(messageRepository.findBySenderOrReceiver("alice", "alice")).thenReturn(List.of());
         when(groupClient.getGroupsForUsername("alice")).thenReturn(List.of(group));
         when(messageRepository.findByGroupIdInOrReceiverIn(anyCollection(), anyCollection()))
@@ -109,5 +112,47 @@ class MessageServiceTest {
 
         assertThat(groupMessage.getReadByUsers()).contains("alice");
         verify(messageRepository).saveAll(List.of(groupMessage));
+    }
+
+    @Test
+    void markMessagesAsDelivered_marksGroupMessageForMember() {
+        GroupDto group = group("51", "alice", "bob");
+
+        MessageDocument groupMessage = new MessageDocument();
+        groupMessage.setId("g1");
+        groupMessage.setSender("bob");
+        groupMessage.setGroupId("51");
+        groupMessage.setStatus(MessageStatus.SENT);
+        groupMessage.setContent("hello");
+        groupMessage.setTimestamp(Instant.parse("2026-04-09T09:00:00Z"));
+
+        MessageStatusUpdate update = new MessageStatusUpdate();
+        update.setMessageIds(List.of("g1"));
+        update.setStatusTimeStamp(1_775_662_800L);
+
+        when(messageRepository.findAllById(List.of("g1"))).thenReturn(List.of(groupMessage));
+        when(groupClient.getGroupById("51")).thenReturn(group);
+
+        service.markMessagesAsDelivered(update, "alice");
+
+        assertThat(groupMessage.getStatus()).isEqualTo(MessageStatus.DELIVERED);
+        assertThat(groupMessage.getMsgDeliveredTimeStamp()).isEqualTo(1_775_662_800L);
+        assertThat(groupMessage.getDeliveredByUsers()).contains("alice");
+        verify(messageRepository).saveAll(List.of(groupMessage));
+        verify(messagingSyncTemplate).convertAndSendToUser(eq("bob"), eq("/queue/delivery-receipts"), org.mockito.ArgumentMatchers.any());
+    }
+
+    private GroupDto group(String id, String... usernames) {
+        GroupDto group = new GroupDto();
+        group.setId(id);
+        group.setMembers(java.util.Arrays.stream(usernames).map(this::member).toList());
+        return group;
+    }
+
+    private Member member(String username) {
+        Member member = new Member();
+        member.setUsername(username);
+        member.setUserKey(username + "-key");
+        return member;
     }
 }

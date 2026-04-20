@@ -90,6 +90,9 @@ public class MessageDocument {
 
     private Long msgDeliveredTimeStamp;
 
+    @Field("deliveredByUsers")
+    private Set<String> deliveredByUsers = new HashSet<>();
+
     @Field("readByUsers")
     private Set<String> readByUsers = new HashSet<>();
 
@@ -128,6 +131,19 @@ public class MessageDocument {
         return userId.equals(receiver) && status == MessageStatus.READ;
     }
 
+    public boolean isDeliveredTo(String userId) {
+        if (userId == null) {
+            return false;
+        }
+        if (userId.equals(sender)) {
+            return true;
+        }
+        if (isGroupMessage()) {
+            return deliveredByUsers != null && deliveredByUsers.contains(userId);
+        }
+        return userId.equals(receiver) && (status == MessageStatus.DELIVERED || status == MessageStatus.READ);
+    }
+
     public void markReadBy(String userId) {
         if (userId == null) {
             return;
@@ -136,6 +152,16 @@ public class MessageDocument {
             readByUsers = new HashSet<>();
         }
         readByUsers.add(userId);
+    }
+
+    public void markDeliveredTo(String userId) {
+        if (userId == null) {
+            return;
+        }
+        if (deliveredByUsers == null) {
+            deliveredByUsers = new HashSet<>();
+        }
+        deliveredByUsers.add(userId);
     }
 
     // TODO(migration): when you move “delete for me” to UUIDs, add:

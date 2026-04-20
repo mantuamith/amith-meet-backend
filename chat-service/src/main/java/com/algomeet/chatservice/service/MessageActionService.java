@@ -19,6 +19,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
@@ -36,7 +37,7 @@ public class MessageActionService {
 
     public void applyReaction(String messageId, String emoji, boolean add, String username) {
         MessageDocument msg = messageRepository.findById(messageId).orElse(null);
-        if (msg == null) return;
+        if (msg == null || !isParticipant(msg, username)) return;
 
         String key = "metaData.reactions." + emoji;
         Query q = Query.query(Criteria.where("_id").is(messageId));
@@ -94,8 +95,8 @@ public class MessageActionService {
         MessageDocument msg = messageRepository.findById(req.getReplyToMessageId()).orElse(null);
         ReplyContent replyContent = new ReplyContent();
         replyContent.setOriginalMessageId(req.getReplyToMessageId());
-        replyContent.setOriginalFrom(msg.getReceiver());
-        replyContent.setOriginalMesg(msg.getContent());
+        replyContent.setOriginalFrom(msg != null ? msg.getSender() : null);
+        replyContent.setOriginalMesg(msg != null ? msg.getContent() : null);
         reply.setReplyContent(replyContent);
         messageService.initializeReadTracking(reply);
         MessageDocument saved = messageRepository.save(reply);
@@ -172,9 +173,10 @@ public class MessageActionService {
                 // If a message includes media files, grant media access permissions to the
                 // message recipients.
                 mediaService.share(doc, group);
+                messagingSyncTemplate.convertAndSendToUser(doc.getSender(), "/queue/update_message", resp);
         		
                 for (Member member : group.members) {
-                    if (!member.equals(doc.getSender())) {
+                    if (!Objects.equals(member.getUsername(), doc.getSender())) {
                         messagingSyncTemplate.convertAndSendToUser(member.getUsername(), "/queue/messages", resp);
                         messageService.sendUnreadCountUpdate(member.getUsername());
                     }
@@ -206,5 +208,24 @@ public class MessageActionService {
                     new UnreadCountResponse(doc.getReceiver(), unreadForSender)
             );
         }
+    }
+
+    private boolean isParticipant(MessageDocument message, String username) {
+        if (message == null || username == null || username.isBlank()) {
+            return false;
+        }
+        if (message.isGroupMessage()) {
+            try {
+                GroupDto group = groupClient.getGroupById(message.getGroupId());
+                return group != null
+                        && group.members != null
+                        && group.members.stream()
+                        .map(Member::getUsername)
+                        .anyMatch(username::equals);
+            } catch (Exception ignored) {
+                return false;
+            }
+        }
+        return username.equals(message.getSender()) || username.equals(message.getReceiver());
     }
 }

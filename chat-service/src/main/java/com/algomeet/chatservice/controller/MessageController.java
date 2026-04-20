@@ -1,8 +1,11 @@
     package com.algomeet.chatservice.controller;
 
+    import com.algomeet.chatservice.client.GroupClient;
+    import com.algomeet.chatservice.document.GroupDto;
     import com.algomeet.chatservice.document.MessageDocument;
     import com.algomeet.chatservice.document.MessageResponse;
     import com.algomeet.chatservice.dto.*;
+    import com.algomeet.chatservice.dto.Member;
     import com.algomeet.chatservice.dto.clearchat.ClearChatRequest;
     import com.algomeet.chatservice.dto.clearchat.ClearChatResult;
     import com.algomeet.chatservice.dto.msgdelete.MessageDeleteRequest;
@@ -21,6 +24,7 @@ import jakarta.validation.Valid;
     import org.springframework.security.core.context.SecurityContextHolder;
     import org.springframework.web.bind.annotation.*;
     import org.springframework.http.ResponseEntity;
+    import org.springframework.web.server.ResponseStatusException;
 
     import java.security.Principal;
     import java.util.ArrayList;
@@ -37,6 +41,7 @@ import jakarta.validation.Valid;
         private final MessageMapper messageMapper;
         private final MessageService messageService;
         private final MessageDeleteService deleteService;
+        private final GroupClient groupClient;
 
         @PostMapping
         public MessageDocument saveMessage(@Valid @RequestBody MessageDocument message, Principal principal) {
@@ -110,6 +115,8 @@ import jakarta.validation.Valid;
                 @RequestParam(defaultValue = "false") boolean paged,
                 @RequestParam(defaultValue = "20") int size) {
 
+            final String currentUser = getCurrentUserName();
+            ensureGroupMembership(groupId, currentUser);
             final int clampedPage = Math.max(page, 0);
             final int pageSize    = Math.min(Math.max(size, 1), 100);
 
@@ -121,11 +128,7 @@ import jakarta.validation.Valid;
                 // Get "newest page first" then flip to ASC within the page for UI
                 Pageable p = PageRequest.of(clampedPage, pageSize, descSort);
 
-                // If your repo returns List<MessageDocument>
-                List<MessageDocument> pageDesc = messageRepository.findByReceiver(groupId, p);
-
-                // If your repo returns Page<MessageDocument>, use:
-                // List<MessageDocument> pageDesc = messageRepository.findByReceiver(groupId, p).getContent();
+                List<MessageDocument> pageDesc = messageRepository.findVisibleGroupMessages(groupId, currentUser, p);
 
                 List<MessageDocument> pageAsc = new ArrayList<>(pageDesc); // ensure mutable
                 Collections.reverse(pageAsc);
@@ -137,11 +140,7 @@ import jakarta.validation.Valid;
                 // Non-paged: fetch latest 100 (DESC) then present ASC
                 Pageable p = PageRequest.of(0, 100, descSort);
 
-                // If your repo returns List<MessageDocument>
-                List<MessageDocument> latestDesc = messageRepository.findByReceiver(groupId, p);
-
-                // If your repo returns Page<MessageDocument>, use:
-                // List<MessageDocument> latestDesc = messageRepository.findByReceiver(groupId, p).getContent();
+                List<MessageDocument> latestDesc = messageRepository.findVisibleGroupMessages(groupId, currentUser, p);
 
                 List<MessageDocument> latestAsc = new ArrayList<>(latestDesc); // mutable copy
                 Collections.reverse(latestAsc);
@@ -185,6 +184,18 @@ import jakarta.validation.Valid;
         private String getCurrentUserName() {
             var auth = SecurityContextHolder.getContext().getAuthentication();
             return auth.getName(); // now returns username instead of email
+        }
+
+        private void ensureGroupMembership(String groupId, String username) {
+            GroupDto group = groupClient.getGroupById(groupId);
+            boolean isMember = group != null
+                    && group.getMembers() != null
+                    && group.getMembers().stream()
+                    .map(Member::getUsername)
+                    .anyMatch(username::equals);
+            if (!isMember) {
+                throw new ResponseStatusException(org.springframework.http.HttpStatus.FORBIDDEN, "Not a member of the group");
+            }
         }
 
         @PostMapping("/clear")
