@@ -87,7 +87,7 @@ public class MissedCallScheduler {
 	 * * @return A Mono signal indicating completion of the batch process.
 	 */
 	private Mono<Void> loadMissedCalls() {
-	    String lockKey = "algomeet:lock:process:missed-call";
+	    String lockKey = "algomeet:lock:process:missed-calls";
 	    RLockReactive lock = redissonReactiveClient.getLock(lockKey);
 
 	    return Mono.<Void, Boolean>usingWhen(
