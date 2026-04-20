@@ -1,13 +1,15 @@
 package com.algomeet.xmpp.chatservice.service;
 
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.commons.lang3.StringUtils;
+import org.redisson.api.RLockReactive;
+import org.redisson.api.RedissonReactiveClient;
 import org.springframework.stereotype.Service;
 
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
-import com.algomeet.xmpp.chatservice.document.SmBufferMessage;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
 import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
 import com.algomeet.xmpp.chatservice.util.XmppSmSessionRedisUtil;
@@ -38,10 +40,10 @@ import reactor.core.publisher.Mono;
 @Service
 @RequiredArgsConstructor
 public class XmppSmBufferService {
-
     private final XmppSmSessionRedisUtil xmppSmSessionRedisUtil;
     private final XmppSmSessionsRedisUtil xmppSmSessionsRedisUtil;
     private final SmBufferMessageService smBufferMessageService;
+    private final RedissonReactiveClient redissonReactiveClient;
 
     /**
      * Initializes Stream Management session state for a connected client.
@@ -95,6 +97,30 @@ public class XmppSmBufferService {
     private Flux<String> getUserSmSessionIds(String receiverUserKey) {
         return xmppSmSessionsRedisUtil.getActiveNonExpiredSessions(receiverUserKey);
     }
+    
+    public Mono<Void> saveStanzaSynchronized(String id, String receiverUserKey, String xml) {    	
+    	String lockKey = "xmpp:save-lock:sm:id:" + id;
+        RLockReactive lock = redissonReactiveClient.getLock(lockKey);
+
+        return Mono.usingWhen(
+            // 1. ACQUIRE: Wait 5ms, Lease 2s (prevents ghost locks)
+            lock.tryLock(500, 2000, TimeUnit.MILLISECONDS),
+            
+            acquired -> {
+                if (!acquired) {
+                    log.warn("Lock acquisition failed for SID: {}. Skipping to prevent duplicates.", id);
+                    return Mono.empty();
+                }
+                
+                // 2. PROCESS: The core logic now protected by the lock
+                return saveStanza(id, receiverUserKey, xml);
+            },
+            
+            // 3. RELEASE: Success/Cancel/Error - Always unlock
+            acquired -> acquired ? lock.unlock() : Mono.empty()
+        )
+        .doOnError(e -> log.error("Critical failure in saving for stanza ID: {}", id, e));
+    }
 
     /**
      * Buffers a stanza across all active SM sessions for a user.
@@ -108,8 +134,7 @@ public class XmppSmBufferService {
      * - Only buffer messages that are NOT explicitly excluded
      *   by message type or archival policy
      */
-    public Mono<Void> saveStanza(String id, String receiverUserKey, String xml) {
-
+    private Mono<Void> saveStanza(String id, String receiverUserKey, String xml) {
         // Monotonic sequence identifier for ordering replayed stanzas
         String seq = UlidCreator.getMonotonicUlid().toLowerCase();
 
@@ -124,7 +149,7 @@ public class XmppSmBufferService {
                     // - Only store if message supports offline storage
                     // - AND stanza is not excluded from archiving (e.g., chatstate, transient events)
                     if (!(msgType.supportsOfflineStorage()
-                            && XmppStanzaUtil.isArchiveable(xml, xml))) {
+                            && XmppStanzaUtil.isArchiveable(xml))) {
 
                         return smBufferMessageService.bufferStanza(
                                 smSessionId,
@@ -157,33 +182,44 @@ public class XmppSmBufferService {
      *
      * This is a targeted version used when session context is already known,
      * avoiding session lookup overhead.
-     */
-    public Mono<SmBufferMessage> saveStanza(
-            String id,
+     */   
+    public Mono<Void> saveStanza(
+    		String id,
             String receiverUserKey,
             String xml,
-            String smSessionId) {
-
+            String localSmSid) {
+        // 1. Pre-calculate identifiers and logic once
         String seq = UlidCreator.getMonotonicUlid().toLowerCase();
-
+        String stanzaId = StringUtils.isEmpty(id) ? UUID.randomUUID().toString() : id;
+        
         String type = XmppStanzaUtil.getAttribute(xml, "type");
         XmppMessageType msgType = XmppMessageType.fromString(type);
 
-        // Apply same buffering rules as multi-session version
-        if (!(msgType.supportsOfflineStorage()
-                && XmppStanzaUtil.isArchiveable(xml, xml))) {
+        // 2. Determine eligibility once
+        boolean shouldBuffer = msgType.supportsOfflineStorage() && XmppStanzaUtil.isArchiveable(xml);
 
-            return smBufferMessageService.bufferStanza(
-                    smSessionId,
-
-                    StringUtils.isEmpty(id)
-                            ? UUID.randomUUID().toString()
-                            : id,
-
-                    seq,
-                    xml);
+        // Use the inverse logic as per your original snippet (!)
+        if (!shouldBuffer) {
+            return getUserSmSessionIds(receiverUserKey)
+                    .collectList() // 3. Collect all session IDs first
+                    .flatMap(smSessionIds -> {                 
+                        if (StringUtils.isNotBlank(localSmSid) 
+                        		&& !(smSessionIds.stream().anyMatch(s -> s.equalsIgnoreCase(localSmSid)))) {
+                        	smSessionIds.add(localSmSid);
+                        }
+                        
+                        // 4. Map the IDs to buffering tasks
+                        return Flux.fromIterable(smSessionIds)
+                                .flatMap(smSessionId -> 
+                                    smBufferMessageService.bufferStanza(smSessionId, stanzaId, seq, xml)
+                                )
+                                .then();
+                    })
+                    .doOnSuccess(v -> log.debug("Completed processing stanza {} for user {}", stanzaId, receiverUserKey))
+                    .doOnError(e -> log.error("Failed to process stanza {} for user {}", stanzaId, receiverUserKey, e));
         }
 
+        // Skip buffering for transient/non-archivable stanzas
         return Mono.empty();
     }
 }

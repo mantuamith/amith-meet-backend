@@ -96,16 +96,28 @@ public class ConnectionLifecycleHandler {
             String sessionId = principal.getSessionId();
             
             // Kick-in SM buffer for resume session messages
-            xmppSmBufferService.save(ctx, principal).subscribe();
+            xmppSmBufferService.save(ctx, principal)
+            .doOnError(e -> log.error("Failed to save SM buffer for user {}: {}", userKey, e.getMessage()))
+            .doFinally(signalType -> {
+                // Log the signal type for better debugging (Cancel, Error, or Complete)
+                log.debug("Finalizing session for {} with signal: {}", userKey, signalType);
+                
+                // Execute each cleanup task safely 
+                safeExecute(
+                    () -> localChannelRegistry.unregister(userKey), 
+                    "Local Channel Registry", 
+                    userKey
+                );
+            })
+            .subscribe();
 
             log.info("Starting cleanup for session {} (User: {})", sessionId, userKey);
                         
             // Execute each cleanup task safely to ensure one failure doesn't block the entire teardown
-            safeExecute(() -> localChannelRegistry.unregister(userKey), "Local Channel Registry", userKey);
-            safeExecute(() -> userSessionRegistry.removeSession(userKey, sessionId), "User Session Registry", userKey);
+             safeExecute(() -> userSessionRegistry.removeSession(userKey, sessionId), "User Session Registry", userKey);
 
-            // Process dropped calls (Reactive reconciliation)
-            callTrackerService.reconcileDroppedCall(sessionId);
+            // Handle ongoing dropped calls.
+            callTrackerService.handleTransportDrop(sessionId).subscribe();
             
             // Broadcast user presence GONE
             xmppBroadcastUserPresenceHandler.broadcastUserPresenceAsync(ctx, principal, UserState.GONE);

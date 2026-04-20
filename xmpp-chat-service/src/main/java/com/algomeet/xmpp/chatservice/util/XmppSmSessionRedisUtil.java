@@ -11,7 +11,9 @@ import reactor.core.publisher.Mono;
 import reactor.util.retry.Retry;
 
 import java.time.Duration;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Component
@@ -24,8 +26,8 @@ public class XmppSmSessionRedisUtil {
     public static final String SM_SESSION_KEY = "xmpp:sm:session:%s";
     public static final String SM_SESSION_KEY_PREFIX = "xmpp:sm:session:";
     
-    private static final String FIELD_H = "h";
-    private static final String FIELD_USER_SESSION_ID = "userSessionId";
+    public static final String FIELD_H = "h";
+    public static final String FIELD_USER_SESSION_ID = "userSessionId";
 
     /**
      * LUA Script: Atomically saves data and sets expiration.
@@ -77,6 +79,25 @@ public class XmppSmSessionRedisUtil {
                 .map(this::safeParseLong)
                 .defaultIfEmpty(0L);
     }
+    
+    /**
+     * Retrieves the full Stream Management session state from Redis.
+     * * @param smSessionId The unique Stream Management session identifier.
+     * @return A Mono containing a Map of all session fields (e.g., h, location, timestamp).
+     */
+    public Mono<Map<String, String>> getSmSessionData(String smSessionId) {
+        return redis.opsForHash()
+                // entries() returns a Flux of Map.Entry, so we collect it into a Mono<Map>
+                .entries(key(SM_SESSION_KEY, smSessionId))
+                .collectMap(
+                    entry -> entry.getKey().toString(),
+                    entry -> entry.getValue().toString()
+                )
+                // Ensures the chain continues with an empty map if no session exists
+                .defaultIfEmpty(Collections.emptyMap())
+                .doOnError(e -> log.error("Failed to retrieve SM Map for session: {}", smSessionId, e));
+    }
+        
 
     public Mono<Void> deleteSession(String smSessionId) {
         return redis.delete(key(SM_SESSION_KEY, smSessionId))

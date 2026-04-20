@@ -14,7 +14,6 @@ import com.algomeet.xmpp.chatservice.routing.dispacher.LocalStanzaDispatcher;
 import com.algomeet.xmpp.chatservice.stanza.StanzaError;
 
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import lombok.extern.slf4j.Slf4j;
 
 /**

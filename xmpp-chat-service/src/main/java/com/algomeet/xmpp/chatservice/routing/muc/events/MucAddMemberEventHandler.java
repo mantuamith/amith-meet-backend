@@ -129,7 +129,6 @@ public class MucAddMemberEventHandler {
 				group, 
 				sender, 
 				null, 
-				xmlLogStanza, 
 				xmlLogStanza);
 		
 		// 9. Finalize the request with an IQ Result to the admin

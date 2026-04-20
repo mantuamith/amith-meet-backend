@@ -23,7 +23,6 @@ import com.algomeet.xmpp.chatservice.routing.call.CallLifeCycleTracker;
 import com.algomeet.xmpp.chatservice.routing.call.JingleNotificationHandler;
 import com.algomeet.xmpp.chatservice.service.OfflineMessageService;
 import com.algomeet.xmpp.chatservice.service.UnreadCountService;
-import com.algomeet.xmpp.chatservice.service.XmppSmBufferService;
 import com.algomeet.xmpp.chatservice.session.UserSessionRegistry;
 import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
 import com.algomeet.xmpp.chatservice.session.model.UserSession;
@@ -69,13 +68,9 @@ public class XmppChatHandler {
 		// Get user sessions from redis
 		Set<UserSession> sessions = userSessionRegistry.getSessions(toUserKey);
 
-		// Only scan the first 500 characters for routing/type info
-		// Most XMPP metadata is at the start of the stanza
-		String xmlHeader = originalXml.substring(0, Math.min(originalXml.length(), 500));
-
 		// Persistence & XEP-0198 Acknowledgment
 		// Instead of .subscribe(), return the Mono and handle the sequence
-		if (msgType.supportsOfflineStorage() && XmppStanzaUtil.isArchiveable(xmlHeader, originalXml)) {			
+		if (msgType.supportsOfflineStorage() && XmppStanzaUtil.isArchiveable(originalXml)) {			
 			offlineMessageService.save(id, toUserKey, fromUserKey, type, originalXml)
 		            .doOnSuccess(saved -> {
 		            	boolean isAckMessage = false;
@@ -93,7 +88,7 @@ public class XmppChatHandler {
 						// --- XEP-0184: Message Delivery Receipts ---
 					    // If the stanza contains the 'urn:xmpp:receipts' namespace, the recipient's 
 					    // device has successfully received the message.
-					    if (xmlHeader.contains(XmppReceiptUtil.NS_RECEIPTS)) {
+					    if (originalXml.contains(XmppReceiptUtil.NS_RECEIPTS)) {
 					    	isAckMessage = true;
 					        String ackMessageId = xmppReceiptUtil.getAckMessageId(originalXml);
 					        
@@ -107,7 +102,7 @@ public class XmppChatHandler {
 					    // --- XEP-0333: Chat Markers (Read Receipts) ---
 					    // If the stanza contains the 'urn:xmpp:chat-markers:0' namespace (displayed), 
 					    // the user has actively viewed the conversation.
-					    if (xmlHeader.contains(XmppReadUtil.NS_DISPLAYS)) {
+					    if (originalXml.contains(XmppReadUtil.NS_DISPLAYS)) {
 					    	isAckMessage = true;
 					        String ackMessageId = xmppReadUtil.getAckMessageId(originalXml);
 					        
@@ -160,7 +155,7 @@ public class XmppChatHandler {
 		// to their active WebSocket channels across the cluster.
 		clusterMessagePublisher.convertAndSendToUser(id, toUserKey, fromUserKey, ChatType.CHAT, originalXml);
 						
-		pushNotification(ctx, id, toUserKey, fromUserKey, type, xmlHeader, originalXml, sessions, principal);
+		pushNotification(ctx, id, toUserKey, fromUserKey, type, originalXml, sessions, principal);
 		
 		// Handle Carbon copy
 		handleSentMessageCarbonCopy(originalXml, principal);
@@ -171,7 +166,6 @@ public class XmppChatHandler {
 			String toUserKey,
 			String fromUserKey,
 			String type,
-			String xmlHeader,
 			String xml,
 			Set<UserSession> sessions,
 			XmppPrincipal principal) {
@@ -202,7 +196,7 @@ public class XmppChatHandler {
 				 * We extract the <body> element and trigger a Push Notification (FCM/APNs)
 				 * to the recipient, ensuring they receive the message even if offline.
 				 */            	
-				if (XmppStanzaUtil.isArchiveable(xmlHeader, xml)) {
+				if (XmppStanzaUtil.isArchiveable(xml)) {
 					String body = XmppUtil.getMessageBody(xml);
 					sendPushNotification(toUserKey, body, NotificationType.DIRECT_MESSAGE, principal);
 				}

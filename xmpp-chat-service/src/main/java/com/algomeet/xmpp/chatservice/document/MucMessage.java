@@ -36,7 +36,7 @@ public class MucMessage {
     // Used for DIRECT PRIVATE MESSAGE (PM) WITHIN MUC 
     private String to;
     
-    @Size(max = 66560, message = "XML stanza is too large") // Max length 65kb
+    @Size(max = 20000, message = "XML stanza is too large") // Max length 20kb
     private String stanzaXml;
     
     private String category;

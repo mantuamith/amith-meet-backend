@@ -29,7 +29,7 @@ public class OfflineMessage {
 
     private String messageType; // "chat" or "normal"
     
-    @Size(max = 66560, message = "XML stanza is too large") // Max length 65kb
+    @Size(max = 20000, message = "XML stanza is too large") // Max length 20kb
     private String stanzaXml;   // The raw <message> XML string
 
     @Builder.Default

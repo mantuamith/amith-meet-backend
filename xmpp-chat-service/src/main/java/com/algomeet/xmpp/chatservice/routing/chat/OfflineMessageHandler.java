@@ -1,7 +1,6 @@
 package com.algomeet.xmpp.chatservice.routing.chat;
 
 import java.time.Instant;
-import java.util.concurrent.atomic.AtomicLong;
 
 import org.springframework.stereotype.Component;
 
@@ -9,10 +8,8 @@ import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.routing.dispacher.LocalStanzaDispatcher;
 import com.algomeet.xmpp.chatservice.service.OfflineMessageService;
-import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
 
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 

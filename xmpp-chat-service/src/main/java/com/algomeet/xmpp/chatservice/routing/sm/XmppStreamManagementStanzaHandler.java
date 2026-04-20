@@ -7,6 +7,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.springframework.stereotype.Component;
 
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
+import com.algomeet.xmpp.chatservice.service.CallTrackerService;
 import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
 import com.algomeet.xmpp.chatservice.stanza.StreamAck;
 import com.algomeet.xmpp.chatservice.util.XmppSmSessionRedisUtil;
@@ -40,6 +41,7 @@ import reactor.core.publisher.Mono;
 @RequiredArgsConstructor
 public class XmppStreamManagementStanzaHandler {
 	private final XmppSmSessionRedisUtil xmppSmRedisUtil;
+	private final CallTrackerService callTrackerService;
 
 
 	private static final String NS = "urn:xmpp:sm:3";
@@ -116,14 +118,20 @@ public class XmppStreamManagementStanzaHandler {
 		 // Example usage in your Resumption Handler
 		    String userKey = principal.getBareJid(); // Get the owner of the session
 
-		    xmppSmRedisUtil.getLastAck(prevId)
-		    .filter(lastAck -> lastAck > 0) 
-		    // Type Hint <Long> ensures the compiler knows the final return type of the flatMap
-		    .<Long>flatMap(lastAck -> {      	
-		            // 1. Re-bind to local Netty context
+		    xmppSmRedisUtil.getSmSessionData(prevId)
+		    .filter(sessionMap -> !sessionMap.isEmpty()) 
+		    // Type Hint <sessionMap> ensures the compiler knows the final return type of the flatMap
+		    .<Long>flatMap(sessionMap -> {   
+		    	   Long lastAck = Long.parseLong(sessionMap.get(XmppSmSessionRedisUtil.FIELD_H).toString());
+		    	   String prevUserSessionId = 	sessionMap.get(XmppSmSessionRedisUtil.SM_SESSION_KEY).toString();	    	    
+		            
+		    	   // 1. Re-bind to local Netty context
 		            XmppSmSessionUtil.initSmSession(ctx, true, prevId, lastAck);
+		            
+		            // 2. Resume dropped call:
+		            callTrackerService.updateSessionRebind(prevUserSessionId, principal.getSessionId());
 
-		            // 2. Update mapping to the NEW WebSocket/Netty session ID
+		            // 3. Update mapping to the NEW WebSocket/Netty session ID
 		            return xmppSmRedisUtil.updateUserSessionId(prevId, principal.getSessionId())
 		                .thenReturn(lastAck);
 		        })

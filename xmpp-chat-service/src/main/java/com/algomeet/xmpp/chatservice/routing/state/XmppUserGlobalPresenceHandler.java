@@ -89,14 +89,14 @@ public class XmppUserGlobalPresenceHandler {
 	        if (initialPresenceAttr.get() == null || !initialPresenceAttr.get()) {
 
 	            // Check whether this session was successfully resumed via SM (XEP-0198)
-	            AtomicBoolean resumptionSuccess =
+	            AtomicBoolean smResumptionSuccess =
 	                    ctx.channel()
 	                       .attr(XmppSessionAttributes.SM_RESUMPTION_SUCCESS_KEY)
 	                       .get();
 
 	            // A. Push contact presence snapshot ("world state")
 	            // Only needed for fresh sessions (not fully resumed ones)
-	            if (resumptionSuccess == null || !resumptionSuccess.get()) {
+	            if (smResumptionSuccess == null || !smResumptionSuccess.get()) {
 	                xmppPresencePushHandler.pushUsersPresenceAsync(ctx, principal);
 	            }
 
@@ -104,7 +104,7 @@ public class XmppUserGlobalPresenceHandler {
 	            offlineMessageHandler.deliverOfflineMessages(ctx, principal);
 
 	            // C. Deliver buffered SM stanzas if session was successfully resumed
-	            if (resumptionSuccess != null && resumptionSuccess.get()) {
+	            if (smResumptionSuccess != null && smResumptionSuccess.get()) {
 	                deliverBufferStanzas(ctx, principal);
 	            }
 

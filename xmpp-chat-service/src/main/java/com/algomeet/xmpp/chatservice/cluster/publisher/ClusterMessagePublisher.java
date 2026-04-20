@@ -1,7 +1,10 @@
 package com.algomeet.xmpp.chatservice.cluster.publisher;
 
+import java.util.UUID;
+
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
 import com.algomeet.xmpp.chatservice.cluster.dto.ClusterSyncMessage;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
@@ -55,8 +58,12 @@ public class ClusterMessagePublisher {
      * @throws ClusterMessageException if the Redis transport layer fails, potentially leading to delivery loss.
      */
     public void convertAndSendToUser(String id, String to, String from, ChatType chatType, Boolean isCarbonCopy, String sessionId, String payload) {
-        try {						
-            // Construct the DTO that acts as the envelope for cluster-wide routing
+        try {
+        	
+        	if (!(StringUtils.hasText(id))) {
+        		id = UUID.randomUUID().toString();
+        	}
+            // Construct the DTO that acts as the envelope for cluster-wide routing        	
             ClusterSyncMessage message = ClusterSyncMessage.builder()
                     .id(id)
                     .to(to)					
