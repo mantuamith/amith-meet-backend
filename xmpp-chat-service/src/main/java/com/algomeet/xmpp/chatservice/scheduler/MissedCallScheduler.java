@@ -1,12 +1,15 @@
 package com.algomeet.xmpp.chatservice.scheduler;
 
 import java.time.Instant;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
-import org.springframework.data.redis.core.StringRedisTemplate;
+import org.redisson.api.RLockReactive;
+import org.redisson.api.RedissonReactiveClient;
+import org.springframework.data.domain.Range;
+import org.springframework.data.redis.core.ReactiveRedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
@@ -21,10 +24,11 @@ import com.algomeet.xmpp.chatservice.dto.MucMember;
 import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
 import com.algomeet.xmpp.chatservice.dto.StanzaInfo;
 import com.algomeet.xmpp.chatservice.enums.CallSessionMetadata;
+import com.algomeet.xmpp.chatservice.enums.CallSessionRedisKey;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.enums.UserState;
-import com.algomeet.xmpp.chatservice.enums.CallSessionRedisKey;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
+import com.algomeet.xmpp.chatservice.repository.CallTrackerRepository;
 import com.algomeet.xmpp.chatservice.service.GroupCacheService;
 import com.algomeet.xmpp.chatservice.service.OfflineMessageService;
 import com.algomeet.xmpp.chatservice.service.XmppArchiveService;
@@ -36,29 +40,27 @@ import com.github.f4b6a3.ulid.UlidCreator;
 
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 /**
- * <h2>Missed Call Background Worker</h2>
+ * <h2>Missed Call Background Worker (Reactive)</h2>
  * <p>
- * The {@code MissedCallScheduler} is a high-precision background worker designed to handle the 
- * lifecycle of unanswered Jingle sessions across a distributed cluster. It ensures that if a user 
- * does not answer a call within the ringing timeout, both parties receive appropriate XMPP stanzas 
- * and push notifications.
+ * This worker manages the lifecycle of unanswered Jingle (XEP-0166) sessions. 
+ * It monitors a Redis Sorted Set for call timeouts and orchestrates missed call
+ * delivery across the cluster.
  * </p>
- * * <h3>Distributed Locking Mechanism:</h3>
- * <p>
- * To prevent multiple cluster nodes from processing the same timeout, this worker uses an atomic 
- * Redis {@code ZREM} operation. Only the node that successfully removes the Session ID (SID) 
- * from the {@code DELAYED_QUEUE} earns the right to process the missed call.
- * </p>
- * * @author AlgoMeet Core Team
+ * * <h3>Key Reactive Principles applied:</h3>
+ * <ul>
+ * <li><b>Non-blocking I/O:</b> Uses {@code ReactiveRedisTemplate} to prevent Netty EventLoop saturation.</li>
+ * <li><b>Thread Safety:</b> Employs {@code safeUnlock} to handle Redisson thread-affinity issues in asynchronous pipelines.</li>
+ * <li><b>Context Isolation:</b> Manages {@code TenantContext} explicitly within elastic schedulers to support multi-tenancy.</li>
+ * </ul>
  */
 @Slf4j
 @Component
 @AllArgsConstructor
 public class MissedCallScheduler {
-
-	private final StringRedisTemplate redisTemplate;
 	private final ClusterMessagePublisher clusterMessagePublisher;
 	private final OfflineMessageService offlineMessageService;
 	private final NotificationService notificationService;
@@ -66,115 +68,144 @@ public class MissedCallScheduler {
 	private final XmppArchiveService xmppArchiveService;
 	private final JidUtil jidUtil;
 	private final UserSessionRegistry userSessionRegistry;
-
+	private final RedissonReactiveClient redissonReactiveClient;
+	private final ReactiveRedisTemplate<String, String> reactiveRedisTemplate;
+	private final CallTrackerRepository callTrackerRepository;
+	
 	/**
-	 * Periodic task that scans the Redis Sorted Set (ZSET) for expired call sessions.
-	 * <p>
-	 * The score in the ZSET represents the epoch timestamp when the call should time out.
-	 * This method runs every second to maintain real-time responsiveness.
-	 * </p>
-	 * * @see CallSessionRedisKey#DELAYED_QUEUE
+	 * Main execution trigger. Subscribes to the reactive chain every second.
+	 * Using {@code fixedDelay} ensures that a new execution doesn't start until
+	 * the previous reactive subscription has been initialized.
 	 */
 	@Scheduled(fixedDelay = 1000)
 	public void processExpiredCalls() {
-		long now = System.currentTimeMillis();
-
-		// Step 1: Query for all SIDs whose timeout (score) is less than or equal to 'now'
-		Set<String> expiredSids = redisTemplate.opsForZSet().rangeByScore(CallSessionRedisKey.DELAYED_QUEUE.getVal(), 0, now);
-
-		if (expiredSids == null || expiredSids.isEmpty()) {
-			return;
-		}
-
-		for (String sid : expiredSids) {
-			try {
-				/*
-				 * Step 2: Distributed Lock Attempt.
-				 * Since 'remove' is atomic, only one instance in the cluster will receive a value > 0.
-				 * This effectively handles concurrency without needing complex Redlock implementations.
-				 */
-				Long removed = redisTemplate.opsForZSet().remove(CallSessionRedisKey.DELAYED_QUEUE.getVal(), sid);
-
-				if (removed != null && removed > 0) {
-					processMissedCall(sid);
-				}
-			} catch(Exception ex){
-				log.error("Critical error in MissedCall task for SID {}: {}", sid, ex.getMessage(), ex);
-			}
-		}
+		loadMissedCalls().subscribe();
 	}
 
 	/**
-	 * Orchestrates the missed call workflow: metadata retrieval, XMPP stanza generation, 
-	 * and push notification dispatch.
-	 * * @param sid The unique Jingle Session ID retrieved from the timeout queue.
+	 * Scans for expired sessions and acquires a distributed lock to prevent multi-node processing.
+	 * * @return A Mono signal indicating completion of the batch process.
 	 */
-	private void processMissedCall(String sid) {
-		String metaKey = CallSessionRedisKey.CALL_PENDING_PREFIX.format(sid);
+	private Mono<Void> loadMissedCalls() {
+	    String lockKey = "algomeet:lock:process:missed-calls";
+	    RLockReactive lock = redissonReactiveClient.getLock(lockKey);
 
-		// Step 3: Retrieve metadata stored during the initial session-initiate
-		Map<Object, Object> metadata = redisTemplate.opsForHash().entries(metaKey);
+	    return Mono.<Void, Boolean>usingWhen(
+	            // 1. ACQUIRE: Short wait time (300ms) with a safety lease (1s)
+	            lock.tryLock(300, 1000, TimeUnit.MILLISECONDS),
+	            acquired -> {
+	                if (!acquired) {
+	                    return Mono.<Void>empty();
+	                }
 
-		if (metadata.isEmpty()) {
-			log.warn("Missed call metadata missing for SID: {}. It may have been cleaned up elsewhere.", sid);
-			return;
-		}
-
-		// Extracting context-specific metadata
-		String toJid = (String) metadata.get(CallSessionMetadata.TO.getKey());
-		String fromJid = (String) metadata.get(CallSessionMetadata.FROM.getKey());
-		String type = (String) metadata.get(CallSessionMetadata.CALL_TYPE.getKey());
-		String tenantId = (String) metadata.get(CallSessionMetadata.TENANT_ID.getKey());
-		String username = (String) metadata.get(CallSessionMetadata.USERNAME.getKey());
-		String groupId = (String) metadata.get(CallSessionMetadata.GROUP_ID.getKey());
-		
-		// Set tenant Id to support multi-tenancy 
-		TenantContext.setCurrentTenant(Integer.parseInt(tenantId));
-
-		log.info("Processing missed call log for SID: {} ({} -> {})", sid, fromJid, toJid);
-
-		String toUserKey = XmppUtil.getUserKey(toJid);
-		String title = "Missed " + type + " Call";
-		String body = String.format("Missed %s call from %s", type, username);
-
-		// Check recipient's current connection status
-		Set<UserSession> userSessions = userSessionRegistry.getSessions(toUserKey);
-		boolean hasActiveSession = !CollectionUtils.isEmpty(userSessions) && userSessions.stream()
-				.anyMatch(s -> UserState.ACTIVE == s.getState());
-
-		/*
-		 * Step 4: Dispatch Logic.
-		 * Differentiates between 1-on-1 calls and Group (MUC) calls to ensure correct 
-		 * stanza addressing and history archiving.
-		 */
-		if(StringUtils.hasText(groupId)) {
-			sendGroupChatMissedCallStanza(fromJid, toJid, sid, type, groupId);
-		} else {
-			// Notify both parties in a 1-on-1 call for consistent history logs
-			sendMissedCallStanza(fromJid, toJid, sid, type); // To Callee
-			sendMissedCallStanza(toJid, fromJid, sid, type); // To Caller
-		}
-
-		// Trigger Push Notification if the user is not actively connected to the XMPP stream
-		if (!hasActiveSession) {
-			sendPush(toUserKey,  
-					"video".equalsIgnoreCase(type) ? NotificationType.VIDEO_MISSED_CALL : NotificationType.AUDIO_MISSED_CALL, 
-							title, 
-							body, 
-							Integer.parseInt(tenantId));
-		}
-
-		// Step 5: Clean up metadata immediately to keep Redis memory footprint low
-		redisTemplate.delete(metaKey);
+	                long now = System.currentTimeMillis();
+	                
+	                // 2. QUERY: Fetch all SIDs whose score (timeout) is <= now
+	                return reactiveRedisTemplate.opsForZSet()
+	                        .rangeByScore(CallSessionRedisKey.DELAYED_QUEUE.getVal(), Range.closed(0.0, (double) now))
+	                        .<Void>flatMap(sid -> 
+	                            // 3. ATOMIC REMOVE: Only the node that deletes the SID processes it
+	                            reactiveRedisTemplate.opsForZSet()
+	                                .remove(CallSessionRedisKey.DELAYED_QUEUE.getVal(), sid)
+	                                .flatMap(removed -> (removed != null && removed > 0) 
+	                                    ? processMissedCallReactive(sid) 
+	                                    : Mono.<Void>empty())
+	                        )
+	                        .then();
+	            },
+	            // 4. CLEANUP: Safe unlock logic to prevent IllegalMonitorStateException crashes
+	            acquired -> acquired ? safeUnlock(lock) : Mono.empty(),
+	            (acquired, err) -> acquired ? safeUnlock(lock) : Mono.empty(),
+	            acquired -> acquired ? safeUnlock(lock) : Mono.empty()
+	    );
 	}
 
 	/**
-	 * Constructs and routes an XMPP message containing an {@code <call-log/>} extension.
-	 * <p>
-	 * This method performs two critical tasks:
-	 * 1. Persists the log to MongoDB via {@code offlineMessageService} for later retrieval.
-	 * 2. Broadcasts the log via Redis Pub/Sub for real-time delivery to online cluster nodes.
-	 * </p>
+	 * Handles Redisson's thread-id sensitivity. In reactive flows, the unlocking thread 
+	 * may differ from the locking thread. This method catches ownership exceptions 
+	 * to prevent breaking the reactive operator chain.
+	 */
+	private Mono<Void> safeUnlock(RLockReactive lock) {
+	    return lock.unlock()
+	            .onErrorResume(IllegalMonitorStateException.class, e -> {
+	                log.debug("Lock already released or ownership transferred: {}", e.getMessage());
+	                return Mono.empty();
+	            })
+	            .then();
+	}
+
+	/**
+	 * The core processing logic for an individual expired call session.
+	 * * @param sid The Session ID to process.
+	 * @return Mono<Void>
+	 */
+	private Mono<Void> processMissedCallReactive(String sid) {
+	    String metaKey = CallSessionRedisKey.PENDING_CALL_PREFIX.format(sid);
+
+	    return reactiveRedisTemplate.opsForHash().entries(metaKey)
+	            .collectMap(
+	                entry -> entry.getKey().toString(), 
+	                entry -> entry.getValue().toString()
+	            )
+	            .flatMap(metadata -> {
+	                if (metadata.isEmpty()) {
+	                    log.warn("Missed call metadata missing for SID: {}.", sid);
+	                    return Mono.empty();
+	                }
+
+	                String toJid = (String) metadata.get(CallSessionMetadata.TO.getKey());
+	                String fromJid = (String) metadata.get(CallSessionMetadata.FROM.getKey());
+	                String type = (String) metadata.get(CallSessionMetadata.CALL_TYPE.getKey());
+	                String tenantId = (String) metadata.get(CallSessionMetadata.TENANT_ID.getKey());
+	                String username = (String) metadata.get(CallSessionMetadata.USERNAME.getKey());
+	                String groupId = (String) metadata.get(CallSessionMetadata.GROUP_ID.getKey());
+
+	                int tenantIdInt = Integer.parseInt(tenantId);
+	                String toUserKey = XmppUtil.getUserKey(toJid);
+
+	                log.info("Processing missed call SID: {} for user: {}", sid, toUserKey);
+
+	                // --- CHANGE STARTS HERE ---
+	                // Wrap EVERYTHING that touches synchronous Redis/Registry into the Runnable
+	                return Mono.fromRunnable(() -> {
+	                    TenantContext.setCurrentTenant(tenantIdInt);
+	                    try {
+	                        // Move the blocking Registry call INSIDE the protected thread
+	                        Set<UserSession> userSessions = userSessionRegistry.getSessions(toUserKey);
+	                        boolean hasActiveSession = !CollectionUtils.isEmpty(userSessions) && userSessions.stream()
+	                                .anyMatch(s -> UserState.ACTIVE == s.getState());
+
+	                        if (StringUtils.hasText(groupId) && Long.parseLong(groupId) > 0) {
+	                            sendGroupChatMissedCallStanza(fromJid, toJid, sid, type, groupId);
+	                        } else {
+	                            sendMissedCallStanza(fromJid, toJid, sid, type);
+	                            sendMissedCallStanza(toJid, fromJid, sid, type);
+	                            
+	                            // Delete by session ID
+	                            callTrackerRepository.deleteBySidAndCallee(sid, toUserKey).subscribe();
+	                        }
+
+	                        if (!hasActiveSession) {
+	                            sendPush(toUserKey,
+	                                    "video".equalsIgnoreCase(type) ? NotificationType.VIDEO_MISSED_CALL : NotificationType.AUDIO_MISSED_CALL,
+	                                    "Missed " + type + " Call",
+	                                    String.format("Missed %s call from %s", type, username),
+	                                    tenantIdInt);
+	                        }	                     
+	                    } finally {
+	                        TenantContext.clear();
+	                    }
+	                })
+	                .subscribeOn(Schedulers.boundedElastic()) // This ensures the Runnable doesn't block Netty
+	                .then(reactiveRedisTemplate.delete(metaKey))
+	                .then();
+	                // --- CHANGE ENDS HERE ---
+	            });
+	}
+	
+	/**
+	 * Generates a chat message with a custom 'call-log' extension.
+	 * Persists to offline storage for MAM/Archive and publishes to the cluster.
 	 */
 	private void sendMissedCallStanza(String fromJid, String toJid, String sid, String type) {
 		String id = java.util.UUID.randomUUID().toString();
@@ -191,31 +222,28 @@ public class MissedCallScheduler {
 						fromJid, toJid, id, type, type, type, timestamp, sid
 				);			
 
-		// Save for offline access (MAM/Offline Store)
 		offlineMessageService.save(id, toUserKey, fromUserKey, XmppMessageType.HEADLINE.getXmlValue(), xml)
-			.doOnError(e -> log.error("Persistence failed for missed call SID {}: {}", sid, e.getMessage()))
-			.subscribe();
+		.doOnSuccess(success -> {
+			System.out.println("MISSCALL : " + id);
+			// Publish after successfully saved
+			clusterMessagePublisher.convertAndSendToUser(id, toUserKey, fromUserKey, ChatType.CHAT, xml);
+		})
+		.doOnError(e -> log.error("MAM Persistence failed for SID {}: {}", sid, e.getMessage()))
+		.subscribe();
 
-		// Real-time broadcast to the recipient's current resource
-		clusterMessagePublisher.convertAndSendToUser(id, toUserKey, fromUserKey, ChatType.CHAT, xml);
+		
 	}
 
 	/**
-	 * Specialized handler for Group (MUC) missed calls.
-	 * <p>
-	 * Instead of standard offline storage, this uses {@code xmppArchiveService} to ensure the 
-	 * missed call event is correctly indexed within the room's permanent history (MAM).
-	 * </p>
+	 * specialized MUC (Multi-User Chat) handler.
+	 * Archives events using {@code xmppArchiveService} to ensure visibility in group history.
 	 */
 	private void sendGroupChatMissedCallStanza(String fromJid, String toJid, String sid, String type, String groupId) {
 		String id = java.util.UUID.randomUUID().toString();
-		String timestamp = Instant.now().toString();
 		String fromUserKey = XmppUtil.getUserKey(fromJid);
 		String toUserKey = XmppUtil.getUserKey(toJid);	
 
 		MucRoomDto group = groupCacheService.getCachedGroup(groupId);
-
-		// Identify the caller's MUC nickname for the 'from' attribute
 		Optional<MucMember> callerMucMember = group.getMembers().stream()
 				.filter(m -> m.getUserKey().equals(fromUserKey)).findFirst();
 
@@ -228,26 +256,21 @@ public class MissedCallScheduler {
 						"<body>Missed %s call</body>" +
 						"<call-log xmlns='urn:xmpp:algomeet:calls' type='%s' status='missed' timestamp='%s' sid='%s'/>" +
 						"</message>",
-						caller, toJid, id, type, type, type, timestamp, sid
+						caller, toJid, id, type, type, type, Instant.now().toString(), sid
 				);	
 
-		String ulidString = UlidCreator.getMonotonicUlid().toLowerCase();
-		StanzaInfo info = StanzaInfo.builder()
-				.stanzaId(UUID.randomUUID().toString().toLowerCase())
-				.build();
+		StanzaInfo info = StanzaInfo.builder().stanzaId(UUID.randomUUID().toString().toLowerCase()).build();
 
-		// Archive the event in the Group's message history
 		xmppArchiveService.archiveEvent(xml, info, jidUtil.getGroupBareJid(groupId), toUserKey, 
-				fromJid, ulidString)
-			.doOnError(e -> log.error("Failed to archive MUC call log: {}", e.getMessage()))
-			.subscribe();
+				fromJid, UlidCreator.getMonotonicUlid().toLowerCase())
+		.doOnError(e -> log.error("MUC Archive failed: {}", e.getMessage()))
+		.subscribe();
 
-		// Publish to the cluster
 		clusterMessagePublisher.convertAndSendToUser(id, toUserKey, fromUserKey, ChatType.GROUPCHAT, xml);
 	}
 
 	/**
-	 * Sends an out-of-band push notification to mobile devices (FCM/APNs) via the Notification Service.
+	 * Out-of-band notification dispatcher for mobile platform delivery.
 	 */
 	private void sendPush(String to, NotificationType type, String title, String body, Integer tenantId) {        
 		Notification notif = Notification.builder()

@@ -16,6 +16,7 @@ import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.enums.UserState;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
+import com.algomeet.xmpp.chatservice.routing.dispacher.LocalStanzaDispatcher;
 import com.algomeet.xmpp.chatservice.session.UserSessionRegistry;
 import com.algomeet.xmpp.chatservice.session.model.UserSession;
 import com.algomeet.xmpp.chatservice.stanza.presence.DirectedPresenceBuilder;
@@ -49,6 +50,7 @@ public class ContactPresenceService {
 	private final DomainProperties domainProperties;
 	private final JidUtil jidUtil;
 	private final ClusterMessagePublisher clusterMessagePublisher;
+	private final LocalStanzaDispatcher localStanzaDispatcher;
 
 	/**
 	 * Synchronizes and pushes current contact statuses to a newly connected user.
@@ -104,7 +106,7 @@ public class ContactPresenceService {
 						.build();
 
 				// Direct write to the local Netty pipeline
-				ctx.writeAndFlush(new TextWebSocketFrame(presenceXml));
+				localStanzaDispatcher.dispatchLocally(principal.getUserKey(), principal.getUserKey(), presenceXml);
 			}
 			log.debug("Successfully pushed presence roster for user {}", principal.getUserKey());
 

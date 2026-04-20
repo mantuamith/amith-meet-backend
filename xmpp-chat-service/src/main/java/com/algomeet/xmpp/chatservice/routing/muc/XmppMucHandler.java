@@ -58,6 +58,7 @@ public class XmppMucHandler {
 	private final JidUtil jidUtil;
 	private final MucUnreadCountService mucUnreadCountService;
 	private final XmppReadUtil xmppReadUtil;
+	private final XmppUtil xmppUtil;
 
 	/**
 	 * Main entry point for MUC stanza processing.
@@ -92,15 +93,12 @@ public class XmppMucHandler {
 			log.error("Access Denied: User {} in room {}. (Member: {}, Muted: {})", 
 					principal.getUserKey(), toRoomId, senderMucMember.isPresent(), senderMucMember.map(MucMember::isMuted).orElse(false));
 
-			XmppUtil.sendError(ctx, id, fromJid, domainProperties.getGroupChatDomain(), XmppErrorType.CANCEL, 
+			xmppUtil.sendError(ctx, id, fromJid, domainProperties.getGroupChatDomain(), XmppErrorType.CANCEL, 
 					XmppErrorConditions.INTERNAL_SERVER_ERROR, "You are not allowed to send messages to this room");
 			return;
 		}
-
-		// Optimization: Peek at headers for routing decisions
-		String xmlHeader = originalXml.substring(0, Math.min(originalXml.length(), 500));
-
-		if (isModerationCommand(type, xmlHeader)) {
+	
+		if (isModerationCommand(type, originalXml)) {
 			// MUC Admin actions (kick, ban, mute)
 			mucAdminCommandRouter.handleCommandStanza(ctx, toRoomJid, originalXml, senderMucMember.get(), principal);
 		} else if(isUserCommandStanza(originalXml, toRoomJid)) {
@@ -113,7 +111,7 @@ public class XmppMucHandler {
 
 			// 3. ARCHIVING (MAM - XEP-0313)
 			// Only archive messages that are storage-eligible (e.g., contain a <body>)
-			if(msgType.supportsOfflineStorage() && XmppStanzaUtil.isArchiveable(xmlHeader, originalXml)) {
+			if(msgType.supportsOfflineStorage() && XmppStanzaUtil.isArchiveable(originalXml)) {
 				StanzaInfo info = GroupChatParser.parse(originalXml);
 				String ulidString = UlidCreator.getMonotonicUlid().toLowerCase();
 
@@ -140,7 +138,7 @@ public class XmppMucHandler {
 					// --- XEP-0333: Chat Markers (Read Receipts) ---
 					// If the stanza contains the 'urn:xmpp:chat-markers:0' namespace (displayed), 
 					// the user has actively viewed the conversation.
-					if (xmlHeader.contains(XmppReadUtil.NS_DISPLAYS)) {
+					if (originalXml.contains(XmppReadUtil.NS_DISPLAYS)) {
 						isAckMessage = true;
 						String ackMessageId = xmppReadUtil.getAckMessageId(originalXml);
 
@@ -188,7 +186,7 @@ public class XmppMucHandler {
 			try {			
 				// Standard message propagation to members
 				mucMessageRouter.broadcastToOccupants(ctx, id, toRoomJid, fromJid, msgType, group, senderMucMember.get(), 
-						directPmRecipientMucMember, xmlHeader, originalXml);
+						directPmRecipientMucMember, originalXml);
 
 			} catch (NumberFormatException e) {
 				log.error("Critical: Invalid roomId format in routing: {}", toRoomId);
@@ -215,7 +213,7 @@ public class XmppMucHandler {
 				.findFirst()
 				.orElseGet(() -> {
 					log.error("PM Failure: Nickname {} not found in room {}", nickname, toRoomJid);
-					XmppUtil.sendError(ctx, id, fromJid, domainProperties.getGroupChatDomain(), 
+					xmppUtil.sendError(ctx, id, fromJid, domainProperties.getGroupChatDomain(), 
 							XmppErrorType.CANCEL, XmppErrorConditions.BAD_REQUEST, 
 							"Receiver is not member of the group/room.");
 
@@ -225,20 +223,20 @@ public class XmppMucHandler {
 				});
 	}
 
-	private boolean isModerationCommand(String type, String xmlHeader) {
+	private boolean isModerationCommand(String type, String xml) {
 		return XmppMessageType.SET == XmppMessageType.fromString(type) 
-				&& xmlHeader.contains("http://jabber.org/protocol/muc#admin");
+				&& xml.contains("http://jabber.org/protocol/muc#admin");
 	}
 
 	private void handleArchiveError(ChannelHandlerContext ctx, String id, String fromJid, Throwable e) {
 		if (e instanceof DuplicateKeyException) {
 			// Duplicate stanza detected (idempotent case).
 			// Client MUST ignore this error; used only to support safe retries.
-			XmppUtil.sendError(ctx, id, fromJid, domainProperties.getGroupChatDomain(), XmppErrorType.CANCEL, 
+			xmppUtil.sendError(ctx, id, fromJid, domainProperties.getGroupChatDomain(), XmppErrorType.CANCEL, 
 					XmppErrorConditions.DUPLICATE_KEY_ERROR, "Stanza has duplicate key");
 
 		} else {
-			XmppUtil.sendError(ctx, id, fromJid, domainProperties.getGroupChatDomain(), XmppErrorType.WAIT, 
+			xmppUtil.sendError(ctx, id, fromJid, domainProperties.getGroupChatDomain(), XmppErrorType.WAIT, 
 					XmppErrorConditions.INTERNAL_SERVER_ERROR, "Storage failure");
 		}
 	}

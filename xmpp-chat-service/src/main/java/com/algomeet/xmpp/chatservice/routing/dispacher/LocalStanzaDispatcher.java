@@ -1,36 +1,49 @@
 package com.algomeet.xmpp.chatservice.routing.dispacher;
 
+import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
+
 import org.springframework.stereotype.Component;
 
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.connection.registry.LocalChannelRegistry;
-import com.algomeet.xmpp.chatservice.enums.ChatType;
+import com.algomeet.xmpp.chatservice.service.XmppSmBufferService;
 import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
 
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * <p>Dispatches XMPP stanzas to locally connected sessions on the current server node.</p>
- * 
- * <p>The {@code LocalStanzaDispatcher} is the final step in the routing chain for 
- * "Local-to-Local" or "Remote-to-Local" delivery. It retrieves the active Netty 
- * {@link Channel} from the {@link LocalChannelRegistry} and pushes the XML payload 
- * over the WebSocket.</p>
- * 
- * <p><b>Protocol Responsibilities:</b></p>
- * <ul>
- *     <li><b>Reliable Delivery (XEP-0198):</b> Every dispatched stanza is assigned a 
- *         monotonically increasing sequence number ({@code smOutboundH}).</li>
- *     <li><b>Ack Tracking:</b> Stanzas are registered with the {@link XmppStreamManagementOutboundBuffer} 
- *         before being flushed, allowing the server to handle potential reconnection 
- *         resumptions or delivery confirmations.</li>
- *     <li><b>Session Validation:</b> Verifies that the target channel is active and 
- *         initialized before attempting transmission.</li>
- * </ul>
- * 
+ * Responsible for delivering XMPP stanzas to locally connected sessions
+ * on the current server node.
+ *
+ * This dispatcher is the final stage in the routing pipeline for:
+ * - Local → Local delivery
+ * - Remote → Local delivery (after cluster routing)
+ *
+ * It writes the raw XML stanza into a Netty WebSocket channel
+ * associated with the target JID.
+ *
+ * -------------------------------
+ * Key responsibilities
+ * -------------------------------
+ *
+ * 1. Local session resolution via {@link LocalChannelRegistry}
+ * 2. Real-time delivery via Netty WebSocket pipeline
+ * 3. Stream Management buffering (XEP-0198) for reliability
+ * 4. Carbon copy suppression (XEP-0280)
+ *
+ * -------------------------------
+ * Delivery semantics
+ * -------------------------------
+ *
+ * - writeAndFlush() only guarantees the message is accepted by Netty
+ * - actual client receipt is not guaranteed at this stage
+ * - failures trigger SM buffer fallback when enabled
+ *
  * @author Algomeet Core Team
  */
 @Slf4j
@@ -38,60 +51,112 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class LocalStanzaDispatcher {
 
-	private final LocalChannelRegistry localChannelRegistry; 
+	private final LocalChannelRegistry localChannelRegistry;
+	private final XmppSmBufferService xmppSmBufferService;
 
 	/**
-	 * Routes a stanza to a specific local user session managed by this node.
-	 * * @param to           The User Key/JID of the recipient.
-	 * @param from         The User Key/JID of the sender.
-	 * @param id           The unique Stanza ID (used for tracking and DB status updates).
-	 * @param chatType     The type of chat (e.g., CHAT, GROUPCHAT).
-	 * @param isCarbonCopy Flag indicating if this is an XEP-0280 synchronization message.
-	 * @param sessionId    The ID of the originating session (to prevent echo loops).
-	 * @param xml          The raw XML content to be delivered over the WebSocket.
+	 * Dispatches a stanza to a locally connected user session.
+	 *
+	 * This method handles:
+	 * - session lookup
+	 * - carbon copy suppression (XEP-0280)
+	 * - SM buffer persistence (XEP-0198)
+	 * - Netty delivery pipeline execution
+	 *
+	 * @param to           recipient JID / user key
+	 * @param from         sender JID / user key
+	 * @param id           stanza identifier for tracking
+	 * @param chatType     message type (chat, groupchat, etc.)
+	 * @param isCarbonCopy whether this is a carbon copy sync message
+	 * @param sessionId    originating session (used to prevent echo loops)
+	 * @param payload      raw XML stanza
 	 */
-	public void dispatchLocally(String to, String from, String id, ChatType chatType, Boolean isCarbonCopy, String sessionId, String xml) {		
-		// 1. Retrieve the physical Netty Channel associated with the destination JID.
+	public void dispatchLocally(
+			String to,
+			String id,
+			Boolean isCarbonCopy,
+			String sessionId,
+			String payload) {
+
+		// Resolve recipient's active Netty channel
 		Channel targetChannel = localChannelRegistry.getChannel(to);
 
-		// 2. Fail-fast if the connection is dead or non-existent to prevent unnecessary processing.
-		if (targetChannel == null || !targetChannel.isActive()) {
-			log.debug("Routing failed: No active local channel found for JID: {}", to);
+		
+		// Fail fast if user is not currently connected on this node
+		if (targetChannel == null) {
+			// Persist stanza into SM buffer for reliability (XEP-0198)
+			xmppSmBufferService.saveStanzaSynchronized(id, to, payload).subscribe();
+			
+			log.debug("No active local channel found for JID: {}", to);
 			return;
 		}
 
-		XmppPrincipal principal = targetChannel.attr(XmppSessionAttributes.PRINCIPAL).get();
+		XmppPrincipal principal =
+				targetChannel.attr(XmppSessionAttributes.PRINCIPAL).get();
 
-		// 3. XEP-0280: Carbon Copy Loop Prevention.
-		// If this is a carbon copy intended for device synchronization, we must ensure
-		// it is NOT sent back to the session that originally authored the message.
-		if (isCarbonCopy && principal.getSessionId().equals(sessionId)) {
-			log.trace("Suppressed carbon copy for originating session: {}", sessionId);
+		// Prevent carbon copy loop back to originating session (XEP-0280)
+		if (Boolean.TRUE.equals(isCarbonCopy)
+				&& principal != null
+				&& principal.getSessionId().equals(sessionId)) {
+
+			log.trace("Carbon copy suppressed for originating session: {}", sessionId);
 			return;
-		} 
+		}
 
-		// 4. Final Delivery.
-		// Encapsulate the raw XML stanza in a TextWebSocketFrame for transmission.
-		// writeAndFlush ensures the message is immediately pushed down the Netty pipeline.
-		targetChannel.writeAndFlush(new TextWebSocketFrame(xml));	
+		writeAndFlush(targetChannel, id, to, payload);
 	}
 
-
 	/**
-	 * Routes a stanza to a specific local user session.
-	 * 
-	 * @param to          The User Key/ JID (Jabber ID) of the recipient.
-	 * @param from        The User Key/ JID of the sender.
-	 * @param originalXml The raw XML content to be delivered.
+	 * Lightweight local dispatch without SM/carbon-copy context.
+	 *
+	 * Used for internal or simplified routing paths.
 	 */
 	public void dispatchLocally(String to, String from, String payload) {
+
 		Channel targetChannel = localChannelRegistry.getChannel(to);
 
-		if (targetChannel == null || !targetChannel.isActive()) {
-			log.debug("Routing failed: No active local channel found for JID: {}", to);
+		if (targetChannel == null) {
+			log.debug("No active local channel found for JID: {}", to);
 			return;
 		}
 
-		targetChannel.writeAndFlush(new TextWebSocketFrame(payload));
+		writeAndFlush(targetChannel, UUID.randomUUID().toString(), to, payload);
+	}
+
+	/**
+	 * Performs final Netty write operation to the client channel.
+	 *
+	 * Responsibilities:
+	 * - Encapsulate XML stanza into WebSocket frame
+	 * - Push message into Netty outbound pipeline
+	 * - Handle async success/failure callbacks
+	 * - Trigger SM buffer fallback on failure (if enabled)
+	 */
+	private void writeAndFlush(Channel targetChannel, String id, String to, String payload) {
+		targetChannel
+		.writeAndFlush(new TextWebSocketFrame(payload))
+		.addListener((ChannelFuture future) -> {
+
+			// Successful write means Netty accepted the message for delivery
+			if (future.isSuccess()) {
+				log.debug("Message delivered. channel={}", targetChannel.id());
+				return;
+			}
+
+			Channel ch = future.channel();
+			log.warn("Delivery failed active={}, open={}, cause={}",
+					ch.isActive(),
+					ch.isOpen(),
+					future.cause().toString());
+
+			// Stream Management fallback
+			// Persist stanza into SM buffer for reliability (XEP-0198)
+			// If session is resumable, buffer stanza for later replay
+			String smSessionId =
+					targetChannel.attr(XmppSessionAttributes.SM_ID_KEY).get();
+
+			xmppSmBufferService.saveStanza(id, to, payload, smSessionId)
+			.subscribe();
+		});
 	}
 }

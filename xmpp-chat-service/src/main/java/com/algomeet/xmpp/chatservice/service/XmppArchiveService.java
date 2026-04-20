@@ -1,9 +1,13 @@
 package com.algomeet.xmpp.chatservice.service;
 
+import org.springframework.data.domain.PageRequest;
+import org.springframework.stereotype.Service;
+
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.document.MucMessage;
 import com.algomeet.xmpp.chatservice.dto.StanzaInfo;
 import com.algomeet.xmpp.chatservice.repository.MucMessageRepository;
+import com.algomeet.xmpp.chatservice.routing.dispacher.LocalStanzaDispatcher;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 
@@ -11,9 +15,6 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-
-import org.springframework.data.domain.PageRequest;
-import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 
 /**
@@ -28,10 +29,10 @@ import reactor.core.publisher.Mono;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class XmppArchiveService {
-    
+public class XmppArchiveService {    
     private final MucMessageRepository repository;
     private final JidUtil jidUtil;
+    private final LocalStanzaDispatcher localStanzaDispatcher;
 
     /**
      * Persists a room event (message or signaling) to the archive.
@@ -109,13 +110,7 @@ public class XmppArchiveService {
 
             // Reactive wrapper for Netty write operation to maintain flow control
             return Mono.<Void>create(sink -> {
-                ctx.writeAndFlush(new TextWebSocketFrame(mamResult)).addListener(future -> {
-                    if (future.isSuccess()) {
-                        sink.success();
-                    } else {
-                        sink.error(future.cause());
-                    }
-                });
+            	localStanzaDispatcher.dispatchLocally(principal.getUserKey(), principal.getUserKey(), mamResult);               
             });
         })
         .doOnComplete(() -> {
@@ -129,7 +124,8 @@ public class XmppArchiveService {
                 principal.getBareJid(),
                 (queryId != null ? "id='" + queryId + "'" : "")
             );
-            ctx.writeAndFlush(new TextWebSocketFrame(fin));
+            
+            localStanzaDispatcher.dispatchLocally(principal.getUserKey(), principal.getUserKey(), fin);
         })
         .subscribe();
     }

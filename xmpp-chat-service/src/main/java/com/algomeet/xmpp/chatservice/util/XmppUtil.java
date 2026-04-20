@@ -6,13 +6,14 @@ import javax.xml.stream.XMLInputFactory;
 import javax.xml.stream.XMLStreamConstants;
 import javax.xml.stream.XMLStreamReader;
 
+import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import com.algomeet.xmpp.chatservice.enums.XmppErrorType;
+import com.algomeet.xmpp.chatservice.routing.dispacher.LocalStanzaDispatcher;
 import com.algomeet.xmpp.chatservice.stanza.StanzaError;
 
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -26,10 +27,13 @@ import lombok.extern.slf4j.Slf4j;
  * @version 1.1
  */
 @Slf4j
+@Component
 public class XmppUtil {
 	private static final String DOMAIN_SEPARATOR = "@";
 	private static final String BARE_JID_SEPARATOR = "/";
 	private static final XMLInputFactory XML_FACTORY = XMLInputFactory.newInstance();
+	
+	private LocalStanzaDispatcher localStanzaDispatcher;
 	
 	/**
 	 * Extracts the localpart (User Key) from a Full or Bare JID.
@@ -140,8 +144,8 @@ public class XmppUtil {
      * @param condition The XMPP error condition (e.g., forbidden, item-not-found).
      * @param text      Descriptive error text for debugging.
      */
-    public static void sendError(ChannelHandlerContext ctx, String id, String to, String from, XmppErrorType errorType, String condition, String text) {
+    public void sendError(ChannelHandlerContext ctx, String id, String to, String from, XmppErrorType errorType, String condition, String text) {
         StanzaError error = new StanzaError(id, to, from, errorType, condition, text);
-        ctx.writeAndFlush(new TextWebSocketFrame(error.toXml()));
+        localStanzaDispatcher.dispatchLocally(getUserKey(to), getUserKey(to), error.toXml());
     }
 }

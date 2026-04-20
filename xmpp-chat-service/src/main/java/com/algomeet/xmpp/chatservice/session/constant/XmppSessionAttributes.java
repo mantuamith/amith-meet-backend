@@ -80,6 +80,25 @@ public class XmppSessionAttributes {
      */
     public static final AttributeKey<String> SM_ID_KEY = 
             AttributeKey.valueOf("smId");
+    
+    /**
+     * Netty Channel attribute key indicating whether Stream Management (XEP-0198)
+     * session resumption was successfully completed.
+     *
+     * This flag is set to TRUE when:
+     * - the client successfully resumes a previous SM session (using 'previd')
+     * - server confirms continuation of the existing stream state
+     *
+     * It is used to:
+     * - distinguish resumed sessions from fresh logins
+     * - control replay behavior of buffered stanzas
+     * - prevent duplicate delivery after successful resumption
+     *
+     * Value type:
+     * - AtomicBoolean (mutable per-channel state indicator)
+     */
+    public static final AttributeKey<AtomicBoolean> SM_RESUMPTION_SUCCESS_KEY = 
+            AttributeKey.valueOf("smResumptionSuccess");
 
     /**
      * Utility method to safely retrieve the authenticated principal from a channel.

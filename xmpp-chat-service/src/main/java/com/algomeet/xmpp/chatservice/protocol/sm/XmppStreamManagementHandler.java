@@ -59,8 +59,7 @@ public class XmppStreamManagementHandler extends ChannelDuplexHandler {
                     ctx.channel().attr(XmppSessionAttributes.SM_INBOUND_H_ENABLED_KEY).get();
 
             // If SM is active, we increment the inbound sequence counter (h)
-            if (isEnabledSM != null && isEnabledSM.get()) {
-            	
+            if (isEnabledSM != null && isEnabledSM.get()) {            	
                 /**
                  * Increment SM counter and optionally trigger ACK logic.
                  *

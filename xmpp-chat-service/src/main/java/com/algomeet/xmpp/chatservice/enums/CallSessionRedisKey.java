@@ -9,12 +9,12 @@ public enum CallSessionRedisKey {
     /**
      * The ZSET used for scheduling the 30-second timeout tasks.
      */
-    DELAYED_QUEUE("delayed_missed_call_tasks"),
+    DELAYED_QUEUE("algomeet:delayed-missed-call-tasks"),
 
     /**
      * The prefix for the Hash storing call metadata (to, from, tenantId).
      */
-    CALL_PENDING_PREFIX("calls:pending:");
+    PENDING_CALL_PREFIX("algomeet:pending-calls:metadata:");
 
     private final String val;
 
@@ -23,7 +23,7 @@ public enum CallSessionRedisKey {
      * Use this instead of manual string concatenation.
      */
     public String format(String sid) {
-        if (this == CALL_PENDING_PREFIX) {
+        if (this == PENDING_CALL_PREFIX) {
             return this.val + sid;
         }
         return this.val;

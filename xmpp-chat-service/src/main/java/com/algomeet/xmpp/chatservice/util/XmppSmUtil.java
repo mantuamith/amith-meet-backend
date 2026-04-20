@@ -44,7 +44,7 @@ public class XmppSmUtil {
      * Redis utility used for persisting last acknowledged SM state
      * for session resumption (XEP-0198 resume support).
      */
-    private final XmppSmRedisUtil xmppSmRedisUtil;
+    private final XmppSmSessionRedisUtil xmppSmRedisUtil;
 
     /**
      * Increments the inbound SM handled counter (h) and sends a cumulative ACK.
@@ -108,7 +108,8 @@ public class XmppSmUtil {
                             ctx.channel().attr(XmppSessionAttributes.SM_ID_KEY).get();
 
                     if (smId != null) {
-                        xmppSmRedisUtil.saveLastAck(smId, h)
+                    	// Increment H count
+                        xmppSmRedisUtil.incrementH(smId)
                                 .subscribe(); // async non-blocking persistence
                     }
                 }

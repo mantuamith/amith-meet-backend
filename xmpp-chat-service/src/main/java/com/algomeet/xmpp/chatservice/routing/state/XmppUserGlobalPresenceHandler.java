@@ -1,11 +1,15 @@
 package com.algomeet.xmpp.chatservice.routing.state;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+
 import org.springframework.stereotype.Component;
 
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.enums.UserState;
 import com.algomeet.xmpp.chatservice.parser.StateStanzaParser;
 import com.algomeet.xmpp.chatservice.routing.chat.OfflineMessageHandler;
+import com.algomeet.xmpp.chatservice.routing.dispacher.LocalStanzaDispatcher;
+import com.algomeet.xmpp.chatservice.service.SmBufferMessageService;
 import com.algomeet.xmpp.chatservice.session.UserSessionRegistry;
 import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
@@ -34,45 +38,85 @@ public class XmppUserGlobalPresenceHandler {
 	private final OfflineMessageHandler offlineMessageHandler;
 	private final XmppBroadcastUserPresenceHandler xmppUserGlobalPresenceHandler;
 	private final XmppPresencePushHandler xmppPresencePushHandler;
-
+	private final SmBufferMessageService smBufferMessageService;
+	private final LocalStanzaDispatcher localStanzaDispatcher;
 	/**
-	 * Processes inbound presence stanzas to update session state and trigger syncs.
-	 * * @param ctx       The Netty context for the current socket.
-	 * @param principal The authenticated user identity.
-	 * @param xml       The raw XMPP presence stanza.
+	 * Processes inbound presence stanzas to update user session state and trigger
+	 * required synchronization workflows.
+	 *
+	 * Presence handling is a core part of XMPP session lifecycle management and is
+	 * responsible for:
+	 * - updating online/offline status across the cluster
+	 * - broadcasting availability changes
+	 * - triggering initial session sync (contacts, groups, offline messages)
+	 * - handling Stream Management (XEP-0198) resumption recovery
+	 *
+	 * @param ctx       Netty channel context for the active connection
+	 * @param principal authenticated user/session identity
+	 * @param xml       raw XMPP presence stanza
 	 */
 	public void processPresence(ChannelHandlerContext ctx, XmppPrincipal principal, String xml) {
-		// RFC 6121: Only process presence intended for the server (self-broadcast)
-		if (isSelfBroadcastPresence(xml)) {
-			
-			// Parse the XML to determine the specific availability (e.g., AWAY, DND, CHAT)
-			UserState newState = determineState(xml);
-			if (newState == null) return;
 
-			// 1. Sync the Global Registry: Allows other nodes in the cluster to see this user is online
-			userSessionRegistry.updateSessionStatus(principal.getUserKey(), principal.getSessionId(), newState);
+	    // RFC 6121: Only process "self-broadcast" presence directed to server
+	    // (e.g., <presence/> or initial availability updates)
+	    if (isSelfBroadcastPresence(xml)) {
 
-			// 2. Outbound Broadcast: Notify the world that this user is now reachable
-			xmppUserGlobalPresenceHandler.broadcastUserPresenceAsync(ctx, principal, newState);
+	        // Determine user availability state from presence stanza
+	        // (e.g., ONLINE, AWAY, DND, CHAT, UNAVAILABLE)
+	        UserState newState = determineState(xml);
+	        if (newState == null) return;
 
-			// 3. Initial Session Activation Logic
-			// We use a Channel Attribute to ensure "Initial Sync" logic only runs once per session.
-			Attribute<Boolean> initialPresenceAttr = ctx.channel().attr(XmppSessionAttributes.IS_INITIAL_PRESENCE_SENT);			
-			
-			if (initialPresenceAttr.get() == null || !initialPresenceAttr.get()) {
-				
-				// A. Push "World State": Let the user know who else is online (Contacts/Groups)
-				xmppPresencePushHandler.pushUsersPresenceAsync(ctx, principal);
+	        // 1. Update distributed session registry so other cluster nodes
+	        // can correctly reflect this user's availability
+	        userSessionRegistry.updateSessionStatus(
+	                principal.getUserKey(),
+	                principal.getSessionId(),
+	                newState
+	        );
 
-				// B. Deliver Missed Content: Push messages stored while the user was offline
-				offlineMessageHandler.deliverOfflineMessages(ctx, principal);
+	        // 2. Broadcast updated presence to contacts / subscribers
+	        // (XMPP presence fan-out mechanism)
+	        xmppUserGlobalPresenceHandler.broadcastUserPresenceAsync(
+	                ctx,
+	                principal,
+	                newState
+	        );
 
-				// Mark session as "Active" to prevent redundant syncs on subsequent status changes
-				initialPresenceAttr.set(true);
+	        // 3. Ensure "initial session sync" logic executes only once per connection
+	        Attribute<Boolean> initialPresenceAttr =
+	                ctx.channel().attr(XmppSessionAttributes.IS_INITIAL_PRESENCE_SENT);
 
-				log.info("Session activation complete for {}. Syncing presence and offline history.", principal.getUserKey());    
-			}
-		}
+	        if (initialPresenceAttr.get() == null || !initialPresenceAttr.get()) {
+
+	            // Check whether this session was successfully resumed via SM (XEP-0198)
+	            AtomicBoolean smResumptionSuccess =
+	                    ctx.channel()
+	                       .attr(XmppSessionAttributes.SM_RESUMPTION_SUCCESS_KEY)
+	                       .get();
+
+	            // A. Push contact presence snapshot ("world state")
+	            // Only needed for fresh sessions (not fully resumed ones)
+	            if (smResumptionSuccess == null || !smResumptionSuccess.get()) {
+	                xmppPresencePushHandler.pushUsersPresenceAsync(ctx, principal);
+	            }
+
+	            // B. Deliver offline messages accumulated while user was disconnected
+	            offlineMessageHandler.deliverOfflineMessages(ctx, principal);
+
+	            // C. Deliver buffered SM stanzas if session was successfully resumed
+	            if (smResumptionSuccess != null && smResumptionSuccess.get()) {
+	                deliverBufferStanzas(ctx, principal);
+	            }
+
+	            // Mark initial sync as completed to prevent duplicate execution
+	            initialPresenceAttr.set(true);
+
+	            log.info(
+	                    "Session activation complete for {}. Presence sync and offline recovery executed.",
+	                    principal.getUserKey()
+	            );
+	        }
+	    }
 	}
 	
 	/**
@@ -109,5 +153,65 @@ public class XmppUserGlobalPresenceHandler {
 			log.warn("Failed to parse presence state for stanza: {}", xml);
 		}
 		return null;
+	}
+	
+	
+	/**
+	 * Delivers buffered XMPP stanzas to a client after session resumption.
+	 *
+	 * This method is triggered when a user reconnects with Stream Management (XEP-0198)
+	 * enabled. It replays previously unacknowledged stanzas stored in the buffer.
+	 *
+	 * Responsibilities:
+	 * - Fetch buffered stanzas for the SM session
+	 * - Replay them in deterministic order
+	 * - Push them through the local delivery pipeline (Netty/WebSocket)
+	 *
+	 * Note:
+	 * - Delivery is asynchronous (reactive stream)
+	 * - Execution is triggered via subscribe()
+	 * - This does NOT block the Netty event loop
+	 *
+	 * @param ctx Netty channel context of the resumed session
+	 * @param principal authenticated XMPP user session
+	 */
+	public void deliverBufferStanzas(ChannelHandlerContext ctx, XmppPrincipal principal) {
+		String userKey = principal.getUserKey();
+
+		// SM session identifier used to retrieve buffered stanzas
+		// (must match XEP-0198 session resumption identifier - 'previd')
+		String smSessionId =
+				ctx.channel().attr(XmppSessionAttributes.SM_ID_KEY).get();
+
+		// Retrieve all buffered stanzas for this SM session
+		smBufferMessageService.getStanzasForResumption(smSessionId)
+
+		// For each buffered stanza, immediately dispatch it to the client
+		.doOnNext(msg -> {
+
+			// Replay stanza through local routing layer
+			// This ensures consistent delivery semantics (same path as live messages)
+			localStanzaDispatcher.dispatchLocally(
+					userKey,
+					userKey,
+					msg.getStanzaXml()
+					);
+		})
+
+		// Called when all buffered stanzas have been successfully replayed
+		.doOnComplete(() ->
+		log.info("Completed offline/SM buffer delivery for user: {}", userKey)
+				)
+
+		// Handles unexpected errors during replay (DB, routing, serialization, etc.)
+		.doOnError(e ->
+		log.error("Failed to deliver buffered stanzas for user {}: {}",
+				userKey,
+				e.getMessage(),
+				e)
+				)
+
+		// Triggers reactive stream execution (non-blocking)
+		.subscribe();
 	}
 }

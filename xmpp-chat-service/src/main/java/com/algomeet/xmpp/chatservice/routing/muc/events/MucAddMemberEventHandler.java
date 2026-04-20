@@ -16,6 +16,7 @@ import com.algomeet.xmpp.chatservice.enums.MucRole;
 import com.algomeet.xmpp.chatservice.enums.UserState;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
+import com.algomeet.xmpp.chatservice.routing.dispacher.LocalStanzaDispatcher;
 import com.algomeet.xmpp.chatservice.routing.muc.MucMessageRouter;
 import com.algomeet.xmpp.chatservice.service.MucPresenceService;
 import com.algomeet.xmpp.chatservice.service.XmppArchiveService;
@@ -49,6 +50,7 @@ public class MucAddMemberEventHandler {
 	private final MucMessageRouter mucMessageRouter;
     private final JidUtil jidUtil;
     private final MucPresenceService mucPresenceService;
+    private final LocalStanzaDispatcher localStanzaDispatcher;
 	
 	/**
 	 * Processes a request to update a user's affiliation within the room.
@@ -127,7 +129,6 @@ public class MucAddMemberEventHandler {
 				group, 
 				sender, 
 				null, 
-				xmlLogStanza, 
 				xmlLogStanza);
 		
 		// 9. Finalize the request with an IQ Result to the admin
@@ -185,7 +186,8 @@ public class MucAddMemberEventHandler {
 	 */
 	private void sendSuccessResponse(ChannelHandlerContext ctx, String to, String from, String id) {
 		String resp = String.format("<iq from='%s' to='%s' id='%s' type='result'/>", from, to, id);
-		ctx.writeAndFlush(new TextWebSocketFrame(resp));
+		
+		localStanzaDispatcher.dispatchLocally(to, from, resp);
 	}
 
 	/**

@@ -52,6 +52,7 @@ public class XmppChatHandler {
 	private final UnreadCountService unreadCountService;
 	private final XmppReceiptUtil xmppReceiptUtil;
 	private final XmppReadUtil xmppReadUtil;
+	private final XmppUtil xmppUtil;
 
 	/**
 	 * Handles 1-to-1 message routing, persistence for offline storage, 
@@ -63,14 +64,13 @@ public class XmppChatHandler {
 
 		String toUserKey = XmppUtil.getUserKey(toJid);
 		String fromUserKey = principal.getUserKey();
-
-		// Only scan the first 500 characters for routing/type info
-		// Most XMPP metadata is at the start of the stanza
-		String xmlHeader = originalXml.substring(0, Math.min(originalXml.length(), 500));
+		
+		// Get user sessions from redis
+		Set<UserSession> sessions = userSessionRegistry.getSessions(toUserKey);
 
 		// Persistence & XEP-0198 Acknowledgment
 		// Instead of .subscribe(), return the Mono and handle the sequence
-		if (msgType.supportsOfflineStorage() && XmppStanzaUtil.isArchiveable(xmlHeader, originalXml)) {			
+		if (msgType.supportsOfflineStorage() && XmppStanzaUtil.isArchiveable(originalXml)) {			
 			offlineMessageService.save(id, toUserKey, fromUserKey, type, originalXml)
 		            .doOnSuccess(saved -> {
 		            	boolean isAckMessage = false;
@@ -88,10 +88,10 @@ public class XmppChatHandler {
 						// --- XEP-0184: Message Delivery Receipts ---
 					    // If the stanza contains the 'urn:xmpp:receipts' namespace, the recipient's 
 					    // device has successfully received the message.
-					    if (xmlHeader.contains(XmppReceiptUtil.NS_RECEIPTS)) {
+					    if (originalXml.contains(XmppReceiptUtil.NS_RECEIPTS)) {
 					    	isAckMessage = true;
 					        String ackMessageId = xmppReceiptUtil.getAckMessageId(originalXml);
-					        
+
 					        if (StringUtils.hasText(ackMessageId)) {
 					            // Once delivery is confirmed, the message is no longer "offline" 
 					            // and can be safely removed from the temporary offline storage.
@@ -102,7 +102,7 @@ public class XmppChatHandler {
 					    // --- XEP-0333: Chat Markers (Read Receipts) ---
 					    // If the stanza contains the 'urn:xmpp:chat-markers:0' namespace (displayed), 
 					    // the user has actively viewed the conversation.
-					    if (xmlHeader.contains(XmppReadUtil.NS_DISPLAYS)) {
+					    if (originalXml.contains(XmppReadUtil.NS_DISPLAYS)) {
 					    	isAckMessage = true;
 					        String ackMessageId = xmppReadUtil.getAckMessageId(originalXml);
 					        
@@ -133,12 +133,12 @@ public class XmppChatHandler {
 						if (e instanceof DuplicateKeyException) {
 							// Duplicate stanza detected (idempotent case).
 							// Client MUST ignore this error; used only to support safe retries.
-							XmppUtil.sendError(ctx, id, fromJid, domainProperties.getDomain(),
+							xmppUtil.sendError(ctx, id, fromJid, domainProperties.getDomain(),
 							        XmppErrorType.CANCEL,
 							        XmppErrorConditions.DUPLICATE_KEY_ERROR,
 							        "Stanza has duplicate key");
 						} else {
-							XmppUtil.sendError(ctx, id, fromJid, domainProperties.getDomain(), XmppErrorType.WAIT, 
+							xmppUtil.sendError(ctx, id, fromJid, domainProperties.getDomain(), XmppErrorType.WAIT, 
 									XmppErrorConditions.INTERNAL_SERVER_ERROR, "Storage failure");
 						}
 					})
@@ -149,18 +149,13 @@ public class XmppChatHandler {
 		if (XmppMessageType.SET == XmppMessageType.fromString(type) 
 				&& originalXml.contains("urn:xmpp:jingle:1")) {
 			callTracker.track(ctx, toJid, fromJid, originalXml, principal);
-		}   
-		
-		
-		
-		Set<UserSession> sessions = userSessionRegistry.getSessions(toUserKey);
-		if (!CollectionUtils.isEmpty(sessions)) {
-			// Broadast to Redis: Even if they are AWAY/DND, we attempt delivery 
-			// to their active WebSocket channels across the cluster.
-			clusterMessagePublisher.convertAndSendToUser(id, toUserKey, fromUserKey, ChatType.CHAT, originalXml);
-		}
+		}   				
+
+		// Broadast to Redis: Even if they are AWAY/DND, we attempt delivery 
+		// to their active WebSocket channels across the cluster.
+		clusterMessagePublisher.convertAndSendToUser(id, toUserKey, fromUserKey, ChatType.CHAT, originalXml);
 						
-		pushNotification(ctx, id, toUserKey, fromUserKey, type, xmlHeader, originalXml, sessions, principal);
+		pushNotification(ctx, id, toUserKey, fromUserKey, type, originalXml, sessions, principal);
 		
 		// Handle Carbon copy
 		handleSentMessageCarbonCopy(originalXml, principal);
@@ -171,7 +166,6 @@ public class XmppChatHandler {
 			String toUserKey,
 			String fromUserKey,
 			String type,
-			String xmlHeader,
 			String xml,
 			Set<UserSession> sessions,
 			XmppPrincipal principal) {
@@ -202,7 +196,7 @@ public class XmppChatHandler {
 				 * We extract the <body> element and trigger a Push Notification (FCM/APNs)
 				 * to the recipient, ensuring they receive the message even if offline.
 				 */            	
-				if (XmppStanzaUtil.isArchiveable(xmlHeader, xml)) {
+				if (XmppStanzaUtil.isArchiveable(xml)) {
 					String body = XmppUtil.getMessageBody(xml);
 					sendPushNotification(toUserKey, body, NotificationType.DIRECT_MESSAGE, principal);
 				}

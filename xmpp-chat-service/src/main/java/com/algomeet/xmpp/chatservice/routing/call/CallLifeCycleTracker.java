@@ -86,7 +86,7 @@ public class CallLifeCycleTracker {
 
 		// 1. Store call metadata in a Redis Hash. 
 		// This is the source of truth for the background worker if the call times out.
-		String metaKey = CallSessionRedisKey.CALL_PENDING_PREFIX.format(sid);
+		String metaKey = CallSessionRedisKey.PENDING_CALL_PREFIX.format(sid);
 		Map<String, String> data = new HashMap<>();
 		data.put(CallSessionMetadata.TO.getKey(), toJid);
 		data.put(CallSessionMetadata.FROM.getKey(), fromJid);
@@ -114,7 +114,7 @@ public class CallLifeCycleTracker {
 	 * Optimized to reduce network latency and command overhead.
 	 */
 	private Map<Object, Object> getSessionMetadata(String sid) {
-	    String metaKey = CallSessionRedisKey.CALL_PENDING_PREFIX.format(sid);
+	    String metaKey = CallSessionRedisKey.PENDING_CALL_PREFIX.format(sid);
 	    // Fetch the entire hash at once
 	    return redisTemplate.opsForHash().entries(metaKey);
 	}
@@ -145,6 +145,10 @@ public class CallLifeCycleTracker {
 	    	    
 		String callType = (String) metadata.get(CallSessionMetadata.CALL_TYPE.getKey());
 
+		// Check if call still in delay queue
+		boolean isCallInDelayQueue = isCallInDelayQueue(sid);
+		
+				
 		// Kill the background timer first to prevent race conditions
 		handleResolution(sid);
 
@@ -167,41 +171,51 @@ public class CallLifeCycleTracker {
 		// Case: Caller hung up before the recipient answered
 		else if (xml.contains("<cancel/>")) {
 			// 1. To Initiator (Self): "You canceled the call attempt"
-		    sendCallLog(ctx, toJid, fromJid, sid, "canceled", "Call Canceled", callType);
-		    
-		    // 2. To Responder: "You missed an incoming call"
-		    sendCallLog(ctx, fromJid, toJid, sid, "missed", "Missed Call", callType);
-		    
-		    // Remove call session for canceled call
-		    callTrackerService.remove(sid);
-		}	
-		else if (xml.contains("<busy/>")) {
-			// 1. To Initiator (Self): "You missed an incoming call"
-			sendCallLog(ctx, toJid, fromJid, sid, "missed", "Line Busy", callType);
+			sendCallLog(ctx, toJid, fromJid, sid, "canceled", "Call Canceled", callType);
 
 			// 2. To Responder: "You missed an incoming call"
-			sendCallLog(ctx, fromJid, toJid, sid, "missed", "Line Busy", callType);
+			sendCallLog(ctx, fromJid, toJid, sid, "missed", "Missed Call", callType);
+
+			// Remove call session for canceled call
+			callTrackerService.remove(sid);			
+		}	
+		else if (xml.contains("<busy/>")) {
+			// 1. To Initiator: "Busy"
+			sendCallLog(ctx, toJid, fromJid, sid, "busy", "Line Busy", callType);
 
 			// Remove call session for busy call
 			callTrackerService.remove(sid);
 		} else if (xml.contains("<alternative-session>")) {
-			// 1. To Initiator (Self): "You missed an incoming call"
-			sendCallLog(ctx, toJid, fromJid, sid, "missed", "Alternative Session", callType);
-
-			// 2. To Responder: "You missed an incoming call"
-			sendCallLog(ctx, fromJid, toJid, sid, "missed", "Alternative Session", callType);
-
+			// No logs
 			// Remove call session for busy call
 			callTrackerService.remove(sid);
 		} else if (xml.contains("<unsupported-transports/>")) {
-			// 1. To Initiator (Self): "You missed an incoming call"
-			sendCallLog(ctx, toJid, fromJid, sid, "missed", "Unsupported Transports", callType);
-
-			// 2. To Responder: "You missed an incoming call"
-			sendCallLog(ctx, fromJid, toJid, sid, "missed", "Unsupported Transportsn", callType);
-
+			// No logs
 			// Remove call session for busy call
 			callTrackerService.remove(sid).subscribe();
+			
+			log.error("unsupported-transports error during call initiation payload");
+		} else {
+			
+			if (isCallInDelayQueue) {
+				// 1. To Initiator (Self): "You missed an incoming call"
+				sendCallLog(ctx, toJid, fromJid, sid, "unknown", "Unknown Error", callType);
+
+				// 2. To Responder: "You missed an incoming call"
+				sendCallLog(ctx, fromJid, toJid, sid, "missed", "Unknown Error", callType);
+
+				// Remove call session for busy call
+				callTrackerService.remove(sid).subscribe();
+				
+				log.error("Unknown error during call initiation payload {} ", xml);
+			} else {
+				
+				// Calculate and send call logs
+				callTrackerService.finalizeAndNotify(sid, principal.getSessionId(), "success").subscribe();
+				
+				log.error("Unknown error terminates the call {} ", xml);
+			}
+			
 		}
 	}
 
@@ -211,7 +225,17 @@ public class CallLifeCycleTracker {
 	 */
 	private void handleResolution(String sid) {
 		redisTemplate.opsForZSet().remove(CallSessionRedisKey.DELAYED_QUEUE.getVal(), sid);
-		redisTemplate.delete(CallSessionRedisKey.CALL_PENDING_PREFIX.format(sid));
+		redisTemplate.delete(CallSessionRedisKey.PENDING_CALL_PREFIX.format(sid));
+	}
+	
+	/**
+	 * Checks if the call session is still present in the delayed queue.
+	 * Returns true if the sid exists, false otherwise.
+	 */
+	public boolean isCallInDelayQueue(String sid) {
+	    // .score() returns Double (the score) if present, or null if not present
+	    Double score = redisTemplate.opsForZSet().score(CallSessionRedisKey.DELAYED_QUEUE.getVal(), sid);
+	    return score != null;
 	}
 
 	private String extractSid(String xml) {

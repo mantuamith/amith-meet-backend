@@ -1,6 +1,9 @@
 package com.algomeet.xmpp.chatservice.cluster.listener;
 
+import java.util.UUID;
+
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
 import com.algomeet.xmpp.chatservice.cluster.dto.ClusterSyncMessage;
 import com.algomeet.xmpp.chatservice.routing.dispacher.LocalStanzaDispatcher;
@@ -51,9 +54,7 @@ public class ClusterMessageListener {
             // If the 'to' JID matches a local session, the XML is pushed over the WebSocket.
             localStanzaDispatcher.dispatchLocally(
                 message.getTo(), 
-                message.getFrom(), 
                 message.getId(), 
-                message.getChatType(),
                 message.isCarbonCopy(),
                 message.getSessionId(),
                 message.getPayload()                

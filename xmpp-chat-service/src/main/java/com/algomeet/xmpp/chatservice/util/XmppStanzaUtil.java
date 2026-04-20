@@ -23,6 +23,9 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 public class XmppStanzaUtil {
+	private static final String CHATSTATE = "chatstates";
+	private static final String BODY = "<body";
+	
 	private static final XMLInputFactory XML_FACTORY = XMLInputFactory.newInstance();
 
 	/**
@@ -59,7 +62,7 @@ public class XmppStanzaUtil {
 	 * @return {@code true} if the stanza contains conversational content; 
 	 * {@code false} if it is transient signaling.
 	 */
-	public static boolean isArchiveable(String xmlHeader, String xml) {
+	public static boolean isArchiveable(String xml) {
 		// Defensive check for malformed or empty stream fragments
 		if (xml == null) {
 			return false;
@@ -67,15 +70,15 @@ public class XmppStanzaUtil {
 
 		// 1. Filter Presence: Standard Roster updates and MUC (XEP-0045) occupancy 
 		// are state-based and should never be stored in message history.
-		if (XmppStanzaUtil.isPresenceStanza(xmlHeader)) {
+		if (XmppStanzaUtil.isPresenceStanza(xml)) {
 			return false; 
 		}
 
 		// 2. Conditional Filter for Chat States (XEP-0085):
 		// Typing notifications ("is typing...") are transient. We only archive 
 		// if the stanza ALSO contains a <body> element (e.g., a message with a state).
-		if (xmlHeader.contains("http://jabber.org/protocol/chatstates")) {
-			return xml.contains("<body");
+		if (xml.indexOf(CHATSTATE) >= 0) {
+			return xml.indexOf(BODY) >= 0;
 		}
 
 		// If it survived the negative filters, it is likely a conversational <message/>
@@ -91,7 +94,7 @@ public class XmppStanzaUtil {
 	 * @return {@code true} if the stanza contains conversational content; 
 	 * {@code false} if it is transient signaling.
 	 */
-	public static boolean isArchiveableGroupChat(String xmlHeader, String xml) {
+	public static boolean isArchiveableGroupChat(String xml) {
 		// Defensive check for malformed or empty stream fragments
 		if (xml == null) {
 			return false;
@@ -99,15 +102,15 @@ public class XmppStanzaUtil {
 
 		// 1. Filter Presence: Standard Roster updates and MUC (XEP-0045) occupancy 
 		// are state-based and should never be stored in message history.
-		if (XmppStanzaUtil.isPresenceStanza(xmlHeader)) {
+		if (XmppStanzaUtil.isPresenceStanza(xml)) {
 			return false; 
 		}
 
 		// 2. Conditional Filter for Chat States (XEP-0085):
 		// Typing notifications ("is typing...") are transient. We only archive 
 		// if the stanza ALSO contains a <body> element (e.g., a message with a state).
-		if (xmlHeader.contains("http://jabber.org/protocol/chatstates")) {
-			return xml.contains("<body");
+		if (xml.indexOf(CHATSTATE) >= 0) {
+			return xml.indexOf(BODY) >= 0;
 		}
 
 		// If it survived the negative filters, it is likely a conversational <message/>

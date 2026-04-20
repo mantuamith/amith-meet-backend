@@ -14,5 +14,5 @@ public class XmppSmRedisProperties {
     /**
      * TTL for SM session data in Redis (used for resume window).
      */
-    private Duration ttl = Duration.ofHours(1); // default fallback
+    private Duration ttl = Duration.ofSeconds(60); // default fallback 60 seconds
 }

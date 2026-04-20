@@ -83,7 +83,7 @@ public class MucAcceptInviteEventHandler {
         saveToDatabase(stanzaId, roomJid, senderJid, group, sender, logXml);
         
         // 5. Broadcast: Real-time notification to all online occupants via the MessageRouter.
-        xmppBroadCastHandler.broadcastToOccupants(ctx, stanzaId, roomJid, senderJid, XmppMessageType.GROUPCHAT, group, sender, null, logXml, logXml);
+        xmppBroadCastHandler.broadcastToOccupants(ctx, stanzaId, roomJid, senderJid, XmppMessageType.GROUPCHAT, group, sender, null, logXml);
                 
         // Push group members presence to user
         mucPresenceService.pushGroupParticipantsPresenceToUser(ctx, group, sender.getUserKey());

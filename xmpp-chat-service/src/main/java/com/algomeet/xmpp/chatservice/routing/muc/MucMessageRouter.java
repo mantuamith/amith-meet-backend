@@ -48,20 +48,20 @@ public class MucMessageRouter {
 	 * for Private Messages.
 	 */
 	public void broadcastToOccupants(ChannelHandlerContext ctx, String id, String roomJid, String fromJid, XmppMessageType msgType, MucRoomDto group, 
-			MucMember senderMucMember, MucMember directReceiverMucMember, String xmlHeader, String originalXml) {
+			MucMember senderMucMember, MucMember directReceiverMucMember, String originalXml) {
 
 		XmppPrincipal principal = ctx.channel().attr(XmppSessionAttributes.PRINCIPAL).get();
-		boolean isJingleStanza = XmppStanzaUtil.isJingleStanza(msgType, xmlHeader);
+		boolean isJingleStanza = XmppStanzaUtil.isJingleStanza(msgType, originalXml);
 		boolean isJingleSessionInitiate = isJingleStanza && originalXml.contains("session-initiate");
 
 		if (directReceiverMucMember != null) {			
 			// Target: Single recipient (Private Message within MUC)
-			publishOrNotify(ctx, id, roomJid, fromJid, msgType, senderMucMember, xmlHeader, originalXml, 
+			publishOrNotify(ctx, id, roomJid, fromJid, msgType, senderMucMember, originalXml, 
 					directReceiverMucMember.getUserKey(), isJingleStanza, isJingleSessionInitiate, principal);
 		} else {						
 			// Target: All room members (Broadcast)
 			for(MucMember receiverMucMember : group.getMembers()) {
-				publishOrNotify(ctx, id, roomJid, fromJid, msgType, senderMucMember, xmlHeader, originalXml, 
+				publishOrNotify(ctx, id, roomJid, fromJid, msgType, senderMucMember, originalXml, 
 						receiverMucMember.getUserKey(), isJingleStanza, isJingleSessionInitiate, principal);
 			}
 		}
@@ -71,7 +71,7 @@ public class MucMessageRouter {
 	 * Core delivery method. Performs JID rewriting, cluster publishing, and push notification triggering.
 	 */
 	private void publishOrNotify(ChannelHandlerContext ctx, String id, String roomJid, String fromJid, XmppMessageType msgType, 
-			MucMember senderMucMember, String xmlHeader, String originalXml, String toUserKey, boolean isJingleStanza,
+			MucMember senderMucMember, String originalXml, String toUserKey, boolean isJingleStanza,
 			boolean isJingleSessionInitiate, XmppPrincipal principal) {
 
 		// 1. Call Tracking (For VoIP/Video logic)
@@ -93,15 +93,14 @@ public class MucMessageRouter {
 		Set<UserSession> userSessions = userSessionRegistry.getSessions(toUserKey);
 		boolean hasSessions = !CollectionUtils.isEmpty(userSessions);
 
-		if (hasSessions) {
-			clusterMessagePublisher.convertAndSendToUser(id, toUserKey, principal.getUserKey(), ChatType.GROUPCHAT, finalForwardXml);
-		}
+		// 4. Publish to cluster server
+		clusterMessagePublisher.convertAndSendToUser(id, toUserKey, principal.getUserKey(), ChatType.GROUPCHAT, finalForwardXml);
 
-		// 4. Push Notifications (Offline Storage logic)
+		// 5. Push Notifications (Offline Storage logic)
 		boolean hasActiveSession = hasSessions && userSessions.stream().anyMatch(s -> UserState.ACTIVE == s.getState());
 
 		if (!hasActiveSession) {					
-			if ((msgType.supportsOfflineStorage() && XmppStanzaUtil.isArchiveable(xmlHeader, originalXml)) || isJingleSessionInitiate) {
+			if ((msgType.supportsOfflineStorage() && XmppStanzaUtil.isArchiveable(originalXml)) || isJingleSessionInitiate) {
 				if (isJingleSessionInitiate) {
 					jingleNotificationHandler.handlePush(ctx, id, toUserKey, XmppUtil.getUserKey(fromJid), originalXml, principal);
 				} else {

@@ -10,6 +10,7 @@ import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
 import com.algomeet.xmpp.chatservice.enums.MucAffiliation;
 import com.algomeet.xmpp.chatservice.enums.XmppErrorType;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
+import com.algomeet.xmpp.chatservice.routing.dispacher.LocalStanzaDispatcher;
 import com.algomeet.xmpp.chatservice.routing.muc.MucMessageRouter;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.algomeet.xmpp.chatservice.util.MucCommandUtil;
@@ -17,7 +18,6 @@ import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
 
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -33,6 +33,8 @@ public class MucMuteEventHandler {
 	private final DomainProperties domainProperties;
 	private final JidUtil jidUtil;
 	private final MucMessageRouter mucMessageRouter;
+	private final LocalStanzaDispatcher localStanzaDispatcher;
+	private final XmppUtil xmppUtil;
 	
 	/**
 	 * Processes a request to revoke an occupant's voice.
@@ -61,7 +63,7 @@ public class MucMuteEventHandler {
 		// 3. Authority Validation
 		// Ensure the moderator has sufficient permission to mute the target
 		if (victimOpt.isPresent() && !(MucCommandUtil.isAuthorized(sender, victimOpt.get()))) {        	
-			XmppUtil.sendError(ctx, id, senderJid, domainProperties.getGroupChatDomain(), 
+			xmppUtil.sendError(ctx, id, senderJid, domainProperties.getGroupChatDomain(), 
 					XmppErrorType.AUTH, XmppErrorConditions.FORBIDDEN, "Error code 403");
 			return;
 		}
@@ -89,7 +91,7 @@ public class MucMuteEventHandler {
 	 */
 	private void sendSuccessResponse(ChannelHandlerContext ctx, String to, String from, String id) {
 		String resp = String.format("<iq from='%s' to='%s' id='%s' type='result'/>", from, to, id);
-		ctx.writeAndFlush(new TextWebSocketFrame(resp));
+		localStanzaDispatcher.dispatchLocally(to, from, resp);
 	}
 	
 	/**

@@ -48,7 +48,7 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class UserSessionRegistry {
 
-    private static final String USER_SESSIONS_KEY_PREFIX = "chat-user-sessions:";
+    private static final String USER_SESSIONS_KEY_PREFIX = "algomeet:chat-user-sessions:";
     private final RedisTemplate<String, String> redisTemplate;
     private final ObjectMapper objectMapper;
 

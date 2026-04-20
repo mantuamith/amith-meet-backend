@@ -3,11 +3,13 @@ package com.algomeet.xmpp.chatservice;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.ChannelFuture;
 import jakarta.annotation.PreDestroy;
+import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Service;
 
+@Slf4j
 @Service
 public class NettyXmppServerRunner implements CommandLineRunner {
 
@@ -23,7 +25,7 @@ public class NettyXmppServerRunner implements CommandLineRunner {
 
     @Override
     public void run(String... args) throws Exception {
-        System.out.println("Starting Netty XMPP Server on ws://localhost:" + port + "/ws/chat");
+        log.info("Starting Netty XMPP Server on ws://localhost:" + port + "/ws/chat");
         this.channelFuture = serverBootstrap.bind(port).sync();
     }
 
