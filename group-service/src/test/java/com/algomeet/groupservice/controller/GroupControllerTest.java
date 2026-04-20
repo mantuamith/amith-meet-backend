@@ -277,6 +277,33 @@ class GroupControllerTest {
 	    verify(groupService).addGroupMembers(eq(GROUP_ID), any(), any());
 	}
 
+	@Test
+	void addGroupMembers_acceptsNicknameAndIgnoresMemberStartDate() throws Exception {
+		when(groupService.addGroupMembers(eq(GROUP_ID), any(), any()))
+				.thenReturn(new GroupResponse());
+
+		String requestBody = """
+				{
+				  "members": [
+				    {
+				      "userKey": "u1",
+				      "username": "User One",
+				      "nickname": "U1",
+				      "memberStartDate": 1713523200000
+				    }
+				  ]
+				}
+				""";
+
+		mockMvc.perform(post("/api/groups/{id}/add", GROUP_ID)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(requestBody))
+		.andExpect(status().isOk())
+		.andExpect(jsonPath("$.code").value(ResponseCode.SUCCESS.name()));
+
+		verify(groupService).addGroupMembers(eq(GROUP_ID), any(), any());
+	}
+
 
 	/*
 	 * ========================= LEAVE =========================
