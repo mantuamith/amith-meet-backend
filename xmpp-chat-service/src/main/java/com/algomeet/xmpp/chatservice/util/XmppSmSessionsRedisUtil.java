@@ -29,7 +29,7 @@ public class XmppSmSessionsRedisUtil {
     private final ReactiveRedisMessageListenerContainer listenerContainer; // Required for Pub/Sub
     private final XmppSmRedisProperties properties;
 
-    private static final String USER_SESSIONS_INDEX = "xmpp:user:sessions:%s";
+    private static final String USER_SESSIONS_INDEX = "algomeet:user:sessions:%s";
     
     // The Redis channel for key expiration events
     private static final String EXPIRED_EVENT_CHANNEL = "__keyevent@*__:expired";

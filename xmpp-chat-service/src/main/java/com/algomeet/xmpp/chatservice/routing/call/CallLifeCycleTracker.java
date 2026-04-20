@@ -86,7 +86,7 @@ public class CallLifeCycleTracker {
 
 		// 1. Store call metadata in a Redis Hash. 
 		// This is the source of truth for the background worker if the call times out.
-		String metaKey = CallSessionRedisKey.CALL_PENDING_PREFIX.format(sid);
+		String metaKey = CallSessionRedisKey.PENDING_CALL_PREFIX.format(sid);
 		Map<String, String> data = new HashMap<>();
 		data.put(CallSessionMetadata.TO.getKey(), toJid);
 		data.put(CallSessionMetadata.FROM.getKey(), fromJid);
@@ -114,7 +114,7 @@ public class CallLifeCycleTracker {
 	 * Optimized to reduce network latency and command overhead.
 	 */
 	private Map<Object, Object> getSessionMetadata(String sid) {
-	    String metaKey = CallSessionRedisKey.CALL_PENDING_PREFIX.format(sid);
+	    String metaKey = CallSessionRedisKey.PENDING_CALL_PREFIX.format(sid);
 	    // Fetch the entire hash at once
 	    return redisTemplate.opsForHash().entries(metaKey);
 	}
@@ -225,7 +225,7 @@ public class CallLifeCycleTracker {
 	 */
 	private void handleResolution(String sid) {
 		redisTemplate.opsForZSet().remove(CallSessionRedisKey.DELAYED_QUEUE.getVal(), sid);
-		redisTemplate.delete(CallSessionRedisKey.CALL_PENDING_PREFIX.format(sid));
+		redisTemplate.delete(CallSessionRedisKey.PENDING_CALL_PREFIX.format(sid));
 	}
 	
 	/**

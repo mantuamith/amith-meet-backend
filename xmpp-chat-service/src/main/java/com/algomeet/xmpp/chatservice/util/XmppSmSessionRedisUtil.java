@@ -23,8 +23,8 @@ public class XmppSmSessionRedisUtil {
     private final ReactiveStringRedisTemplate redis;
     private final XmppSmRedisProperties properties;
 
-    public static final String SM_SESSION_KEY = "xmpp:sm:session:%s";
-    public static final String SM_SESSION_KEY_PREFIX = "xmpp:sm:session:";
+    public static final String SM_SESSION_KEY = "algomeet:sm:session:%s";
+    public static final String SM_SESSION_KEY_PREFIX = "algomeet:sm:session:";
     
     public static final String FIELD_H = "h";
     public static final String FIELD_USER_SESSION_ID = "userSessionId";

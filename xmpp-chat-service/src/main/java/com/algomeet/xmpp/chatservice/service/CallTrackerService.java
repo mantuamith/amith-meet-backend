@@ -87,7 +87,7 @@ public class CallTrackerService {
 	 * Finalizes session, notifies parties, and then handles the document lifecycle.
 	 */
 	public Mono<Void> finalizeAndNotify(String sid, String userSessionId, String reason) {
-		String lockKey = "xmpp:save-lock:call:" + sid;
+		String lockKey = "algomeet:lock:save:call:" + sid;
 		RLockReactive lock = redissonReactiveClient.getLock(lockKey);
 
 		return Mono.usingWhen(

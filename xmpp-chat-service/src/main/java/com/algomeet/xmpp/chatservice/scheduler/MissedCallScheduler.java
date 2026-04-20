@@ -87,7 +87,7 @@ public class MissedCallScheduler {
 	 * * @return A Mono signal indicating completion of the batch process.
 	 */
 	private Mono<Void> loadMissedCalls() {
-	    String lockKey = "xmpp:process-lock:missed-call";
+	    String lockKey = "algomeet:lock:process:missed-call";
 	    RLockReactive lock = redissonReactiveClient.getLock(lockKey);
 
 	    return Mono.<Void, Boolean>usingWhen(
@@ -140,7 +140,7 @@ public class MissedCallScheduler {
 	 * @return Mono<Void>
 	 */
 	private Mono<Void> processMissedCallReactive(String sid) {
-	    String metaKey = CallSessionRedisKey.CALL_PENDING_PREFIX.format(sid);
+	    String metaKey = CallSessionRedisKey.PENDING_CALL_PREFIX.format(sid);
 
 	    return reactiveRedisTemplate.opsForHash().entries(metaKey)
 	            .collectMap(

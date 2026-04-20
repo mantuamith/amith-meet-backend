@@ -99,7 +99,7 @@ public class XmppSmBufferService {
     }
     
     public Mono<Void> saveStanzaSynchronized(String id, String receiverUserKey, String xml) {    	
-        String lockKey = "xmpp:save-lock:sm:id:" + id;
+        String lockKey = "algomeet:lock:save:sm:id:" + id;
         RLockReactive lock = redissonReactiveClient.getLock(lockKey);
 
         return Mono.<Void, Boolean>usingWhen(
