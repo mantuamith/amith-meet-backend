@@ -110,6 +110,7 @@ public class ConnectionLifecycleHandler {
                 );
             })
             .subscribe();
+            
 
             log.info("Starting cleanup for session {} (User: {})", sessionId, userKey);
                         

@@ -25,6 +25,7 @@ import com.algomeet.xmpp.chatservice.util.JidUtil;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 @Slf4j
@@ -112,6 +113,7 @@ public class CallTrackerService {
 	private Mono<Void> executeFinalization(String sid, String userSessionId, String reason) {
 		return repository.findAllBySidAndRoomIdIsNull(sid)
 				.switchIfEmpty(Mono.fromRunnable(() -> log.debug("SID {} already processed or not found.", sid)))
+				.filter(session -> session.getRoomId() == null)
 				.flatMap(session -> {
 					// Validate participant
 					if (!isParticipant(session, userSessionId)) return Mono.empty();
@@ -203,7 +205,7 @@ public class CallTrackerService {
 	private String capitalize(String str) {
 		return (str == null || str.isEmpty()) ? "" : str.substring(0, 1).toUpperCase() + str.substring(1);
 	}   
-	
+
 	/**
 	 * Handles an abrupt transport layer disconnect (e.g., WebSocket closure).
 	 * Instead of terminating the call for both parties, it marks only the 
@@ -213,37 +215,35 @@ public class CallTrackerService {
 	 * @return A Mono containing the updated CallSession or empty if no active call was found.
 	 */
 	public Mono<CallSession> handleTransportDrop(String userSessionId) {
-	    // Look for any active session where this connection ID was either the caller or callee
-	    return repository.findByCallerSidOrCalleeSid(userSessionId, userSessionId)
-	        .next() // Take the most recent active session from the Flux
-	        .filter(session -> session.getTerminatedAt() == null)
-	        .flatMap(session -> {
-	            // Determine asymmetrically which side of the call dropped
-	            boolean isCaller = userSessionId.equals(session.getCallerSid());
-	            String statusField = isCaller ? "callerStatus" : "calleeStatus";
+		// Look for any active session where this connection ID was either the caller or callee
+		return repository.findByCallerSidOrCalleeSid(userSessionId, userSessionId)
+				.next() // Take the most recent active session from the Flux
+				.filter(session -> session.getTerminatedAt() == null)
+				.flatMap(session -> {
+					// Determine asymmetrically which side of the call dropped
+					boolean isCaller = userSessionId.equals(session.getCallerSid());
+					String statusField = isCaller ? "callerStatus" : "calleeStatus";
 
-	            // Use the primary key (_id) for the most performant atomic update
-	            Query query = new Query(Criteria.where("id").is(session.getId()));
-	            
-	            // Atomically update only the status of the dropped party and set termination timestamp
-	            Update update = new Update()
-	                .set(statusField, CallStatus.DROPPED)
-	                .set("terminatedAt", Instant.now().toEpochMilli());
+					// Use the primary key (_id) for the most performant atomic update
+					Query query = new Query(Criteria.where("id").is(session.getId()));
 
-	            log.info("Suspending session {} for SID: {}", userSessionId, session.getSid());
+					// Atomically update only the status of the dropped party and set termination timestamp
+					Update update = new Update()
+							.set(statusField, CallStatus.DROPPED)
+							.set("terminatedAt", Instant.now().toEpochMilli());
 
-	            // findAndModify ensures we get the updated state back in one database round-trip
-	            return mongoTemplate.findAndModify(
-	                query,
-	                update,
-	                FindAndModifyOptions.options().returnNew(true),
-	                CallSession.class
-	            );
-	        })
-	        .doOnSuccess(s -> {
-	            if (s != null) log.debug("Suspending call finished for session {}", s.getSid());
-	        })
-	        .doOnError(e -> log.error("Suspending call error for old session {}", userSessionId, e));
+					// findAndModify ensures we get the updated state back in one database round-trip
+					return mongoTemplate.findAndModify(
+							query,
+							update,
+							FindAndModifyOptions.options().returnNew(true),
+							CallSession.class
+							);
+				})
+				.doOnSuccess(s -> {
+					if (s != null) log.info("Suspending call finished for session {}", s.getSid());
+				})
+				.doOnError(e -> log.error("Suspending call error for old session {}", userSessionId, e));
 	}
 
 	/**
@@ -254,39 +254,47 @@ public class CallTrackerService {
 	 * @param newUserSid The new WebSocket/Connection ID generated upon reconnection.
 	 * @return A Mono containing the restored CallSession.
 	 */
-	public Mono<CallSession> updateSessionRebind(String oldUserSid, String newUserSid) {
-	    return repository.findByCallerSidOrCalleeSid(oldUserSid, oldUserSid)
-	        .next() 
-	        // Logic Gate: Only proceed if at least one party is currently in a DROPPED state
-	        .filter(session -> session.getCallerStatus() == CallStatus.DROPPED || 
-	                           session.getCalleeStatus() == CallStatus.DROPPED)
-	        .flatMap(session -> {
-	            // Identify which specific fields to "re-bind" to the new connection
-	            boolean isCaller = oldUserSid.equals(session.getCallerSid());
-	            String sidField = isCaller ? "callerSid" : "calleeSid";
-	            String statusField = isCaller ? "callerStatus" : "calleeStatus";
+	public Flux<CallSession> updateSessionRebind(String oldUserSid, String newUserSid) {
+		return repository.findByCallerSidOrCalleeSid(oldUserSid, oldUserSid)
+				// Logic Gate: Filter for sessions that actually need recovery
+				.filter(session -> {
+					log.info("Evaluating rebind for session {}: Caller[{}]={}, Callee[{}]={}", 
+							session.getSid(), session.getCallerSid(), session.getCallerStatus(), 
+							session.getCalleeStatus());
 
-	            // Query by ID to ensure we update the exact document found
-	            Query query = new Query(Criteria.where("id").is(session.getId()));
+					return (session.getRoomId() == null
+							&& (session.getCallerStatus() == CallStatus.DROPPED 
+							|| session.getCalleeStatus() == CallStatus.DROPPED));
+				})
+				.flatMap(session -> {
+					// Identify which specific fields to "re-bind" to the new connection
+					boolean isCaller = oldUserSid.equals(session.getCallerSid());
+					String sidField = isCaller ? "callerSid" : "calleeSid";
+					String statusField = isCaller ? "callerStatus" : "calleeStatus";
 
-	            // Restore the session: swap connection IDs, reset status, and clear termination timer
-	            Update update = new Update()
-	                .set(sidField, newUserSid)
-	                .set(statusField, CallStatus.CONNECTED)
-	                .set("terminatedAt", null);
+					// Query by ID to leverage the primary key for the atomic update
+					Query query = new Query(Criteria.where("id").is(session.getId()));
 
-	            log.info("Rebinding connection: {} -> {} for session: {}", oldUserSid, newUserSid, session.getSid());
+					// Restore the session: swap connection IDs, reset status, and clear termination timer
+					Update update = new Update()
+							.set(sidField, newUserSid)
+							.set(statusField, CallStatus.CONNECTED)
+							.set("terminatedAt", null)
+							.set("updatedAt", Instant.now());
 
-	            return mongoTemplate.findAndModify(
-	                query,
-	                update,
-	                FindAndModifyOptions.options().returnNew(true),
-	                CallSession.class
-	            );
-	        })
-	        .doOnSuccess(s -> {
-	            if (s != null) log.debug("Rebind finished for session {}", s.getSid());
-	        })
-	        .doOnError(e -> log.error("Rebind error for old session {}", oldUserSid, e));
+					log.info("Rebinding connection for {}: {} -> {} (Session: {})", 
+							isCaller ? "CALLER" : "CALLEE", oldUserSid, newUserSid, session.getSid());
+
+					// Atomically modify and return the updated document
+					return mongoTemplate.findAndModify(
+							query,
+							update,
+							FindAndModifyOptions.options().returnNew(true),
+							CallSession.class
+							);
+				})
+				// Log individual completions
+				.doOnNext(s -> log.debug("Rebind finished for session {}", s.getSid()))
+				.doOnError(e -> log.error("Rebind error for old connection identifier: {}", oldUserSid, e));
 	}
 }

@@ -99,27 +99,45 @@ public class XmppSmBufferService {
     }
     
     public Mono<Void> saveStanzaSynchronized(String id, String receiverUserKey, String xml) {    	
-    	String lockKey = "xmpp:save-lock:sm:id:" + id;
+        String lockKey = "xmpp:save-lock:sm:id:" + id;
         RLockReactive lock = redissonReactiveClient.getLock(lockKey);
 
-        return Mono.usingWhen(
-            // 1. ACQUIRE: Wait 5ms, Lease 2s (prevents ghost locks)
+        return Mono.<Void, Boolean>usingWhen(
+            // 1. ACQUIRE: Short wait, 2s lease
             lock.tryLock(500, 2000, TimeUnit.MILLISECONDS),
             
             acquired -> {
                 if (!acquired) {
-                    log.warn("Lock acquisition failed for SID: {}. Skipping to prevent duplicates.", id);
+                    log.debug("Lock acquisition failed for stanza: {}. Potential duplicate or high contention.", id);
                     return Mono.empty();
                 }
-                
-                // 2. PROCESS: The core logic now protected by the lock
+                // 2. PROCESS: Core logic
                 return saveStanza(id, receiverUserKey, xml);
             },
             
-            // 3. RELEASE: Success/Cancel/Error - Always unlock
-            acquired -> acquired ? lock.unlock() : Mono.empty()
+            // 3. RELEASE: Success Cleanup
+            acquired -> acquired ? safeUnlock(lock) : Mono.empty(),
+            // 4. RELEASE: Error Cleanup
+            (acquired, err) -> acquired ? safeUnlock(lock) : Mono.empty(),
+            // 5. RELEASE: Cancel Cleanup
+            acquired -> acquired ? safeUnlock(lock) : Mono.empty()
         )
         .doOnError(e -> log.error("Critical failure in saving for stanza ID: {}", id, e));
+    }
+
+    /**
+     * Isolated unlock logic to handle Reactive Thread-Hopping.
+     * Catches IllegalMonitorStateException to prevent operator 'onErrorDropped' crashes.
+     */
+    private Mono<Void> safeUnlock(RLockReactive lock) {
+        return lock.unlock()
+                .onErrorResume(IllegalMonitorStateException.class, e -> {
+                    // This happens when the Netty thread changes between lock and unlock.
+                    // We log at debug to keep logs clean, as the lock will expire anyway.
+                    log.debug("Lock ownership lost or already released due to thread-hop: {}", e.getMessage());
+                    return Mono.empty();
+                })
+                .then();
     }
 
     /**

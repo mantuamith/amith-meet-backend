@@ -102,11 +102,7 @@ public class XmppStreamManagementStanzaHandler {
 		    // Extract required attributes for XEP-0198 stream resumption
 		    String prevId = XmppStanzaUtil.getAttribute(xml, "previd");
 		    
-		    // 'h' from the client represents the number of stanzas the client has handled 
-		    // from the server's perspective before the disconnection.
-		    long clientHandled = Long.parseLong(XmppStanzaUtil.getAttribute(xml, "h"));
-
-		    log.debug("Received <resume /> for previd: {} with client-h: {}", prevId, clientHandled);
+		    log.debug("Received <resume /> for previd: {} with client-h: {}", prevId, XmppStanzaUtil.getAttribute(xml, "h"));
 
 		    /**
 		     * STRATEGY: Sequence Alignment & State Restoration
@@ -123,13 +119,14 @@ public class XmppStreamManagementStanzaHandler {
 		    // Type Hint <sessionMap> ensures the compiler knows the final return type of the flatMap
 		    .<Long>flatMap(sessionMap -> {   
 		    	   Long lastAck = Long.parseLong(sessionMap.get(XmppSmSessionRedisUtil.FIELD_H).toString());
-		    	   String prevUserSessionId = 	sessionMap.get(XmppSmSessionRedisUtil.SM_SESSION_KEY).toString();	    	    
-		            
+		    	   String prevUserSessionId = sessionMap.get(XmppSmSessionRedisUtil.FIELD_USER_SESSION_ID).toString();
+		    	   log.info("Resume connection of previous user session ID: {}, h: {}", prevUserSessionId, lastAck);
+		    	   
 		    	   // 1. Re-bind to local Netty context
 		            XmppSmSessionUtil.initSmSession(ctx, true, prevId, lastAck);
 		            
 		            // 2. Resume dropped call:
-		            callTrackerService.updateSessionRebind(prevUserSessionId, principal.getSessionId());
+		            callTrackerService.updateSessionRebind(prevUserSessionId, principal.getSessionId()).subscribe();
 
 		            // 3. Update mapping to the NEW WebSocket/Netty session ID
 		            return xmppSmRedisUtil.updateUserSessionId(prevId, principal.getSessionId())

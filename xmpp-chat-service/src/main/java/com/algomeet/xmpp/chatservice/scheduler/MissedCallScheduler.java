@@ -28,6 +28,7 @@ import com.algomeet.xmpp.chatservice.enums.CallSessionRedisKey;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.enums.UserState;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
+import com.algomeet.xmpp.chatservice.repository.CallTrackerRepository;
 import com.algomeet.xmpp.chatservice.service.GroupCacheService;
 import com.algomeet.xmpp.chatservice.service.OfflineMessageService;
 import com.algomeet.xmpp.chatservice.service.XmppArchiveService;
@@ -69,7 +70,8 @@ public class MissedCallScheduler {
 	private final UserSessionRegistry userSessionRegistry;
 	private final RedissonReactiveClient redissonReactiveClient;
 	private final ReactiveRedisTemplate<String, String> reactiveRedisTemplate;
-
+	private final CallTrackerRepository callTrackerRepository;
+	
 	/**
 	 * Main execution trigger. Subscribes to the reactive chain every second.
 	 * Using {@code fixedDelay} ensures that a new execution doesn't start until
@@ -140,7 +142,6 @@ public class MissedCallScheduler {
 	private Mono<Void> processMissedCallReactive(String sid) {
 	    String metaKey = CallSessionRedisKey.CALL_PENDING_PREFIX.format(sid);
 
-	    // Retrieve the hash map containing JIDs and Tenant info
 	    return reactiveRedisTemplate.opsForHash().entries(metaKey)
 	            .collectMap(
 	                entry -> entry.getKey().toString(), 
@@ -148,11 +149,10 @@ public class MissedCallScheduler {
 	            )
 	            .flatMap(metadata -> {
 	                if (metadata.isEmpty()) {
-	                    log.warn("Missed call metadata missing for SID: {}. Likely handled by another pod.", sid);
+	                    log.warn("Missed call metadata missing for SID: {}.", sid);
 	                    return Mono.empty();
 	                }
 
-	                // Mapping metadata fields
 	                String toJid = metadata.get(CallSessionMetadata.TO.getKey());
 	                String fromJid = metadata.get(CallSessionMetadata.FROM.getKey());
 	                String type = metadata.get(CallSessionMetadata.CALL_TYPE.getKey());
@@ -165,21 +165,24 @@ public class MissedCallScheduler {
 
 	                log.info("Processing missed call SID: {} for user: {}", sid, toUserKey);
 
-	                // Determine if a push notification is required based on connection state
-	                Set<UserSession> userSessions = userSessionRegistry.getSessions(toUserKey);
-	                boolean hasActiveSession = !CollectionUtils.isEmpty(userSessions) && userSessions.stream()
-	                        .anyMatch(s -> UserState.ACTIVE == s.getState());
-
-	                // Offload blocking I/O (Stanzas/Push) to the boundedElastic scheduler
+	                // --- CHANGE STARTS HERE ---
+	                // Wrap EVERYTHING that touches synchronous Redis/Registry into the Runnable
 	                return Mono.fromRunnable(() -> {
 	                    TenantContext.setCurrentTenant(tenantIdInt);
 	                    try {
+	                        // Move the blocking Registry call INSIDE the protected thread
+	                        Set<UserSession> userSessions = userSessionRegistry.getSessions(toUserKey);
+	                        boolean hasActiveSession = !CollectionUtils.isEmpty(userSessions) && userSessions.stream()
+	                                .anyMatch(s -> UserState.ACTIVE == s.getState());
+
 	                        if (StringUtils.hasText(groupId) && Long.parseLong(groupId) > 0) {
 	                            sendGroupChatMissedCallStanza(fromJid, toJid, sid, type, groupId);
 	                        } else {
-	                            // Standard 1-on-1 logic: Notify both caller and callee
 	                            sendMissedCallStanza(fromJid, toJid, sid, type);
 	                            sendMissedCallStanza(toJid, fromJid, sid, type);
+	                            
+	                            // Delete by session ID
+	                            callTrackerRepository.deleteBySidAndCallee(sid, toUserKey).subscribe();
 	                        }
 
 	                        if (!hasActiveSession) {
@@ -188,14 +191,15 @@ public class MissedCallScheduler {
 	                                    "Missed " + type + " Call",
 	                                    String.format("Missed %s call from %s", type, username),
 	                                    tenantIdInt);
-	                        }
+	                        }	                     
 	                    } finally {
-	                        TenantContext.clear(); // Critical: Clean up ThreadLocal for pool reuse
+	                        TenantContext.clear();
 	                    }
 	                })
-	                .subscribeOn(Schedulers.boundedElastic()) 
-	                .then(reactiveRedisTemplate.delete(metaKey)) // Final cleanup of call metadata
+	                .subscribeOn(Schedulers.boundedElastic()) // This ensures the Runnable doesn't block Netty
+	                .then(reactiveRedisTemplate.delete(metaKey))
 	                .then();
+	                // --- CHANGE ENDS HERE ---
 	            });
 	}
 	
@@ -219,10 +223,15 @@ public class MissedCallScheduler {
 				);			
 
 		offlineMessageService.save(id, toUserKey, fromUserKey, XmppMessageType.HEADLINE.getXmlValue(), xml)
+		.doOnSuccess(success -> {
+			System.out.println("MISSCALL : " + id);
+			// Publish after successfully saved
+			clusterMessagePublisher.convertAndSendToUser(id, toUserKey, fromUserKey, ChatType.CHAT, xml);
+		})
 		.doOnError(e -> log.error("MAM Persistence failed for SID {}: {}", sid, e.getMessage()))
 		.subscribe();
 
-		clusterMessagePublisher.convertAndSendToUser(id, toUserKey, fromUserKey, ChatType.CHAT, xml);
+		
 	}
 
 	/**

@@ -91,7 +91,7 @@ public class XmppChatHandler {
 					    if (originalXml.contains(XmppReceiptUtil.NS_RECEIPTS)) {
 					    	isAckMessage = true;
 					        String ackMessageId = xmppReceiptUtil.getAckMessageId(originalXml);
-					        
+
 					        if (StringUtils.hasText(ackMessageId)) {
 					            // Once delivery is confirmed, the message is no longer "offline" 
 					            // and can be safely removed from the temporary offline storage.
