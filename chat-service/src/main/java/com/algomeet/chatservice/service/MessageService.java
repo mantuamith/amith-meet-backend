@@ -280,22 +280,51 @@ public class MessageService {
         return value != null && !value.isBlank();
     }
 
+    private boolean isGroupMember(String groupId, String username) {
+        if (!hasText(groupId) || !hasText(username)) {
+            return false;
+        }
+        try {
+            GroupDto group = groupClient.getGroupById(groupId);
+            return group != null
+                    && group.getMembers() != null
+                    && group.getMembers().stream()
+                    .map(Member::getUsername)
+                    .anyMatch(username::equals);
+        } catch (Exception ex) {
+            log.warn("[GroupMembership] Failed group lookup groupId={} user={}: {}", groupId, username, ex.getMessage());
+            return false;
+        }
+    }
+
     // -------- DELIVERY RECEIPTS --------
     public void markMessagesAsDelivered(MessageStatusUpdate deliverStatus, String receiverUsername) {
         log.info("[Delivered] receiver={} ids={}", receiverUsername, deliverStatus.getMessageIds());
-        List<MessageDocument> messages = messageRepository.findAllById(deliverStatus.getMessageIds()).stream()
-                .filter(m -> receiverUsername.equals(m.getReceiver()))
-                .filter(m -> m.getStatus() == MessageStatus.SENT)
-                .toList();
+        List<MessageDocument> messages = new ArrayList<>();
+        for (MessageDocument message : messageRepository.findAllById(deliverStatus.getMessageIds())) {
+            if (message.isGroupMessage()) {
+                if (isGroupMember(message.getGroupId(), receiverUsername)
+                        && !receiverUsername.equals(message.getSender())
+                        && !message.isDeliveredTo(receiverUsername)) {
+                    message.markDeliveredTo(receiverUsername);
+                    message.setStatus(MessageStatus.DELIVERED);
+                    message.setMsgDeliveredTimeStamp(deliverStatus.getStatusTimeStamp());
+                    messages.add(message);
+                }
+                continue;
+            }
+            if (receiverUsername.equals(message.getReceiver()) && message.getStatus() == MessageStatus.SENT) {
+                message.setStatus(MessageStatus.DELIVERED);
+                message.setMsgDeliveredTimeStamp(deliverStatus.getStatusTimeStamp());
+                messages.add(message);
+            }
+        }
 
         if (messages.isEmpty()) {
             log.debug("[Delivered] No eligible messages to mark. receiver={} ids={}", receiverUsername, deliverStatus.getMessageIds());
             return;
         }
 
-        messages.forEach(m -> {m.setStatus(MessageStatus.DELIVERED);
-            m.setMsgDeliveredTimeStamp(deliverStatus.getStatusTimeStamp());
-        });
         messageRepository.saveAll(messages);
         long nowSec = deliverStatus.getStatusTimeStamp();
         log.info("[Delivered] Updated count={} receiver={}", messages.size(), receiverUsername);
@@ -318,7 +347,9 @@ public class MessageService {
         List<MessageDocument> messages = new ArrayList<>();
         for (MessageDocument message : candidates) {
             if (message.isGroupMessage()) {
-                if (!readerId.equals(message.getSender()) && !message.isReadBy(readerId)) {
+                if (isGroupMember(message.getGroupId(), readerId)
+                        && !readerId.equals(message.getSender())
+                        && !message.isReadBy(readerId)) {
                     message.markReadBy(readerId);
                     messages.add(message);
                 }
@@ -363,7 +394,9 @@ public class MessageService {
         List<MessageDocument> messages = new ArrayList<>();
         for (MessageDocument message : all) {
             if (message.isGroupMessage()) {
-                if (!reqSenderId.equals(message.getSender()) && !message.isReadBy(reqSenderId)) {
+                if (isGroupMember(message.getGroupId(), reqSenderId)
+                        && !reqSenderId.equals(message.getSender())
+                        && !message.isReadBy(reqSenderId)) {
                     message.markReadBy(reqSenderId);
                     messages.add(message);
                 }
@@ -387,7 +420,7 @@ public class MessageService {
         log.info("[Read] Updated count={}", messages.size());
 
         Map<String, List<MessageDocument>> bySender =
-                messages.stream().collect(Collectors.groupingBy(MessageDocument::getReceiver));
+                messages.stream().collect(Collectors.groupingBy(MessageDocument::getSender));
 
         bySender.forEach((senderId, msgs) -> {
             List<String> ids = msgs.stream().map(MessageDocument::getId).toList();
