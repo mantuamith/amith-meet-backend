@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.time.Instant;
+import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -69,7 +70,7 @@ public class GroupService {
 		return GroupMapper.toResponse(groupRepository.save(group));
 	}
 
-	public GroupPermissionsResponse patchGroupPermissions(Long groupId, GroupPermissionsPatchRequest request, String userKey) {
+	public GroupPermissionsResponse patchGroupPermissions(UUID groupId, GroupPermissionsPatchRequest request, String userKey) {
 		Group group = getGroupOrThrow(groupId);
 		initializeRolePermissions(group);
 
@@ -94,12 +95,12 @@ public class GroupService {
 		return GroupMapper.toPermissionsResponse(savedGroup);
 	}
 
-	public void removeGroup(Long groupId) throws GroupNotFoundException {
+	public void removeGroup(UUID groupId) throws GroupNotFoundException {
 		Group group = getGroupOrThrow(groupId);
 		groupRepository.delete(group);
 	}
 
-	public GroupResponse joinGroup(Long groupId, String username, String userKey, String nickname) throws GroupNotFoundException {
+	public GroupResponse joinGroup(UUID groupId, String username, String userKey, String nickname) throws GroupNotFoundException {
 		Group group = getGroupOrThrow(groupId);
 
 		Member member = new Member(userKey, username, nickname);
@@ -112,7 +113,7 @@ public class GroupService {
 		return GroupMapper.toResponse(groupRepository.save(group));
 	}
 
-	public GroupResponse joinGroupByInviteCode(Long groupId, String inviteCode, String username, String userKey, String nickname) {
+	public GroupResponse joinGroupByInviteCode(UUID groupId, String inviteCode, String username, String userKey, String nickname) {
 		Group group = getGroupOrThrow(groupId);
 
 		if (!StringUtils.hasText(inviteCode) || !inviteCode.equals(group.getInviteCode())) {
@@ -122,7 +123,7 @@ public class GroupService {
 		return joinGroup(groupId, username, userKey, nickname);
 	}
 
-	public GroupResponse addGroupMembers(Long groupId, AddGroupMembersRequest request, String userKey) throws GroupNotFoundException {
+	public GroupResponse addGroupMembers(UUID groupId, AddGroupMembersRequest request, String userKey) throws GroupNotFoundException {
 		Group group = getGroupOrThrow(groupId);
 
 		Member user = findMember(group.getMembers(), userKey);
@@ -154,7 +155,7 @@ public class GroupService {
 		return GroupMapper.toResponse(groupRepository.save(group));
 	}
 
-	public void leaveGroup(Long groupId, String userKey) throws GroupNotFoundException {
+	public void leaveGroup(UUID groupId, String userKey) throws GroupNotFoundException {
 		Group group = getGroupOrThrow(groupId);
 
 		Member member = new Member(userKey, null);
@@ -165,7 +166,7 @@ public class GroupService {
 		groupRepository.save(group);
 	}
 
-	public void removeGroupMember(Long groupId, String userKey) throws GroupNotFoundException {
+	public void removeGroupMember(UUID groupId, String userKey) throws GroupNotFoundException {
 		leaveGroup(groupId, userKey);
 	}
 
@@ -205,19 +206,19 @@ public class GroupService {
 				.collect(Collectors.toList());
 	}
 
-	private Group getGroupOrThrow(Long groupId) throws GroupNotFoundException {
+	private Group getGroupOrThrow(UUID groupId) throws GroupNotFoundException {
 		return groupRepository.findById(groupId)
 				.orElseThrow(() ->
 				new GroupNotFoundException("Group Id not found"));
 	}
 
-	public GroupResponse getGroupById(Long groupId) {
+	public GroupResponse getGroupById(UUID groupId) {
 		Group group = getGroupOrThrow(groupId);
 
 		return GroupMapper.toResponse(group);
 	}
 
-	public GroupInviteLinkResponse getOrCreateInviteLink(Long groupId, String userKey) {
+	public GroupInviteLinkResponse getOrCreateInviteLink(UUID groupId, String userKey) {
 		Group group = getGroupOrThrow(groupId);
 		getInviteLinkAuthorizedMember(group, userKey);
 
@@ -229,7 +230,7 @@ public class GroupService {
 		return new GroupInviteLinkResponse(groupInviteLinkFactory.build(group.getId(), group.getInviteCode()));
 	}
 
-	public GroupInviteLinkResponse resetInviteLink(Long groupId, String userKey) {
+	public GroupInviteLinkResponse resetInviteLink(UUID groupId, String userKey) {
 		Group group = getGroupOrThrow(groupId);
 		getInviteLinkAuthorizedMember(group, userKey);
 
@@ -239,7 +240,7 @@ public class GroupService {
 		return new GroupInviteLinkResponse(groupInviteLinkFactory.build(updatedGroup.getId(), updatedGroup.getInviteCode()));
 	}
 
-	public GroupResponse updateGroup(Long groupId, UpdateGroupRequest request, String userKey) {
+	public GroupResponse updateGroup(UUID groupId, UpdateGroupRequest request, String userKey) {
 		Group group = getGroupOrThrow(groupId);
 
 		if (StringUtils.hasText(request.getName())) {

@@ -41,6 +41,34 @@ public interface MessageRepository extends MongoRepository<MessageDocument, Stri
     @Query("{ '$or': [ { 'groupId': ?0 }, { 'receiver': ?1 } ] }")
     List<MessageDocument> findByGroupIdOrReceiver(String groupId, String receiver);
 
+    @Query("""
+    {
+      $and: [
+        { groupId: ?0 },
+        { deletedForAll: { $ne: true } },
+        { $or: [
+            { deletedForUsers: { $exists: false } },
+            { deletedForUsers: { $nin: [ ?1 ] } }
+        ]}
+      ]
+    }
+    """)
+    List<MessageDocument> findVisibleGroupMessages(String groupId, String viewer, Pageable pageable);
+
+    @Query("""
+    {
+      $and: [
+        { groupId: ?0 },
+        { deletedForAll: { $ne: true } },
+        { $or: [
+            { deletedForUsers: { $exists: false } },
+            { deletedForUsers: { $nin: [ ?1 ] } }
+        ]}
+      ]
+    }
+    """)
+    List<MessageDocument> findVisibleGroupMessagesAll(String groupId, String viewer, Sort sort);
+
     @Query("{ '$or': [ { 'sender': ?0, 'receiver': ?1 }, { 'sender': ?1, 'receiver': ?0 } ] }")
     Page<MessageDocument> findConversation(String userA, String userB, Pageable pageable);
 

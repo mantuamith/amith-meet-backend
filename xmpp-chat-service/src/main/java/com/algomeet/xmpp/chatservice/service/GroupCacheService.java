@@ -113,7 +113,7 @@ public class GroupCacheService {
      *
      * @param groupId The ID of the group to evict.
      */
-    public void evictGroup(Long groupId) {
+    public void evictGroup(String groupId) {
         try {
             redisTemplate.delete(CACHE_KEY_PREFIX + groupId);
             log.info("Evicted group ID: {} from cache successfully.", groupId);

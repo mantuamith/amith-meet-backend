@@ -10,6 +10,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -32,6 +33,8 @@ import com.algomeet.groupservice.repository.GroupRepository;
 @ExtendWith(MockitoExtension.class)
 class GroupServicePermissionsTest {
 
+	private static final UUID GROUP_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
+
 	@Mock
 	private GroupRepository groupRepository;
 
@@ -47,7 +50,7 @@ class GroupServicePermissionsTest {
 	@Test
 	void patchGroupPermissions_mergesOnlyProvidedRolesAndFields() {
 		Group group = groupWithMember("admin-user", GroupRole.ADMIN);
-		when(groupRepository.findById(1L)).thenReturn(Optional.of(group));
+		when(groupRepository.findById(GROUP_ID)).thenReturn(Optional.of(group));
 		when(groupRepository.save(any(Group.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
 		GroupPermissionsPatchRequest request = new GroupPermissionsPatchRequest();
@@ -59,7 +62,7 @@ class GroupServicePermissionsTest {
 				GroupRole.ADMIN, adminPatch,
 				GroupRole.MEMBER, memberPatch));
 
-		GroupPermissionsResponse response = groupService.patchGroupPermissions(1L, request, "admin-user");
+		GroupPermissionsResponse response = groupService.patchGroupPermissions(GROUP_ID, request, "admin-user");
 
 		verify(groupRepository).save(groupCaptor.capture());
 		Group savedGroup = groupCaptor.getValue();
@@ -73,14 +76,14 @@ class GroupServicePermissionsTest {
 	@Test
 	void patchGroupPermissions_rejectsNonPrivilegedMember() {
 		Group group = groupWithMember("member-user", GroupRole.MEMBER);
-		when(groupRepository.findById(1L)).thenReturn(Optional.of(group));
+		when(groupRepository.findById(GROUP_ID)).thenReturn(Optional.of(group));
 
 		GroupPermissionsPatchRequest request = new GroupPermissionsPatchRequest();
 		RolePermissionsPatchRequest adminPatch = new RolePermissionsPatchRequest();
 		adminPatch.setApproveNewMembers(true);
 		request.setRolePermissions(Map.of(GroupRole.ADMIN, adminPatch));
 
-		assertThatThrownBy(() -> groupService.patchGroupPermissions(1L, request, "member-user"))
+		assertThatThrownBy(() -> groupService.patchGroupPermissions(GROUP_ID, request, "member-user"))
 				.isInstanceOf(ResponseStatusException.class)
 				.extracting(ex -> ((ResponseStatusException) ex).getStatusCode())
 				.isEqualTo(HttpStatus.FORBIDDEN);
@@ -89,14 +92,14 @@ class GroupServicePermissionsTest {
 	@Test
 	void patchGroupPermissions_rejectsUnsupportedRole() {
 		Group group = groupWithMember("owner-user", GroupRole.OWNER);
-		when(groupRepository.findById(1L)).thenReturn(Optional.of(group));
+		when(groupRepository.findById(GROUP_ID)).thenReturn(Optional.of(group));
 
 		GroupPermissionsPatchRequest request = new GroupPermissionsPatchRequest();
 		RolePermissionsPatchRequest visitorPatch = new RolePermissionsPatchRequest();
 		visitorPatch.setSendNewMessages(true);
 		request.setRolePermissions(Map.of(GroupRole.VISITOR, visitorPatch));
 
-		assertThatThrownBy(() -> groupService.patchGroupPermissions(1L, request, "owner-user"))
+		assertThatThrownBy(() -> groupService.patchGroupPermissions(GROUP_ID, request, "owner-user"))
 				.isInstanceOf(ResponseStatusException.class)
 				.extracting(ex -> ((ResponseStatusException) ex).getStatusCode())
 				.isEqualTo(HttpStatus.BAD_REQUEST);
@@ -104,7 +107,7 @@ class GroupServicePermissionsTest {
 
 	private Group groupWithMember(String userKey, GroupRole role) {
 		Group group = new Group();
-		group.setId(1L);
+		group.setId(GROUP_ID);
 		Set<Member> members = new HashSet<>();
 		members.add(new Member(userKey, "john", "John", role));
 		group.setMembers(members);

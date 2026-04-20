@@ -11,7 +11,7 @@ import java.util.List;
 public interface GroupClient {
 
     @GetMapping("/internal/groups/{groupId}")
-    GroupDto getGroupById(@PathVariable("groupId") Long groupId);
+    GroupDto getGroupById(@PathVariable("groupId") String groupId);
 
     @GetMapping("/internal/groups/member/username/{username}")
     List<GroupDto> getGroupsForUsername(@PathVariable("username") String username);
