@@ -36,110 +36,132 @@ import lombok.extern.slf4j.Slf4j;
 @Component
 public class ConnectionLifecycleHandler {
 
-    private final UserSessionRegistry userSessionRegistry;
-    private final LocalChannelRegistry localChannelRegistry;
-    private final CallTrackerService callTrackerService;
-    private final DomainProperties domainProperties;
+	private final UserSessionRegistry userSessionRegistry;
+	private final LocalChannelRegistry localChannelRegistry;
+	private final CallTrackerService callTrackerService;
+	private final DomainProperties domainProperties;
 	private final XmppBroadcastUserPresenceHandler xmppBroadcastUserPresenceHandler;
 	private final XmppSmBufferService xmppSmBufferService;
 
-    /**
-     * <p>Finalizes the session establishment process after a successful WebSocket handshake 
-     * and SASL authentication.</p>
-     * * <p><b>Execution Flow:</b></p>
-     * <ol>
-     * <li>Attaches XEP-0198 counters to the {@link io.netty.channel.Channel} attributes.</li>
-     * <li>Registers the user in the local {@code LocalChannelRegistry} for packet routing.</li>
-     * <li>Persists the session metadata in the global {@code UserSessionRegistry} (Redis).</li>
-     * <li>Transmits the {@code <bind/>} result to the client to confirm the full JID.</li>
-     * </ol>
-     *
-     * @param ctx       The Netty channel context for the current connection.
-     * @param principal The authenticated identity containing the User Key and Session ID.
-     */
-    public void connected(ChannelHandlerContext ctx, XmppPrincipal principal) {
-        if (principal != null) {
-            String userKey = principal.getUserKey();
-            String sessionId = principal.getSessionId();
+	/**
+	 * <p>Finalizes the session establishment process after a successful WebSocket handshake 
+	 * and SASL authentication.</p>
+	 * * <p><b>Execution Flow:</b></p>
+	 * <ol>
+	 * <li>Attaches XEP-0198 counters to the {@link io.netty.channel.Channel} attributes.</li>
+	 * <li>Registers the user in the local {@code LocalChannelRegistry} for packet routing.</li>
+	 * <li>Persists the session metadata in the global {@code UserSessionRegistry} (Redis).</li>
+	 * <li>Transmits the {@code <bind/>} result to the client to confirm the full JID.</li>
+	 * </ol>
+	 *
+	 * @param ctx       The Netty channel context for the current connection.
+	 * @param principal The authenticated identity containing the User Key and Session ID.
+	 */
+	public void connected(ChannelHandlerContext ctx, XmppPrincipal principal) {
+		if (principal != null) {
+			String userKey = principal.getUserKey();
+			String sessionId = principal.getSessionId();
 
-            // 1. Initialize Stream Management Counters (XEP-0198)
-            // These counters are attached to the channel attribute for thread-safe access     
-            ctx.channel().attr(XmppSessionAttributes.SM_INBOUND_H_KEY).set(new AtomicLong(0));            
-            // Initialize Initial Presence flag to false
-            ctx.channel().attr(XmppSessionAttributes.IS_INITIAL_PRESENCE_SENT).set(false);
+			// 1. Initialize Stream Management Counters (XEP-0198)
+			// These counters are attached to the channel attribute for thread-safe access     
+			ctx.channel().attr(XmppSessionAttributes.SM_INBOUND_H_KEY).set(new AtomicLong(0));            
+			// Initialize Initial Presence flag to false
+			ctx.channel().attr(XmppSessionAttributes.IS_INITIAL_PRESENCE_SENT).set(false);
 
-            // 2. Register in Local Channel Registry (Stateful registration)
-            localChannelRegistry.register(userKey, ctx.channel());
-            userSessionRegistry.addSession(userKey, new UserSession(sessionId, UserState.ACTIVE, Instant.now().toEpochMilli()));
+			// 2. Register in Local Channel Registry (Stateful registration)
+			localChannelRegistry.register(userKey, ctx.channel());
+			userSessionRegistry.addSession(userKey, new UserSession(sessionId, UserState.ACTIVE, Instant.now().toEpochMilli()));
 
-            // 3. Send Bind Result (Confirmation of session establishment)
-            // This informs the client of their full JID and the assigned Session ID
-            ctx.channel().writeAndFlush(new TextWebSocketFrame(
-                    new BindResult(principal.getFullJid(), sessionId, domainProperties.getDomain(), domainProperties.getGroupChatDomain()).toXml()
-            ));
+			// 3. Send Bind Result (Confirmation of session establishment)
+			// This informs the client of their full JID and the assigned Session ID
+			ctx.channel().writeAndFlush(new TextWebSocketFrame(
+					new BindResult(principal.getFullJid(), sessionId, domainProperties.getDomain(), domainProperties.getGroupChatDomain()).toXml()
+					));
 
-            log.info("WebSocket Handshake Complete. User {} is now ACTIVE with Session ID: {}.", userKey, sessionId);
-        }
-    }
+			log.info("WebSocket Handshake Complete. User {} is now ACTIVE with Session ID: {}.", userKey, sessionId);
+		}
+	}
 
-    /**
-     * <p>Handles the graceful or forced teardown of an XMPP session.</p>
-     * * <p>This method performs state cleanup across local and distributed registries to prevent 
-     * "zombie" sessions and ensures that any active WebRTC calls or signaling states are reconciled.</p>
-     *
-     * @param ctx       The Netty channel context being closed.
-     * @param principal The identity associated with the disconnecting channel.
-     */
-    public void disconnected(ChannelHandlerContext ctx, XmppPrincipal principal) {
-        if (principal != null) {
-            String userKey = principal.getUserKey();
-            String sessionId = principal.getSessionId();
-            
-            // Kick-in SM buffer for resume session messages            
-            xmppSmBufferService.save(ctx, principal)
-            .doOnError(e -> log.error("Failed to save SM buffer for user {}: {}", userKey, e.getMessage()))
-            .doFinally(signalType -> {
-                // Log the signal type for better debugging (Cancel, Error, or Complete)
-                log.debug("Finalizing session for {} with signal: {}", userKey, signalType);
-                
-                // Execute each cleanup task safely 
-                safeExecute(
-                    () -> localChannelRegistry.unregister(userKey), 
-                    "Local Channel Registry", 
-                    userKey
-                );
-            })
-            .subscribe();
-            
+	/**
+	 * <p>Handles the graceful or forced teardown of an XMPP session.</p>
+	 * * <p>This method performs state cleanup across local and distributed registries to prevent 
+	 * "zombie" sessions and ensures that any active WebRTC calls or signaling states are reconciled.</p>
+	 *
+	 * @param ctx       The Netty channel context being closed.
+	 * @param principal The identity associated with the disconnecting channel.
+	 */
+	public void disconnected(ChannelHandlerContext ctx, XmppPrincipal principal) {
+		if (principal != null) {
+			String userKey = principal.getUserKey();
+			String sessionId = principal.getSessionId();
 
-            log.info("Starting cleanup for session {} (User: {})", sessionId, userKey);
-                        
-            // Execute each cleanup task safely to ensure one failure doesn't block the entire teardown
-             safeExecute(() -> userSessionRegistry.removeSession(userKey, sessionId), "User Session Registry", userKey);
+			// Persist any pending Stream Management (SM) state before tearing down the session.
+			// This allows unacknowledged stanzas / buffered messages to be restored
+			// if the client reconnects using XEP-0198 resume.
+			xmppSmBufferService.save(ctx, principal)
+			.doOnError(e -> {
+				log.error(
+						"Failed to save SM buffer for user {}: {}",
+						userKey,
+						e.getMessage()
+						);
+			})
 
-            // Handle ongoing dropped calls.
-            callTrackerService.handleTransportDrop(sessionId).subscribe();
-            
-            // Broadcast user presence GONE
-            xmppBroadcastUserPresenceHandler.broadcastUserPresenceAsync(ctx, principal, UserState.GONE);
+			// Always invoked when the reactive pipeline terminates:
+			// - COMPLETE : save finished successfully
+			// - ERROR    : save failed
+			// - CANCEL   : subscription was cancelled/interrupted
+			//
+			// Used here to guarantee cleanup regardless of outcome.
+			.doFinally(signalType -> {
 
-            log.info("Cleanup completed for session {}", sessionId);
-        }
-    }
+				// Helpful for tracing disconnect behavior and diagnosing
+				// incomplete resumes or unexpected cancellations.
+				log.debug(
+						"Finalizing session for {} with signal: {}",
+						userKey,
+						signalType
+						);
 
-    /**
-     * Wraps cleanup tasks in a try-catch block to prevent partial cleanup failures 
-     * from interrupting the session destruction sequence.
-     *
-     * @param action        The cleanup logic to execute.
-     * @param componentName The name of the service being cleaned (for logging).
-     * @param userKey       The identifier of the user for context.
-     */
-    private void safeExecute(Runnable action, String componentName, String userKey) {
-        try {
-            action.run();
-        } catch (Exception ex) {
-            log.error("Failed to clean up {} for user {}: {}", componentName, userKey, ex.getMessage());
-        }
-    }
+				// Remove the user's channel mapping from this node.
+				// Wrapped in safeExecute so cleanup continues even if
+				// one task throws an exception.
+				safeExecute(
+						() -> localChannelRegistry.unregister(userKey),
+						"Local Channel Registry",
+						userKey
+						);
+			})
+			.subscribe();
+
+
+			log.info("Starting cleanup for session {} (User: {})", sessionId, userKey);
+			// Execute each cleanup task safely to ensure one failure doesn't block the entire teardown
+			safeExecute(() -> userSessionRegistry.removeSession(userKey, sessionId), "User Session Registry", userKey);
+
+			// Handle ongoing dropped calls.
+			callTrackerService.handleTransportDrop(sessionId).subscribe();
+
+			// Broadcast user presence GONE
+			xmppBroadcastUserPresenceHandler.broadcastUserPresenceAsync(ctx, principal, UserState.GONE);
+
+			log.info("Cleanup completed for session {}", sessionId);
+		}
+	}
+
+	/**
+	 * Wraps cleanup tasks in a try-catch block to prevent partial cleanup failures 
+	 * from interrupting the session destruction sequence.
+	 *
+	 * @param action        The cleanup logic to execute.
+	 * @param componentName The name of the service being cleaned (for logging).
+	 * @param userKey       The identifier of the user for context.
+	 */
+	private void safeExecute(Runnable action, String componentName, String userKey) {
+		try {
+			action.run();
+		} catch (Exception ex) {
+			log.error("Failed to clean up {} for user {}: {}", componentName, userKey, ex.getMessage());
+		}
+	}
 }
