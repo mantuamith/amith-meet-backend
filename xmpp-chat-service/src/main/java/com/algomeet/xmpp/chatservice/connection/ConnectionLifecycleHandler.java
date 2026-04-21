@@ -95,7 +95,7 @@ public class ConnectionLifecycleHandler {
             String userKey = principal.getUserKey();
             String sessionId = principal.getSessionId();
             
-            // Kick-in SM buffer for resume session messages
+            // Kick-in SM buffer for resume session messages            
             xmppSmBufferService.save(ctx, principal)
             .doOnError(e -> log.error("Failed to save SM buffer for user {}: {}", userKey, e.getMessage()))
             .doFinally(signalType -> {
