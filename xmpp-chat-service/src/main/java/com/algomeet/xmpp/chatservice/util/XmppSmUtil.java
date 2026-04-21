@@ -88,31 +88,7 @@ public class XmppSmUtil {
                 // Increment SM sequence (monotonic counter)
                 long h = handledCount.incrementAndGet();
 
-                log.debug("SM ACK generated: h={}", h);
-
-                /**
-                 * Persist SM state for session resumption (optional).
-                 *
-                 * Only persist when:
-                 * - session is resumable
-                 * - smId (previd) exists
-                 *
-                 * This allows client to resume session after disconnect
-                 */
-                AtomicBoolean resumable =
-                        ctx.channel().attr(XmppSessionAttributes.SM_RESUMABLE_KEY).get();
-
-                if (resumable != null && resumable.get()) {
-
-                    String smId =
-                            ctx.channel().attr(XmppSessionAttributes.SM_ID_KEY).get();
-
-                    if (smId != null) {
-                    	// Increment H count
-                        xmppSmRedisUtil.incrementH(smId)
-                                .subscribe(); // async non-blocking persistence
-                    }
-                }
+                log.debug("SM ACK generated: h={}", h);                
 
                 /**
                  * Send XEP-0198 ACK to client:

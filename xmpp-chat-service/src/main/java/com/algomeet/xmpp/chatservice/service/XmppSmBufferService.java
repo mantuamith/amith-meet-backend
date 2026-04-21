@@ -25,219 +25,487 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 /**
- * Handles Stream Management (XEP-0198) state tracking and stanza buffering.
+ * Stream Management (XEP-0198) buffer coordinator.
  *
- * Responsibilities:
- * - Maintains SM session state in Redis
- * - Tracks active sessions per user
- * - Buffers stanzas for replay after reconnect/resume
- * - Applies offline/archival rules before persistence
+ * Primary goals:
+ * ----------------------------------------------------
+ * 1. Preserve delivery guarantees during disconnects.
+ * 2. Support session resume after reconnect.
+ * 3. Synchronize message delivery across devices.
+ * 4. Persist resumable session state in Redis.
  *
- * This service is critical for ensuring message reliability in
- * unstable network conditions and multi-device XMPP environments.
+ * Why this service matters:
+ * ----------------------------------------------------
+ * Mobile clients frequently disconnect due to:
+ * - network switching (WiFi <-> mobile data)
+ * - background app suspension
+ * - poor signal
+ * - temporary packet loss
+ *
+ * Instead of losing messages, Stream Management allows
+ * the server to resume the previous session and replay
+ * any unacknowledged stanzas from the buffer.
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class XmppSmBufferService {
+
+    /**
+     * Stores individual SM session metadata:
+     * - inbound acknowledged counter (h)
+     * - owning app session
+     * - expiration / resumable state
+     */
     private final XmppSmSessionRedisUtil xmppSmSessionRedisUtil;
+
+    /**
+     * Stores user -> session index.
+     *
+     * Example:
+     * user A may have:
+     * - phone session
+     * - tablet session
+     * - web session
+     */
     private final XmppSmSessionsRedisUtil xmppSmSessionsRedisUtil;
+
+    /**
+     * Persists buffered stanzas per SM session.
+     *
+     * Used when replaying after reconnect/resume.
+     */
     private final SmBufferMessageService smBufferMessageService;
+
+    /**
+     * Redis distributed locking client.
+     *
+     * Used to avoid duplicate buffering when multiple nodes
+     * process the same stanza concurrently.
+     */
     private final RedissonReactiveClient redissonReactiveClient;
 
     /**
-     * Initializes Stream Management session state for a connected client.
+     * Save Stream Management session state when SM becomes enabled.
      *
-     * This method is called when SM is enabled on a channel.
+     * Typical flow:
+     * ----------------------------------------------------
+     * Client sends:
+     *   <enable xmlns='urn:xmpp:sm:3'/>
      *
-     * Responsibilities:
-     * - Stores inbound SM counter (h value)
-     * - Registers session as active in Redis index
-     * - Enables resume capability tracking
+     * Server responds and creates:
+     * - session id
+     * - resume metadata
+     * - counters
      *
-     * @param ctx Netty channel context
-     * @param principal authenticated XMPP user session
+     * This method persists that state in Redis so another node
+     * can restore it later during resume.
+     *
+     * @param ctx       current Netty channel
+     * @param principal authenticated user session
+     * @return completion signal
      */
     public Mono<Void> save(ChannelHandlerContext ctx, XmppPrincipal principal) {
 
-        // Flag indicating whether Stream Management is enabled for this connection
+        /**
+         * Channel attribute that indicates whether the client
+         * successfully enabled Stream Management.
+         *
+         * AtomicBoolean is used because channel attributes may be
+         * mutated safely by concurrent event-loop operations.
+         */
         AtomicBoolean isEnabledSm =
                 ctx.channel().attr(XmppSessionAttributes.SM_RESUMABLE_KEY).get();
 
-        // If SM is not active, no session tracking is required
+        /**
+         * If Stream Management is not enabled:
+         * - nothing to persist
+         * - no resume support
+         * - no counters required
+         */
         if (isEnabledSm == null || !isEnabledSm.get()) {
             return Mono.empty();
         }
 
-        // Unique SM session identifier bound to this connection
+        /**
+         * Unique Stream Management Session ID.
+         *
+         * Sent to client during <enabled id='xyz' resume='true'/>
+         */
         String smSessionId =
                 ctx.channel().attr(XmppSessionAttributes.SM_ID_KEY).get();
 
-        // Persist SM session state and register it for resume tracking
         return xmppSmSessionRedisUtil
-                .saveSessionState(smSessionId,
-                        XmppSmUtil.getInboundH(ctx),
-                        principal.getSessionId())
 
-                // Index session under user for multi-device / resume lookup
+                /**
+                 * Save per-session metadata:
+                 * - sm session id
+                 * - latest inbound h counter
+                 * - logical application session id
+                 */
+                .saveSessionState(
+                        smSessionId,
+                        XmppSmUtil.getInboundH(ctx),
+                        principal.getSessionId()
+                )
+
+                /**
+                 * Add this SM session into the user's active session index.
+                 *
+                 * Needed for:
+                 * - multi-device fanout
+                 * - cleanup
+                 * - resume lookup
+                 */
                 .doOnSuccess(success ->
                         xmppSmSessionsRedisUtil.addSessionToIndex(
                                 principal.getUserKey(),
                                 smSessionId)
                 )
+
                 .then();
     }
 
     /**
-     * Retrieves all active SM session IDs for a given user.
+     * Returns all active + non-expired Stream Management sessions
+     * owned by a user.
      *
-     * These sessions represent connected or resumable devices
-     * that may require stanza buffering.
+     * Example:
+     * user123 may return:
+     * - sm-phone-1
+     * - sm-web-2
+     * - sm-tablet-3
+     *
+     * @param receiverUserKey target user id
+     * @return stream of SM session ids
      */
     private Flux<String> getUserSmSessionIds(String receiverUserKey) {
         return xmppSmSessionsRedisUtil.getActiveNonExpiredSessions(receiverUserKey);
     }
-    
-    public Mono<Void> saveStanzaSynchronized(String id, String receiverUserKey, String xml) {    	
-        String lockKey = "algomeet:lock:save:sm:id:" + id;
+
+    /**
+     * Save stanza with distributed synchronization.
+     *
+     * Why lock is needed:
+     * ----------------------------------------------------
+     * In clustered deployments, the same stanza may arrive
+     * through retries, duplicate routing, or parallel workers.
+     *
+     * Locking by stanza id ensures only one node processes it.
+     *
+     * @param id stanza id
+     * @param receiverUserKey recipient user
+     * @param xml raw stanza xml
+     * @return completion signal
+     */
+    public Mono<Void> saveStanzaSynchronized(
+            String id,
+            String receiverUserKey,
+            String xml) {
+
+        /**
+         * Unique distributed lock key per stanza id.
+         *
+         * If another server already holds it, this request
+         * likely represents duplicate processing.
+         */
+        String lockKey = "algomeet:lock:save:sm:stanza-id:" + id;
+
         RLockReactive lock = redissonReactiveClient.getLock(lockKey);
 
         return Mono.<Void, Boolean>usingWhen(
-            // 1. ACQUIRE: Short wait, 2s lease
+
+            /**
+             * Step 1: Acquire lock.
+             *
+             * wait up to 500ms
+             * auto-expire after 2000ms
+             *
+             * Lease expiry prevents deadlocks if node crashes.
+             */
             lock.tryLock(500, 2000, TimeUnit.MILLISECONDS),
-            
+
             acquired -> {
                 if (!acquired) {
-                    log.debug("Lock acquisition failed for stanza: {}. Potential duplicate or high contention.", id);
+
+                    /**
+                     * Lock not obtained.
+                     * Usually means another worker already handled it.
+                     */
+                    log.debug(
+                        "Lock acquisition failed for stanza: {}. Potential duplicate or high contention.",
+                        id
+                    );
+
                     return Mono.empty();
                 }
-                // 2. PROCESS: Core logic
+
+                /**
+                 * Lock acquired successfully.
+                 * Proceed to core buffering logic.
+                 */
                 return saveStanza(id, receiverUserKey, xml);
             },
-            
-            // 3. RELEASE: Success Cleanup
+
+            /**
+             * Release on normal completion.
+             */
             acquired -> acquired ? safeUnlock(lock) : Mono.empty(),
-            // 4. RELEASE: Error Cleanup
+
+            /**
+             * Release on failure.
+             */
             (acquired, err) -> acquired ? safeUnlock(lock) : Mono.empty(),
-            // 5. RELEASE: Cancel Cleanup
+
+            /**
+             * Release on cancellation.
+             */
             acquired -> acquired ? safeUnlock(lock) : Mono.empty()
         )
-        .doOnError(e -> log.error("Critical failure in saving for stanza ID: {}", id, e));
+
+        /**
+         * Log unexpected top-level failures.
+         */
+        .doOnError(e ->
+                log.error("Critical failure in saving for stanza ID: {}", id, e)
+        );
     }
 
     /**
-     * Isolated unlock logic to handle Reactive Thread-Hopping.
-     * Catches IllegalMonitorStateException to prevent operator 'onErrorDropped' crashes.
+     * Unlock safely.
+     *
+     * Why needed:
+     * ----------------------------------------------------
+     * Reactive execution may switch threads internally.
+     * Some Redis lock implementations track owner thread.
+     *
+     * If unlock happens on a different thread,
+     * IllegalMonitorStateException may occur.
+     *
+     * We suppress it because:
+     * - lease expiration will free the lock
+     * - business flow should continue
      */
     private Mono<Void> safeUnlock(RLockReactive lock) {
         return lock.unlock()
+
                 .onErrorResume(IllegalMonitorStateException.class, e -> {
-                    // This happens when the Netty thread changes between lock and unlock.
-                    // We log at debug to keep logs clean, as the lock will expire anyway.
-                    log.debug("Lock ownership lost or already released due to thread-hop: {}", e.getMessage());
+                    log.debug(
+                        "Lock ownership lost or already released due to thread-hop: {}",
+                        e.getMessage()
+                    );
                     return Mono.empty();
                 })
+
                 .then();
     }
 
     /**
-     * Buffers a stanza across all active SM sessions for a user.
+     * Buffer stanza to ALL active SM sessions of recipient.
      *
-     * This ensures:
-     * - reliable delivery after reconnect (XEP-0198)
-     * - multi-device synchronization
-     * - offline-safe message persistence (when applicable)
+     * This is used when:
+     * - recipient has multiple devices
+     * - user disconnected temporarily
+     * - message must replay after resume
      *
-     * Filtering rules:
-     * - Only buffer messages that are NOT explicitly excluded
-     *   by message type or archival policy
+     * @param id stanza id
+     * @param receiverUserKey recipient user
+     * @param xml raw stanza
+     * @return completion signal
      */
-    private Mono<Void> saveStanza(String id, String receiverUserKey, String xml) {
-        // Monotonic sequence identifier for ordering replayed stanzas
+    private Mono<Void> saveStanza(
+            String id,
+            String receiverUserKey,
+            String xml) {
+
+        /**
+         * Ordered monotonic ULID.
+         *
+         * Benefits:
+         * - sortable by creation time
+         * - globally unique
+         * - preserves replay ordering
+         */
         String seq = UlidCreator.getMonotonicUlid().toLowerCase();
 
         return getUserSmSessionIds(receiverUserKey)
+
                 .flatMap(smSessionId -> {
 
-                    // Extract message type from stanza attributes
+                    /**
+                     * Read message type from stanza.
+                     *
+                     * Examples:
+                     * chat, groupchat, normal, headline
+                     */
                     String type = XmppStanzaUtil.getAttribute(xml, "type");
-                    XmppMessageType msgType = XmppMessageType.fromString(type);
 
-                    // Apply offline + archival rules:
-                    // - Only store if message supports offline storage
-                    // - AND stanza is not excluded from archiving (e.g., chatstate, transient events)
+                    XmppMessageType msgType =
+                            XmppMessageType.fromString(type);
+
+                    /**
+                     * Original logic preserved:
+                     *
+                     * If stanza is NOT eligible for normal offline/archive
+                     * handling, buffer into SM replay queue.
+                     */
                     if (!(msgType.supportsOfflineStorage()
                             && XmppStanzaUtil.isArchiveable(xml))) {
 
                         return smBufferMessageService.bufferStanza(
                                 smSessionId,
 
-                                // Ensure ID fallback for stanzas without explicit id attribute
+                                /**
+                                 * Generate fallback id if sender omitted stanza id.
+                                 */
                                 StringUtils.isEmpty(id)
                                         ? UUID.randomUUID().toString()
                                         : id,
 
                                 seq,
-                                xml);
+                                xml
+                        );
                     }
 
-                    // Skip buffering for transient or non-archivable stanzas
+                    /**
+                     * Skip stanza from SM buffer path.
+                     */
                     return Mono.empty();
                 })
+
                 .then()
+
                 .doOnSuccess(v ->
-                        log.debug("Completed processing stanza {} for user {}",
-                                id, receiverUserKey)
+                        log.debug(
+                                "Completed processing stanza {} for user {}",
+                                id,
+                                receiverUserKey
+                        )
                 )
+
                 .doOnError(e ->
-                        log.error("Failed to process stanza {} for user {}",
-                                id, receiverUserKey, e)
+                        log.error(
+                                "Failed to process stanza {} for user {}",
+                                id,
+                                receiverUserKey,
+                                e
+                        )
                 );
     }
 
     /**
-     * Buffers a stanza for a specific SM session.
+     * Targeted buffering version when caller already knows
+     * a specific local SM session id.
      *
-     * This is a targeted version used when session context is already known,
-     * avoiding session lookup overhead.
-     */   
+     * This avoids missing the currently connected session
+     * if Redis index is slightly delayed.
+     *
+     * @param id stanza id
+     * @param receiverUserKey recipient user
+     * @param xml raw stanza
+     * @param localSmSid locally known session id
+     * @return completion signal
+     */
     public Mono<Void> saveStanza(
-    		String id,
+            String id,
             String receiverUserKey,
             String xml,
             String localSmSid) {
-        // 1. Pre-calculate identifiers and logic once
+
+        /**
+         * Generate ordered replay sequence.
+         */
         String seq = UlidCreator.getMonotonicUlid().toLowerCase();
-        String stanzaId = StringUtils.isEmpty(id) ? UUID.randomUUID().toString() : id;
-        
+
+        /**
+         * Guarantee stanza id exists.
+         */
+        String stanzaId =
+                StringUtils.isEmpty(id)
+                        ? UUID.randomUUID().toString()
+                        : id;
+
+        /**
+         * Determine stanza semantics once.
+         */
         String type = XmppStanzaUtil.getAttribute(xml, "type");
-        XmppMessageType msgType = XmppMessageType.fromString(type);
 
-        // 2. Determine eligibility once
-        boolean shouldBuffer = msgType.supportsOfflineStorage() && XmppStanzaUtil.isArchiveable(xml);
+        XmppMessageType msgType =
+                XmppMessageType.fromString(type);
 
-        // Use the inverse logic as per your original snippet (!)
+        /**
+         * Eligibility rule for normal storage/archive path.
+         */
+        boolean shouldBuffer =
+                msgType.supportsOfflineStorage()
+                        && XmppStanzaUtil.isArchiveable(xml);
+
+        /**
+         * Preserve existing inverse logic:
+         * Only SM-buffer when shouldBuffer == false
+         */
         if (!shouldBuffer) {
+
             return getUserSmSessionIds(receiverUserKey)
-                    .collectList() // 3. Collect all session IDs first
-                    .flatMap(smSessionIds -> {                 
-                        if (StringUtils.isNotBlank(localSmSid) 
-                        		&& !(smSessionIds.stream().anyMatch(s -> s.equalsIgnoreCase(localSmSid)))) {
-                        	smSessionIds.add(localSmSid);
+
+                    /**
+                     * Gather sessions first so we can merge local sid.
+                     */
+                    .collectList()
+
+                    .flatMap(smSessionIds -> {
+
+                        /**
+                         * Add local session if not present in Redis index.
+                         *
+                         * Useful during race conditions immediately after login.
+                         */
+                        if (StringUtils.isNotBlank(localSmSid)
+                                && !(smSessionIds.stream()
+                                .anyMatch(s ->
+                                        s.equalsIgnoreCase(localSmSid)))) {
+
+                            smSessionIds.add(localSmSid);
                         }
-                        
-                        // 4. Map the IDs to buffering tasks
+
+                        /**
+                         * Buffer same stanza into each session queue.
+                         */
                         return Flux.fromIterable(smSessionIds)
-                                .flatMap(smSessionId -> 
-                                    smBufferMessageService.bufferStanza(smSessionId, stanzaId, seq, xml)
+
+                                .flatMap(smSessionId ->
+                                        smBufferMessageService.bufferStanza(
+                                                smSessionId,
+                                                stanzaId,
+                                                seq,
+                                                xml
+                                        )
                                 )
+
                                 .then();
                     })
-                    .doOnSuccess(v -> log.debug("Completed processing stanza {} for user {}", stanzaId, receiverUserKey))
-                    .doOnError(e -> log.error("Failed to process stanza {} for user {}", stanzaId, receiverUserKey, e));
+
+                    .doOnSuccess(v ->
+                            log.debug(
+                                    "Completed processing stanza {} for user {}",
+                                    stanzaId,
+                                    receiverUserKey
+                            )
+                    )
+
+                    .doOnError(e ->
+                            log.error(
+                                    "Failed to process stanza {} for user {}",
+                                    stanzaId,
+                                    receiverUserKey,
+                                    e
+                            )
+                    );
         }
 
-        // Skip buffering for transient/non-archivable stanzas
+        /**
+         * Skip transient / archive-managed stanzas.
+         */
         return Mono.empty();
     }
 }
