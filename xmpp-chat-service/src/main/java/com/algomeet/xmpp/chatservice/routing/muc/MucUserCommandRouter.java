@@ -53,22 +53,29 @@ public class MucUserCommandRouter {
 	public void handleCommandStanza(ChannelHandlerContext ctx, String roomJid, String senderJid, String xml, XmppPrincipal principal) {
 		// Set tenant Id to support multi-tenancy 
 		TenantContext.setCurrentTenant(principal.getTenantId());
-
-		// Force refresh group cache
-		MucRoomDto group = groupCacheService.refreshCachedGroup(XmppUtil.getRoomId(roomJid));
-		Optional<MucMember> senderMucMember = group.getMembers().stream()
-				.filter(m -> m.getUserKey().equals(principal.getUserKey()))
-				.findFirst();
-
+		
 		Optional<String> actionOpt = MucMetaActionParser.extractAction(xml);
 		String action = actionOpt.orElse(null);
 
 		if (PresenceMetaAction.INVITE_ACCEPT == PresenceMetaAction.fromString(action)) {
+			// Force refresh group cache
+			MucRoomDto group = groupCacheService.refreshCachedGroup(XmppUtil.getRoomId(roomJid));
+			Optional<MucMember> senderMucMember = group.getMembers().stream()
+					.filter(m -> m.getUserKey().equals(principal.getUserKey()))
+					.findFirst();
+			
 			mucAcceptInviteEventHandler.handleAcceptedInvite(ctx,  roomJid, xml, group, senderMucMember.get());
 		} else {
+			
+			// Get group from cache
+			MucRoomDto group = groupCacheService.getCachedGroup(XmppUtil.getRoomId(roomJid));
+			Optional<MucMember> senderMucMember = group.getMembers().stream()
+					.filter(m -> m.getUserKey().equals(principal.getUserKey()))
+					.findFirst();
 
 			String[] roomJidArr = roomJid.split("/");
 			String resoure = null;
+			
 			if(roomJidArr.length > 1 && StringUtils.hasText(roomJidArr[1])) {
 				resoure = roomJidArr[1].trim();
 			}
