@@ -51,3 +51,5 @@ feign:
       url: http://group-service:8087
     media-service:
       url: http://media-service:8095
+    contact-service:
+      url: http://contact-service:8086
