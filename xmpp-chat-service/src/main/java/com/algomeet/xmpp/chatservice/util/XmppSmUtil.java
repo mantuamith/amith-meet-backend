@@ -14,26 +14,54 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * XEP-0198 Stream Management Utility
- * -----------------------------------
+ * XMPP Stream Management Utility (XEP-0198)
+ * ==========================================================
  *
- * This class manages Stream Management (SM) state for XMPP connections.
+ * Purpose:
+ * ----------------------------------------------------------
+ * Stream Management adds reliability to XMPP streams by
+ * allowing both client and server to track stanza flow.
  *
- * Responsibilities:
- * <ul>
- *   <li>Maintain inbound handled counter (h)</li>
- *   <li>Send cumulative acknowledgements (<a h='N'/>)</li>
- *   <li>Persist SM state for session resumption (Redis-backed)</li>
- *   <li>Expose current SM sequence state for debugging/resume</li>
- * </ul>
+ * This utility manages the SERVER SIDE inbound counter (h)
+ * and sends acknowledgements back to the client.
  *
- * IMPORTANT ARCHITECTURE RULES:
- * <ul>
- *   <li>SM ACK is TRANSPORT LAYER ONLY (NOT business-level success)</li>
- *   <li>ACK does NOT guarantee DB persistence or message delivery</li>
- *   <li>h is strictly monotonically increasing per connection</li>
- *   <li>This class must be thread-safe per Netty channel</li>
- * </ul>
+ * Core Responsibilities:
+ * ----------------------------------------------------------
+ * 1. Maintain inbound handled counter (h)
+ * 2. Send cumulative acknowledgements <a h='N'/>
+ * 3. Expose current counter for persistence/resume
+ * 4. Keep operations safe inside Netty channel threading model
+ *
+ * What "h" Means:
+ * ----------------------------------------------------------
+ * h = number of inbound stanzas successfully RECEIVED by
+ * the server transport stream.
+ *
+ * Example:
+ * Client sends 5 messages
+ * Server receives all 5
+ * Server may send:
+ *
+ * <a xmlns='urn:xmpp:sm:3' h='5'/>
+ *
+ * Important Distinction:
+ * ----------------------------------------------------------
+ * This is NOT business success confirmation.
+ *
+ * ACK means:
+ *   ✔ bytes/frame/stanza accepted by stream
+ *
+ * ACK does NOT mean:
+ *   ✘ saved to database
+ *   ✘ delivered to recipient
+ *   ✘ push notification sent
+ *   ✘ business transaction completed
+ *
+ * Threading Model:
+ * ----------------------------------------------------------
+ * Netty channels are safest when mutated from their assigned
+ * EventLoop thread. This class ensures writes/counter updates
+ * happen inside that execution context.
  */
 @Slf4j
 @Component
@@ -41,89 +69,135 @@ import lombok.extern.slf4j.Slf4j;
 public class XmppSmUtil {
 
     /**
-     * Redis utility used for persisting last acknowledged SM state
-     * for session resumption (XEP-0198 resume support).
-     */
-    private final XmppSmSessionRedisUtil xmppSmRedisUtil;
-
-    /**
-     * Increments the inbound SM handled counter (h) and sends a cumulative ACK.
+     * Increment inbound handled counter and immediately send
+     * Stream Management acknowledgement to client.
      *
-     * <p>
-     * Flow:
-     * <ol>
-     *   <li>Verify Stream Management is enabled for the session</li>
-     *   <li>Increment local handled counter (h)</li>
-     *   <li>Persist h to Redis (if session is resumable)</li>
-     *   <li>Send <a h='N'/> back to client via WebSocket</li>
-     * </ol>
-     * </p>
+     * Triggered when:
+     * ------------------------------------------------------
+     * Server successfully accepts an inbound stanza that
+     * should advance the XEP-0198 receive counter.
      *
-     * <p>
-     * ⚠ IMPORTANT:
-     * - This ACK is transport-level only
-     * - It does NOT reflect message processing success
-     * - It may be sent before DB persistence completes
-     * </p>
+     * Internal Steps:
+     * ------------------------------------------------------
+     * 1. Switch execution to channel EventLoop thread
+     * 2. Verify Stream Management is enabled
+     * 3. Increment local h counter
+     * 4. Send <a h='N'/> to client
      *
-     * @param ctx Netty channel context for active XMPP session
+     * Why cumulative ACK?
+     * ------------------------------------------------------
+     * ACK is cumulative, not per-message.
+     *
+     * Example:
+     * If h=100, client knows stanzas 1..100 are received.
+     *
+     * @param ctx active Netty channel context
      */
     public void incrementAndSendInboundH(ChannelHandlerContext ctx) {
 
-        // Ensure execution is tied to Netty EventLoop (thread-safe per channel)
+        /**
+         * Execute inside the channel's assigned EventLoop.
+         *
+         * This avoids race conditions caused by external threads
+         * mutating channel state or writing concurrently.
+         */
         ctx.executor().execute(() -> {
 
-            // Check if Stream Management is enabled (<enable xmlns='urn:xmpp:sm:3'/>)
+            /**
+             * Indicates whether Stream Management was enabled
+             * for this connection using:
+             *
+             * <enable xmlns='urn:xmpp:sm:3'/>
+             */
             AtomicBoolean isEnabled = ctx.channel()
                     .attr(XmppSessionAttributes.SM_INBOUND_H_ENABLED_KEY)
                     .get();
 
-            // Local per-session handled counter (h)
+            /**
+             * Per-channel atomic inbound counter.
+             *
+             * Stored in Netty channel attributes so it remains
+             * bound to this connection lifecycle.
+             */
             AtomicLong handledCount = ctx.channel()
                     .attr(XmppSessionAttributes.SM_INBOUND_H_KEY)
                     .get();
 
-            if (isEnabled != null && isEnabled.get() && handledCount != null) {
-
-                // Increment SM sequence (monotonic counter)
-                long h = handledCount.incrementAndGet();
-
-                log.debug("SM ACK generated: h={}", h);                
+            /**
+             * Only process acknowledgements if:
+             * - SM is enabled
+             * - Counter exists
+             */
+            if (isEnabled != null
+                    && isEnabled.get()
+                    && handledCount != null) {
 
                 /**
-                 * Send XEP-0198 ACK to client:
+                 * Increment monotonically.
+                 *
+                 * h must only move forward:
+                 * 1,2,3,4...
+                 *
+                 * Never decrement or reuse values.
+                 */
+                long h = handledCount.incrementAndGet();
+
+                log.debug("SM ACK generated: h={}", h);
+
+                /**
+                 * Construct XEP-0198 acknowledgement stanza:
                  *
                  * <a xmlns='urn:xmpp:sm:3' h='N'/>
                  *
-                 * This tells the client:
-                 * - Server has received all stanzas up to h
-                 * - Client can safely drop its resend buffer
+                 * Meaning to client:
+                 * ------------------------------------------
+                 * Server confirms receipt of all inbound
+                 * stanzas up to sequence N.
+                 *
+                 * Client may safely discard local resend
+                 * buffer entries <= N.
                  */
                 ctx.writeAndFlush(
-                        new TextWebSocketFrame(new StreamAck(h).toXml())
+                        new TextWebSocketFrame(
+                                new StreamAck(h).toXml()
+                        )
                 );
             }
         });
     }
 
     /**
-     * Retrieves the current inbound SM handled counter (h).
+     * Returns current inbound handled counter.
      *
-     * <p>
-     * This value represents:
-     * - Number of stanzas received from client
-     * - Transport-level delivery acknowledgment state
-     * </p>
+     * Common Uses:
+     * ------------------------------------------------------
+     * 1. Save session state before disconnect
+     * 2. Persist resume checkpoint to Redis
+     * 3. Diagnostics / debugging
+     * 4. Generate <resumed h='N'/>
+     *
+     * If counter does not exist:
+     * - SM not enabled yet
+     * - channel not initialized
+     * - state already cleaned
      *
      * @param ctx Netty channel context
-     * @return current SM handled counter (h), or 0 if not initialized
+     * @return current h value, or 0 if absent
      */
     public static long getInboundH(ChannelHandlerContext ctx) {
 
+        /**
+         * Fetch channel-local atomic counter.
+         */
         AtomicLong handledCount = ctx.channel()
                 .attr(XmppSessionAttributes.SM_INBOUND_H_KEY)
                 .get();
 
-        return handledCount != null ? handledCount.get() : 0L;
+        /**
+         * Safe fallback to zero when missing.
+         */
+        return handledCount != null
+                ? handledCount.get()
+                : 0L;
     }
 }
