@@ -86,7 +86,7 @@ public class CallLifeCycleTracker {
 
 		// 1. Store call metadata in a Redis Hash. 
 		// This is the source of truth for the background worker if the call times out.
-		String metaKey = CallSessionRedisKey.PENDING_CALL_PREFIX.format(sid);
+		String metaKey = CallSessionRedisKey.CALL_METADATA_PREFIX.format(sid);
 		Map<String, String> data = new HashMap<>();
 		data.put(CallSessionMetadata.TO.getKey(), toJid);
 		data.put(CallSessionMetadata.FROM.getKey(), fromJid);
@@ -101,7 +101,7 @@ public class CallLifeCycleTracker {
 
 		// 2. Add the SID to the ZSET (Delayed Queue). 
 		// The 'score' is the expiration time; the worker polls for scores <= current time.
-		redisTemplate.opsForZSet().add(CallSessionRedisKey.DELAYED_QUEUE.getVal(), sid, executeAt);
+		redisTemplate.opsForZSet().add(CallSessionRedisKey.DIRECT_CALL_TIMEOUT_QUEUE.getVal(), sid, executeAt);
 		log.info("Call [{}] initiated. SID: {}. Timeout scheduled in {}s", callType, sid, callRingingTimeoutSeconds);
 		
 		// Track call initiation for duration calculation
@@ -114,7 +114,7 @@ public class CallLifeCycleTracker {
 	 * Optimized to reduce network latency and command overhead.
 	 */
 	private Map<Object, Object> getSessionMetadata(String sid) {
-	    String metaKey = CallSessionRedisKey.PENDING_CALL_PREFIX.format(sid);
+	    String metaKey = CallSessionRedisKey.CALL_METADATA_PREFIX.format(sid);
 	    // Fetch the entire hash at once
 	    return redisTemplate.opsForHash().entries(metaKey);
 	}
@@ -224,8 +224,8 @@ public class CallLifeCycleTracker {
 	 * Called when a call is successfully resolved (Accepted, Rejected, or Canceled).
 	 */
 	private void handleResolution(String sid) {
-		redisTemplate.opsForZSet().remove(CallSessionRedisKey.DELAYED_QUEUE.getVal(), sid);
-		redisTemplate.delete(CallSessionRedisKey.PENDING_CALL_PREFIX.format(sid));
+		redisTemplate.opsForZSet().remove(CallSessionRedisKey.DIRECT_CALL_TIMEOUT_QUEUE.getVal(), sid);
+		redisTemplate.delete(CallSessionRedisKey.CALL_METADATA_PREFIX.format(sid));
 	}
 	
 	/**
@@ -234,7 +234,7 @@ public class CallLifeCycleTracker {
 	 */
 	public boolean isCallInDelayQueue(String sid) {
 	    // .score() returns Double (the score) if present, or null if not present
-	    Double score = redisTemplate.opsForZSet().score(CallSessionRedisKey.DELAYED_QUEUE.getVal(), sid);
+	    Double score = redisTemplate.opsForZSet().score(CallSessionRedisKey.DIRECT_CALL_TIMEOUT_QUEUE.getVal(), sid);
 	    return score != null;
 	}
 

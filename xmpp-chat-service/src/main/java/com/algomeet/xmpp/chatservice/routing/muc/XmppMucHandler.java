@@ -107,7 +107,7 @@ public class XmppMucHandler {
 		} else {
 			
 			// 2. DIRECT PRIVATE MESSAGE (PM) WITHIN MUC CHECK
-			MucMember directPmRecipientMucMember = resolveDirectPmRecipient(ctx, id, fromJid, toRoomJid, group);
+			MucMember pmRecipientMucMember = resolveDirectPmRecipient(ctx, id, fromJid, toRoomJid, group);
 
 			// 3. ARCHIVING (MAM - XEP-0313)
 			// Only archive messages that are storage-eligible (e.g., contain a <body>)
@@ -120,7 +120,7 @@ public class XmppMucHandler {
 						principal.getDomain(), ulidString);
 				forArchiveXml = originalXml.replace("</message>", stanzaIdExtension + "</message>");
 
-				xmppArchiveService.archiveEvent(forArchiveXml, info, toRoomJid, (directPmRecipientMucMember != null ? directPmRecipientMucMember.getUserKey() : null), 
+				xmppArchiveService.archiveEvent(forArchiveXml, info, toRoomJid, (pmRecipientMucMember != null ? pmRecipientMucMember.getUserKey() : null), 
 						fromJid, ulidString)
 				.doOnSuccess(saved -> {
 					boolean isAckMessage = false;
@@ -149,11 +149,11 @@ public class XmppMucHandler {
 						}
 					}
 
-
-					if (directPmRecipientMucMember != null) {
+					// Count MUC private message
+					if (pmRecipientMucMember != null) {
 						if(!isAckMessage) {
 							// Increment MUC unread messages count 
-							mucUnreadCountService.incrementUnreadCount(directPmRecipientMucMember.getUserKey(), 
+							mucUnreadCountService.incrementUnreadCount(pmRecipientMucMember.getUserKey(), 
 									XmppUtil.getRoomId(toRoomJid))
 							.doOnError(e -> {
 								log.error("Storage failure for increment muc messages count {}: {}", id, e.getMessage(), e);
@@ -161,6 +161,7 @@ public class XmppMucHandler {
 							.subscribe();
 						}
 					} else {
+						// Count MUC group message
 						if(!isAckMessage) {
 							// Increment MUC unread messages count 
 							mucUnreadCountService.incrementForRoomMembers(XmppUtil.getRoomId(toRoomJid),
@@ -186,14 +187,13 @@ public class XmppMucHandler {
 			try {			
 				// Standard message propagation to members
 				mucMessageRouter.broadcastToOccupants(ctx, id, toRoomJid, fromJid, msgType, group, senderMucMember.get(), 
-						directPmRecipientMucMember, originalXml);
+						pmRecipientMucMember, originalXml);
 
 			} catch (NumberFormatException e) {
 				log.error("Critical: Invalid roomId format in routing: {}", toRoomId);
 			}
 		}
 	}
-
 
 	/**
 	 * Resolves a MUC occupant for Private Messaging (PM).

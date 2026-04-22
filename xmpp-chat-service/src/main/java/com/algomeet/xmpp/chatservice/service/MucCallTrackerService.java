@@ -17,6 +17,7 @@ import com.algomeet.xmpp.chatservice.util.JidUtil;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 @Slf4j
@@ -59,18 +60,43 @@ public class MucCallTrackerService {
                     call.setAcceptedAt(Instant.now().toEpochMilli());
                     return repository.save(call);
                 })
-                .doOnSuccess(success -> log.info("Call session {} successfully updated to accepted", sid))
-                .doOnError(error -> log.error("Failed to mark Call SID {} as ACCEPTED", sid, error))
-                .switchIfEmpty(Mono.error(new RuntimeException("Call not found for SID: " + sid)));
+                .doOnSuccess(success -> log.info("MUC Call session {} successfully updated to accepted", sid))
+                .doOnError(error -> log.error("Failed to mark MUC Call SID {} as ACCEPTED", sid, error))
+                .switchIfEmpty(Mono.error(new RuntimeException("MUC Call not found for SID: " + sid)));
     }
     
     /**
+     * Retrieves all group/MUC call records for the given Session ID (SID).
+     *
+     * <p>
+     * Filters only records where {@code roomId} is present,
+     * meaning this lookup is intended for room/group call sessions
+     * rather than direct 1-to-1 calls.
+     * </p>
+     *
+     * @param sid unique Jingle / call session identifier
+     * @return stream of matching call sessions
+     */
+    public Flux<CallSession> findBySid(String sid) {
+        return repository.findAllBySidAndRoomIdIsNotNull(sid)
+                .doOnSubscribe(sub ->
+                        log.debug("Fetching call sessions for SID: {}", sid)
+                )
+                .doOnComplete(() ->
+                        log.info("Successfully fetched call sessions for SID: {}", sid)
+                )
+                .doOnError(error ->
+                        log.error("Failed to fetch call sessions for SID: {}", sid, error)
+                );
+    }
+        
+    /**
      * Remove the call record.
      */
-    public Mono<Void> remove(String sid) {
-        return repository.deleteBySid(sid)
-        		.doOnSuccess(success -> log.info("Call session {} successfully deleted", sid))
-                .doOnError(error -> log.error("Failed to delete Call SID {}", sid, error));
+    public Mono<Void> remove(String sid, String callee) {
+        return repository.deleteBySidAndCallee(sid, callee)
+        		.doOnSuccess(success -> log.info("MUC Call session {} successfully deleted", sid))
+                .doOnError(error -> log.error("Failed to delete MUC Call SID {}", sid, error));
     }
     
     /**

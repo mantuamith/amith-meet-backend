@@ -1,7 +1,6 @@
 package com.algomeet.xmpp.chatservice.routing.dispacher;
 
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.springframework.stereotype.Component;
 
@@ -74,7 +73,7 @@ public class LocalStanzaDispatcher {
 	public void dispatchLocally(
 			String to,
 			String id,
-			Boolean isCarbonCopy,
+			Boolean isAllowEcho,
 			String sessionId,
 			String payload) {
 
@@ -94,12 +93,12 @@ public class LocalStanzaDispatcher {
 		XmppPrincipal principal =
 				targetChannel.attr(XmppSessionAttributes.PRINCIPAL).get();
 
-		// Prevent carbon copy loop back to originating session (XEP-0280)
-		if (Boolean.TRUE.equals(isCarbonCopy)
+		// Prevent message loop back to originating session
+		if (Boolean.FALSE.equals(isAllowEcho)
 				&& principal != null
 				&& principal.getSessionId().equals(sessionId)) {
 
-			log.trace("Carbon copy suppressed for originating session: {}", sessionId);
+			log.trace("Message suppressed for originating session: {}", sessionId);
 			return;
 		}
 

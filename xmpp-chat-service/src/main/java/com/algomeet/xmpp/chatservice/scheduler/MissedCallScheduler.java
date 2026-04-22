@@ -19,6 +19,7 @@ import com.algomeet.multitenancy.context.TenantContext;
 import com.algomeet.notificationservice.dto.Notification;
 import com.algomeet.notificationservice.enums.NotificationType;
 import com.algomeet.notificationservice.service.NotificationService;
+import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.dto.MucMember;
 import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
@@ -79,14 +80,14 @@ public class MissedCallScheduler {
 	 */
 	@Scheduled(fixedDelay = 1000)
 	public void processExpiredCalls() {
-		loadMissedCalls().subscribe();
+		loadMissedCalls(null).subscribe();
 	}
 
 	/**
 	 * Scans for expired sessions and acquires a distributed lock to prevent multi-node processing.
 	 * * @return A Mono signal indicating completion of the batch process.
 	 */
-	private Mono<Void> loadMissedCalls() {
+	private Mono<Void> loadMissedCalls(XmppPrincipal principal) {
 	    String lockKey = "algomeet:lock:process:missed-calls";
 	    RLockReactive lock = redissonReactiveClient.getLock(lockKey);
 
@@ -102,11 +103,11 @@ public class MissedCallScheduler {
 	                
 	                // 2. QUERY: Fetch all SIDs whose score (timeout) is <= now
 	                return reactiveRedisTemplate.opsForZSet()
-	                        .rangeByScore(CallSessionRedisKey.DELAYED_QUEUE.getVal(), Range.closed(0.0, (double) now))
+	                        .rangeByScore(CallSessionRedisKey.DIRECT_CALL_TIMEOUT_QUEUE.getVal(), Range.closed(0.0, (double) now))
 	                        .<Void>flatMap(sid -> 
 	                            // 3. ATOMIC REMOVE: Only the node that deletes the SID processes it
 	                            reactiveRedisTemplate.opsForZSet()
-	                                .remove(CallSessionRedisKey.DELAYED_QUEUE.getVal(), sid)
+	                                .remove(CallSessionRedisKey.DIRECT_CALL_TIMEOUT_QUEUE.getVal(), sid)
 	                                .flatMap(removed -> (removed != null && removed > 0) 
 	                                    ? processMissedCallReactive(sid) 
 	                                    : Mono.<Void>empty())
@@ -140,7 +141,7 @@ public class MissedCallScheduler {
 	 * @return Mono<Void>
 	 */
 	private Mono<Void> processMissedCallReactive(String sid) {
-	    String metaKey = CallSessionRedisKey.PENDING_CALL_PREFIX.format(sid);
+	    String metaKey = CallSessionRedisKey.CALL_METADATA_PREFIX.format(sid);
 
 	    return reactiveRedisTemplate.opsForHash().entries(metaKey)
 	            .collectMap(
@@ -224,7 +225,6 @@ public class MissedCallScheduler {
 
 		offlineMessageService.save(id, toUserKey, fromUserKey, XmppMessageType.HEADLINE.getXmlValue(), xml)
 		.doOnSuccess(success -> {
-			System.out.println("MISSCALL : " + id);
 			// Publish after successfully saved
 			clusterMessagePublisher.convertAndSendToUser(id, toUserKey, fromUserKey, ChatType.CHAT, xml);
 		})

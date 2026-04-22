@@ -55,7 +55,7 @@ public class ClusterMessageListener {
             localStanzaDispatcher.dispatchLocally(
                 message.getTo(), 
                 message.getId(), 
-                message.isCarbonCopy(),
+                message.isAllowEcho(),
                 message.getSessionId(),
                 message.getPayload()                
             );

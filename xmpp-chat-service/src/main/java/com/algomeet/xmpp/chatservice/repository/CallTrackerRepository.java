@@ -36,7 +36,7 @@ public interface CallTrackerRepository extends ReactiveMongoRepository<CallSessi
     /**
      * Removes documents matching the SID and Callee.
      */
-    Mono<Void> deleteBySidAndCallee(String sid, String calleeSid);
+    Mono<Void> deleteBySidAndCallee(String sid, String callee);
     
     /**
      * Removes documents matching the SID.

@@ -6,6 +6,7 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
+import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.cluster.dto.ClusterSyncMessage;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.exceptions.ClusterMessageException;
@@ -39,25 +40,31 @@ public class ClusterMessagePublisher {
     private final RedisTopicProperties redisTopicProperties;
     private final RedisTemplate<String, ClusterSyncMessage> redisTemplate;
     
-    /**
-     * Helper method for standard direct message delivery without synchronization metadata.
-     */
-    public void convertAndSendToUser(String id, String to, String from, ChatType chatType, String payload) {
-        convertAndSendToUser(id, to, from, chatType, false, null, payload);
+    public void convertAndSendToUser(String id, String to, String from, ChatType chatType, String payload) {     
+    	convertAndSendToUser(id, to, from, chatType, true, null, payload);
+    }
+    
+    public void convertAndSendToUser(String id, String to, String from, ChatType chatType, Boolean isAllowEcho, String payload, XmppPrincipal principal) {
+    	String sessionId = null;
+    	if (principal != null && !(isAllowEcho)) {
+    		sessionId = principal.getSessionId();
+    	}
+        
+    	convertAndSendToUser(id, to, from, chatType, isAllowEcho, sessionId, payload);
     }
     
     /**
      * Publishes a stanza to the Redis cluster backbone for universal delivery.
-     * * @param id           The unique Stanza ID (essential for XEP-0198 and client-side deduplication).
+     * @param id           The unique Stanza ID (essential for XEP-0198 and client-side deduplication).
      * @param to           The target user's unique key/JID.
      * @param from         The originating sender's user key/JID.
      * @param chatType     The classification of the conversation (CHAT, GROUPCHAT, etc.).
-     * @param isCarbonCopy Set to TRUE if this is an XEP-0280 sync message for other devices.
+     * @param isAllowEcho  Set to TRUE if you allow the same device receive the echo of message
      * @param sessionId    The ID of the originating session (used for loop suppression on the receiving end).
      * @param payload      The raw XML stanza to be transmitted across the wire.
      * @throws ClusterMessageException if the Redis transport layer fails, potentially leading to delivery loss.
      */
-    public void convertAndSendToUser(String id, String to, String from, ChatType chatType, Boolean isCarbonCopy, String sessionId, String payload) {
+    public void convertAndSendToUser(String id, String to, String from, ChatType chatType, Boolean isAllowEcho, String sessionId, String payload) {
         try {
         	
         	if (!(StringUtils.hasText(id))) {
@@ -69,7 +76,7 @@ public class ClusterMessagePublisher {
                     .to(to)					
                     .from(from)
                     .chatType(chatType)
-                    .isCarbonCopy(isCarbonCopy)
+                    .isAllowEcho(isAllowEcho)
                     .sessionId(sessionId)
                     .payload(payload)
                     .build();
