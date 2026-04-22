@@ -109,7 +109,7 @@ public class XmppChatHandler {
 					        if (StringUtils.hasText(ackMessageId)) {
 					            // Decrement the unread counter for this specific sender-recipient pair.
 					            // Note: fromUserKey is the person who read it, toUserKey is the original sender.
-					            unreadCountService.decrementUnreadCount(toUserKey, fromUserKey).subscribe();
+					            unreadCountService.decrementUnreadCount(toUserKey, fromUserKey, principal).subscribe();
 					        }
 					    }
 					    

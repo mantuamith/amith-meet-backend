@@ -7,15 +7,10 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.listener.ChannelTopic;
 import org.springframework.data.redis.listener.RedisMessageListenerContainer;
 import org.springframework.data.redis.listener.adapter.MessageListenerAdapter;
-import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
-import com.algomeet.xmpp.chatservice.cluster.dto.ClusterSyncMessage;
 import com.algomeet.xmpp.chatservice.cluster.listener.ClusterMessageListener;
 import com.algomeet.xmpp.chatservice.properties.RedisTopicProperties;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
@@ -77,37 +72,63 @@ public class ClusterSyncRedisConfig {
     }
 
     /**
-     * <p>Configures the shared {@link RedisTemplate} for publishing {@link ClusterSyncMessage} DTOs.</p>
-     * * <p><b>Serialization Strategy:</b></p>
+     * <p>Configures the dedicated {@link RedisTemplate} used for high-speed cluster
+     * Pub/Sub messaging between application nodes.</p>
+     *
+     * <p>This template is optimized for lightweight transport strings rather than
+     * JSON DTO serialization. Cluster messages are manually encoded into compact
+     * delimited strings before publishing, reducing CPU overhead and garbage
+     * collection pressure under heavy traffic.</p>
+     *
+     * <p><b>Serialization Strategy:</b></p>
      * <ul>
-     * <li><b>Keys:</b> Uses {@link StringRedisSerializer} for human-readable channel keys.</li>
-     * <li><b>Values:</b> Employs {@link GenericJackson2JsonRedisSerializer} for JSON-based 
-     * payloads, ensuring cross-platform compatibility.</li>
-     * <li><b>Time Support:</b> Includes {@code JavaTimeModule} to handle modern Java 8+ Date/Time types.</li>
-     * <li><b>Clean JSON:</b> Deactivates default typing to omit {@code @class} metadata, 
-     * keeping the payload size small and readable.</li>
+     *     <li><b>Keys:</b> Uses {@link StringRedisSerializer} for readable Redis
+     *         topic/channel names.</li>
+     *
+     *     <li><b>Values:</b> Uses {@link StringRedisSerializer} so published
+     *         payloads are transmitted as raw UTF-8 strings.</li>
+     *
+     *     <li><b>Performance Benefit:</b> Avoids Jackson object mapping and JSON
+     *         serialization cost during publish/subscribe operations.</li>
+     *
+     *     <li><b>Protocol Format:</b> Payloads are expected to follow the internal
+     *         cluster transport contract using a reserved delimiter separator
+     *         (for example: id, recipient, sender, flags, sessionId, stanza).</li>
+     *
+     *     <li><b>Best Use Case:</b> Ideal for Redis Pub/Sub where messages are
+     *         transient routing signals rather than persistent structured records.</li>
      * </ul>
-     * * @return A configured {@link RedisTemplate} instance for cluster-wide message broadcasting.
+     *
+     * <p><b>Example Published Payload:</b></p>
+     * <pre>
+     * stanza-123␟userA␟userB␟CHAT␟1␟session9␟&lt;message .../&gt;
+     * </pre>
+     *
+     * <p><b>Important:</b></p>
+     * All subscribers must parse the incoming string using the same delimiter
+     * protocol and field ordering.</p>
+     *
+     * @return Configured {@link RedisTemplate} for cluster-wide string message broadcasting.
      */
-    @Bean
-    public RedisTemplate<String, ClusterSyncMessage> clusterRedisTemplate() {
-        RedisTemplate<String, ClusterSyncMessage> template = new RedisTemplate<>();
+    @Bean    
+    public RedisTemplate<String, String> clusterStringRedisTemplate() {
+        RedisTemplate<String, String> template = new RedisTemplate<>();
         template.setConnectionFactory(connectionFactory);
-        
-        ObjectMapper mapper = new ObjectMapper();
-        mapper.registerModule(new JavaTimeModule());
-        mapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-        
-        // Keep JSON "clean" by not including class type metadata
-        mapper.deactivateDefaultTyping();
-        
-        GenericJackson2JsonRedisSerializer serializer = new GenericJackson2JsonRedisSerializer(mapper);
 
-        template.setKeySerializer(new StringRedisSerializer());
+        /**
+         * Use plain string serialization for both channels and payloads.
+         *
+         * Faster than JSON serializers for Pub/Sub transport messaging.
+         */
+        StringRedisSerializer serializer = new StringRedisSerializer();
+
+        template.setKeySerializer(serializer);
         template.setValueSerializer(serializer);
-        template.setHashKeySerializer(new StringRedisSerializer());
+        template.setHashKeySerializer(serializer);
         template.setHashValueSerializer(serializer);
-        
+
+        template.afterPropertiesSet();
+
         return template;
     }
 }

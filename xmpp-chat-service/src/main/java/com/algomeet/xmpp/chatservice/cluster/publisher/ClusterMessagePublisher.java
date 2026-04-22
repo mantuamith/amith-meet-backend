@@ -2,15 +2,17 @@ package com.algomeet.xmpp.chatservice.cluster.publisher;
 
 import java.util.UUID;
 
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
-import com.algomeet.xmpp.chatservice.cluster.dto.ClusterSyncMessage;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.exceptions.ClusterMessageException;
 import com.algomeet.xmpp.chatservice.properties.RedisTopicProperties;
+import com.algomeet.xmpp.chatservice.util.ClusterUtil;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -39,20 +41,26 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class ClusterMessagePublisher {
-
-    /**
-     * Configuration holder containing Redis topic names used by the system.
-     */
-    private final RedisTopicProperties redisTopicProperties;
-
     /**
      * Redis client used to publish {@link ClusterSyncMessage} objects
      * to subscribed cluster nodes.
      */
-    private final RedisTemplate<String, ClusterSyncMessage> redisTemplate;
-
+    private final RedisTemplate<String, String> redisTemplate;
+    
+    /**
+     * Configuration holder containing Redis topic names used by the system.
+     */
+    private final RedisTopicProperties redisTopicProperties;
+    
+    public ClusterMessagePublisher(
+            @Qualifier("clusterStringRedisTemplate") RedisTemplate<String, String> redisTemplate,
+            RedisTopicProperties redisTopicProperties
+    ) {
+        this.redisTemplate = redisTemplate;
+        this.redisTopicProperties = redisTopicProperties;
+    }
+    
     /**
      * Convenience overload for normal routing behavior.
      *
@@ -117,10 +125,43 @@ public class ClusterMessagePublisher {
         if (principal != null && !(isAllowEcho)) {
             sessionId = principal.getSessionId();
         }
-
         convertAndSendToUser(id, to, from, chatType, isAllowEcho, sessionId, payload);
     }
 
+    /**
+     * Thread-local reusable buffer to avoid allocating StringBuilder per message.
+     *
+     * <p>This is safe because each thread (Netty worker / request thread)
+     * has its own isolated buffer instance.</p>
+     */
+    private static final ThreadLocal<StringBuilder> BUFFER =
+            ThreadLocal.withInitial(() -> new StringBuilder(512));
+
+    private String buildClusterMessage(
+            String id,
+            String to,
+            String from,
+            ChatType chatType,
+            Boolean isAllowEcho,
+            String sessionId,
+            String payload) {
+
+        StringBuilder sb = BUFFER.get();
+        sb.setLength(0);
+
+        char sep = ClusterUtil.SEP;
+
+        sb.append(id).append(sep)
+          .append(to).append(sep)
+          .append(from).append(sep)
+          .append(chatType.name()).append(sep)
+          .append(isAllowEcho ? "1" : "0").append(sep)
+          .append(sessionId == null ? "" : sessionId).append(sep)
+          .append(payload);
+
+        return sb.toString();
+    }
+    
     /**
      * Publishes a cluster synchronization message to Redis.
      *
@@ -167,19 +208,39 @@ public class ClusterMessagePublisher {
             if (!(StringUtils.hasText(id))) {
                 id = UUID.randomUUID().toString();
             }
-
+       
             /**
-             * Build transport envelope consumed by other nodes.
+             * Build a compact transport message for Redis Pub/Sub using a lightweight
+             * delimiter-based protocol instead of JSON serialization.
+             *
+             * <p><b>Why use this approach:</b></p>
+             * <ul>
+             *     <li>Reduces object creation compared to DTO + JSON serialization.</li>
+             *     <li>Lower CPU overhead under heavy publish volume.</li>
+             *     <li>Smaller payload size than JSON.</li>
+             *     <li>Faster parsing on subscriber nodes.</li>
+             * </ul>
+             *
+             * <p><b>Field Order Contract (must remain consistent):</b></p>
+             * <ol>
+             *     <li>id           - Unique stanza/message identifier</li>
+             *     <li>to           - Recipient UserKey or JID</li>
+             *     <li>from         - Sender UserKey or JID</li>
+             *     <li>chatType     - CHAT / GROUPCHAT / etc.</li>
+             *     <li>isAllowEcho  - "1" = true, "0" = false</li>
+             *     <li>sessionId    - Originating session for duplicate suppression</li>
+             *     <li>payload      - Raw XMPP XML stanza</li>
+             * </ol>
              */
-            ClusterSyncMessage message = ClusterSyncMessage.builder()
-                    .id(id)
-                    .to(to)
-                    .from(from)
-                    .chatType(chatType)
-                    .isAllowEcho(isAllowEcho)
-                    .sessionId(sessionId)
-                    .payload(payload)
-                    .build();
+            String msg = buildClusterMessage(
+                    id,
+                    to,
+                    from,
+                    chatType,
+                    isAllowEcho,
+                    sessionId,
+                    payload
+            );
 
             log.debug(
                 "Broadcasting cluster sync for recipient [{}], stanzaId [{}], type [{}]",
@@ -195,7 +256,7 @@ public class ClusterMessagePublisher {
              */
             redisTemplate.convertAndSend(
                     redisTopicProperties.getClusterSyncTopic(),
-                    message
+                    msg
             );
 
         } catch (Exception ex) {

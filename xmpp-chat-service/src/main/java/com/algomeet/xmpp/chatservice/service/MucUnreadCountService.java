@@ -9,6 +9,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
+import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.document.MucUnreadCount;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
@@ -58,7 +59,7 @@ public class MucUnreadCountService {
 	 * Non-blocking decrement of the unread count for a specific MUC room.
 	 * Ensures the count does not drop below zero using an atomic operation.
 	 */
-	public Mono<MucUnreadCount> decrementUnreadCount(String userKey, String roomId) {
+	public Mono<MucUnreadCount> decrementUnreadCount(String userKey, String roomId, XmppPrincipal principal) {
 		String id = String.format("%s_%d", userKey, roomId);
 
 		// Atomic decrement: only execute if the current count is greater than 0
@@ -80,7 +81,7 @@ public class MucUnreadCountService {
 								roomId,
 								mucUnreadCount.getUnreadCount()
 						);
-						clusterMessagePublisher.convertAndSendToUser(id, userKey, userKey, ChatType.CHAT, payload);
+						clusterMessagePublisher.convertAndSendToUser(id, userKey, userKey, ChatType.CHAT, false, payload, principal);
 					}
 					return Mono.just(mucUnreadCount);
 				});

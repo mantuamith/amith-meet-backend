@@ -71,8 +71,8 @@ public class LocalStanzaDispatcher {
 	 * @param payload      raw XML stanza
 	 */
 	public void dispatchLocally(
-			String to,
 			String id,
+			String to,
 			Boolean isAllowEcho,
 			String sessionId,
 			String payload) {

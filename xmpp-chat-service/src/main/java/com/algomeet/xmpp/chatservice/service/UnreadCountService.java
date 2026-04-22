@@ -11,6 +11,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
+import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.document.UnreadCount;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
@@ -54,7 +55,7 @@ public class UnreadCountService {
      * Non-blocking decrement of the unread count.
      * Ensures the count does not drop below zero.
      */
-    public Mono<UnreadCount> decrementUnreadCount(String senderKey, String recipientKey) {
+    public Mono<UnreadCount> decrementUnreadCount(String senderKey, String recipientKey, XmppPrincipal principal) {
         String id = String.format("%s_%s", senderKey, recipientKey);
         
         // Use a query that only decrements if the current count is greater than 0
@@ -73,7 +74,7 @@ public class UnreadCountService {
                             senderKey, 
                             unreadCount.getUnreadCount()
                         );
-                        clusterMessagePublisher.convertAndSendToUser(id, recipientKey, recipientKey, ChatType.CHAT, payload);
+                        clusterMessagePublisher.convertAndSendToUser(id, recipientKey, recipientKey, ChatType.CHAT, false, payload, principal);
                     }
                     return Mono.just(unreadCount);
                 });
