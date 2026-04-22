@@ -18,6 +18,7 @@ import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
 import com.algomeet.xmpp.chatservice.service.CallTrackerService;
 import com.algomeet.xmpp.chatservice.service.OfflineMessageService;
+import com.algomeet.xmpp.chatservice.service.UnreadCountService;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
 
 import io.netty.channel.ChannelHandlerContext;
@@ -38,6 +39,7 @@ public class CallLifeCycleTracker {
 	private final ClusterMessagePublisher clusterMessagePublisher;
 	private final OfflineMessageService offlineMessageService;
 	private final CallTrackerService callTrackerService;
+	private final UnreadCountService unreadCountService;
 
 	@Value("${call.session-metadata-ttl-minutes:10}")
 	private Integer callSessionMetadataTtlMinutes;
@@ -272,7 +274,11 @@ public class CallLifeCycleTracker {
 
 		// Persist to MongoDB for offline retrieval
 		offlineMessageService.save(messageId, toUserKey, fromUserKey, XmppMessageType.CHAT.getXmlValue(), xml.toString())
-		.doOnError(e -> log.error("Storage failure for message {}: {}", messageId, e.getMessage()))
+		.doOnSuccess(saved -> {
+			// Increment user unread message
+			unreadCountService.incrementUnreadCount(fromUserKey, toUserKey);
+		})
+		.doOnError(e -> log.error("Storage failure during saving of call logs {}: {}", xml.toString(), e.getMessage()))
 		.subscribe();
 
 		// Broadcast to cluster to ensure all logged-in devices of the user receive the log

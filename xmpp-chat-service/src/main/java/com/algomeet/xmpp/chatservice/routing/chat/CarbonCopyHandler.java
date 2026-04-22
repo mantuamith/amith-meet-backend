@@ -3,6 +3,7 @@ package com.algomeet.xmpp.chatservice.routing.chat;
 import java.util.UUID;
 
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
 import com.algomeet.xmpp.chatservice.routing.dispacher.LocalStanzaDispatcher;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
@@ -66,6 +67,12 @@ public class CarbonCopyHandler {
             String fromUserKey,
             String userSessionId,
             String sentStanza) {
+    	
+    	// Validate null value
+    	if (StringUtils.hasText(fromUserKey) 
+    			|| "null".equalsIgnoreCase(fromUserKey.trim())) {
+    		return;
+    	}
 
         /**
          * Build sender carbon wrapper.

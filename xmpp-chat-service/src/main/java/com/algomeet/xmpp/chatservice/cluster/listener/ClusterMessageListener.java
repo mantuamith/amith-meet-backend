@@ -154,28 +154,5 @@ public class ClusterMessageListener {
                 message[1]
             );
         }
-    }
-
-    /**
-     * Internal utility to de-serialize JSON strings into DTOs.
-     * * <p><b>Performance Note:</b> Current implementation instantiates a new 
-     * {@link ObjectMapper} per call. In high-throughput production environments, 
-     * this should be replaced with a shared, thread-safe Bean to reduce 
-     * GC pressure and improve latency.</p>
-     * * @param json The raw JSON payload.
-     * @param t    The target Class type.
-     * @param <T>  The generic type.
-     * @return The de-serialized object, or null if parsing fails.
-     */
-    private <T> T convertToObject(String json, Class<T> t) {
-        try {
-            // findAndRegisterModules() ensures support for JSR-310 (Instant/LocalDateTime)
-            ObjectMapper mapper = new ObjectMapper().findAndRegisterModules(); 
-            return mapper.readValue(json, t);
-        } catch (Exception ex) {
-            log.error("Critical: Failed to de-serialize cluster message. Data: {}, Error: {}", 
-                json, ex.getMessage(), ex);
-        }
-        return null;
-    }
+    }   
 }

@@ -98,6 +98,8 @@ public class CallTrackerService {
 	 * methods are not enough.
 	 */
 	private final ReactiveMongoTemplate mongoTemplate;
+	
+	private final UnreadCountService unreadCountService;
 
 	/**
 	 * Creates a new call session record when a call starts.
@@ -415,6 +417,10 @@ public class CallTrackerService {
 			String payload) {
 
 		offlineMessageService.save(id, to, from, XmppMessageType.CHAT.getXmlValue(), payload)
+		.doOnSuccess(success -> {
+			// Increment unread message counter
+			unreadCountService.incrementUnreadCount(from, to);
+		})
 		.doOnError(e -> {
 			log.error(
 					"Storage failure for message {}: {}", id, e.getMessage(), e	);
