@@ -70,7 +70,8 @@ public class XmppChatHandler {
 
 		// Persistence & XEP-0198 Acknowledgment
 		// Instead of .subscribe(), return the Mono and handle the sequence
-		if (msgType.supportsOfflineStorage() && XmppStanzaUtil.isArchiveable(originalXml)) {			
+		boolean archivable = XmppStanzaUtil.isArchivable(originalXml);
+		if (msgType.supportsOfflineStorage() && archivable) {			
 			offlineMessageService.save(id, toUserKey, fromUserKey, type, originalXml)
 		            .doOnSuccess(saved -> {
 		            	boolean isAckMessage = false;
@@ -151,9 +152,12 @@ public class XmppChatHandler {
 			callTracker.track(ctx, toJid, fromJid, originalXml, principal);
 		}   				
 
+		// Check if carbon copy is required, if archivable the Carbon Copy required
+		Boolean shouldCarbon = archivable;
+		
 		// Broadast to Redis: Even if they are AWAY/DND, we attempt delivery 
 		// to their active WebSocket channels across the cluster.
-		clusterMessagePublisher.convertAndSendToUser(id, toUserKey, fromUserKey, ChatType.CHAT, false, originalXml, principal);
+		clusterMessagePublisher.convertAndSendToUser(id, toUserKey, fromUserKey, ChatType.CHAT, false, shouldCarbon, originalXml, principal);
 						
 		pushNotification(ctx, id, toUserKey, fromUserKey, type, originalXml, sessions, principal);
 	}
@@ -193,7 +197,7 @@ public class XmppChatHandler {
 				 * We extract the <body> element and trigger a Push Notification (FCM/APNs)
 				 * to the recipient, ensuring they receive the message even if offline.
 				 */            	
-				if (XmppStanzaUtil.isArchiveable(xml)) {
+				if (XmppStanzaUtil.isArchivable(xml)) {
 					String body = XmppUtil.getMessageBody(xml);
 					sendPushNotification(toUserKey, body, NotificationType.DIRECT_MESSAGE, principal);
 				}

@@ -7,6 +7,7 @@ import org.springframework.util.StringUtils;
 
 import com.algomeet.xmpp.chatservice.routing.dispacher.LocalStanzaDispatcher;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
+import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 
 import lombok.RequiredArgsConstructor;
 
@@ -66,10 +67,12 @@ public class CarbonCopyHandler {
     public void handleSentMessageCarbonCopy(
             String fromUserKey,
             String userSessionId,
-            String sentStanza) {
+            String sentStanza,
+            boolean shouldCarbon) {
     	
     	// Validate null value
-    	if (StringUtils.hasText(fromUserKey) 
+    	if (!(shouldCarbon)
+    			|| !(StringUtils.hasText(fromUserKey)) 
     			|| "null".equalsIgnoreCase(fromUserKey.trim())) {
     		return;
     	}

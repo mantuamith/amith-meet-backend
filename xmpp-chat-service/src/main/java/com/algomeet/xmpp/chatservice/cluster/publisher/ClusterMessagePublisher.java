@@ -83,7 +83,7 @@ public class ClusterMessagePublisher {
 			ChatType chatType,
 			String payload) {
 
-		convertAndSendToUser(id, to, from, chatType, true, null, payload);
+		convertAndSendToUser(id, to, from, chatType, true, null, false, payload);
 	}
 
 	/**
@@ -107,7 +107,7 @@ public class ClusterMessagePublisher {
 			String from,
 			ChatType chatType,
 			Boolean isAllowEcho,
-			String payload,
+			String payload,			
 			XmppPrincipal principal) {
 
 		String sessionId = null;
@@ -123,7 +123,33 @@ public class ClusterMessagePublisher {
 		if (principal != null && !(isAllowEcho)) {
 			sessionId = principal.getSessionId();
 		}
-		convertAndSendToUser(id, to, from, chatType, isAllowEcho, sessionId, payload);
+		convertAndSendToUser(id, to, from, chatType, isAllowEcho, sessionId, false, payload);
+	}
+	
+	public void convertAndSendToUser(
+			String id,
+			String to,
+			String from,
+			ChatType chatType,
+			Boolean isAllowEcho,
+			Boolean shouldCarbon,
+			String payload,			
+			XmppPrincipal principal) {
+
+		String sessionId = null;
+
+		/**
+		 * When echo is not allowed, capture the originating session ID.
+		 *
+		 * Receiving nodes may use this to:
+		 * - skip sender's current device
+		 * - still deliver to sender's other devices
+		 * - avoid duplicate self-delivery
+		 */
+		if (principal != null && !(isAllowEcho)) {
+			sessionId = principal.getSessionId();
+		}
+		convertAndSendToUser(id, to, from, chatType, isAllowEcho, sessionId, shouldCarbon, payload);
 	}
 
 	/**
@@ -143,6 +169,7 @@ public class ClusterMessagePublisher {
 			ChatType chatType,
 			Boolean isAllowEcho,
 			String sessionId,
+			Boolean shouldCarbon,
 			String payload) {
 
 		StringBuilder sb = BUFFER.get();
@@ -157,6 +184,7 @@ public class ClusterMessagePublisher {
 		.append(chatType.name()).append(sep)
 		.append(isAllowEcho ? "1" : "0").append(sep)
 		.append(sessionId == null ? "" : sessionId).append(sep)
+		.append(shouldCarbon ? "1" : "0").append(sep)
 		.append(payload);
 
 		return sb.toString();
@@ -192,6 +220,7 @@ public class ClusterMessagePublisher {
 			ChatType chatType,
 			Boolean isAllowEcho,
 			String sessionId,
+			Boolean shouldCarbon,
 			String payload) {
 
 		try {
@@ -230,7 +259,9 @@ public class ClusterMessagePublisher {
 			 *     <li>chatType     - CHAT / GROUPCHAT / etc.</li>
 			 *     <li>isAllowEcho  - "1" = true, "0" = false</li>
 			 *     <li>sessionId    - Originating session for duplicate suppression</li>
+			 *     <li>shouldCarbon - "1" = true, "0" = false</li></li>
 			 *     <li>payload      - Raw XMPP XML stanza</li>
+			 *      
 			 * </ol>
 			 */
 			String msg = buildClusterMessage(
@@ -241,6 +272,7 @@ public class ClusterMessagePublisher {
 					chatType,
 					isAllowEcho,
 					sessionId,
+					shouldCarbon,
 					payload
 					);
 

@@ -8,7 +8,6 @@ import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.routing.chat.CarbonCopyHandler;
 import com.algomeet.xmpp.chatservice.routing.dispacher.LocalStanzaDispatcher;
 import com.algomeet.xmpp.chatservice.util.ClusterSyncProtocolUtil;
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -71,7 +70,9 @@ public class ClusterMessageListener {
          *     <li>[4] chatType    - CHAT / GROUPCHAT / etc.</li>
          *     <li>[5] allowEcho   - "1" = true, "0" = false</li>
          *     <li>[6] sessionId   - Originating client session ID</li>
-         *     <li>[7] payload     - Raw XMPP XML stanza</li>
+         *     <li>[7] shouldCarbon - "1" = true, "0" = false</li></li>
+         *     <li>[8] payload     - Raw XMPP XML stanza</li>
+
          * </ol>
          *
          * <p>{@code ClusterSyncProtocolUtil.V1_FIELD_COUNT} should be set to {@code 7} so the split
@@ -116,7 +117,8 @@ public class ClusterMessageListener {
         	String chatType = message[4];
         	boolean isAllowEcho = "1".equals(message[5]);
         	String userSessionId = message[6];
-        	String payload = message[7];
+        	boolean shouldCarbon = "1".equals(message[7]);
+        	String payload = message[8];
         	
             localStanzaDispatcher.dispatchLocally(
             		id,
@@ -146,7 +148,8 @@ public class ClusterMessageListener {
                 carbonCopyHandler.handleSentMessageCarbonCopy(
                         from,
                         userSessionId,
-                        payload
+                        payload,
+                        shouldCarbon
                 );
             }
 

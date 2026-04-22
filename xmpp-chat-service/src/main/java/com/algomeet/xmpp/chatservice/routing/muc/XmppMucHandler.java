@@ -111,7 +111,7 @@ public class XmppMucHandler {
 
 			// 3. ARCHIVING (MAM - XEP-0313)
 			// Only archive messages that are storage-eligible (e.g., contain a <body>)
-			if(msgType.supportsOfflineStorage() && XmppStanzaUtil.isArchiveable(originalXml)) {
+			if(msgType.supportsOfflineStorage() && XmppStanzaUtil.isArchivable(originalXml)) {
 				StanzaInfo info = GroupChatParser.parse(originalXml);
 				String ulidString = UlidCreator.getMonotonicUlid().toLowerCase();
 

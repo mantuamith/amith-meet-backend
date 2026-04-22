@@ -350,7 +350,7 @@ public class XmppSmBufferService {
                      * handling, buffer into SM replay queue.
                      */
                     if (!(msgType.supportsOfflineStorage()
-                            && XmppStanzaUtil.isArchiveable(xml))) {
+                            && XmppStanzaUtil.isArchivable(xml))) {
 
                         return smBufferMessageService.bufferStanza(
                                 smSessionId,
@@ -438,7 +438,7 @@ public class XmppSmBufferService {
          */
         boolean shouldBuffer =
                 msgType.supportsOfflineStorage()
-                        && XmppStanzaUtil.isArchiveable(xml);
+                        && XmppStanzaUtil.isArchivable(xml);
 
         /**
          * Preserve existing inverse logic:
