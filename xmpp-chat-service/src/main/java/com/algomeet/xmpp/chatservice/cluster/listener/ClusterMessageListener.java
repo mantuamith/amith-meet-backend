@@ -5,7 +5,7 @@ import java.util.regex.Pattern;
 import org.springframework.stereotype.Component;
 
 import com.algomeet.xmpp.chatservice.routing.dispacher.LocalStanzaDispatcher;
-import com.algomeet.xmpp.chatservice.util.ClusterUtil;
+import com.algomeet.xmpp.chatservice.util.ClusterSyncProtocolUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import lombok.RequiredArgsConstructor;
@@ -35,7 +35,7 @@ import lombok.extern.slf4j.Slf4j;
 public class ClusterMessageListener {	
 
     private final LocalStanzaDispatcher localStanzaDispatcher;
-    private static final Pattern CLUSTER_MESSAGE_DELIMITER_PATTERN = Pattern.compile(String.valueOf(ClusterUtil.SEP));
+    private static final Pattern CLUSTER_MESSAGE_DELIMITER_PATTERN = Pattern.compile(String.valueOf(ClusterSyncProtocolUtil.SEP));
 
     /**
      * Entry point for messages arriving from the cluster infrastructure (e.g., Redis Pub/Sub).
@@ -61,20 +61,21 @@ public class ClusterMessageListener {
          *
          * <p><b>Expected Message Format (7 fields):</b></p>
          * <ol>
-         *     <li>[0] id          - Unique stanza/message ID</li>
-         *     <li>[1] to          - Target UserKey or JID</li>
-         *     <li>[2] from        - Sender UserKey or JID</li>
-         *     <li>[3] chatType    - CHAT / GROUPCHAT / etc.</li>
-         *     <li>[4] allowEcho   - "1" = true, "0" = false</li>
-         *     <li>[5] sessionId   - Originating client session ID</li>
-         *     <li>[6] payload     - Raw XMPP XML stanza</li>
+         *     <li>[0] version     - Sync protocol version</li>
+         *     <li>[1] id          - Unique stanza/message ID</li>
+         *     <li>[2] to          - Target UserKey or JID</li>
+         *     <li>[3] from        - Sender UserKey or JID</li>
+         *     <li>[4] chatType    - CHAT / GROUPCHAT / etc.</li>
+         *     <li>[5] allowEcho   - "1" = true, "0" = false</li>
+         *     <li>[6] sessionId   - Originating client session ID</li>
+         *     <li>[7] payload     - Raw XMPP XML stanza</li>
          * </ol>
          *
-         * <p>{@code ClusterUtil.MESSAGE_LENGTH} should be set to {@code 7} so the split
+         * <p>{@code ClusterSyncProtocolUtil.V1_FIELD_COUNT} should be set to {@code 7} so the split
          * operation stops after the expected number of fields.</p>
          */
         String[] message =
-                CLUSTER_MESSAGE_DELIMITER_PATTERN.split(rawMessage, ClusterUtil.MESSAGE_LENGTH);
+                CLUSTER_MESSAGE_DELIMITER_PATTERN.split(rawMessage, ClusterSyncProtocolUtil.V1_FIELD_COUNT);
 
         /**
          * Validate decoded structure before processing.
@@ -85,7 +86,7 @@ public class ClusterMessageListener {
          * - protocol mismatch between publisher/subscriber versions
          * - ArrayIndexOutOfBoundsException
          */
-        if (message != null && message.length == ClusterUtil.MESSAGE_LENGTH) {
+        if (message != null && message.length == ClusterSyncProtocolUtil.V1_FIELD_COUNT) {
 
             /**
              * Forward the message to the local stanza dispatcher.
@@ -95,23 +96,23 @@ public class ClusterMessageListener {
              *
              * Parameters:
              *
-             * message[0] = stanza/message ID
-             * message[1] = recipient user key / JID
-             * message[4] = allowEcho flag ("1" => true)
-             * message[5] = originating session ID
-             * message[6] = raw XML payload
+             * message[1] = stanza/message ID
+             * message[2] = recipient user key / JID
+             * message[5] = allowEcho flag ("1" => true)
+             * message[6] = originating session ID
+             * message[7] = raw XML payload
              *
              * Note:
-             * Fields [2] and [3] are not required here because local dispatch may only
+             * Fields [3] and [4] are not required here because local dispatch may only
              * need routing metadata + payload. They can still be retained for auditing
              * or future enhancements.
              */
             localStanzaDispatcher.dispatchLocally(
-                    message[0],
                     message[1],
-                    "1".equals(message[4]),
-                    message[5],
-                    message[6]
+                    message[2],
+                    "1".equals(message[5]),
+                    message[6],
+                    message[7]
             );
 
             /**
@@ -123,7 +124,7 @@ public class ClusterMessageListener {
              * - cluster health monitoring
              */
             log.info("Successfully processed cluster sync for Stanza ID: {}",
-                message[0]
+                message[1]
             );
         }
     }
