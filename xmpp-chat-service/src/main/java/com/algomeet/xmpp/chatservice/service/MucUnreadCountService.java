@@ -49,7 +49,7 @@ public class MucUnreadCountService {
 
 	public Mono<Void> incrementForRoomMembers(String roomId, List<String> memberKeys, String senderKey) {
 		return Flux.fromIterable(memberKeys)
-				//.filter(memberKey -> !memberKey.equals(senderKey)) // Don't notify the sender
+				.filter(memberKey -> !memberKey.equals(senderKey)) // Don't notify the sender
 				.flatMap(memberKey -> incrementUnreadCount(memberKey, roomId))
 				.then();
 	}
