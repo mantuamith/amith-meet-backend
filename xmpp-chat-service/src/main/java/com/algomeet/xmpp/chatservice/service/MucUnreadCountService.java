@@ -71,18 +71,6 @@ public class MucUnreadCountService {
 		return reactiveMongoTemplate.updateFirst(query, update, MucUnreadCount.class)
 				.then(reactiveMongoTemplate.findById(id, MucUnreadCount.class))
 				.flatMap(mucUnreadCount -> {
-					// --- XMPP Device Synchronization ---
-					// If the user has multiple active sessions, broadcast the new count 
-					// to ensure consistent UI badges across all devices.
-					if (userSessionRegistry.getSessions(userKey).size() > 1) {
-						String payload = MucCountUtil.composeMucCountSync(
-								domainProperties.getDomain(),
-								jidUtil.getBareJid(userKey),
-								roomId,
-								mucUnreadCount.getUnreadCount()
-						);
-						clusterMessagePublisher.convertAndSendToUser(id, userKey, userKey, ChatType.CHAT, false, payload, principal);
-					}
 					return Mono.just(mucUnreadCount);
 				});
 	}

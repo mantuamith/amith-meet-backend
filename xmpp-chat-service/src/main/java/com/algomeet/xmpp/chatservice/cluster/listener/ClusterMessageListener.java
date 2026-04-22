@@ -4,6 +4,8 @@ import java.util.regex.Pattern;
 
 import org.springframework.stereotype.Component;
 
+import com.algomeet.xmpp.chatservice.enums.ChatType;
+import com.algomeet.xmpp.chatservice.routing.chat.CarbonCopyHandler;
 import com.algomeet.xmpp.chatservice.routing.dispacher.LocalStanzaDispatcher;
 import com.algomeet.xmpp.chatservice.util.ClusterSyncProtocolUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -33,9 +35,10 @@ import lombok.extern.slf4j.Slf4j;
 @Component
 @RequiredArgsConstructor
 public class ClusterMessageListener {	
-
-    private final LocalStanzaDispatcher localStanzaDispatcher;
     private static final Pattern CLUSTER_MESSAGE_DELIMITER_PATTERN = Pattern.compile(String.valueOf(ClusterSyncProtocolUtil.SEP));
+    
+    private final LocalStanzaDispatcher localStanzaDispatcher;
+    private final CarbonCopyHandler carbonCopyHandler;
 
     /**
      * Entry point for messages arriving from the cluster infrastructure (e.g., Redis Pub/Sub).
@@ -107,22 +110,46 @@ public class ClusterMessageListener {
              * need routing metadata + payload. They can still be retained for auditing
              * or future enhancements.
              */
+        	String id = message[1];
+        	String to = message[2];
+        	String from = message[3];
+        	String chatType = message[4];
+        	boolean isAllowEcho = "1".equals(message[5]);
+        	String userSessionId = message[6];
+        	String payload = message[7];
+        	
             localStanzaDispatcher.dispatchLocally(
-                    message[1],
-                    message[2],
-                    "1".equals(message[5]),
-                    message[6],
-                    message[7]
+            		id,
+            		to,
+            		isAllowEcho,
+            		userSessionId,
+            		payload
             );
 
             /**
-             * Log successful processing for observability and tracing.
+             * Message Carbons are only applicable to one-to-one chats.
              *
-             * Useful for:
-             * - debugging cross-node delivery
-             * - message flow correlation
-             * - cluster health monitoring
+             * XEP-0280 carbon copies are used to synchronize direct messages
+             * across the sender's other active devices (mobile, desktop, web).
+             *
+             * Example:
+             * - User sends message from phone
+             * - Desktop client receives a <sent/> carbon copy
+             *
+             * Group chats typically do not use sender-side carbons because
+             * the room itself already broadcasts messages to participants.
+             *
+             * Therefore, only process carbon copy generation when the
+             * message type is normal direct CHAT.
              */
+            if (ChatType.CHAT.name().equals(chatType.trim())) {
+                carbonCopyHandler.handleSentMessageCarbonCopy(
+                        from,
+                        userSessionId,
+                        payload
+                );
+            }
+
             log.info("Successfully processed cluster sync for Stanza ID: {}",
                 message[1]
             );

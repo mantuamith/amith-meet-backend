@@ -66,16 +66,6 @@ public class UnreadCountService {
         return reactiveMongoTemplate.updateFirst(query, update, UnreadCount.class)
                 .then(reactiveMongoTemplate.findById(id, UnreadCount.class))
                 .flatMap(unreadCount -> {
-                    // Sync the new count across other user sessions
-                    if (userSessionRegistry.getSessions(recipientKey).size() > 1) {
-                        String payload = MucCountUtil.composeCountSync(
-                            domainProperties.getDomain(), 
-                            jidUtil.getBareJid(recipientKey), 
-                            senderKey, 
-                            unreadCount.getUnreadCount()
-                        );
-                        clusterMessagePublisher.convertAndSendToUser(id, recipientKey, recipientKey, ChatType.CHAT, false, payload, principal);
-                    }
                     return Mono.just(unreadCount);
                 });
     }
