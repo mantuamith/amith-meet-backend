@@ -126,6 +126,23 @@ public class ClusterMessagePublisher {
 		convertAndSendToUser(id, to, from, chatType, isAllowEcho, sessionId, false, payload);
 	}
 	
+	
+	/**
+	 * Overload that derives the originating sessionId from the authenticated principal.
+	 *
+	 * <p>If echo is disabled, the sender session ID is attached so receiving nodes
+	 * can suppress delivery back to the originating device while still allowing
+	 * delivery to other sessions of the same user.</p>
+	 *
+	 * @param id           Unique stanza/message ID
+	 * @param to           Recipient user key or JID
+	 * @param from         Sender user key or JID
+	 * @param chatType     CHAT / GROUPCHAT
+	 * @param isAllowEcho  Whether same-session echo is allowed
+	 * @param shouldCarbon Whether eligible for carbon copy
+	 * @param payload      Raw XML stanza
+	 * @param principal    Authenticated session principal
+	 */
 	public void convertAndSendToUser(
 			String id,
 			String to,
