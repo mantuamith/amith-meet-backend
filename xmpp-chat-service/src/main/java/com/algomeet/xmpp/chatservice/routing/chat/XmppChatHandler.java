@@ -1,7 +1,6 @@
 package com.algomeet.xmpp.chatservice.routing.chat;
 
 import java.util.Set;
-import java.util.UUID;
 
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Component;

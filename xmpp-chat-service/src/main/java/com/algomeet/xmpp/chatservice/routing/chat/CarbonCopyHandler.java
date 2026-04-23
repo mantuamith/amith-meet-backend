@@ -7,7 +7,6 @@ import org.springframework.util.StringUtils;
 
 import com.algomeet.xmpp.chatservice.routing.dispacher.LocalStanzaDispatcher;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
-import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 
 import lombok.RequiredArgsConstructor;
 
