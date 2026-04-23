@@ -1,6 +1,7 @@
 package com.algomeet.xmpp.chatservice.enums;
 
 public enum CallSessionMetadata {
+	SID("sid"),
     TO("to"),
     FROM("from"),
     CALL_TYPE("callType"),

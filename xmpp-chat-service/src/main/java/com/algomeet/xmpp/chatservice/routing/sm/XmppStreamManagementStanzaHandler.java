@@ -7,7 +7,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.springframework.stereotype.Component;
 
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
-import com.algomeet.xmpp.chatservice.service.CallTrackerService;
+import com.algomeet.xmpp.chatservice.service.CallSessionRecoveryService;
 import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
 import com.algomeet.xmpp.chatservice.stanza.StreamAck;
 import com.algomeet.xmpp.chatservice.util.XmppSmSessionRedisUtil;
@@ -41,7 +41,7 @@ import reactor.core.publisher.Mono;
 @RequiredArgsConstructor
 public class XmppStreamManagementStanzaHandler {
 	private final XmppSmSessionRedisUtil xmppSmRedisUtil;
-	private final CallTrackerService callTrackerService;
+	private final CallSessionRecoveryService callSessionRecoveryService;
 
 
 	private static final String NS = "urn:xmpp:sm:3";
@@ -126,7 +126,7 @@ public class XmppStreamManagementStanzaHandler {
 		            XmppSmSessionUtil.initSmSession(ctx, true, prevId, lastAck);
 		            
 		            // 2. Resume dropped call:
-		            callTrackerService.updateSessionRebind(prevUserSessionId, principal.getSessionId()).subscribe();
+		            callSessionRecoveryService.updateSessionRebind(prevUserSessionId, principal.getSessionId()).subscribe();
 
 		            // 3. Update mapping to the NEW WebSocket/Netty session ID
 		            return xmppSmRedisUtil.updateUserSessionId(prevId, principal.getSessionId())

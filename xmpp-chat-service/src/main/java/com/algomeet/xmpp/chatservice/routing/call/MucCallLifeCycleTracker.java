@@ -152,22 +152,6 @@ public class MucCallLifeCycleTracker {
 		boolean isTerminate = xml.contains("session-terminate");
 
 		/**
-		 * Convert sender and receiver into room occupant full JID.
-		 *
-		 * Example:
-		 * room@conference.domain/userKey
-		 */
-		String fromRoomFullJid =
-				jidUtil.getGroupBareJid(groupId)
-				+ "/"
-				+ XmppUtil.getUserKey(fromJid);
-
-		String toRoomFullJid =
-				jidUtil.getGroupBareJid(groupId)
-				+ "/"
-				+ XmppUtil.getUserKey(toJid);
-
-		/**
 		 * Every call must have SID.
 		 */
 		String sid = extractSid(xml);		
@@ -191,11 +175,10 @@ public class MucCallLifeCycleTracker {
 		} else if (isTerminate) {
 			handleTerminate(ctx,
 					toJid,
-					fromRoomFullJid,
+					fromJid,
 					xml,
 					sid,
-					toRoomFullJid,
-					fromRoomFullJid,
+					groupId,
 					principal);
 		}
 	}
@@ -236,15 +219,15 @@ public class MucCallLifeCycleTracker {
 		String callType = isVideo ? "Video" : "Audio";
 
 		// Generate Redis MUC SID using sid and callee user key
-		String redisMucSid = CallSessionRedisKey.getMucSid(sid, XmppUtil.getUserKey(toJid));
+		String mucSid = CallSessionRedisKey.getMucSid(sid, XmppUtil.getUserKey(toJid));
 
 		/**
 		 * Redis key for call metadata.
 		 */
-		String metaKey =
-				CallSessionRedisKey.CALL_METADATA_PREFIX.format(redisMucSid);
+		String metadataKey = CallSessionRedisKey.CALL_METADATA_PREFIX.format(mucSid);
 
 		Map<String, String> data = new HashMap<>();
+		data.put(CallSessionMetadata.SID.getKey(), sid);
 		data.put(CallSessionMetadata.TO.getKey(), toJid);
 		data.put(CallSessionMetadata.FROM.getKey(), fromJid);
 		data.put(CallSessionMetadata.CALL_TYPE.getKey(), callType);
@@ -257,15 +240,12 @@ public class MucCallLifeCycleTracker {
 		/**
 		 * Save metadata.
 		 */
-		redisTemplate.opsForHash().putAll(metaKey, data);
+		redisTemplate.opsForHash().putAll(metadataKey, data);
 
 		/**
 		 * Safety expiration.
 		 */
-		redisTemplate.expire(
-				metaKey,
-				callSessionMetadataTtlMinutes,
-				TimeUnit.MINUTES
+		redisTemplate.expire(metadataKey, callSessionMetadataTtlMinutes, TimeUnit.MINUTES
 				);
 
 		/**
@@ -273,15 +253,14 @@ public class MucCallLifeCycleTracker {
 		 *
 		 * score = future timeout timestamp
 		 */
-		redisTemplate.opsForZSet().add(
-				CallSessionRedisKey.MUC_CALL_TIMEOUT_QUEUE.getVal(),
-				redisMucSid,
+		redisTemplate.opsForZSet().add(CallSessionRedisKey.MUC_CALL_TIMEOUT_QUEUE.getVal(),
+				mucSid,
 				executeAt
 				);
 
 		log.info("Call [{}] initiated Redis MUC SID={} timeout={}s",
 				callType,
-				redisMucSid,
+				mucSid,
 				callRingingTimeoutSeconds);
 
 		/**
@@ -350,8 +329,7 @@ public class MucCallLifeCycleTracker {
 			String fromJid,
 			String xml,
 			String sid,
-			String toRoomFullJid,
-			String fromRoomFullJid,
+			String groupId,
 			XmppPrincipal principal) {
 
 		Map<Object, Object> metadata = getSessionMetadata(sid);
@@ -360,22 +338,15 @@ public class MucCallLifeCycleTracker {
 			return;
 		}
 
-		String callType =
-				(String) metadata.get(
-						CallSessionMetadata.CALL_TYPE.getKey()
-						);
-
+		String callType = (String) metadata.get(CallSessionMetadata.CALL_TYPE.getKey());
 
 		/**
 		 * NORMAL CALL END
 		 */
 		if (xml.contains("<success/>")) {
-
-			mucCallTrackerService.finalizeAndNotify(
-					sid,
-					principal.getSessionId(),
-					"success"
-					).subscribe();
+			
+			mucCallTrackerService.finalizeAndNotify(sid, principal.getSessionId(), "success")
+			.subscribe();
 		}
 
 		/**
@@ -393,22 +364,27 @@ public class MucCallLifeCycleTracker {
 				 */
 				handleResolution(redisMucSid);
 
+				// create from room JID
+				String fromRoomFullJid = jidUtil.getGroupBareJid(groupId) + "/"	+ XmppUtil.getUserKey(fromJid);
 
 				// Send to responder only
-				sendCallLog(ctx, toRoomFullJid, fromJid,
+				sendCallLog(ctx, fromRoomFullJid, fromJid,
 						sid, "declined",
 						"Call Declined", callType);
 
-				mucCallTrackerService.remove(sid, principal.getUserKey()).subscribe();		
-			}
+				// Delete MUC call session 
+				mucCallTrackerService.remove(sid, principal.getUserKey()).subscribe();	
+			}	
 		}
 
 		/**
 		 * CANCELED BEFORE ANSWERED
 		 */
 		else if (xml.contains("<cancel/>")) {
+			// create from room JID
+			String fromRoomFullJid = jidUtil.getGroupBareJid(groupId) + "/"	+ XmppUtil.getUserKey(fromJid);
+
 			handleCancelCall(ctx,
-					toJid,
 					fromJid,
 					sid,
 					fromRoomFullJid,
@@ -422,18 +398,13 @@ public class MucCallLifeCycleTracker {
 			// No need to send logs to caller nor receiver
 
 			// Generate Redis MUC SID using sid and callee user key
-			String redisMucSid = CallSessionRedisKey.getMucSid(sid, principal.getUserKey());
-			boolean isCallInDelayQueue = isCallInDelayQueue(redisMucSid);
+			String calleeUserKey = principal.getUserKey();
+			String mucSid = CallSessionRedisKey.getMucSid(sid, calleeUserKey);
 
-			if(isCallInDelayQueue) {
-				/**
-				 * Always cleanup first to avoid races.
-				 */
-				handleResolution(redisMucSid);
-				
-				// remove from db
-				mucCallTrackerService.remove(sid, principal.getUserKey()).subscribe();
-			}
+			handleResolution(mucSid);
+
+			// remove from db
+			mucCallTrackerService.remove(sid, principal.getUserKey()).subscribe();
 		}
 
 		/**
@@ -443,13 +414,14 @@ public class MucCallLifeCycleTracker {
 				|| xml.contains("<unsupported-transports/>")) {
 
 			// Generate Redis MUC SID using sid and callee user key
-			String redisMucSid = CallSessionRedisKey.getMucSid(sid, principal.getUserKey());
+			String calleeUserKey = principal.getUserKey();
+			String redisMucSid = CallSessionRedisKey.getMucSid(sid, calleeUserKey);
 
 			/**
 			 * Always cleanup first to avoid races.
 			 */
 			handleResolution(redisMucSid);
-			
+
 			// Remove call session from database
 			mucCallTrackerService.remove(sid, principal.getUserKey()).subscribe();
 		}
@@ -459,79 +431,52 @@ public class MucCallLifeCycleTracker {
 		 */
 		else {
 
-			// Generate Redis MUC SID using sid and callee user key
-			String redisMucSid = CallSessionRedisKey.getMucSid(sid, principal.getUserKey());
-			boolean isCallInDelayQueue = isCallInDelayQueue(redisMucSid);
-
-			if(!isCallInDelayQueue) {
-				// Try using the message receiver user key
-				redisMucSid = CallSessionRedisKey.getMucSid(sid, XmppUtil.getUserKey(toJid));
-				isCallInDelayQueue = isCallInDelayQueue(redisMucSid);
-			}
-
-			if (isCallInDelayQueue) {
-				/**
-				 * Always cleanup first to avoid races.
-				 */
-				handleResolution(redisMucSid);
-				
-				// send to caller
-				sendCallLog(ctx, toRoomFullJid, fromJid,
-						sid, "unknown",
-						"Unknown Error", callType);
-
-				// send to responder
-				sendCallLog(ctx, fromRoomFullJid, toJid,
-						sid, "missed",
-						"Unknown Error", callType);
-
-				mucCallTrackerService.remove(sid, principal.getUserKey()).subscribe();
-
-			} else {
-				mucCallTrackerService.finalizeAndNotify(
-						sid,
-						principal.getSessionId(),
-						"success"
-						).subscribe();
-			}
+			log.error("Unknown error terminated the MUC call {}", xml);
 		}
 	}
-	
+
 	private void handleCancelCall(ChannelHandlerContext ctx,
-			String toJid,
 			String fromJid,
 			String sid,
 			String fromRoomFullJid,
 			String callType) {
-		
-		// Generate Redis MUC SID using sid and callee user key
-		String redisMucSid = CallSessionRedisKey.getMucSid(sid, XmppUtil.getUserKey(toJid));
-		boolean isCallInDelayQueue = isCallInDelayQueue(redisMucSid);
 
-		if(isCallInDelayQueue) {
-			// Send to caller
+		// Send logs to responders
+		mucCallTrackerService.findBySid(sid)
+		.doOnEach(callSession -> {
+			String calleeUserKey = callSession.get().getCallee();
+
+			// Generate Redis MUC SID using sid and callee user key
+			String mucSid = CallSessionRedisKey.getMucSid(sid, calleeUserKey);	
+			boolean isCallInDelayQueue = isCallInDelayQueue(mucSid);
+
+			if(isCallInDelayQueue) {					
+				/**
+				 * Always cleanup first to avoid races.
+				 */
+				handleResolution(mucSid);
+
+				// Send to responder
+				sendCallLog(ctx, fromRoomFullJid, jidUtil.getBareJid(calleeUserKey),
+						sid, "missed",
+						"Missed Call", callType);
+			}
+		})
+		.doFinally(signal -> {
+			// Send call log to caller
 			sendCallLog(ctx, fromRoomFullJid, fromJid,
 					sid, "canceled",
 					"Call Canceled", callType);
 
-			// Send logs to responders
-			mucCallTrackerService.findBySid(sid)
-			.doOnEach(callSession -> {
-				String calleeUSerKey = callSession.get().getCallee();
-				String localizedRedisMucSid = CallSessionRedisKey.getMucSid(sid, calleeUSerKey);
+			try {
+				// Delete muc call session records
+				mucCallTrackerService.deleteBySid(sid).subscribe();
+			} catch(Exception ex) {
+				// silent
+			}
 
-				/**
-				 * Always cleanup first to avoid races.
-				 */
-				handleResolution(localizedRedisMucSid);
-
-				// Send to responder
-				sendCallLog(ctx, fromRoomFullJid, jidUtil.getBareJid(calleeUSerKey),
-						sid, "missed",
-						"Missed Call", callType);
-			})
-			.subscribe();
-		}			
+		})
+		.subscribe();		
 	}
 
 	/**
@@ -543,14 +488,8 @@ public class MucCallLifeCycleTracker {
 	 */
 	private void handleResolution(String sid) {
 
-		redisTemplate.opsForZSet().remove(
-				CallSessionRedisKey.DIRECT_CALL_TIMEOUT_QUEUE.getVal(),
-				sid
-				);
-
-		redisTemplate.delete(
-				CallSessionRedisKey.CALL_METADATA_PREFIX.format(sid)
-				);
+		redisTemplate.opsForZSet().remove(CallSessionRedisKey.DIRECT_CALL_TIMEOUT_QUEUE.getVal(), sid);
+		redisTemplate.delete(CallSessionRedisKey.CALL_METADATA_PREFIX.format(sid));
 	}
 
 	/**
@@ -559,9 +498,7 @@ public class MucCallLifeCycleTracker {
 	public boolean isCallInDelayQueue(String sid) {
 
 		Double score = redisTemplate.opsForZSet().score(
-				CallSessionRedisKey.DIRECT_CALL_TIMEOUT_QUEUE.getVal(),
-				sid
-				);
+				CallSessionRedisKey.DIRECT_CALL_TIMEOUT_QUEUE.getVal(),	sid);
 
 		return score != null;
 	}
@@ -570,12 +507,9 @@ public class MucCallLifeCycleTracker {
 	 * Extract Jingle SID.
 	 */
 	private String extractSid(String xml) {
-
 		Matcher matcher = SID_PATTERN.matcher(xml);
 
-		return matcher.find()
-				? matcher.group(1)
-						: null;
+		return matcher.find() ? matcher.group(1) : null;
 	}
 
 	/**
@@ -593,11 +527,8 @@ public class MucCallLifeCycleTracker {
 			String bodyText,
 			String callType) {
 
-		String messageId =
-				java.util.UUID.randomUUID().toString();
-
-		String timestamp =
-				java.time.Instant.now().toString();
+		String messageId = java.util.UUID.randomUUID().toString();
+		String timestamp = java.time.Instant.now().toString();
 
 		StringBuilder xml = new StringBuilder();
 

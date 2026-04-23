@@ -8,16 +8,10 @@ import java.util.concurrent.TimeUnit;
 
 import org.redisson.api.RLockReactive;
 import org.redisson.api.RedissonReactiveClient;
-import org.springframework.data.mongodb.core.FindAndModifyOptions;
-import org.springframework.data.mongodb.core.ReactiveMongoTemplate;
-import org.springframework.data.mongodb.core.query.Criteria;
-import org.springframework.data.mongodb.core.query.Query;
-import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
 import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.document.CallSession;
-import com.algomeet.xmpp.chatservice.enums.CallStatus;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
 import com.algomeet.xmpp.chatservice.repository.CallTrackerRepository;
@@ -25,7 +19,6 @@ import com.algomeet.xmpp.chatservice.util.JidUtil;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 /**
@@ -37,29 +30,24 @@ import reactor.core.publisher.Mono;
  * 2. Mark call acceptance timestamps.
  * 3. Finalize calls and generate call logs.
  * 4. Handle abrupt disconnects.
- * 5. Restore active calls after reconnect.
- * 6. Coordinate clustered nodes safely with Redis locks.
+ * 5. Coordinate clustered nodes safely with Redis locks.
  *
  * Typical Flow:
  * -------------------------------------------------------
  * INITIATE -> ACCEPT -> ACTIVE -> END
  *
- * Failure Recovery Flow:
- * -------------------------------------------------------
- * ACTIVE -> TRANSPORT DROP -> REBIND -> ACTIVE
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class CallTrackerService {
-
 	/**
 	 * Repository abstraction for CallSession documents.
 	 *
 	 * Used for standard reactive CRUD operations.
 	 */
-	private final CallTrackerRepository repository;
-
+	protected final CallTrackerRepository repository;
+	
 	/**
 	 * Publishes messages to other cluster nodes.
 	 *
@@ -90,16 +78,9 @@ public class CallTrackerService {
 	 * Prevents duplicate finalization in clustered systems.
 	 */
 	private final RedissonReactiveClient redissonReactiveClient;
-
-	/**
-	 * Low-level Mongo reactive access.
-	 *
-	 * Used for atomic findAndModify operations where repository
-	 * methods are not enough.
-	 */
-	private final ReactiveMongoTemplate mongoTemplate;
 	
 	private final UnreadCountService unreadCountService;
+	
 
 	/**
 	 * Creates a new call session record when a call starts.
@@ -177,8 +158,7 @@ public class CallTrackerService {
 				.doOnError(error ->
 				log.error("Failed to mark Call SID {} as ACCEPTED", sid, error))
 				.switchIfEmpty(
-						Mono.error(new RuntimeException("Call not found for SID: " + sid))
-						);
+						Mono.error(new RuntimeException("Call not found for SID: " + sid)));
 	}
 
 	/**
@@ -217,7 +197,7 @@ public class CallTrackerService {
 			String userSessionId,
 			String reason) {
 
-		String lockKey = "algomeet:lock:save:call:" + sid;
+		String lockKey = "algomeet:lock:finalize:call:" + sid;
 		RLockReactive lock = redissonReactiveClient.getLock(lockKey);
 
 		return Mono.usingWhen(
@@ -246,8 +226,7 @@ public class CallTrackerService {
 				/**
 				 * Always unlock after completion.
 				 */
-				acquired -> acquired ? lock.unlock() : Mono.empty()
-				)
+				acquired -> acquired ? lock.unlock() : Mono.empty())
 				.doOnError(e ->
 				log.error("Critical failure in finalizeAndNotify for SID: {}", sid, e));
 	}
@@ -330,8 +309,7 @@ public class CallTrackerService {
 			String userSessionId) {
 		return (
 				userSessionId.equalsIgnoreCase(session.getCallerSid())
-				|| userSessionId.equalsIgnoreCase(session.getCalleeSid())
-				);
+				|| userSessionId.equalsIgnoreCase(session.getCalleeSid()));
 	}
 
 	/**
@@ -381,8 +359,7 @@ public class CallTrackerService {
 				session.getCallType(),
 				duration,
 				status,
-				ts
-				);
+				ts);
 
 		publish(callerMsgId, session.getCaller(), session.getCallee(), ChatType.CHAT, callerMsg);
 
@@ -395,8 +372,7 @@ public class CallTrackerService {
 				session.getCallType(),
 				duration,
 				status,
-				ts
-				);
+				ts);
 
 		publish(calleeMsgId, session.getCallee(), session.getCaller(), ChatType.CHAT, calleeMsg);
 	}
@@ -469,8 +445,7 @@ public class CallTrackerService {
 						type,
 						duration,
 						status,
-						timestamp
-				);
+						timestamp);
 
 		log.debug("Outbound XMPP Stanza: {}", stanza);
 
@@ -486,129 +461,13 @@ public class CallTrackerService {
 		return (str == null || str.isEmpty())
 				? "" : str.substring(0, 1).toUpperCase() + str.substring(1);
 	}
-
+		
 	/**
-	 * Handles abrupt connection loss.
-	 *
-	 * Example:
-	 * - websocket close
-	 * - network drop
-	 * - app killed
-	 *
-	 * Instead of ending the call immediately,
-	 * only mark one side as DROPPED.
-	 *
-	 * This gives user a chance to reconnect.
-	 *
-	 * @param userSessionId lost connection id
-	 * @return updated CallSession
+	 * Delete by sid
+	 * @param sid
+	 * @return
 	 */
-	public Mono<CallSession> handleTransportDrop(String userSessionId) {
-		return repository.findByCallerSidOrCalleeSid(
-				userSessionId,
-				userSessionId
-				)
-				.next()
-				.filter(session -> (session.getRoomId() == null && session.getTerminatedAt() == null))
-				.flatMap(session -> {
-
-					boolean isCaller = userSessionId.equals(session.getCallerSid());					
-					String statusField = isCaller ? "callerStatus" : "calleeStatus";
-					Query query = new Query(Criteria.where("id").is(session.getId()));
-
-					Update update = new Update()
-							.set(statusField, CallStatus.DROPPED)
-							.set("terminatedAt",
-									Instant.now().toEpochMilli());
-
-					return mongoTemplate.findAndModify(
-							query,
-							update,
-							FindAndModifyOptions.options()
-							.returnNew(true),
-							CallSession.class
-							);
-				})
-				.doOnSuccess(s -> {
-					if (s != null) {
-						log.info("Suspending call finished for session {}",	s.getSid());
-					}
-				})
-				.doOnError(e -> {
-					log.error("Suspending call error for old session {}", userSessionId, e);
-				});
-	}
-
-	/**
-	 * Rebinds a reconnected transport session.
-	 *
-	 * Example:
-	 * old websocket id disconnected
-	 * new websocket id created
-	 *
-	 * Replace old sid with new sid and restore CONNECTED state.
-	 *
-	 * @param oldUserSid stale connection id
-	 * @param newUserSid new connection id
-	 * @return restored sessions
-	 */
-	public Flux<CallSession> updateSessionRebind(
-			String oldUserSid,
-			String newUserSid) {
-
-		return repository.findByCallerSidOrCalleeSid(
-				oldUserSid,
-				oldUserSid
-				)
-				.filter(session -> {
-
-					log.info("Evaluating rebind for session {}: Caller[{}]={}, Callee[{}]={}",
-							session.getSid(),
-							session.getCallerSid(),
-							session.getCallerStatus(),
-							session.getCalleeSid(),
-							session.getCalleeStatus()
-							);
-
-					return (session.getRoomId() == null
-							&& (session.getCallerStatus() == CallStatus.DROPPED
-							|| session.getCalleeStatus() == CallStatus.DROPPED));
-				})
-
-				.flatMap(session -> {
-					boolean isCaller =
-							oldUserSid.equals(session.getCallerSid());
-
-					String sidField = isCaller ? "callerSid" : "calleeSid";
-					String statusField = isCaller ? "callerStatus" : "calleeStatus";
-
-					Query query =
-							new Query(Criteria.where("id").is(session.getId()));
-
-					Update update = new Update()
-							.set(sidField, newUserSid)
-							.set(statusField, CallStatus.CONNECTED)
-							.set("terminatedAt", null)
-							.set("updatedAt", Instant.now());
-
-					log.info("Rebinding connection for {}: {} -> {} (Session: {})",
-							isCaller ? "CALLER" : "CALLEE",
-									oldUserSid,
-									newUserSid,
-									session.getSid()
-							);
-
-					return mongoTemplate.findAndModify(
-							query,
-							update,
-							FindAndModifyOptions.options()
-							.returnNew(true),
-							CallSession.class
-							);
-				})
-				.doOnNext(s ->
-				log.debug("Rebind finished for session {}",	s.getSid()))
-				.doOnError(e ->
-				log.error("Rebind error for old connection identifier: {}",	oldUserSid,	e));
+	public Mono<Void> deleteBySid(String sid) {
+		return repository.deleteBySid(sid);
 	}
 }

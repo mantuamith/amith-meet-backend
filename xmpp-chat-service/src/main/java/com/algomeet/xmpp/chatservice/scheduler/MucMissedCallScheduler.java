@@ -31,6 +31,7 @@ import com.algomeet.xmpp.chatservice.enums.UserState;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
 import com.algomeet.xmpp.chatservice.repository.CallTrackerRepository;
 import com.algomeet.xmpp.chatservice.service.GroupCacheService;
+import com.algomeet.xmpp.chatservice.service.MucCallTrackerService;
 import com.algomeet.xmpp.chatservice.service.OfflineMessageService;
 import com.algomeet.xmpp.chatservice.service.XmppArchiveService;
 import com.algomeet.xmpp.chatservice.session.UserSessionRegistry;
@@ -70,6 +71,7 @@ public class MucMissedCallScheduler {
 	private final UserSessionRegistry userSessionRegistry;
 	private final RedissonReactiveClient redissonReactiveClient;
 	private final ReactiveRedisTemplate<String, String> reactiveRedisTemplate;
+	private final MucCallTrackerService mucCallTrackerService;
 	
 	/**
 	 * Main execution trigger. Subscribes to the reactive chain every second.
@@ -102,12 +104,12 @@ public class MucMissedCallScheduler {
 	                // 2. QUERY: Fetch all SIDs whose score (timeout) is <= now
 	                return reactiveRedisTemplate.opsForZSet()
 	                        .rangeByScore(CallSessionRedisKey.MUC_CALL_TIMEOUT_QUEUE.getVal(), Range.closed(0.0, (double) now))
-	                        .<Void>flatMap(sid -> 
+	                        .<Void>flatMap(mucSid -> 
 	                            // 3. ATOMIC REMOVE: Only the node that deletes the SID processes it
 	                            reactiveRedisTemplate.opsForZSet()
-	                                .remove(CallSessionRedisKey.MUC_CALL_TIMEOUT_QUEUE.getVal(), sid)
+	                                .remove(CallSessionRedisKey.MUC_CALL_TIMEOUT_QUEUE.getVal(), mucSid)
 	                                .flatMap(removed -> (removed != null && removed > 0) 
-	                                    ? processMissedCallReactive(sid) 
+	                                    ? processMissedCallReactive(mucSid) 
 	                                    : Mono.<Void>empty())
 	                        )
 	                        .then();
@@ -138,8 +140,8 @@ public class MucMissedCallScheduler {
 	 * * @param sid The Session ID to process.
 	 * @return Mono<Void>
 	 */
-	private Mono<Void> processMissedCallReactive(String sid) {
-	    String metaKey = CallSessionRedisKey.CALL_METADATA_PREFIX.format(sid);
+	private Mono<Void> processMissedCallReactive(String mucSid) {
+	    String metaKey = CallSessionRedisKey.CALL_METADATA_PREFIX.format(mucSid);
 
 	    return reactiveRedisTemplate.opsForHash().entries(metaKey)
 	            .collectMap(
@@ -148,10 +150,11 @@ public class MucMissedCallScheduler {
 	            )
 	            .flatMap(metadata -> {
 	                if (metadata.isEmpty()) {
-	                    log.warn("Missed call metadata missing for SID: {}.", sid);
+	                    log.warn("Missed call metadata missing for SID: {}.", mucSid);
 	                    return Mono.empty();
 	                }
 
+	                String sid = (String) metadata.get(CallSessionMetadata.SID.getKey());
 	                String toJid = (String) metadata.get(CallSessionMetadata.TO.getKey());
 	                String fromJid = (String) metadata.get(CallSessionMetadata.FROM.getKey());
 	                String type = (String) metadata.get(CallSessionMetadata.CALL_TYPE.getKey());
@@ -175,6 +178,9 @@ public class MucMissedCallScheduler {
 	                                .anyMatch(s -> UserState.ACTIVE == s.getState());
 
                             sendGroupChatMissedCallStanza(fromJid, toJid, sid, type, groupId);
+                            
+                            // Delete MUC call session from DB
+                            mucCallTrackerService.remove(sid, toUserKey).subscribe();
 
 	                        if (!hasActiveSession) {
 	                            sendPush(toUserKey,
@@ -241,4 +247,6 @@ public class MucMissedCallScheduler {
 				.build();
 		notificationService.sendPush(notif);
 	}
+	
+	
 }

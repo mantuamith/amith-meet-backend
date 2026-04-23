@@ -1,9 +1,7 @@
 package com.algomeet.xmpp.chatservice.scheduler;
 
 import java.time.Instant;
-import java.util.Optional;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 import org.redisson.api.RLockReactive;
@@ -13,7 +11,6 @@ import org.springframework.data.redis.core.ReactiveRedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
-import org.springframework.util.StringUtils;
 
 import com.algomeet.multitenancy.context.TenantContext;
 import com.algomeet.notificationservice.dto.Notification;
@@ -21,23 +18,16 @@ import com.algomeet.notificationservice.enums.NotificationType;
 import com.algomeet.notificationservice.service.NotificationService;
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
-import com.algomeet.xmpp.chatservice.dto.MucMember;
-import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
-import com.algomeet.xmpp.chatservice.dto.StanzaInfo;
 import com.algomeet.xmpp.chatservice.enums.CallSessionMetadata;
 import com.algomeet.xmpp.chatservice.enums.CallSessionRedisKey;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.enums.UserState;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
-import com.algomeet.xmpp.chatservice.repository.CallTrackerRepository;
-import com.algomeet.xmpp.chatservice.service.GroupCacheService;
+import com.algomeet.xmpp.chatservice.service.CallTrackerService;
 import com.algomeet.xmpp.chatservice.service.OfflineMessageService;
-import com.algomeet.xmpp.chatservice.service.XmppArchiveService;
 import com.algomeet.xmpp.chatservice.session.UserSessionRegistry;
 import com.algomeet.xmpp.chatservice.session.model.UserSession;
-import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
-import com.github.f4b6a3.ulid.UlidCreator;
 
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -65,14 +55,10 @@ public class MissedCallScheduler {
 	private final ClusterMessagePublisher clusterMessagePublisher;
 	private final OfflineMessageService offlineMessageService;
 	private final NotificationService notificationService;
-	private final GroupCacheService groupCacheService;
-	private final XmppArchiveService xmppArchiveService;
-	private final JidUtil jidUtil;
 	private final UserSessionRegistry userSessionRegistry;
 	private final RedissonReactiveClient redissonReactiveClient;
 	private final ReactiveRedisTemplate<String, String> reactiveRedisTemplate;
-	private final CallTrackerRepository callTrackerRepository;
-
+	private final CallTrackerService callTrackerService;
 	/**
 	 * Main execution trigger. Subscribes to the reactive chain every second.
 	 * Using {@code fixedDelay} ensures that a new execution doesn't start until
@@ -180,7 +166,7 @@ public class MissedCallScheduler {
 							sendMissedCallStanza(toJid, fromJid, sid, type);
 
 							// Delete by session ID
-							callTrackerRepository.deleteBySid(sid).subscribe();
+							callTrackerService.deleteBySid(sid).subscribe();
 
 							if (!hasActiveSession) {
 								sendPush(toUserKey,
