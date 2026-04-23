@@ -1,7 +1,6 @@
 package com.algomeet.xmpp.chatservice.routing.chat;
 
 import java.util.Set;
-import java.util.UUID;
 
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Component;
@@ -70,7 +69,8 @@ public class XmppChatHandler {
 
 		// Persistence & XEP-0198 Acknowledgment
 		// Instead of .subscribe(), return the Mono and handle the sequence
-		if (msgType.supportsOfflineStorage() && XmppStanzaUtil.isArchiveable(originalXml)) {			
+		boolean archivable = XmppStanzaUtil.isArchivable(originalXml);
+		if (msgType.supportsOfflineStorage() && archivable) {			
 			offlineMessageService.save(id, toUserKey, fromUserKey, type, originalXml)
 		            .doOnSuccess(saved -> {
 		            	boolean isAckMessage = false;
@@ -109,7 +109,7 @@ public class XmppChatHandler {
 					        if (StringUtils.hasText(ackMessageId)) {
 					            // Decrement the unread counter for this specific sender-recipient pair.
 					            // Note: fromUserKey is the person who read it, toUserKey is the original sender.
-					            unreadCountService.decrementUnreadCount(toUserKey, fromUserKey).subscribe();
+					            unreadCountService.decrementUnreadCount(toUserKey, fromUserKey, principal).subscribe();
 					        }
 					    }
 					    
@@ -151,14 +151,14 @@ public class XmppChatHandler {
 			callTracker.track(ctx, toJid, fromJid, originalXml, principal);
 		}   				
 
+		// Check if carbon copy is required, if archivable the Carbon Copy required
+		Boolean shouldCarbon = archivable;
+		
 		// Broadast to Redis: Even if they are AWAY/DND, we attempt delivery 
 		// to their active WebSocket channels across the cluster.
-		clusterMessagePublisher.convertAndSendToUser(id, toUserKey, fromUserKey, ChatType.CHAT, originalXml);
+		clusterMessagePublisher.convertAndSendToUser(id, toUserKey, fromUserKey, ChatType.CHAT, false, shouldCarbon, originalXml, principal);
 						
 		pushNotification(ctx, id, toUserKey, fromUserKey, type, originalXml, sessions, principal);
-		
-		// Handle Carbon copy
-		handleSentMessageCarbonCopy(originalXml, principal);
 	}
 
 	private void pushNotification(ChannelHandlerContext ctx,
@@ -196,56 +196,14 @@ public class XmppChatHandler {
 				 * We extract the <body> element and trigger a Push Notification (FCM/APNs)
 				 * to the recipient, ensuring they receive the message even if offline.
 				 */            	
-				if (XmppStanzaUtil.isArchiveable(xml)) {
+				if (XmppStanzaUtil.isArchivable(xml)) {
 					String body = XmppUtil.getMessageBody(xml);
 					sendPushNotification(toUserKey, body, NotificationType.DIRECT_MESSAGE, principal);
 				}
 			}     
 		}
 	}  
-	
-	/**
-     * Implements XEP-0280: Message Carbons.
-     * Synchronizes a message sent from one device (e.g., Mobile) to all other 
-     * active sessions of the same user (e.g., Desktop/Web).
-     *
-     * @param sentStanza The raw XML of the original outgoing message.
-     * @param senderKey  The unique identifier/JID of the user who sent the message.
-     */
-    public void handleSentMessageCarbonCopy(String sentStanza, XmppPrincipal principal) {
-        // 1. Retrieve all active user sessions from the registry.
-        // Carbons are only necessary if the user is multi-homed (logged in on >1 device).
-        Set<UserSession> sessions = userSessionRegistry.getSessions(principal.getUserKey());
-
-        if (sessions != null && sessions.size() > 1) {            
-            // 2. Wrap the original stanza according to XEP-0280 and XEP-0297 (Forwarding).
-            // The 'sent' element notifies other clients that this is a copy of a message 
-            // sent from another of the user's devices, preventing 'echo' loops.
-            String carbonPayload = String.format(
-                    "<message xmlns='jabber:client' from='%s' to='%s' type='chat'>" +
-                            "  <sent xmlns='urn:xmpp:carbons:2'>" +
-                            "    <forwarded xmlns='urn:xmpp:forward:0'>%s</forwarded>" +
-                            "  </sent>" +
-                            "</message>",
-                            principal.getFullJid(), 
-                            principal.getBareJid(), 
-                            sentStanza
-                    );
-            
-            // 3. Broadcast to the cluster.
-            // Using clusterMessagePublisher ensures that sessions living on different 
-            // server nodes in the AlgoMeet cluster receive the synchronization stanza.
-            clusterMessagePublisher.convertAndSendToUser(
-                    UUID.randomUUID().toString(), 
-                    principal.getUserKey(), // Recipient is the sender themselves (self-sync)
-                    principal.getUserKey(), 
-                    ChatType.CHAT,
-                    true,
-                    principal.getSessionId(),
-                    carbonPayload);
-        }        
-    }
-    
+		
 	/**
 	 * Used to send push notification for new message
 	 *

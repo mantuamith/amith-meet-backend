@@ -4,14 +4,13 @@ import java.util.UUID;
 
 import org.springframework.stereotype.Component;
 
+import com.algomeet.xmpp.chatservice.dto.E2eeEvent;
 import com.algomeet.xmpp.chatservice.routing.dispacher.LocalStanzaDispatcher;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import com.algomeet.xmpp.chatservice.dto.E2eeEvent;
-import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 
 /**
  * <p>Subscriber/Listener responsible for receiving E2EE and Signal-related events 

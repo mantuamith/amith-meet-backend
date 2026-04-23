@@ -14,6 +14,7 @@ import com.algomeet.xmpp.chatservice.routing.dispacher.LocalStanzaDispatcher;
 import com.algomeet.xmpp.chatservice.stanza.StanzaError;
 
 import io.netty.channel.ChannelHandlerContext;
+import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -27,13 +28,14 @@ import lombok.extern.slf4j.Slf4j;
  * @version 1.1
  */
 @Slf4j
+@AllArgsConstructor
 @Component
 public class XmppUtil {
 	private static final String DOMAIN_SEPARATOR = "@";
 	private static final String BARE_JID_SEPARATOR = "/";
 	private static final XMLInputFactory XML_FACTORY = XMLInputFactory.newInstance();
 	
-	private LocalStanzaDispatcher localStanzaDispatcher;
+	private final LocalStanzaDispatcher localStanzaDispatcher;
 	
 	/**
 	 * Extracts the localpart (User Key) from a Full or Bare JID.

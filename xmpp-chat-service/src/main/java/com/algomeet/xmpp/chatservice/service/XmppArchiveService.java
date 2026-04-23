@@ -8,11 +8,9 @@ import com.algomeet.xmpp.chatservice.document.MucMessage;
 import com.algomeet.xmpp.chatservice.dto.StanzaInfo;
 import com.algomeet.xmpp.chatservice.repository.MucMessageRepository;
 import com.algomeet.xmpp.chatservice.routing.dispacher.LocalStanzaDispatcher;
-import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Mono;
@@ -31,7 +29,6 @@ import reactor.core.publisher.Mono;
 @RequiredArgsConstructor
 public class XmppArchiveService {    
     private final MucMessageRepository repository;
-    private final JidUtil jidUtil;
     private final LocalStanzaDispatcher localStanzaDispatcher;
 
     /**

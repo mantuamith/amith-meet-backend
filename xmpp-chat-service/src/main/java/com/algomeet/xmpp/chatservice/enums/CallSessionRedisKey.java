@@ -7,14 +7,21 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public enum CallSessionRedisKey {
     /**
-     * The ZSET used for scheduling the 30-second timeout tasks.
+     * ZSET of pending direct-call timeouts.
+     * score = expiration timestamp
      */
-    DELAYED_QUEUE("algomeet:delayed-missed-call-tasks"),
+    DIRECT_CALL_TIMEOUT_QUEUE("algomeet:call:delayed-missed-call-tasks"),
 
     /**
-     * The prefix for the Hash storing call metadata (to, from, tenantId).
+     * ZSET of pending group/MUC call timeouts.
+     * score = expiration timestamp
      */
-    PENDING_CALL_PREFIX("algomeet:pending-calls:metadata:");
+    MUC_CALL_TIMEOUT_QUEUE("algomeet:call:muc:delayed-missed-call-tasks"),
+
+    /**
+     * HASH prefix containing temporary call session metadata.
+     */
+    CALL_METADATA_PREFIX("algomeet:call:metadata:");
 
     private final String val;
 
@@ -23,9 +30,46 @@ public enum CallSessionRedisKey {
      * Use this instead of manual string concatenation.
      */
     public String format(String sid) {
-        if (this == PENDING_CALL_PREFIX) {
+        if (this == CALL_METADATA_PREFIX) {
             return this.val + sid;
         }
         return this.val;
+    }
+    
+    /**
+     * Builds a unique MUC (Multi-User Chat) call session identifier
+     * by combining the shared call SID with a specific participant key.
+     *
+     * <p>
+     * Why this exists:
+     * In group calls, a single Jingle SID may be shared across multiple
+     * recipients/participants. To track each participant independently
+     * (ringing state, timeout queue entry, missed call status, etc.),
+     * we create a derived SID per user.
+     * </p>
+     *
+     * <p>
+     * Example:
+     * sid = "abc123"
+     * receiverUserKey = "user789"
+     *
+     * Result:
+     * abc123_user789
+     * </p>
+     *
+     * <p>
+     * Common use cases:
+     * - Redis timeout queue keys
+     * - Per-user ringing state
+     * - Missed call tracking
+     * - Individual participant call logs
+     * </p>
+     *
+     * @param sid original shared call session identifier
+     * @param receiverUserKey unique user key of the participant
+     * @return participant-scoped MUC session identifier
+     */
+    public static String getMucSid(String sid, String receiverUserKey) {
+        return sid + "_" + receiverUserKey;
     }
 }

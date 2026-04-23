@@ -12,6 +12,6 @@ public class RedisTopicProperties {
     @Value("${cluster.sync.topic:cluster-sync-topic}")
     private String clusterSyncTopic;
     
-    @Value("${e2ee.event.topic:e2ee-event-topic}")
+    @Value("${event.e2ee.topic:e2ee-event-topic}")
     private String e2eeEventTopic;
 }
