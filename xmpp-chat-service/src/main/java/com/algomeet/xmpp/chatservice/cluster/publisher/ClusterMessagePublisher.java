@@ -87,88 +87,77 @@ public class ClusterMessagePublisher {
 	}
 
 	/**
-	 * Overload that derives the originating sessionId from the authenticated principal.
+	 * Convenience overload that resolves the originating session ID from the
+	 * authenticated principal and disables carbon copy delivery.
 	 *
-	 * <p>If echo is disabled, the sender session ID is attached so receiving nodes
-	 * can suppress delivery back to the originating device while still allowing
-	 * delivery to other sessions of the same user.</p>
+	 * <p>When same-session echo is disabled, the sender's session ID is attached
+	 * so receiving nodes can skip the originating device while still delivering
+	 * to the user's other active sessions.</p>
 	 *
-	 * @param id           Unique stanza/message ID
-	 * @param to           Recipient user key or JID
-	 * @param from         Sender user key or JID
-	 * @param chatType     CHAT / GROUPCHAT
-	 * @param isAllowEcho  Whether same-session echo is allowed
-	 * @param payload      Raw XML stanza
-	 * @param principal    Authenticated session principal
+	 * @param id          Unique stanza/message ID
+	 * @param to          Recipient user key or JID
+	 * @param from        Sender user key or JID
+	 * @param chatType    CHAT / GROUPCHAT
+	 * @param isAllowEcho Whether delivery back to the same session is allowed
+	 * @param payload     Raw XML stanza payload
+	 * @param principal   Authenticated XMPP session principal
 	 */
 	public void convertAndSendToUser(
-			String id,
-			String to,
-			String from,
-			ChatType chatType,
-			Boolean isAllowEcho,
-			String payload,			
-			XmppPrincipal principal) {
+	        String id,
+	        String to,
+	        String from,
+	        ChatType chatType,
+	        Boolean isAllowEcho,
+	        String payload,
+	        XmppPrincipal principal) {
 
-		String sessionId = null;
+	    String sessionId = null;
 
-		/**
-		 * When echo is not allowed, capture the originating session ID.
-		 *
-		 * Receiving nodes may use this to:
-		 * - skip sender's current device
-		 * - still deliver to sender's other devices
-		 * - avoid duplicate self-delivery
-		 */
-		if (principal != null && !(isAllowEcho)) {
-			sessionId = principal.getSessionId();
-		}
-		convertAndSendToUser(id, to, from, chatType, isAllowEcho, sessionId, false, payload);
+	    // Include session ID only when same-session echo is disabled.
+	    if (principal != null && !isAllowEcho) {
+	        sessionId = principal.getSessionId();
+	    }
+
+	    convertAndSendToUser(id, to, from, chatType, isAllowEcho, sessionId, false, payload);
 	}
-	
-	
+
 	/**
-	 * Overload that derives the originating sessionId from the authenticated principal.
+	 * Convenience overload that resolves the originating session ID from the
+	 * authenticated principal.
 	 *
-	 * <p>If echo is disabled, the sender session ID is attached so receiving nodes
-	 * can suppress delivery back to the originating device while still allowing
-	 * delivery to other sessions of the same user.</p>
+	 * <p>When same-session echo is disabled, the sender's session ID is attached
+	 * so receiving nodes can skip the originating device while still delivering
+	 * to the user's other active sessions.</p>
 	 *
 	 * @param id           Unique stanza/message ID
 	 * @param to           Recipient user key or JID
 	 * @param from         Sender user key or JID
 	 * @param chatType     CHAT / GROUPCHAT
-	 * @param isAllowEcho  Whether same-session echo is allowed
-	 * @param shouldCarbon Whether eligible for carbon copy
-	 * @param payload      Raw XML stanza
-	 * @param principal    Authenticated session principal
+	 * @param isAllowEcho  Whether delivery back to the same session is allowed
+	 * @param shouldCarbon Whether message is eligible for carbon copy handling
+	 * @param payload      Raw XML stanza payload
+	 * @param principal    Authenticated XMPP session principal
 	 */
 	public void convertAndSendToUser(
-			String id,
-			String to,
-			String from,
-			ChatType chatType,
-			Boolean isAllowEcho,
-			Boolean shouldCarbon,
-			String payload,			
-			XmppPrincipal principal) {
+	        String id,
+	        String to,
+	        String from,
+	        ChatType chatType,
+	        Boolean isAllowEcho,
+	        Boolean shouldCarbon,
+	        String payload,
+	        XmppPrincipal principal) {
 
-		String sessionId = null;
+	    String sessionId = null;
 
-		/**
-		 * When echo is not allowed, capture the originating session ID.
-		 *
-		 * Receiving nodes may use this to:
-		 * - skip sender's current device
-		 * - still deliver to sender's other devices
-		 * - avoid duplicate self-delivery
-		 */
-		if (principal != null && !(isAllowEcho)) {
-			sessionId = principal.getSessionId();
-		}
-		convertAndSendToUser(id, to, from, chatType, isAllowEcho, sessionId, shouldCarbon, payload);
+	    // Include session ID only when same-session echo is disabled.
+	    if (principal != null && !isAllowEcho) {
+	        sessionId = principal.getSessionId();
+	    }
+
+	    convertAndSendToUser(id, to, from, chatType, isAllowEcho, sessionId, shouldCarbon, payload);
 	}
-
+	
 	/**
 	 * Thread-local reusable buffer to avoid allocating StringBuilder per message.
 	 *
