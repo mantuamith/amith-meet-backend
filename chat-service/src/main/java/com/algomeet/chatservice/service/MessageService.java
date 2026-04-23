@@ -334,7 +334,7 @@ public class MessageService {
 
         bySender.forEach((senderId, msgs) -> {
             List<String> ids = msgs.stream().map(MessageDocument::getId).toList();
-            DeliveryReceipt receipt = new DeliveryReceipt(receiverUsername, ids, nowSec);
+            DeliveryReceipt receipt = new DeliveryReceipt(receiverUsername,msgs.get(0).getGroupId(), ids, nowSec);
             log.debug("[Delivered->Notify] toSender={} ids={} at={}", senderId, ids.size(), nowSec);
             messagingSyncTemplate.convertAndSendToUser(senderId, "/queue/delivery-receipts", receipt);
         });
@@ -376,7 +376,7 @@ public class MessageService {
 
         bySender.forEach((senderId, msgs) -> {
             List<String> ids = msgs.stream().map(MessageDocument::getId).toList();
-            ReadReceipt receipt = new ReadReceipt(readerId, ids, nowSec);
+            ReadReceipt receipt = new ReadReceipt(readerId, msgs.get(0).getGroupId(), ids, nowSec);
             log.debug("[Read->Notify] toSender={} ids={} at={}", senderId, ids.size(), nowSec);
             messagingSyncTemplate.convertAndSendToUser(senderId, "/queue/read-receipts", receipt);
         });
@@ -424,7 +424,7 @@ public class MessageService {
 
         bySender.forEach((senderId, msgs) -> {
             List<String> ids = msgs.stream().map(MessageDocument::getId).toList();
-            ReadReceipt receipt = new ReadReceipt(contactId, ids, nowSec);
+            ReadReceipt receipt = new ReadReceipt(contactId, messages.get(0).getGroupId(),ids,nowSec);
             log.debug("[Read->Notify] toSender={} ids={} at={}", senderId, ids.size(), nowSec);
             messagingSyncTemplate.convertAndSendToUser(senderId, "/queue/read-receipts", receipt);
         });
