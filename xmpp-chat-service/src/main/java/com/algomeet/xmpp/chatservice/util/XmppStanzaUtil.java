@@ -62,7 +62,7 @@ public class XmppStanzaUtil {
 	 * @return {@code true} if the stanza contains conversational content; 
 	 * {@code false} if it is transient signaling.
 	 */
-	public static boolean isArchiveable(String xml) {
+	public static boolean isArchivable(String xml) {
 		// Defensive check for malformed or empty stream fragments
 		if (xml == null) {
 			return false;
@@ -179,6 +179,17 @@ public class XmppStanzaUtil {
 
 		// 2. Check if that tag starts with "presence" (ignore case, zero allocation)
 		if (firstTag != -1 && xml.regionMatches(true, firstTag, "<presence", 0, 9)) {
+			return true;
+		}
+		return false;
+	}
+	
+	public static boolean isMessageStanza(String xml) {
+		// 1. Find the first actual XML tag
+		int firstTag = xml.indexOf('<');
+
+		// 2. Check if that tag starts with "presence" (ignore case, zero allocation)
+		if (firstTag != -1 && xml.regionMatches(true, firstTag, "<message", 0, 8)) {
 			return true;
 		}
 		return false;

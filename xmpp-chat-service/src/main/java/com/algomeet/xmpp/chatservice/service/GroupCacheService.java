@@ -43,7 +43,7 @@ public class GroupCacheService {
     /** * Time-to-live for cached group metadata. 
      * Configured via {@code xmpp.cache.group-ttl} in application.yml.
      */
-    @Value("${xmpp.cache.group-ttl:30m}")
+    @Value("${cache.group.ttl:30m}")
     private Duration cacheTtl;
 
     /**
@@ -52,8 +52,11 @@ public class GroupCacheService {
      * @param groupId The unique identifier of the room/group.
      * @return {@link MucRoomDto} containing room configuration and member list.
      */
-    public MucRoomDto getCachedGroup(String groupId) {
-        return getCachedGroup(groupId, false);
+    public MucRoomDto refreshCachedGroup(String groupId) {
+    	// Clean up first
+    	evictGroup(groupId);
+    	
+        return getCachedGroup(groupId);
     }
     
     /**
@@ -68,14 +71,12 @@ public class GroupCacheService {
      * </p>
      *
      * @param groupId              The unique identifier of the room.
-     * @param isForceRefreshCache If true, bypasses the cache lookup and fetches fresh data.
      * @return The {@link MucRoomDto} retrieved from cache or the source service.
      */
-    public MucRoomDto getCachedGroup(String groupId, boolean isForceRefreshCache) {
+    public MucRoomDto getCachedGroup(String groupId) {
         String key = CACHE_KEY_PREFIX + groupId;
 
         // 1. Try to get from Redis
-        if (!isForceRefreshCache) {
             try {
                 MucRoomDto cachedDto = (MucRoomDto) redisTemplate.opsForValue().get(key);
                 if (cachedDto != null) {
@@ -86,10 +87,9 @@ public class GroupCacheService {
                 // Fail-safe: log the error but allow the request to proceed to the database/service
                 log.error("Redis error during group lookup for ID: {}. Falling back to service call.", groupId, e);
             }
-        }
 
         // 2. Cache miss or forced refresh - Call Feign Client
-        log.info("Fetching group ID: {} from group-service (Force Refresh: {}).", groupId, isForceRefreshCache);
+        log.debug("Fetching group ID: {} from group-service", groupId);
         MucRoomDto roomDto = groupClient.getGroupById(groupId);
 
         // 3. Populate Redis for next time

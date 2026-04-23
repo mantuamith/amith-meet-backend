@@ -57,68 +57,68 @@ public class XmppUserGlobalPresenceHandler {
 	 */
 	public void processPresence(ChannelHandlerContext ctx, XmppPrincipal principal, String xml) {
 
-	    // RFC 6121: Only process "self-broadcast" presence directed to server
-	    // (e.g., <presence/> or initial availability updates)
-	    if (isSelfBroadcastPresence(xml)) {
+		// RFC 6121: Only process "self-broadcast" presence directed to server
+		// (e.g., <presence/> or initial availability updates)
+		if (isSelfBroadcastPresence(xml)) {
 
-	        // Determine user availability state from presence stanza
-	        // (e.g., ONLINE, AWAY, DND, CHAT, UNAVAILABLE)
-	        UserState newState = determineState(xml);
-	        if (newState == null) return;
+			// Determine user availability state from presence stanza
+			// (e.g., ONLINE, AWAY, DND, CHAT, UNAVAILABLE)
+			UserState newState = determineState(xml);
+			if (newState == null) return;
 
-	        // 1. Update distributed session registry so other cluster nodes
-	        // can correctly reflect this user's availability
-	        userSessionRegistry.updateSessionStatus(
-	                principal.getUserKey(),
-	                principal.getSessionId(),
-	                newState
-	        );
+			// 1. Update distributed session registry so other cluster nodes
+			// can correctly reflect this user's availability
+			userSessionRegistry.updateSessionStatus(
+					principal.getUserKey(),
+					principal.getSessionId(),
+					newState
+					);
 
-	        // 2. Broadcast updated presence to contacts / subscribers
-	        // (XMPP presence fan-out mechanism)
-	        xmppUserGlobalPresenceHandler.broadcastUserPresenceAsync(
-	                ctx,
-	                principal,
-	                newState
-	        );
+			// 2. Broadcast updated presence to contacts / subscribers
+			// (XMPP presence fan-out mechanism)
+			xmppUserGlobalPresenceHandler.broadcastUserPresenceAsync(
+					ctx,
+					principal,
+					newState
+					);
 
-	        // 3. Ensure "initial session sync" logic executes only once per connection
-	        Attribute<Boolean> initialPresenceAttr =
-	                ctx.channel().attr(XmppSessionAttributes.IS_INITIAL_PRESENCE_SENT);
+			// 3. Ensure "initial session sync" logic executes only once per connection
+			Attribute<Boolean> initialPresenceAttr =
+					ctx.channel().attr(XmppSessionAttributes.IS_INITIAL_PRESENCE_SENT);
 
-	        if (initialPresenceAttr.get() == null || !initialPresenceAttr.get()) {
+			if (initialPresenceAttr.get() == null || !initialPresenceAttr.get()) {
 
-	            // Check whether this session was successfully resumed via SM (XEP-0198)
-	            AtomicBoolean smResumptionSuccess =
-	                    ctx.channel()
-	                       .attr(XmppSessionAttributes.SM_RESUMPTION_SUCCESS_KEY)
-	                       .get();
+				// Check whether this session was successfully resumed via SM (XEP-0198)
+				AtomicBoolean smResumptionSuccess =
+						ctx.channel()
+						.attr(XmppSessionAttributes.SM_RESUMPTION_SUCCESS_KEY)
+						.get();
 
-	            // A. Push contact presence snapshot ("world state")
-	            // Only needed for fresh sessions (not fully resumed ones)
-	            if (smResumptionSuccess == null || !smResumptionSuccess.get()) {
-	                xmppPresencePushHandler.pushUsersPresenceAsync(ctx, principal);
-	            }
+				// A. Push contact presence snapshot ("world state")
+				// Only needed for fresh sessions (not fully resumed ones)
+				if (smResumptionSuccess == null || !smResumptionSuccess.get()) {
+					xmppPresencePushHandler.pushUsersPresenceAsync(ctx, principal);
+				}
 
-	            // B. Deliver offline messages accumulated while user was disconnected
-	            offlineMessageHandler.deliverOfflineMessages(ctx, principal);
+				// B. Deliver offline messages accumulated while user was disconnected
+				offlineMessageHandler.deliverOfflineMessages(ctx, principal);
 
-	            // C. Deliver buffered SM stanzas if session was successfully resumed
-	            if (smResumptionSuccess != null && smResumptionSuccess.get()) {
-	                deliverBufferStanzas(ctx, principal);
-	            }
+				// C. Deliver buffered SM stanzas if session was successfully resumed
+				if (smResumptionSuccess != null && smResumptionSuccess.get()) {
+					deliverBufferStanzas(ctx, principal);
+				}
 
-	            // Mark initial sync as completed to prevent duplicate execution
-	            initialPresenceAttr.set(true);
+				// Mark initial sync as completed to prevent duplicate execution
+				initialPresenceAttr.set(true);
 
-	            log.info(
-	                    "Session activation complete for {}. Presence sync and offline recovery executed.",
-	                    principal.getUserKey()
-	            );
-	        }
-	    }
+				log.info(
+						"Session activation complete for {}. Presence sync and offline recovery executed.",
+						principal.getUserKey()
+						);
+			}
+		}
 	}
-	
+
 	/**
 	 * Detects if a presence stanza is a self-broadcast request.
 	 * <p>According to RFC 6121, a presence stanza with no 'to' attribute 
@@ -140,7 +140,7 @@ public class XmppUserGlobalPresenceHandler {
 
 		return false;
 	}
-	
+
 	/**
 	 * Extracts the UserState enum from the raw XML stanza.
 	 */
@@ -154,8 +154,8 @@ public class XmppUserGlobalPresenceHandler {
 		}
 		return null;
 	}
-	
-	
+
+
 	/**
 	 * Delivers buffered XMPP stanzas to a client after session resumption.
 	 *
@@ -185,7 +185,6 @@ public class XmppUserGlobalPresenceHandler {
 
 		// Retrieve all buffered stanzas for this SM session
 		smBufferMessageService.getStanzasForResumption(smSessionId)
-
 		// For each buffered stanza, immediately dispatch it to the client
 		.doOnNext(msg -> {
 
@@ -197,12 +196,14 @@ public class XmppUserGlobalPresenceHandler {
 					msg.getStanzaXml()
 					);
 		})
-
 		// Called when all buffered stanzas have been successfully replayed
-		.doOnComplete(() ->
-		log.info("Completed offline/SM buffer delivery for user: {}", userKey)
-				)
+		.doOnComplete(() -> {
+			
+			// Clean up buffer
+			smBufferMessageService.clearBuffer(smSessionId);
+			log.info("Completed offline/SM buffer delivery for user: {}", userKey);
 
+		})
 		// Handles unexpected errors during replay (DB, routing, serialization, etc.)
 		.doOnError(e ->
 		log.error("Failed to deliver buffered stanzas for user {}: {}",

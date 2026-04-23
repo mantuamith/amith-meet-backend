@@ -28,22 +28,107 @@ import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+/**
+ * Tracks 1-to-1 call lifecycle state in MongoDB.
+ *
+ * Responsibilities:
+ * -------------------------------------------------------
+ * 1. Store call initiation records.
+ * 2. Mark call acceptance timestamps.
+ * 3. Finalize calls and generate call logs.
+ * 4. Handle abrupt disconnects.
+ * 5. Restore active calls after reconnect.
+ * 6. Coordinate clustered nodes safely with Redis locks.
+ *
+ * Typical Flow:
+ * -------------------------------------------------------
+ * INITIATE -> ACCEPT -> ACTIVE -> END
+ *
+ * Failure Recovery Flow:
+ * -------------------------------------------------------
+ * ACTIVE -> TRANSPORT DROP -> REBIND -> ACTIVE
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class CallTrackerService {
 
+	/**
+	 * Repository abstraction for CallSession documents.
+	 *
+	 * Used for standard reactive CRUD operations.
+	 */
 	private final CallTrackerRepository repository;
-	private final ClusterMessagePublisher clusterMessagePublisher;
-	private final OfflineMessageService offlineMessageService;    
-	private final JidUtil jidUtil;
-	private final RedissonReactiveClient redissonReactiveClient;
-	private final ReactiveMongoTemplate mongoTemplate;
 
 	/**
-	 * Initiates the call record reactively.
+	 * Publishes messages to other cluster nodes.
+	 *
+	 * Allows call log messages to reach users connected
+	 * on a different application server.
 	 */
-	public Mono<CallSession> trackInitiation(String sid, String caller, String callerSid, String callee, String callType) {
+	private final ClusterMessagePublisher clusterMessagePublisher;
+
+	/**
+	 * Persists messages for offline delivery.
+	 *
+	 * If recipient is offline during call end,
+	 * the call log can still be delivered later.
+	 */
+	private final OfflineMessageService offlineMessageService;
+
+	/**
+	 * Utility for converting full JIDs to bare JIDs.
+	 *
+	 * Example:
+	 * user@domain/resource -> user@domain
+	 */
+	private final JidUtil jidUtil;
+
+	/**
+	 * Redis client used for distributed locking.
+	 *
+	 * Prevents duplicate finalization in clustered systems.
+	 */
+	private final RedissonReactiveClient redissonReactiveClient;
+
+	/**
+	 * Low-level Mongo reactive access.
+	 *
+	 * Used for atomic findAndModify operations where repository
+	 * methods are not enough.
+	 */
+	private final ReactiveMongoTemplate mongoTemplate;
+	
+	private final UnreadCountService unreadCountService;
+
+	/**
+	 * Creates a new call session record when a call starts.
+	 *
+	 * Example:
+	 * Caller taps audio/video call button.
+	 *
+	 * Stored fields:
+	 * - call SID
+	 * - caller JID
+	 * - caller transport session
+	 * - callee JID
+	 * - call type
+	 * - created timestamp
+	 *
+	 * @param sid unique call identifier
+	 * @param caller caller JID
+	 * @param callerSid caller connection/session id
+	 * @param callee callee JID
+	 * @param callType audio/video/etc
+	 * @return saved CallSession
+	 */
+	public Mono<CallSession> trackInitiation(
+			String sid,
+			String caller,
+			String callerSid,
+			String callee,
+			String callType) {
+
 		CallSession call = CallSession.builder()
 				.sid(sid)
 				.caller(caller)
@@ -54,90 +139,179 @@ public class CallTrackerService {
 				.build();
 
 		return repository.save(call)
-				.doOnSuccess(success -> log.info("Call session {} successfully save", sid))
-				.doOnError(error -> log.error("Failed to save call initiated with SID: {}", sid, error));
+				.doOnSuccess(success ->
+				log.info("Call session {} successfully save", sid))
+				.doOnError(error ->
+				log.error("Failed to save call initiated with SID: {}", sid, error));
 	}
 
 	/**
-	 * Updates acceptance status. 
-	 * Uses flatMap to chain the lookup and the save.
+	 * Marks a call as accepted by the callee.
+	 *
+	 * Updates:
+	 * - callee transport session id
+	 * - acceptedAt timestamp
+	 *
+	 * This timestamp is later used to compute duration.
+	 *
+	 * @param sid call id
+	 * @param callee callee jid
+	 * @param calleeSid callee connection id
+	 * @return updated CallSession
 	 */
-	public Mono<CallSession> trackAcceptance(String sid, String callee, String calleeSid) {
+	public Mono<CallSession> trackAcceptance(
+			String sid,
+			String callee,
+			String calleeSid) {
+
 		return repository.findFirstBySidAndCalleeOrderByCreatedAtDesc(sid, callee)
+
 				.flatMap(call -> {
 					call.setCalleeSid(calleeSid);
 					call.setAcceptedAt(Instant.now().toEpochMilli());
 					return repository.save(call);
 				})
-				.doOnSuccess(success -> log.info("Call session {} successfully updated to accepted", sid))
-				.doOnError(error -> log.error("Failed to mark Call SID {} as ACCEPTED", sid, error))
-				.switchIfEmpty(Mono.error(new RuntimeException("Call not found for SID: " + sid)));
+
+				.doOnSuccess(success ->
+				log.info("Call session {} successfully updated to accepted", sid))
+				.doOnError(error ->
+				log.error("Failed to mark Call SID {} as ACCEPTED", sid, error))
+				.switchIfEmpty(
+						Mono.error(new RuntimeException("Call not found for SID: " + sid))
+						);
 	}
 
 	/**
-	 * Remove the call record.
+	 * Deletes all records for a call SID.
+	 *
+	 * Usually used when session cleanup is required.
+	 *
+	 * @param sid call identifier
+	 * @return completion signal
 	 */
 	public Mono<Void> remove(String sid) {
 		return repository.deleteBySid(sid)
-				.doOnSuccess(success -> log.info("Call session {} successfully deleted", sid))
-				.doOnError(error -> log.error("Failed to delete Call SID {}", sid, error));
+				.doOnSuccess(success ->
+				log.info("Call session {} successfully deleted", sid))
+				.doOnError(error ->
+				log.error("Failed to delete Call SID {}", sid, error));
 	}
 
 	/**
-	 * Finalizes session, notifies parties, and then handles the document lifecycle.
+	 * Finalizes a call exactly once.
+	 *
+	 * Why locking is needed:
+	 * -------------------------------------------------------
+	 * Both participants may disconnect nearly simultaneously,
+	 * or multiple cluster nodes may process end-call events.
+	 *
+	 * Redis lock ensures only one worker finalizes the call.
+	 *
+	 * @param sid call identifier
+	 * @param userSessionId requester connection id
+	 * @param reason success / dropped / failed
+	 * @return completion signal
 	 */
-	public Mono<Void> finalizeAndNotify(String sid, String userSessionId, String reason) {
+	public Mono<Void> finalizeAndNotify(
+			String sid,
+			String userSessionId,
+			String reason) {
+
 		String lockKey = "algomeet:lock:save:call:" + sid;
 		RLockReactive lock = redissonReactiveClient.getLock(lockKey);
 
 		return Mono.usingWhen(
-				// 1. ACQUIRE: Wait 5ms, Lease 2s (prevents ghost locks)
+				/**
+				 * Try acquiring lock:
+				 * wait up to 500ms
+				 * auto-expire after 2 seconds
+				 */
 				lock.tryLock(500, 2000, TimeUnit.MILLISECONDS),
-
 				acquired -> {
 					if (!acquired) {
-						log.warn("Lock acquisition failed for SID: {}. Skipping to prevent duplicates.", sid);
+						log.warn(
+								"Lock acquisition failed for SID: {}. Skipping to prevent duplicates.",
+								sid
+								);
 						return Mono.empty();
 					}
 
-					// 2. PROCESS: The core logic now protected by the lock
+					/**
+					 * Lock acquired.
+					 * Proceed with finalization.
+					 */
 					return executeFinalization(sid, userSessionId, reason);
 				},
 
-				// 3. RELEASE: Success/Cancel/Error - Always unlock
+				/**
+				 * Always unlock after completion.
+				 */
 				acquired -> acquired ? lock.unlock() : Mono.empty()
 				)
-				.doOnError(e -> log.error("Critical failure in finalizeAndNotify for SID: {}", sid, e));
+				.doOnError(e ->
+				log.error("Critical failure in finalizeAndNotify for SID: {}", sid, e));
 	}
 
-	private Mono<Void> executeFinalization(String sid, String userSessionId, String reason) {
+	/**
+	 * Internal finalization logic after lock is acquired.
+	 *
+	 * Steps:
+	 * -------------------------------------------------------
+	 * 1. Load call session.
+	 * 2. Validate requester is participant.
+	 * 3. Compute duration.
+	 * 4. Send call logs to both users.
+	 * 5. Delete call record.
+	 */
+	private Mono<Void> executeFinalization(
+			String sid,
+			String userSessionId,
+			String reason) {
+
 		return repository.findAllBySidAndRoomIdIsNull(sid)
-				.switchIfEmpty(Mono.fromRunnable(() -> log.debug("SID {} already processed or not found.", sid)))
+				.switchIfEmpty(
+						Mono.fromRunnable(() ->
+						log.debug("SID {} already processed or not found.", sid)))
 				.filter(session -> session.getRoomId() == null)
 				.flatMap(session -> {
-					// Validate participant
-					if (!isParticipant(session, userSessionId)) return Mono.empty();
 
-					// Prepare Data
+					/**
+					 * Ignore malicious or stale requests
+					 * from non-participants.
+					 */
+					if (!isParticipant(session, userSessionId)) {
+						return Mono.empty();
+					}
+
 					long now = Instant.now().toEpochMilli();
 					long duration = calculateDuration(session, now);
 					String timestamp = formatIso(now);
-					String status = "success".equalsIgnoreCase(reason) ? "success" : "dropped";
+					String status =
+							"success".equalsIgnoreCase(reason)
+							? "success"
+									: "dropped";
 
-					// Notification Logic
+					/**
+					 * Queue call summary messages for both parties.
+					 */
 					sendCallLogs(session, sid, duration, status, timestamp);
 
-					// 4. ATOMICITY: Delete after notifications are queued
-					// In a true production environment, consider a 'processed' flag instead of deletion
+					/**
+					 * Delete tracker after messages are queued.
+					 *
+					 * Alternative production design:
+					 * set processed=true instead of deleting.
+					 */
 					return repository.deleteBySid(sid);
 				})
 				.then();
 	}
 
-	// --- Helper Methods for Cleanliness ---    
 	/**
-	 * Formats a millisecond timestamp into a UTC ISO-8601 string.
-	 * Example: 2026-04-10T13:24:22Z
+	 * Convert epoch millis into ISO-8601 UTC string.
+	 *
+	 * Example:
+	 * 2026-04-10T13:24:22Z
 	 */
 	private String formatIso(long now) {
 		return Instant.ofEpochMilli(now)
@@ -145,45 +319,139 @@ public class CallTrackerService {
 				.format(DateTimeFormatter.ISO_INSTANT);
 	}
 
-	private boolean isParticipant(CallSession session, String userSessionId) {
-		return (userSessionId.equalsIgnoreCase(session.getCallerSid()) || 
-				userSessionId.equalsIgnoreCase(session.getCalleeSid()));
+	/**
+	 * Verifies whether a connection belongs to either
+	 * participant of the call.
+	 *
+	 * Prevents unauthorized finalization attempts.
+	 */
+	private boolean isParticipant(
+			CallSession session,
+			String userSessionId) {
+		return (
+				userSessionId.equalsIgnoreCase(session.getCallerSid())
+				|| userSessionId.equalsIgnoreCase(session.getCalleeSid())
+				);
 	}
 
-	private long calculateDuration(CallSession session, long now) {
-		if (session.getAcceptedAt() != null && session.getAcceptedAt() > 0) {
+	/**
+	 * Calculates talk duration in seconds.
+	 *
+	 * If call was never accepted,
+	 * duration remains zero.
+	 */
+	private long calculateDuration(
+			CallSession session,
+			long now) {
+
+		if (session.getAcceptedAt() != null
+				&& session.getAcceptedAt() > 0) {
 			return (now - session.getAcceptedAt()) / 1000;
 		}
+
 		return 0;
 	}
 
-	private void sendCallLogs(CallSession session, String sid, long duration, String status, String ts) {
+	/**
+	 * Sends end-call log messages to caller and callee.
+	 *
+	 * Each side receives:
+	 * - readable body text
+	 * - structured <call-log/> extension
+	 */
+	private void sendCallLogs(
+			CallSession session,
+			String sid,
+			long duration,
+			String status,
+			String ts) {
+
 		String callerJid = jidUtil.getBareJid(session.getCaller());
 		String calleeJid = jidUtil.getBareJid(session.getCallee());
 
 		String callerMsgId = UUID.randomUUID().toString();
 		String calleeMsgId = UUID.randomUUID().toString();
 
-		String callerMsg = composeCallLogStanza(callerMsgId, callerJid, calleeJid, sid, session.getCallType(), duration, status, ts);
+		// Send compose and send call logs to caller
+		String callerMsg = composeCallLogStanza(
+				callerMsgId,
+				callerJid,
+				calleeJid,
+				sid,
+				session.getCallType(),
+				duration,
+				status,
+				ts
+				);
+
 		publish(callerMsgId, session.getCaller(), session.getCallee(), ChatType.CHAT, callerMsg);
 
-		String calleeMsg = composeCallLogStanza(calleeMsgId, calleeJid, callerJid, sid, session.getCallType(), duration, status, ts);
+		// Send compose and send call logs to responder/callee
+		String calleeMsg = composeCallLogStanza(
+				calleeMsgId,
+				calleeJid,
+				callerJid,
+				sid,
+				session.getCallType(),
+				duration,
+				status,
+				ts
+				);
+
 		publish(calleeMsgId, session.getCallee(), session.getCaller(), ChatType.CHAT, calleeMsg);
 	}
 
-	private void publish(String id, String to, String from, ChatType chatType, String payload) {    	
+	/**
+	 * Sends message through:
+	 *
+	 * 1. Offline storage
+	 * 2. Cluster live routing
+	 *
+	 * This guarantees both persistence and live delivery.
+	 */
+	private void publish(
+			String id,
+			String to,
+			String from,
+			ChatType chatType,
+			String payload) {
+
 		offlineMessageService.save(id, to, from, XmppMessageType.CHAT.getXmlValue(), payload)
-		.doOnError(e -> {
-			log.error("Storage failure for message {}: {}", id, e.getMessage(), e);
+		.doOnSuccess(success -> {
+			// Increment unread message counter
+			unreadCountService.incrementUnreadCount(from, to);
 		})
+		.doOnError(e -> {
+			log.error(
+					"Storage failure for message {}: {}", id, e.getMessage(), e	);
+			})
 		.subscribe();
 
-		// publish to cluster for synchronization
+		/**
+		 * Push immediately to connected nodes/users.
+		 */
 		clusterMessagePublisher.convertAndSendToUser(id, to, from, chatType, payload);
 	}
 
-	private String composeCallLogStanza(String id, String to, String from, String sid, String type, long duration, String status, String timestamp) {
-		// Constructing the final XML payload
+	/**
+	 * Builds XMPP call-log stanza.
+	 *
+	 * Example payload:
+	 * <message>
+	 *   <body>Video call ended...</body>
+	 *   <call-log .../>
+	 * </message>
+	 */
+	private String composeCallLogStanza(
+			String id,
+			String to,
+			String from,
+			String sid,
+			String type,
+			long duration,
+			String status,
+			String timestamp) {
+
 		String stanza = String.format(
 				"<message id='%s' to='%s' from='%s' type='chat'>" +
 						"<body>%s call ended. Duration: %ds</body>" +
@@ -194,7 +462,14 @@ public class CallTrackerService {
 						"status='%s' " +
 						"timestamp='%s' />" +
 						"</message>",
-						id, to, from, capitalize(type), duration, sid, type, duration, status, timestamp
+						id, to, from,
+						capitalize(type),
+						duration,
+						sid,
+						type,
+						duration,
+						status,
+						timestamp
 				);
 
 		log.debug("Outbound XMPP Stanza: {}", stanza);
@@ -202,99 +477,138 @@ public class CallTrackerService {
 		return stanza;
 	}
 
+	/**
+	 * Uppercase first letter only.
+	 *
+	 * video -> Video
+	 */
 	private String capitalize(String str) {
-		return (str == null || str.isEmpty()) ? "" : str.substring(0, 1).toUpperCase() + str.substring(1);
-	}   
+		return (str == null || str.isEmpty())
+				? "" : str.substring(0, 1).toUpperCase() + str.substring(1);
+	}
 
 	/**
-	 * Handles an abrupt transport layer disconnect (e.g., WebSocket closure).
-	 * Instead of terminating the call for both parties, it marks only the 
-	 * disconnected party as 'DROPPED', allowing for a potential reconnection.
+	 * Handles abrupt connection loss.
 	 *
-	 * @param userSessionId The unique WebSocket/Connection ID that was lost.
-	 * @return A Mono containing the updated CallSession or empty if no active call was found.
+	 * Example:
+	 * - websocket close
+	 * - network drop
+	 * - app killed
+	 *
+	 * Instead of ending the call immediately,
+	 * only mark one side as DROPPED.
+	 *
+	 * This gives user a chance to reconnect.
+	 *
+	 * @param userSessionId lost connection id
+	 * @return updated CallSession
 	 */
 	public Mono<CallSession> handleTransportDrop(String userSessionId) {
-		// Look for any active session where this connection ID was either the caller or callee
-		return repository.findByCallerSidOrCalleeSid(userSessionId, userSessionId)
-				.next() // Take the most recent active session from the Flux
-				.filter(session -> session.getTerminatedAt() == null)
+		return repository.findByCallerSidOrCalleeSid(
+				userSessionId,
+				userSessionId
+				)
+				.next()
+				.filter(session -> (session.getRoomId() == null && session.getTerminatedAt() == null))
 				.flatMap(session -> {
-					// Determine asymmetrically which side of the call dropped
-					boolean isCaller = userSessionId.equals(session.getCallerSid());
-					String statusField = isCaller ? "callerStatus" : "calleeStatus";
 
-					// Use the primary key (_id) for the most performant atomic update
+					boolean isCaller = userSessionId.equals(session.getCallerSid());					
+					String statusField = isCaller ? "callerStatus" : "calleeStatus";
 					Query query = new Query(Criteria.where("id").is(session.getId()));
 
-					// Atomically update only the status of the dropped party and set termination timestamp
 					Update update = new Update()
 							.set(statusField, CallStatus.DROPPED)
-							.set("terminatedAt", Instant.now().toEpochMilli());
+							.set("terminatedAt",
+									Instant.now().toEpochMilli());
 
-					// findAndModify ensures we get the updated state back in one database round-trip
 					return mongoTemplate.findAndModify(
 							query,
 							update,
-							FindAndModifyOptions.options().returnNew(true),
+							FindAndModifyOptions.options()
+							.returnNew(true),
 							CallSession.class
 							);
 				})
 				.doOnSuccess(s -> {
-					if (s != null) log.info("Suspending call finished for session {}", s.getSid());
+					if (s != null) {
+						log.info("Suspending call finished for session {}",	s.getSid());
+					}
 				})
-				.doOnError(e -> log.error("Suspending call error for old session {}", userSessionId, e));
+				.doOnError(e -> {
+					log.error("Suspending call error for old session {}", userSessionId, e);
+				});
 	}
 
 	/**
-	 * Re-attaches a new transport connection to an existing but 'DROPPED' call session.
-	 * This effectively "stitches" the call back together after a user reconnects.
+	 * Rebinds a reconnected transport session.
 	 *
-	 * @param oldUserSid The stale WebSocket/Connection ID that was previously dropped.
-	 * @param newUserSid The new WebSocket/Connection ID generated upon reconnection.
-	 * @return A Mono containing the restored CallSession.
+	 * Example:
+	 * old websocket id disconnected
+	 * new websocket id created
+	 *
+	 * Replace old sid with new sid and restore CONNECTED state.
+	 *
+	 * @param oldUserSid stale connection id
+	 * @param newUserSid new connection id
+	 * @return restored sessions
 	 */
-	public Flux<CallSession> updateSessionRebind(String oldUserSid, String newUserSid) {
-		return repository.findByCallerSidOrCalleeSid(oldUserSid, oldUserSid)
-				// Logic Gate: Filter for sessions that actually need recovery
+	public Flux<CallSession> updateSessionRebind(
+			String oldUserSid,
+			String newUserSid) {
+
+		return repository.findByCallerSidOrCalleeSid(
+				oldUserSid,
+				oldUserSid
+				)
 				.filter(session -> {
-					log.info("Evaluating rebind for session {}: Caller[{}]={}, Callee[{}]={}", 
-							session.getSid(), session.getCallerSid(), session.getCallerStatus(), 
-							session.getCalleeStatus());
+
+					log.info("Evaluating rebind for session {}: Caller[{}]={}, Callee[{}]={}",
+							session.getSid(),
+							session.getCallerSid(),
+							session.getCallerStatus(),
+							session.getCalleeSid(),
+							session.getCalleeStatus()
+							);
 
 					return (session.getRoomId() == null
-							&& (session.getCallerStatus() == CallStatus.DROPPED 
+							&& (session.getCallerStatus() == CallStatus.DROPPED
 							|| session.getCalleeStatus() == CallStatus.DROPPED));
 				})
+
 				.flatMap(session -> {
-					// Identify which specific fields to "re-bind" to the new connection
-					boolean isCaller = oldUserSid.equals(session.getCallerSid());
+					boolean isCaller =
+							oldUserSid.equals(session.getCallerSid());
+
 					String sidField = isCaller ? "callerSid" : "calleeSid";
 					String statusField = isCaller ? "callerStatus" : "calleeStatus";
 
-					// Query by ID to leverage the primary key for the atomic update
-					Query query = new Query(Criteria.where("id").is(session.getId()));
+					Query query =
+							new Query(Criteria.where("id").is(session.getId()));
 
-					// Restore the session: swap connection IDs, reset status, and clear termination timer
 					Update update = new Update()
 							.set(sidField, newUserSid)
 							.set(statusField, CallStatus.CONNECTED)
 							.set("terminatedAt", null)
 							.set("updatedAt", Instant.now());
 
-					log.info("Rebinding connection for {}: {} -> {} (Session: {})", 
-							isCaller ? "CALLER" : "CALLEE", oldUserSid, newUserSid, session.getSid());
+					log.info("Rebinding connection for {}: {} -> {} (Session: {})",
+							isCaller ? "CALLER" : "CALLEE",
+									oldUserSid,
+									newUserSid,
+									session.getSid()
+							);
 
-					// Atomically modify and return the updated document
 					return mongoTemplate.findAndModify(
 							query,
 							update,
-							FindAndModifyOptions.options().returnNew(true),
+							FindAndModifyOptions.options()
+							.returnNew(true),
 							CallSession.class
 							);
 				})
-				// Log individual completions
-				.doOnNext(s -> log.debug("Rebind finished for session {}", s.getSid()))
-				.doOnError(e -> log.error("Rebind error for old connection identifier: {}", oldUserSid, e));
+				.doOnNext(s ->
+				log.debug("Rebind finished for session {}",	s.getSid()))
+				.doOnError(e ->
+				log.error("Rebind error for old connection identifier: {}",	oldUserSid,	e));
 	}
 }

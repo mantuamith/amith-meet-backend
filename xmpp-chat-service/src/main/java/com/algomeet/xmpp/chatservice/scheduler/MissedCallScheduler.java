@@ -19,6 +19,7 @@ import com.algomeet.multitenancy.context.TenantContext;
 import com.algomeet.notificationservice.dto.Notification;
 import com.algomeet.notificationservice.enums.NotificationType;
 import com.algomeet.notificationservice.service.NotificationService;
+import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.dto.MucMember;
 import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
@@ -44,7 +45,7 @@ import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
 /**
- * <h2>Missed Call Background Worker (Reactive)</h2>
+ * <h2>Direct Missed Call Background Worker (Reactive)</h2>
  * <p>
  * This worker manages the lifecycle of unanswered Jingle (XEP-0166) sessions. 
  * It monitors a Redis Sorted Set for call timeouts and orchestrates missed call
@@ -71,7 +72,7 @@ public class MissedCallScheduler {
 	private final RedissonReactiveClient redissonReactiveClient;
 	private final ReactiveRedisTemplate<String, String> reactiveRedisTemplate;
 	private final CallTrackerRepository callTrackerRepository;
-	
+
 	/**
 	 * Main execution trigger. Subscribes to the reactive chain every second.
 	 * Using {@code fixedDelay} ensures that a new execution doesn't start until
@@ -79,45 +80,45 @@ public class MissedCallScheduler {
 	 */
 	@Scheduled(fixedDelay = 1000)
 	public void processExpiredCalls() {
-		loadMissedCalls().subscribe();
+		loadMissedCalls(null).subscribe();
 	}
 
 	/**
 	 * Scans for expired sessions and acquires a distributed lock to prevent multi-node processing.
 	 * * @return A Mono signal indicating completion of the batch process.
 	 */
-	private Mono<Void> loadMissedCalls() {
-	    String lockKey = "algomeet:lock:process:missed-calls";
-	    RLockReactive lock = redissonReactiveClient.getLock(lockKey);
+	private Mono<Void> loadMissedCalls(XmppPrincipal principal) {
+		String lockKey = "algomeet:lock:process:missed-calls";
+		RLockReactive lock = redissonReactiveClient.getLock(lockKey);
 
-	    return Mono.<Void, Boolean>usingWhen(
-	            // 1. ACQUIRE: Short wait time (300ms) with a safety lease (1s)
-	            lock.tryLock(300, 1000, TimeUnit.MILLISECONDS),
-	            acquired -> {
-	                if (!acquired) {
-	                    return Mono.<Void>empty();
-	                }
+		return Mono.<Void, Boolean>usingWhen(
+				// 1. ACQUIRE: Short wait time (300ms) with a safety lease (1s)
+				lock.tryLock(300, 1000, TimeUnit.MILLISECONDS),
+				acquired -> {
+					if (!acquired) {
+						return Mono.<Void>empty();
+					}
 
-	                long now = System.currentTimeMillis();
-	                
-	                // 2. QUERY: Fetch all SIDs whose score (timeout) is <= now
-	                return reactiveRedisTemplate.opsForZSet()
-	                        .rangeByScore(CallSessionRedisKey.DELAYED_QUEUE.getVal(), Range.closed(0.0, (double) now))
-	                        .<Void>flatMap(sid -> 
-	                            // 3. ATOMIC REMOVE: Only the node that deletes the SID processes it
-	                            reactiveRedisTemplate.opsForZSet()
-	                                .remove(CallSessionRedisKey.DELAYED_QUEUE.getVal(), sid)
-	                                .flatMap(removed -> (removed != null && removed > 0) 
-	                                    ? processMissedCallReactive(sid) 
-	                                    : Mono.<Void>empty())
-	                        )
-	                        .then();
-	            },
-	            // 4. CLEANUP: Safe unlock logic to prevent IllegalMonitorStateException crashes
-	            acquired -> acquired ? safeUnlock(lock) : Mono.empty(),
-	            (acquired, err) -> acquired ? safeUnlock(lock) : Mono.empty(),
-	            acquired -> acquired ? safeUnlock(lock) : Mono.empty()
-	    );
+					long now = System.currentTimeMillis();
+
+					// 2. QUERY: Fetch all SIDs whose score (timeout) is <= now
+					return reactiveRedisTemplate.opsForZSet()
+							.rangeByScore(CallSessionRedisKey.DIRECT_CALL_TIMEOUT_QUEUE.getVal(), Range.closed(0.0, (double) now))
+							.<Void>flatMap(sid -> 
+							// 3. ATOMIC REMOVE: Only the node that deletes the SID processes it
+							reactiveRedisTemplate.opsForZSet()
+							.remove(CallSessionRedisKey.DIRECT_CALL_TIMEOUT_QUEUE.getVal(), sid)
+							.flatMap(removed -> (removed != null && removed > 0) 
+									? processMissedCallReactive(sid) 
+											: Mono.<Void>empty())
+									)
+							.then();
+				},
+				// 4. CLEANUP: Safe unlock logic to prevent IllegalMonitorStateException crashes
+				acquired -> acquired ? safeUnlock(lock) : Mono.empty(),
+						(acquired, err) -> acquired ? safeUnlock(lock) : Mono.empty(),
+								acquired -> acquired ? safeUnlock(lock) : Mono.empty()
+				);
 	}
 
 	/**
@@ -126,12 +127,12 @@ public class MissedCallScheduler {
 	 * to prevent breaking the reactive operator chain.
 	 */
 	private Mono<Void> safeUnlock(RLockReactive lock) {
-	    return lock.unlock()
-	            .onErrorResume(IllegalMonitorStateException.class, e -> {
-	                log.debug("Lock already released or ownership transferred: {}", e.getMessage());
-	                return Mono.empty();
-	            })
-	            .then();
+		return lock.unlock()
+				.onErrorResume(IllegalMonitorStateException.class, e -> {
+					log.debug("Lock already released or ownership transferred: {}", e.getMessage());
+					return Mono.empty();
+				})
+				.then();
 	}
 
 	/**
@@ -140,69 +141,64 @@ public class MissedCallScheduler {
 	 * @return Mono<Void>
 	 */
 	private Mono<Void> processMissedCallReactive(String sid) {
-	    String metaKey = CallSessionRedisKey.PENDING_CALL_PREFIX.format(sid);
+		String metaKey = CallSessionRedisKey.CALL_METADATA_PREFIX.format(sid);
 
-	    return reactiveRedisTemplate.opsForHash().entries(metaKey)
-	            .collectMap(
-	                entry -> entry.getKey().toString(), 
-	                entry -> entry.getValue().toString()
-	            )
-	            .flatMap(metadata -> {
-	                if (metadata.isEmpty()) {
-	                    log.warn("Missed call metadata missing for SID: {}.", sid);
-	                    return Mono.empty();
-	                }
+		return reactiveRedisTemplate.opsForHash().entries(metaKey)
+				.collectMap(
+						entry -> entry.getKey().toString(), 
+						entry -> entry.getValue().toString()
+						)
+				.flatMap(metadata -> {
+					if (metadata.isEmpty()) {
+						log.warn("Missed call metadata missing for SID: {}.", sid);
+						return Mono.empty();
+					}
 
-	                String toJid = (String) metadata.get(CallSessionMetadata.TO.getKey());
-	                String fromJid = (String) metadata.get(CallSessionMetadata.FROM.getKey());
-	                String type = (String) metadata.get(CallSessionMetadata.CALL_TYPE.getKey());
-	                String tenantId = (String) metadata.get(CallSessionMetadata.TENANT_ID.getKey());
-	                String username = (String) metadata.get(CallSessionMetadata.USERNAME.getKey());
-	                String groupId = (String) metadata.get(CallSessionMetadata.GROUP_ID.getKey());
+					String toJid = (String) metadata.get(CallSessionMetadata.TO.getKey());
+					String fromJid = (String) metadata.get(CallSessionMetadata.FROM.getKey());
+					String type = (String) metadata.get(CallSessionMetadata.CALL_TYPE.getKey());
+					String tenantId = (String) metadata.get(CallSessionMetadata.TENANT_ID.getKey());
+					String username = (String) metadata.get(CallSessionMetadata.USERNAME.getKey());
 
-	                int tenantIdInt = Integer.parseInt(tenantId);
-	                String toUserKey = XmppUtil.getUserKey(toJid);
+					int tenantIdInt = Integer.parseInt(tenantId);
+					String toUserKey = XmppUtil.getUserKey(toJid);
 
-	                log.info("Processing missed call SID: {} for user: {}", sid, toUserKey);
+					log.info("Processing missed call SID: {} for user: {}", sid, toUserKey);
 
-	                // --- CHANGE STARTS HERE ---
-	                // Wrap EVERYTHING that touches synchronous Redis/Registry into the Runnable
-	                return Mono.fromRunnable(() -> {
-	                    TenantContext.setCurrentTenant(tenantIdInt);
-	                    try {
-	                        // Move the blocking Registry call INSIDE the protected thread
-	                        Set<UserSession> userSessions = userSessionRegistry.getSessions(toUserKey);
-	                        boolean hasActiveSession = !CollectionUtils.isEmpty(userSessions) && userSessions.stream()
-	                                .anyMatch(s -> UserState.ACTIVE == s.getState());
+					// --- CHANGE STARTS HERE ---
+					// Wrap EVERYTHING that touches synchronous Redis/Registry into the Runnable
+					return Mono.fromRunnable(() -> {
+						TenantContext.setCurrentTenant(tenantIdInt);
+						try {
+							// Move the blocking Registry call INSIDE the protected thread
+							Set<UserSession> userSessions = userSessionRegistry.getSessions(toUserKey);
+							boolean hasActiveSession = !CollectionUtils.isEmpty(userSessions) && userSessions.stream()
+									.anyMatch(s -> UserState.ACTIVE == s.getState());
 
-	                        if (StringUtils.hasText(groupId) && Long.parseLong(groupId) > 0) {
-	                            sendGroupChatMissedCallStanza(fromJid, toJid, sid, type, groupId);
-	                        } else {
-	                            sendMissedCallStanza(fromJid, toJid, sid, type);
-	                            sendMissedCallStanza(toJid, fromJid, sid, type);
-	                            
-	                            // Delete by session ID
-	                            callTrackerRepository.deleteBySidAndCallee(sid, toUserKey).subscribe();
-	                        }
 
-	                        if (!hasActiveSession) {
-	                            sendPush(toUserKey,
-	                                    "video".equalsIgnoreCase(type) ? NotificationType.VIDEO_MISSED_CALL : NotificationType.AUDIO_MISSED_CALL,
-	                                    "Missed " + type + " Call",
-	                                    String.format("Missed %s call from %s", type, username),
-	                                    tenantIdInt);
-	                        }	                     
-	                    } finally {
-	                        TenantContext.clear();
-	                    }
-	                })
-	                .subscribeOn(Schedulers.boundedElastic()) // This ensures the Runnable doesn't block Netty
-	                .then(reactiveRedisTemplate.delete(metaKey))
-	                .then();
-	                // --- CHANGE ENDS HERE ---
-	            });
+							sendMissedCallStanza(fromJid, toJid, sid, type);
+							sendMissedCallStanza(toJid, fromJid, sid, type);
+
+							// Delete by session ID
+							callTrackerRepository.deleteBySid(sid).subscribe();
+
+							if (!hasActiveSession) {
+								sendPush(toUserKey,
+										"video".equalsIgnoreCase(type) ? NotificationType.VIDEO_MISSED_CALL : NotificationType.AUDIO_MISSED_CALL,
+												"Missed " + type + " Call",
+												String.format("Missed %s call from %s", type, username),
+												tenantIdInt);
+							}	                     
+						} finally {
+							TenantContext.clear();
+						}
+					})
+							.subscribeOn(Schedulers.boundedElastic()) // This ensures the Runnable doesn't block Netty
+							.then(reactiveRedisTemplate.delete(metaKey))
+							.then();
+				});
 	}
-	
+
 	/**
 	 * Generates a chat message with a custom 'call-log' extension.
 	 * Persists to offline storage for MAM/Archive and publishes to the cluster.
@@ -224,49 +220,13 @@ public class MissedCallScheduler {
 
 		offlineMessageService.save(id, toUserKey, fromUserKey, XmppMessageType.HEADLINE.getXmlValue(), xml)
 		.doOnSuccess(success -> {
-			System.out.println("MISSCALL : " + id);
 			// Publish after successfully saved
 			clusterMessagePublisher.convertAndSendToUser(id, toUserKey, fromUserKey, ChatType.CHAT, xml);
 		})
 		.doOnError(e -> log.error("MAM Persistence failed for SID {}: {}", sid, e.getMessage()))
 		.subscribe();
 
-		
-	}
 
-	/**
-	 * specialized MUC (Multi-User Chat) handler.
-	 * Archives events using {@code xmppArchiveService} to ensure visibility in group history.
-	 */
-	private void sendGroupChatMissedCallStanza(String fromJid, String toJid, String sid, String type, String groupId) {
-		String id = java.util.UUID.randomUUID().toString();
-		String fromUserKey = XmppUtil.getUserKey(fromJid);
-		String toUserKey = XmppUtil.getUserKey(toJid);	
-
-		MucRoomDto group = groupCacheService.getCachedGroup(groupId);
-		Optional<MucMember> callerMucMember = group.getMembers().stream()
-				.filter(m -> m.getUserKey().equals(fromUserKey)).findFirst();
-
-		String caller = jidUtil.getGroupBareJid(groupId) + "/" + 
-				(callerMucMember.isPresent() ? callerMucMember.get().getUserKey() : "Unknown");
-
-		String xml = String.format(
-				"<message from='%s' to='%s' type='groupchat' id='%s'>" +
-						"<subject>Missed %s Call</subject>" +
-						"<body>Missed %s call</body>" +
-						"<call-log xmlns='urn:xmpp:algomeet:calls' type='%s' status='missed' timestamp='%s' sid='%s'/>" +
-						"</message>",
-						caller, toJid, id, type, type, type, Instant.now().toString(), sid
-				);	
-
-		StanzaInfo info = StanzaInfo.builder().stanzaId(UUID.randomUUID().toString().toLowerCase()).build();
-
-		xmppArchiveService.archiveEvent(xml, info, jidUtil.getGroupBareJid(groupId), toUserKey, 
-				fromJid, UlidCreator.getMonotonicUlid().toLowerCase())
-		.doOnError(e -> log.error("MUC Archive failed: {}", e.getMessage()))
-		.subscribe();
-
-		clusterMessagePublisher.convertAndSendToUser(id, toUserKey, fromUserKey, ChatType.GROUPCHAT, xml);
 	}
 
 	/**

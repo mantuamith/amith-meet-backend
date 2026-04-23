@@ -94,13 +94,13 @@ public class MucMessageRouter {
 		boolean hasSessions = !CollectionUtils.isEmpty(userSessions);
 
 		// 4. Publish to cluster server
-		clusterMessagePublisher.convertAndSendToUser(id, toUserKey, principal.getUserKey(), ChatType.GROUPCHAT, finalForwardXml);
+		clusterMessagePublisher.convertAndSendToUser(id, toUserKey, principal.getUserKey(), ChatType.GROUPCHAT, false, finalForwardXml, principal);
 
 		// 5. Push Notifications (Offline Storage logic)
 		boolean hasActiveSession = hasSessions && userSessions.stream().anyMatch(s -> UserState.ACTIVE == s.getState());
 
 		if (!hasActiveSession) {					
-			if ((msgType.supportsOfflineStorage() && XmppStanzaUtil.isArchiveable(originalXml)) || isJingleSessionInitiate) {
+			if ((msgType.supportsOfflineStorage() && XmppStanzaUtil.isArchivable(originalXml)) || isJingleSessionInitiate) {
 				if (isJingleSessionInitiate) {
 					jingleNotificationHandler.handlePush(ctx, id, toUserKey, XmppUtil.getUserKey(fromJid), originalXml, principal);
 				} else {

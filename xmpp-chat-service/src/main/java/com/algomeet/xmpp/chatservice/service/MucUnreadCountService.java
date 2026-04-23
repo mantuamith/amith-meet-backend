@@ -9,6 +9,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
+import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.document.MucUnreadCount;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
@@ -49,7 +50,7 @@ public class MucUnreadCountService {
 
 	public Mono<Void> incrementForRoomMembers(String roomId, List<String> memberKeys, String senderKey) {
 		return Flux.fromIterable(memberKeys)
-				//.filter(memberKey -> !memberKey.equals(senderKey)) // Don't notify the sender
+				.filter(memberKey -> !memberKey.equals(senderKey)) // Don't notify the sender
 				.flatMap(memberKey -> incrementUnreadCount(memberKey, roomId))
 				.then();
 	}
@@ -58,7 +59,7 @@ public class MucUnreadCountService {
 	 * Non-blocking decrement of the unread count for a specific MUC room.
 	 * Ensures the count does not drop below zero using an atomic operation.
 	 */
-	public Mono<MucUnreadCount> decrementUnreadCount(String userKey, String roomId) {
+	public Mono<MucUnreadCount> decrementUnreadCount(String userKey, String roomId, XmppPrincipal principal) {
 		String id = String.format("%s_%d", userKey, roomId);
 
 		// Atomic decrement: only execute if the current count is greater than 0
@@ -70,18 +71,6 @@ public class MucUnreadCountService {
 		return reactiveMongoTemplate.updateFirst(query, update, MucUnreadCount.class)
 				.then(reactiveMongoTemplate.findById(id, MucUnreadCount.class))
 				.flatMap(mucUnreadCount -> {
-					// --- XMPP Device Synchronization ---
-					// If the user has multiple active sessions, broadcast the new count 
-					// to ensure consistent UI badges across all devices.
-					if (userSessionRegistry.getSessions(userKey).size() > 1) {
-						String payload = MucCountUtil.composeMucCountSync(
-								domainProperties.getDomain(),
-								jidUtil.getBareJid(userKey),
-								roomId,
-								mucUnreadCount.getUnreadCount()
-						);
-						clusterMessagePublisher.convertAndSendToUser(id, userKey, userKey, ChatType.CHAT, payload);
-					}
 					return Mono.just(mucUnreadCount);
 				});
 	}

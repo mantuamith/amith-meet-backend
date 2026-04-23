@@ -8,11 +8,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.HashOperations;
 import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.stereotype.Repository;
+import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 
 import com.algomeet.xmpp.chatservice.enums.UserState;
@@ -44,17 +45,25 @@ import lombok.extern.slf4j.Slf4j;
  * @author Algomeet Core Team
  */
 @Slf4j
-@Repository
-@RequiredArgsConstructor
+@Component
 public class UserSessionRegistry {
-
     private static final String USER_SESSIONS_KEY_PREFIX = "algomeet:chat-user-sessions:";
+    
     private final RedisTemplate<String, String> redisTemplate;
+    
     private final ObjectMapper objectMapper;
 
     // For zombie sessions cleanup
     @Value("${session.zombie-max-age-hours:168}") // Defaults to 7 days if missing
     private int zombieMaxAgeHours;
+    
+    public UserSessionRegistry(
+            @Qualifier("stringRedisTemplate") RedisTemplate<String, String> redisTemplate,
+            ObjectMapper objectMapper
+    ) {
+        this.redisTemplate = redisTemplate;
+        this.objectMapper = objectMapper;
+    }
     
     /**
      * Generates the Redis key for a specific user's session hash.
