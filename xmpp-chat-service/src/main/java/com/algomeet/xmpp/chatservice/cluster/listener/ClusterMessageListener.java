@@ -41,7 +41,7 @@ public class ClusterMessageListener {
 
     /**
      * Entry point for messages arriving from the cluster infrastructure (e.g., Redis Pub/Sub).
-     * * @param rawMessage The raw JSON string representing the {@link ClusterSyncMessage}.
+     * @param rawMessage The raw string representing the {@link ClusterSyncMessage}.
      * @param channel    The cluster-wide topic or channel name (e.g., 'xmpp.sync.stanzas').
      */
     public void onMessage(String rawMessage, String channel) {
@@ -75,7 +75,7 @@ public class ClusterMessageListener {
 
          * </ol>
          *
-         * <p>{@code ClusterSyncProtocolUtil.V1_FIELD_COUNT} should be set to {@code 7} so the split
+         * <p>{@code ClusterSyncProtocolUtil.V1_FIELD_COUNT} should be set to {@code ClusterSyncProtocolUtil.V1_FIELD_COUNT} so the split
          * operation stops after the expected number of fields.</p>
          */
         String[] message =
@@ -90,27 +90,9 @@ public class ClusterMessageListener {
          * - protocol mismatch between publisher/subscriber versions
          * - ArrayIndexOutOfBoundsException
          */
-        if (message != null && message.length == ClusterSyncProtocolUtil.V1_FIELD_COUNT) {
+        if (message != null 
+        		&& message.length == ClusterSyncProtocolUtil.V1_FIELD_COUNT) {
 
-            /**
-             * Forward the message to the local stanza dispatcher.
-             *
-             * This means the current node has received the cluster event and now
-             * attempts delivery to sessions physically connected to this server.
-             *
-             * Parameters:
-             *
-             * message[1] = stanza/message ID
-             * message[2] = recipient user key / JID
-             * message[5] = allowEcho flag ("1" => true)
-             * message[6] = originating session ID
-             * message[7] = raw XML payload
-             *
-             * Note:
-             * Fields [3] and [4] are not required here because local dispatch may only
-             * need routing metadata + payload. They can still be retained for auditing
-             * or future enhancements.
-             */
         	String id = message[1];
         	String to = message[2];
         	String from = message[3];
