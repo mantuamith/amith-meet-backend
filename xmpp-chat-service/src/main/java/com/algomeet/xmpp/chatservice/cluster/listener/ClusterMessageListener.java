@@ -154,7 +154,7 @@ public class ClusterMessageListener {
             }
 
             log.info("Successfully processed cluster sync for Stanza ID: {}",
-                message[1]
+                id
             );
         }
     }   
