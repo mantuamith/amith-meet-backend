@@ -103,7 +103,7 @@ public class MucCallLifeCycleTracker {
 	 * If timeout worker crashes or call flow breaks,
 	 * metadata auto-expires after N minutes.
 	 */
-	@Value("${call.session-metadata-ttl-minutes:2}")
+	@Value("${call.session-metadata-ttl-minutes:3}")
 	private Integer callSessionMetadataTtlMinutes;
 
 	/**

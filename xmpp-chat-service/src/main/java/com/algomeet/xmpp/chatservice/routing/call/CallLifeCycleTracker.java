@@ -41,7 +41,7 @@ public class CallLifeCycleTracker {
 	private final CallTrackerService callTrackerService;
 	private final UnreadCountService unreadCountService;
 
-	@Value("${call.session-metadata-ttl-minutes:2}")
+	@Value("${call.session-metadata-ttl-minutes:3}")
 	private Integer callSessionMetadataTtlMinutes;
 
 	@Value("${call.ringing-timeout-seconds:30}")
