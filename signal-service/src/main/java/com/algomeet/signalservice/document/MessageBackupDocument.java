@@ -9,6 +9,7 @@ import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
 
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
@@ -21,7 +22,7 @@ import lombok.NoArgsConstructor;
 @CompoundIndexes({
 	@CompoundIndex(
 		    name = "idx_conversation_stanza",
-		    def = "{'conversationId':1,'stanzaId':-1}"
+		    def = "{'conversationId':1, 'stanzaId':-1}"
 		)
 })
 public class MessageBackupDocument {
@@ -36,6 +37,7 @@ public class MessageBackupDocument {
 	 */
 	@Indexed
 	@Size(max = 45)
+	@NotBlank
 	private String stanzaId;
 
 	/** 
