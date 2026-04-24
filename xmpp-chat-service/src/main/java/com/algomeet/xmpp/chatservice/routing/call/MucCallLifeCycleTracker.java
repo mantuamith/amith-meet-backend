@@ -216,7 +216,7 @@ public class MucCallLifeCycleTracker {
 		boolean isVideo =
 				xml.matches("(?s).*media=['\"]video['\"].*");
 
-		String callType = isVideo ? "Video" : "Audio";
+		String callType = isVideo ? "video" : "audio";
 
 		// Generate Redis MUC SID using sid and callee user key
 		String mucSid = CallSessionRedisKey.getMucSid(sid, XmppUtil.getUserKey(toJid));

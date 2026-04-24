@@ -108,7 +108,7 @@ public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocke
 
 					if (!isValid) {
 						log.warn("Unauthorized 'from' JID attempt: {} by {}", fromJid, authorizedBareJid);
-						xmppUtil.sendError(ctx, id, fromJid, domainProperties.getDomain(), XmppErrorType.AUTH, 
+						xmppUtil.sendError(ctx, id, principal.getBareJid(), domainProperties.getDomain(), XmppErrorType.AUTH, 
 								XmppErrorConditions.FORBIDDEN, "Invalid from attribute");
 						return;
 					}

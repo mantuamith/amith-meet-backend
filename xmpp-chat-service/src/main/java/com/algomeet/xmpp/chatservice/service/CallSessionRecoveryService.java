@@ -7,6 +7,7 @@ import org.springframework.data.mongodb.core.ReactiveMongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
+import org.springframework.stereotype.Service;
 
 import com.algomeet.xmpp.chatservice.document.CallSession;
 import com.algomeet.xmpp.chatservice.enums.ParticipantCallStatus;
@@ -47,6 +48,7 @@ import reactor.core.publisher.Mono;
  */
 @Slf4j
 @Data
+@Service
 @RequiredArgsConstructor
 public class CallSessionRecoveryService {
 

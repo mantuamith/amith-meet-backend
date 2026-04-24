@@ -189,7 +189,7 @@ public class XmppMucHandler {
 				})
 				.doOnError(e -> {
 					log.error("MAM Archive Failure: {}", e.getMessage(), e);
-					handleArchiveError(ctx, id, fromJid, e);
+					handleArchiveError(ctx, id, principal, e);
 				})
 				.subscribe();
 			}
@@ -239,7 +239,9 @@ public class XmppMucHandler {
 				&& xml.contains("http://jabber.org/protocol/muc#admin");
 	}
 
-	private void handleArchiveError(ChannelHandlerContext ctx, String id, String fromJid, Throwable e) {
+	private void handleArchiveError(ChannelHandlerContext ctx, String id, XmppPrincipal principal, Throwable e) {
+		String fromJid = principal.getBareJid();
+		
 		if (e instanceof DuplicateKeyException) {
 			// Duplicate stanza detected (idempotent case).
 			// Client MUST ignore this error; used only to support safe retries.

@@ -84,7 +84,7 @@ public class CallLifeCycleTracker {
 
 		// Detect media type (Video/Audio) using quote-agnostic regex per XEP-0167
 		boolean isVideo = xml.matches("(?s).*media=['\"]video['\"].*");
-		String callType = isVideo ? "Video" : "Audio";
+		String callType = isVideo ? "video" : "audio";
 
 		// 1. Store call metadata in a Redis Hash. 
 		// This is the source of truth for the background worker if the call times out.
@@ -107,8 +107,8 @@ public class CallLifeCycleTracker {
 		log.info("Call [{}] initiated. SID: {}. Timeout scheduled in {}s", callType, sid, callRingingTimeoutSeconds);
 		
 		// Track call initiation for duration calculation
-		callTrackerService.trackInitiation(sid, principal.getUserKey(), principal.getSessionId(), XmppUtil.getUserKey(toJid), callType)
-		.subscribe();
+		callTrackerService.trackInitiation(sid, principal.getUserKey(), principal.getSessionId(), 
+				XmppUtil.getUserKey(toJid), callType).subscribe();
 	}
 
 	/**

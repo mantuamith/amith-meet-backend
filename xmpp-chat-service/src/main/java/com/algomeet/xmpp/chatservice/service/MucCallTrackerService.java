@@ -60,6 +60,7 @@ public class MucCallTrackerService {
 				.callee(callee)
 				.callType(callType)
 				.roomId(roomId)
+				.status(CallStatus.INITIATED)
 				.createdAt(Instant.now().toEpochMilli())
 				.build();
 
@@ -77,6 +78,7 @@ public class MucCallTrackerService {
 				.flatMap(call -> {
 					call.setCalleeSid(calleeSid);
 					call.setAcceptedAt(Instant.now().toEpochMilli());
+					call.setStatus(CallStatus.ACTIVE);
 					return repository.save(call);
 				})
 				.doOnSuccess(success -> log.info("MUC Call session {} successfully updated to accepted", sid))

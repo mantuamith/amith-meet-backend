@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 
 import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.document.CallSession;
+import com.algomeet.xmpp.chatservice.enums.CallStatus;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
 import com.algomeet.xmpp.chatservice.repository.CallTrackerRepository;
@@ -116,6 +117,7 @@ public class CallTrackerService {
 				.callerSid(callerSid)
 				.callee(callee)
 				.callType(callType)
+				.status(CallStatus.INITIATED)
 				.createdAt(Instant.now().toEpochMilli())
 				.build();
 
@@ -150,6 +152,7 @@ public class CallTrackerService {
 				.flatMap(call -> {
 					call.setCalleeSid(calleeSid);
 					call.setAcceptedAt(Instant.now().toEpochMilli());
+					call.setStatus(CallStatus.ACTIVE);
 					return repository.save(call);
 				})
 
