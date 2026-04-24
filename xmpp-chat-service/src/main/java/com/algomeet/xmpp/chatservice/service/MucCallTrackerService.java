@@ -217,7 +217,7 @@ public class MucCallTrackerService {
 		 * If another server already holds it, this request
 		 * likely represents duplicate processing.
 		 */
-		String lockKey = String.format("xmpp:lock:finalize:muc-call:sid:%s:callee:%s", sid, calleeUserKey);
+		String lockKey = String.format("xmpp:lock:end:muc-call:sid:%s:callee:%s", sid, calleeUserKey);
 		RLockReactive lock = redissonReactiveClient.getLock(lockKey);
 		return Mono.<Void, Boolean>usingWhen(
 				/**

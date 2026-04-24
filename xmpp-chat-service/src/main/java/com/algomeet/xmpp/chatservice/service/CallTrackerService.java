@@ -197,7 +197,7 @@ public class CallTrackerService {
 			String userSessionId,
 			String reason) {
 
-		String lockKey = "xmpp:lock:finalize:call:" + sid;
+		String lockKey = "xmpp:lock:end:call:" + sid;
 		RLockReactive lock = redissonReactiveClient.getLock(lockKey);
 
 		return Mono.usingWhen(

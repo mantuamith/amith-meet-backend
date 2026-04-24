@@ -75,10 +75,10 @@ public class XmppSmSessionsRedisUtil {
 	 * Redis SET key containing all active SM sessions for a user.
 	 *
 	 * Example:
-	 * xmpp:user:sessions:user123
+	 * xmpp:sm:sessions:user123
 	 */
 	private static final String USER_SESSIONS_INDEX =
-			"xmpp:user:sessions:%s";
+			"xmpp:sm:user:sessions:%s";
 
 	/**
 	 * Redis keyspace notification channel pattern for expired keys.
