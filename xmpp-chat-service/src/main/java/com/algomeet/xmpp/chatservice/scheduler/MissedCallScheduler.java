@@ -74,7 +74,7 @@ public class MissedCallScheduler {
 	 * * @return A Mono signal indicating completion of the batch process.
 	 */
 	private Mono<Void> loadMissedCalls(XmppPrincipal principal) {
-		String lockKey = "algomeet:lock:process:missed-calls";
+		String lockKey = "xmpp:lock:process:missed-calls";
 		RLockReactive lock = redissonReactiveClient.getLock(lockKey);
 
 		return Mono.<Void, Boolean>usingWhen(

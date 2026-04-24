@@ -111,14 +111,25 @@ public class XmppMucHandler {
 
 			// 3. ARCHIVING (MAM - XEP-0313)
 			// Only archive messages that are storage-eligible (e.g., contain a <body>)
-			if(msgType.supportsOfflineStorage() && XmppStanzaUtil.isArchivable(originalXml)) {
-				StanzaInfo info = GroupChatParser.parse(originalXml);
-				String ulidString = UlidCreator.getMonotonicUlid().toLowerCase();
+			// Check if it's archivable
+			boolean isArchivable = XmppStanzaUtil.isArchivable(originalXml);
 
-				// Inject Stanza-ID (XEP-0359) to facilitate client-side de-duplication and synchronization
-				String stanzaIdExtension = String.format("<stanza-id xmlns='urn:xmpp:sid:0' by='%s' id='%s'/>", 
-						principal.getDomain(), ulidString);
-				forArchiveXml = originalXml.replace("</message>", stanzaIdExtension + "</message>");
+			if (msgType.supportsOfflineStorage() && isArchivable) {
+			    StanzaInfo info = GroupChatParser.parse(originalXml);
+			    
+		        /**
+		         * Generate a monotonic ULID used as the stanza-id value.
+		         *
+		         * Why ULID:
+		         * - time-sortable (better than UUID for message ordering)
+		         * - globally unique under distributed systems
+		         * - suitable for MAM storage and pagination cursors
+		         *
+		         * Note: Lowercasing ensures consistency across storage/query layers.
+		         */
+		        String ulidString = UlidCreator.getMonotonicUlid().toLowerCase();
+				// Insert stanza ID
+				forArchiveXml = XmppStanzaUtil.insertStanzaId(originalXml, ulidString, principal.getDomain());
 
 				xmppArchiveService.archiveEvent(forArchiveXml, info, toRoomJid, (pmRecipientMucMember != null ? pmRecipientMucMember.getUserKey() : null), 
 						fromJid, ulidString)
@@ -145,7 +156,7 @@ public class XmppMucHandler {
 						if (StringUtils.hasText(ackMessageId)) {
 							// Decrement the unread counter for this specific sender-recipient pair.
 							// Note: fromUserKey is the person who read it, toUserKey is the original sender.
-							mucUnreadCountService.decrementUnreadCount(senderMucMember.get().getUserKey(), toRoomId, principal).subscribe();
+							mucUnreadCountService.decrementUnreadCount(senderMucMember.get().getUserKey(), toRoomId, ackMessageId, principal).subscribe();
 						}
 					}
 
@@ -187,7 +198,7 @@ public class XmppMucHandler {
 			try {			
 				// Standard message propagation to members
 				mucMessageRouter.broadcastToOccupants(ctx, id, toRoomJid, fromJid, msgType, group, senderMucMember.get(), 
-						pmRecipientMucMember, originalXml);
+						pmRecipientMucMember, (isArchivable ? forArchiveXml : originalXml));
 
 			} catch (NumberFormatException e) {
 				log.error("Critical: Invalid roomId format in routing: {}", toRoomId);

@@ -10,18 +10,18 @@ public enum CallSessionRedisKey {
      * ZSET of pending direct-call timeouts.
      * score = expiration timestamp
      */
-    DIRECT_CALL_TIMEOUT_QUEUE("algomeet:call:delayed-missed-call-tasks"),
+    DIRECT_CALL_TIMEOUT_QUEUE("xmpp:call:delayed-missed-call-tasks"),
 
     /**
      * ZSET of pending group/MUC call timeouts.
      * score = expiration timestamp
      */
-    MUC_CALL_TIMEOUT_QUEUE("algomeet:call:muc:delayed-missed-call-tasks"),
+    MUC_CALL_TIMEOUT_QUEUE("xmpp:call:muc:delayed-missed-call-tasks"),
 
     /**
      * HASH prefix containing temporary call session metadata.
      */
-    CALL_METADATA_PREFIX("algomeet:call:metadata:");
+    CALL_METADATA_PREFIX("xmpp:call:metadata:");
 
     private final String val;
 

@@ -209,7 +209,7 @@ public class XmppSmBufferService {
          * If another server already holds it, this request
          * likely represents duplicate processing.
          */
-        String lockKey = "algomeet:lock:save:sm:stanza-id:" + id;
+        String lockKey = "xmpp:lock:save:sm:stanza-id:" + id;
 
         RLockReactive lock = redissonReactiveClient.getLock(lockKey);
 

@@ -197,7 +197,7 @@ public class CallTrackerService {
 			String userSessionId,
 			String reason) {
 
-		String lockKey = "algomeet:lock:finalize:call:" + sid;
+		String lockKey = "xmpp:lock:finalize:call:" + sid;
 		RLockReactive lock = redissonReactiveClient.getLock(lockKey);
 
 		return Mono.usingWhen(

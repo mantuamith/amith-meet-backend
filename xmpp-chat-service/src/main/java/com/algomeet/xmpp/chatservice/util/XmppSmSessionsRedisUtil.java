@@ -75,10 +75,10 @@ public class XmppSmSessionsRedisUtil {
 	 * Redis SET key containing all active SM sessions for a user.
 	 *
 	 * Example:
-	 * algomeet:user:sessions:user123
+	 * xmpp:user:sessions:user123
 	 */
 	private static final String USER_SESSIONS_INDEX =
-			"algomeet:user:sessions:%s";
+			"xmpp:user:sessions:%s";
 
 	/**
 	 * Redis keyspace notification channel pattern for expired keys.
@@ -197,10 +197,10 @@ public class XmppSmSessionsRedisUtil {
 	 *
 	 * Expected key format:
 	 * --------------------------------------------------------
-	 * algomeet:sm:session:{userKey}:{sessionId}
+	 * xmpp:sm:session:{userKey}:{sessionId}
 	 *
 	 * Example:
-	 * algomeet:sm:session:user123:abc789
+	 * xmpp:sm:session:user123:abc789
 	 *
 	 * @param expiredKey full expired Redis key
 	 * @return completion signal
@@ -250,7 +250,7 @@ public class XmppSmSessionsRedisUtil {
 	 * Adds a Stream Management session to user's active set.
 	 *
 	 * Example:
-	 * SADD algomeet:user:sessions:user123 sm-001
+	 * SADD xmpp:user:sessions:user123 sm-001
 	 *
 	 * Also refreshes index TTL so active users retain mapping.
 	 *
@@ -360,7 +360,7 @@ public class XmppSmSessionsRedisUtil {
 	 *
 	 * Example:
 	 * user123 ->
-	 * algomeet:user:sessions:user123
+	 * xmpp:user:sessions:user123
 	 */
 	private String formatIndexKey(String userKey) {
 		return String.format(USER_SESSIONS_INDEX, userKey);

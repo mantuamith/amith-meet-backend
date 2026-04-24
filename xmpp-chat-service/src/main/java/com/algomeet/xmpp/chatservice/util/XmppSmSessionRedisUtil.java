@@ -59,14 +59,14 @@ public class XmppSmSessionRedisUtil {
 	 * Redis key pattern for per-session SM state.
 	 *
 	 * Example:
-	 * algomeet:sm:session:abc123
+	 * xmpp:sm:session:abc123
 	 */
-	public static final String SM_SESSION_KEY = "algomeet:sm:session:%s";
+	public static final String SM_SESSION_KEY = "xmpp:sm:session:%s";
 
 	/**
 	 * Prefix used for scanning / indexing if needed.
 	 */
-	public static final String SM_SESSION_KEY_PREFIX = "algomeet:sm:session:";
+	public static final String SM_SESSION_KEY_PREFIX = "xmpp:sm:session:";
 
 	/**
 	 * Hash field storing latest inbound acknowledged counter.
@@ -266,8 +266,8 @@ public class XmppSmSessionRedisUtil {
 	 * Builds formatted Redis key from pattern.
 	 *
 	 * Example:
-	 * key("algomeet:sm:session:%s", "abc")
-	 * -> algomeet:sm:session:abc
+	 * key("xmpp:sm:session:%s", "abc")
+	 * -> xmpp:sm:session:abc
 	 */
 	private String key(String pattern, String smSessionId) {
 		return String.format(pattern, smSessionId);

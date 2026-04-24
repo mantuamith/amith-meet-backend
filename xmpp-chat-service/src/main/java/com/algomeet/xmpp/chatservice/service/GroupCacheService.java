@@ -38,7 +38,7 @@ public class GroupCacheService {
     private final RedisTemplate<String, Object> redisTemplate;
 
     /** Prefix for all group-related keys in Redis to prevent namespace collisions. */
-    private static final String CACHE_KEY_PREFIX = "algomeet:group:";
+    private static final String CACHE_KEY_PREFIX = "xmpp:group:";
     
     /** * Time-to-live for cached group metadata. 
      * Configured via {@code xmpp.cache.group-ttl} in application.yml.

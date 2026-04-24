@@ -54,19 +54,20 @@ public class MucUnreadCountService {
 				.flatMap(memberKey -> incrementUnreadCount(memberKey, roomId))
 				.then();
 	}
-	
+
 	/**
 	 * Non-blocking decrement of the unread count for a specific MUC room.
 	 * Ensures the count does not drop below zero using an atomic operation.
 	 */
-	public Mono<MucUnreadCount> decrementUnreadCount(String userKey, String roomId, XmppPrincipal principal) {
+	public Mono<MucUnreadCount> decrementUnreadCount(String userKey, String roomId, String lastReadMid, XmppPrincipal principal) {
 		String id = String.format("%s_%d", userKey, roomId);
 
 		// Atomic decrement: only execute if the current count is greater than 0
 		Query query = new Query(Criteria.where("_id").is(id).and("unread_count").gt(0));
 		Update update = new Update()
 				.inc("unread_count", -1)
-				.set("last_decrement_at", Instant.now().toEpochMilli());
+				.set("last_decrement_at", Instant.now().toEpochMilli())
+				.set("last_read_mid", lastReadMid);
 
 		return reactiveMongoTemplate.updateFirst(query, update, MucUnreadCount.class)
 				.then(reactiveMongoTemplate.findById(id, MucUnreadCount.class))
