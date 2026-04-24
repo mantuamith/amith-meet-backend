@@ -44,7 +44,7 @@ public class XmppArchiveService {
     public Mono<MucMessage> archiveEvent(String xml, StanzaInfo info, String toRoomId, String toMucMember, String from, String internalId) {
         MucMessage event = MucMessage.builder()
                 .id(internalId)
-                .stanzaId(info.getStanzaId()) // Original client-side ID
+                .messageId(info.getMessageId()) // Original client-side ID
                 .roomId(toRoomId)
                 .from(from)
                 .to(toMucMember)

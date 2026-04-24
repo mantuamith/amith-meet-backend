@@ -271,7 +271,7 @@ public class MucMissedCallScheduler {
 						caller, toJid, id, type, type, type, Instant.now().toString(), sid
 				);	
 
-		StanzaInfo info = StanzaInfo.builder().stanzaId(UUID.randomUUID().toString().toLowerCase()).build();
+		StanzaInfo info = StanzaInfo.builder().messageId(UUID.randomUUID().toString().toLowerCase()).build();
 
 		xmppArchiveService.archiveEvent(xml, info, jidUtil.getGroupBareJid(groupId), toUserKey, 
 				fromJid, UlidCreator.getMonotonicUlid().toLowerCase())

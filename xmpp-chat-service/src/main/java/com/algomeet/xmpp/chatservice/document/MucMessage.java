@@ -23,10 +23,10 @@ public class MucMessage {
     @Id
     private String id;           // ULID or Sequential String
 
-    // 2. UNIQUE INDEX for Stanza ID
+    // 2. UNIQUE INDEX for Message/Stanza ID
     // Prevents duplicate messages if a client retries a send
     @Indexed(unique = true)
-    private String stanzaId;     
+    private String messageId;     
     
     // Indexed via the Compound Index above, but good for simple lookups
     private String roomId;

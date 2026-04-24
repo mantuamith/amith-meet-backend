@@ -30,7 +30,7 @@ public class GroupChatParser {
 
                     if ("message".equals(localName)) {
                         builder.stanzaType("message");
-                        builder.stanzaId(reader.getAttributeValue(null, "id"));
+                        builder.messageId(reader.getAttributeValue(null, "id"));
                     } 
                     else if ("presence".equals(localName)) {
                         builder.stanzaType("presence");
