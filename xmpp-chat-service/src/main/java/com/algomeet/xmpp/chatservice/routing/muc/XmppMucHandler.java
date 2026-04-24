@@ -66,7 +66,7 @@ public class XmppMucHandler {
 	 *
 	 * @param ctx         The Netty channel context for the current TCP connection.
 	 * @param id          The 'id' attribute of the XMPP stanza.
-	 * @param toRoomJid   The destination JID (e.g., room@conference.domain/nickname).
+	 * @param toRoomJid   The destination JID (e.g., room@conference.domain/<nickname|userkey>).
 	 * @param fromJid     The real JID of the sender.
 	 * @param type        The message type (e.g., groupchat, error, presence).
 	 * @param originalXml The full raw XML payload.
