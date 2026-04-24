@@ -111,6 +111,16 @@ public class MucCallTrackerService {
 						);
 	}
 
+	public Mono<CallSession> findFirstBySid(String sid) {
+		return repository.findFirstBySidAndRoomIdIsNotNull(sid)
+				.doOnSubscribe(sub ->
+				log.debug("Fetching call sessions for SID: {}", sid)
+						)
+				.doOnError(error ->
+				log.error("Failed to fetch call sessions for SID: {}", sid, error)
+						);
+	}
+
 	/**
 	 * Remove the call record.
 	 */

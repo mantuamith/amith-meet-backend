@@ -3,6 +3,7 @@ package com.algomeet.xmpp.chatservice.scheduler;
 import java.time.Instant;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.redisson.api.RLockReactive;
 import org.redisson.api.RedissonReactiveClient;
@@ -25,6 +26,7 @@ import com.algomeet.xmpp.chatservice.enums.UserState;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
 import com.algomeet.xmpp.chatservice.service.CallTrackerService;
 import com.algomeet.xmpp.chatservice.service.OfflineMessageService;
+import com.algomeet.xmpp.chatservice.service.UnreadCountService;
 import com.algomeet.xmpp.chatservice.session.UserSessionRegistry;
 import com.algomeet.xmpp.chatservice.session.model.UserSession;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
@@ -59,21 +61,31 @@ public class MissedCallScheduler {
 	private final RedissonReactiveClient redissonReactiveClient;
 	private final ReactiveRedisTemplate<String, String> reactiveRedisTemplate;
 	private final CallTrackerService callTrackerService;
+	private final UnreadCountService unreadCountService;
+
+	private final AtomicBoolean running = new AtomicBoolean(false);
+
 	/**
-	 * Main execution trigger. Subscribes to the reactive chain every second.
+	 * Main execution trigger. Subscribes to the reactive chain every 2 seconds.
 	 * Using {@code fixedDelay} ensures that a new execution doesn't start until
 	 * the previous reactive subscription has been initialized.
 	 */
-	@Scheduled(fixedDelay = 1000)
+	@Scheduled(fixedDelay = 2000)
 	public void processExpiredCalls() {
-		loadMissedCalls(null).subscribe();
+		if (!running.compareAndSet(false, true)) {
+			return; // skip if previous run still executing
+		}
+
+		loadMissedCalls()
+		.doFinally(sig -> running.set(false))
+		.subscribe();
 	}
 
 	/**
 	 * Scans for expired sessions and acquires a distributed lock to prevent multi-node processing.
 	 * * @return A Mono signal indicating completion of the batch process.
 	 */
-	private Mono<Void> loadMissedCalls(XmppPrincipal principal) {
+	private Mono<Void> loadMissedCalls() {
 		String lockKey = "xmpp:lock:process:missed-calls";
 		RLockReactive lock = redissonReactiveClient.getLock(lockKey);
 
@@ -208,6 +220,9 @@ public class MissedCallScheduler {
 		.doOnSuccess(success -> {
 			// Publish after successfully saved
 			clusterMessagePublisher.convertAndSendToUser(id, toUserKey, fromUserKey, ChatType.CHAT, xml);
+			
+			// Increment user unread message
+			unreadCountService.incrementUnreadCount(fromUserKey, toUserKey);
 		})
 		.doOnError(e -> log.error("MAM Persistence failed for SID {}: {}", sid, e.getMessage()))
 		.subscribe();

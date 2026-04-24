@@ -20,7 +20,16 @@ public interface CallTrackerRepository extends ReactiveMongoRepository<CallSessi
 	 * Useful for identifying calls associated with a group/MUC room.
 	 */
 	Flux<CallSession> findAllBySidAndRoomIdIsNotNull(String sid);
-    
+    	
+	/**
+	 * Retrieves the first session for the specified SID where roomId is present.
+	 * Useful for resolving a group/MUC call session linked to a room.
+	 *
+	 * @param sid shared session identifier of the call
+	 * @return first matching CallSession with a non-null roomId
+	 */
+	Mono<CallSession> findFirstBySidAndRoomIdIsNotNull(String sid);
+	
     /**
      * Forces a single result by returning the most recently created session
      * for a specific SID and Callee JID.

@@ -1,6 +1,7 @@
 package com.algomeet.xmpp.chatservice.routing.call;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
@@ -17,6 +18,7 @@ import com.algomeet.xmpp.chatservice.enums.CallSessionRedisKey;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
 import com.algomeet.xmpp.chatservice.service.MucCallTrackerService;
+import com.algomeet.xmpp.chatservice.service.MucUnreadCountService;
 import com.algomeet.xmpp.chatservice.service.OfflineMessageService;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
@@ -92,6 +94,7 @@ public class MucCallLifeCycleTracker {
 	private final OfflineMessageService offlineMessageService;
 	private final MucCallTrackerService mucCallTrackerService;
 	private final JidUtil jidUtil;
+	private final MucUnreadCountService mucUnreadCountService;
 
 	/**
 	 * TTL of temporary Redis metadata.
@@ -100,7 +103,7 @@ public class MucCallLifeCycleTracker {
 	 * If timeout worker crashes or call flow breaks,
 	 * metadata auto-expires after N minutes.
 	 */
-	@Value("${call.session-metadata-ttl-minutes:10}")
+	@Value("${call.session-metadata-ttl-minutes:2}")
 	private Integer callSessionMetadataTtlMinutes;
 
 	/**
@@ -520,7 +523,7 @@ public class MucCallLifeCycleTracker {
 	 * Persists call history and broadcasts to all user devices.
 	 */
 	private void sendCallLog(ChannelHandlerContext ctx,
-			String fromJid,
+			String fromRoomJid,
 			String toJid,
 			String sid,
 			String status,
@@ -532,7 +535,7 @@ public class MucCallLifeCycleTracker {
 
 		StringBuilder xml = new StringBuilder();
 
-		xml.append("<message from='").append(fromJid).append("' ")
+		xml.append("<message from='").append(fromRoomJid).append("' ")
 		.append("to='").append(toJid).append("' ")
 		.append("type='groupchat' ")
 		.append("id='").append(messageId).append("'>")
@@ -546,7 +549,8 @@ public class MucCallLifeCycleTracker {
 		.append("</message>");
 
 		String toUserKey = XmppUtil.getUserKey(toJid);
-		String fromUserKey = XmppUtil.getUserKey(fromJid);
+		String roomId = XmppUtil.getRoomId(fromRoomJid);
+		String fromUserKey = XmppUtil.getResourceFromRoomFullJid(fromRoomJid);
 
 		/**
 		 * Persist for offline retrieval.
@@ -555,9 +559,17 @@ public class MucCallLifeCycleTracker {
 				messageId,
 				toUserKey,
 				fromUserKey,
-				XmppMessageType.CHAT.getXmlValue(),
+				XmppMessageType.GROUPCHAT.getXmlValue(),
 				xml.toString()
-				).subscribe();
+				)
+		.doOnSuccess(success -> {
+			// Increment MUC unread messages count 
+			mucUnreadCountService.incrementForRoomMembers(roomId,
+					List.of(toUserKey), 
+					fromUserKey)
+			.subscribe();
+		})
+		.subscribe();
 
 		/**
 		 * Push to cluster for all online devices.

@@ -1,10 +1,13 @@
 package com.algomeet.xmpp.chatservice.scheduler;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.redisson.api.RLockReactive;
 import org.redisson.api.RedissonReactiveClient;
@@ -13,14 +16,13 @@ import org.springframework.data.redis.core.ReactiveRedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
-import org.springframework.util.StringUtils;
 
 import com.algomeet.multitenancy.context.TenantContext;
 import com.algomeet.notificationservice.dto.Notification;
 import com.algomeet.notificationservice.enums.NotificationType;
 import com.algomeet.notificationservice.service.NotificationService;
-import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
+import com.algomeet.xmpp.chatservice.document.CallSession;
 import com.algomeet.xmpp.chatservice.dto.MucMember;
 import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
 import com.algomeet.xmpp.chatservice.dto.StanzaInfo;
@@ -28,11 +30,9 @@ import com.algomeet.xmpp.chatservice.enums.CallSessionMetadata;
 import com.algomeet.xmpp.chatservice.enums.CallSessionRedisKey;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.enums.UserState;
-import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
-import com.algomeet.xmpp.chatservice.repository.CallTrackerRepository;
 import com.algomeet.xmpp.chatservice.service.GroupCacheService;
 import com.algomeet.xmpp.chatservice.service.MucCallTrackerService;
-import com.algomeet.xmpp.chatservice.service.OfflineMessageService;
+import com.algomeet.xmpp.chatservice.service.MucUnreadCountService;
 import com.algomeet.xmpp.chatservice.service.XmppArchiveService;
 import com.algomeet.xmpp.chatservice.session.UserSessionRegistry;
 import com.algomeet.xmpp.chatservice.session.model.UserSession;
@@ -72,22 +72,31 @@ public class MucMissedCallScheduler {
 	private final RedissonReactiveClient redissonReactiveClient;
 	private final ReactiveRedisTemplate<String, String> reactiveRedisTemplate;
 	private final MucCallTrackerService mucCallTrackerService;
+	private final MucUnreadCountService mucUnreadCountService;
 	
+	private final AtomicBoolean running = new AtomicBoolean(false);
+
 	/**
-	 * Main execution trigger. Subscribes to the reactive chain every second.
+	 * Main execution trigger. Subscribes to the reactive chain every 2 seconds.
 	 * Using {@code fixedDelay} ensures that a new execution doesn't start until
 	 * the previous reactive subscription has been initialized.
 	 */
-	@Scheduled(fixedDelay = 1000)
+	@Scheduled(fixedDelay = 2000)
 	public void processExpiredCalls() {
-		loadMissedCalls(null).subscribe();
+		if (!running.compareAndSet(false, true)) {
+			return; // skip if previous run still executing
+		}
+
+		loadMissedCalls()
+		.doFinally(sig -> running.set(false))
+		.subscribe();
 	}
 
 	/**
 	 * Scans for expired sessions and acquires a distributed lock to prevent multi-node processing.
 	 * * @return A Mono signal indicating completion of the batch process.
 	 */
-	private Mono<Void> loadMissedCalls(XmppPrincipal principal) {
+	private Mono<Void> loadMissedCalls() {
 	    String lockKey = "xmpp:lock:process:muc-missed-calls";
 	    RLockReactive lock = redissonReactiveClient.getLock(lockKey);
 
@@ -100,18 +109,56 @@ public class MucMissedCallScheduler {
 	                }
 
 	                long now = System.currentTimeMillis();
+	                AtomicReference<CallSession> lastProcessedMucSid = new AtomicReference<>();
 	                
 	                // 2. QUERY: Fetch all SIDs whose score (timeout) is <= now
 	                return reactiveRedisTemplate.opsForZSet()
 	                        .rangeByScore(CallSessionRedisKey.MUC_CALL_TIMEOUT_QUEUE.getVal(), Range.closed(0.0, (double) now))
-	                        .<Void>flatMap(mucSid -> 
+	                        .<Void>flatMap(mucSid -> {
+	                        	// Set last MUC ID
+	                        	if (lastProcessedMucSid.get() == null) {
+	                        		String sid = CallSessionRedisKey.getSidFromMucSid(mucSid);
+	                          		
+	                        		mucCallTrackerService.findFirstBySid(sid)
+	                        	    // Preserve one record for final call-log processing
+	                        	    .doOnNext(lastProcessedMucSid::set)
+	                        	    .subscribe();
+	                        	}
+	                        	
 	                            // 3. ATOMIC REMOVE: Only the node that deletes the SID processes it
-	                            reactiveRedisTemplate.opsForZSet()
+	                            return reactiveRedisTemplate.opsForZSet()
 	                                .remove(CallSessionRedisKey.MUC_CALL_TIMEOUT_QUEUE.getVal(), mucSid)
 	                                .flatMap(removed -> (removed != null && removed > 0) 
 	                                    ? processMissedCallReactive(mucSid) 
-	                                    : Mono.<Void>empty())
-	                        )
+	                                    : Mono.<Void>empty());
+	                        })
+	                        /**
+	                         * Finally block:
+	                         * Executed when stream completes, errors, or is cancelled.
+	                         *
+	                         * Re-query database using the last processed mucSid
+	                         * to perform final reconciliation / cleanup / state validation.
+	                         */
+	                        .doFinally(signalType -> {
+	                            if (lastProcessedMucSid.get() != null) {	
+	                            	// Query if there are still remaining records from the database
+	                            	CallSession session = lastProcessedMucSid.get();
+	                            	mucCallTrackerService.findFirstBySid(session.getSid())
+	                            	 // Executed only when no record is returned
+	                                .switchIfEmpty(Mono.defer(() -> {
+	                                	// Send missed call logs to caller
+	                            		String fromRoomJid = jidUtil.getGroupBareJid(session.getRoomId());
+	                            		String toJid= jidUtil.getBareJid(session.getCaller());	
+	                                	
+	                                    sendGroupChatMissedCallStanza(fromRoomJid, toJid, session.getSid(), session.getCallType(), session.getRoomId());
+	                                    
+	                                    log.info("No CallSession found for sid={}", lastProcessedMucSid.get().getSid());
+
+	                                    return Mono.empty();
+	                                }))
+	                                .subscribe();
+	                            }
+	                        })
 	                        .then();
 	            },
 	            // 4. CLEANUP: Safe unlock logic to prevent IllegalMonitorStateException crashes
@@ -228,10 +275,18 @@ public class MucMissedCallScheduler {
 
 		xmppArchiveService.archiveEvent(xml, info, jidUtil.getGroupBareJid(groupId), toUserKey, 
 				fromJid, UlidCreator.getMonotonicUlid().toLowerCase())
+		.doOnSuccess(success -> {
+			// Publish group chat
+			clusterMessagePublisher.convertAndSendToUser(id, toUserKey, fromUserKey, ChatType.GROUPCHAT, xml);
+			
+			// Increment MUC unread messages count 
+			mucUnreadCountService.incrementForRoomMembers(groupId,
+					List.of(toUserKey), 
+					fromUserKey);
+			
+		})
 		.doOnError(e -> log.error("MUC Archive failed: {}", e.getMessage()))
-		.subscribe();
-
-		clusterMessagePublisher.convertAndSendToUser(id, toUserKey, fromUserKey, ChatType.GROUPCHAT, xml);
+		.subscribe();		
 	}
 
 	/**

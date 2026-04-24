@@ -24,6 +24,7 @@ public enum CallSessionRedisKey {
     CALL_METADATA_PREFIX("xmpp:call:metadata:");
 
     private final String val;
+    private static final String MUC_SID_SEPARATOR = "_";
 
     /**
      * Helper to build a specific metadata key for a session.
@@ -70,6 +71,10 @@ public enum CallSessionRedisKey {
      * @return participant-scoped MUC session identifier
      */
     public static String getMucSid(String sid, String receiverUserKey) {
-        return sid + "_" + receiverUserKey;
+        return sid + MUC_SID_SEPARATOR + receiverUserKey;
+    }
+    
+    public static String getSidFromMucSid(String mucSid) {
+        return mucSid.split(MUC_SID_SEPARATOR)[0];
     }
 }
