@@ -31,4 +31,4 @@ jwt:
 
 algomeet:
   group:
-    invite-base-url: ${ALGOMEET_GROUP_INVITE_BASE_URL:https://api.algoframe.in/invite}
+    invite-base-url: ${ALGOMEET_GROUP_INVITE_BASE_URL:https://chat.algomeet.app/invite}
