@@ -1,4 +1,4 @@
-package com.algomeet.xmpp.chatservice.routing.muc;
+package com.algomeet.xmpp.chatservice.routing.mam;
 
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;

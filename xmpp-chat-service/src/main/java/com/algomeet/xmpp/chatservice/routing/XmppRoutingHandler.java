@@ -15,7 +15,7 @@ import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.routing.chat.XmppChatHandler;
 import com.algomeet.xmpp.chatservice.routing.discovery.XmppDiscoveryHandler;
-import com.algomeet.xmpp.chatservice.routing.muc.XmppMamHandler;
+import com.algomeet.xmpp.chatservice.routing.mam.XmppMamHandler;
 import com.algomeet.xmpp.chatservice.routing.muc.XmppMucHandler;
 import com.algomeet.xmpp.chatservice.routing.sm.XmppStreamManagementStanzaHandler;
 import com.algomeet.xmpp.chatservice.routing.state.XmppUserGlobalPresenceHandler;
