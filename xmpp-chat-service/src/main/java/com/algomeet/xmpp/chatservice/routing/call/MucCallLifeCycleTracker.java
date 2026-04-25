@@ -17,6 +17,7 @@ import com.algomeet.xmpp.chatservice.enums.CallSessionMetadata;
 import com.algomeet.xmpp.chatservice.enums.CallSessionRedisKey;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
+import com.algomeet.xmpp.chatservice.properties.CallProperties;
 import com.algomeet.xmpp.chatservice.service.MucCallTrackerService;
 import com.algomeet.xmpp.chatservice.service.MucUnreadCountService;
 import com.algomeet.xmpp.chatservice.service.OfflineMessageService;
@@ -95,25 +96,7 @@ public class MucCallLifeCycleTracker {
 	private final MucCallTrackerService mucCallTrackerService;
 	private final JidUtil jidUtil;
 	private final MucUnreadCountService mucUnreadCountService;
-
-	/**
-	 * TTL of temporary Redis metadata.
-	 *
-	 * Example:
-	 * If timeout worker crashes or call flow breaks,
-	 * metadata auto-expires after N minutes.
-	 */
-	@Value("${call.session-metadata-ttl-minutes:10}")
-	private Integer callSessionMetadataTtlMinutes;
-
-	/**
-	 * Maximum ringing time before call is considered missed.
-	 *
-	 * Example:
-	 * If nobody answers after 30s -> missed call.
-	 */
-	@Value("${call.ringing-timeout-seconds:30}")
-	private Integer callRingingTimeoutSeconds;
+	private final CallProperties callProperties;
 
 	/**
 	 * Extract Jingle SID from XML.
@@ -211,7 +194,7 @@ public class MucCallLifeCycleTracker {
 		 */
 		long executeAt =
 				System.currentTimeMillis()
-				+ (callRingingTimeoutSeconds * 1000L);
+				+ (callProperties.getRingingTimeout().getSeconds() * 1000L);
 
 		/**
 		 * Detect media type.
@@ -248,8 +231,8 @@ public class MucCallLifeCycleTracker {
 		/**
 		 * Safety expiration.
 		 */
-		redisTemplate.expire(metadataKey, callSessionMetadataTtlMinutes, TimeUnit.MINUTES
-				);
+		redisTemplate.expire(metadataKey, callProperties.getSessionMetadataTtl().getSeconds(), 
+				TimeUnit.SECONDS);
 
 		/**
 		 * Add to delayed queue.
@@ -264,7 +247,7 @@ public class MucCallLifeCycleTracker {
 		log.info("Call [{}] initiated Redis MUC SID={} timeout={}s",
 				callType,
 				mucSid,
-				callRingingTimeoutSeconds);
+				callProperties.getRingingTimeout().getSeconds());
 
 		/**
 		 * Save persistent tracker row.
