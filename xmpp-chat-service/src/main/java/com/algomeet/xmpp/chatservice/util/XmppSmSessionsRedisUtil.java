@@ -1,6 +1,6 @@
 package com.algomeet.xmpp.chatservice.util;
 
-import com.algomeet.xmpp.chatservice.properties.XmppSmRedisProperties;
+
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -10,6 +10,9 @@ import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Component;
+
+import com.algomeet.xmpp.chatservice.properties.StreamManagementProperties;
+
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.util.retry.Retry;
@@ -69,7 +72,7 @@ public class XmppSmSessionsRedisUtil {
 	 * - TTL values
 	 * - SM redis settings
 	 */
-	private final XmppSmRedisProperties properties;
+	private final StreamManagementProperties properties;
 
 	/**
 	 * Redis SET key containing all active SM sessions for a user.
@@ -274,7 +277,7 @@ public class XmppSmSessionsRedisUtil {
 				/**
 				 * Keep set alive while user active.
 				 */
-				.then(redis.expire(key, properties.getTtl()))
+				.then(redis.expire(key, properties.getSession().getRedisTtl()))
 
 				/**
 				 * Retry transient failures.

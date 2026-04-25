@@ -38,7 +38,7 @@ public class MissedCallConsumer implements StreamListener<String, MapRecord<Stri
 
     @PostConstruct
     public void init() {
-        String streamKey = redisStreamProperties.getStreamMissedCallKey();
+        String streamKey = redisStreamProperties.getMissedCall();
         
         // 1. Setup Group (Blocking is okay here as it only runs once at startup)
         try {
@@ -75,7 +75,7 @@ public class MissedCallConsumer implements StreamListener<String, MapRecord<Stri
     public void onMessage(MapRecord<String, String, String> message) {
         log.info("Received message: {}", message.getId());
 
-        String streamKey = redisStreamProperties.getStreamMissedCallKey();
+        String streamKey = redisStreamProperties.getMissedCall();
 
         // 3. Chain Reactive processing with Reactive Acknowledgment
         missedCallService.process(

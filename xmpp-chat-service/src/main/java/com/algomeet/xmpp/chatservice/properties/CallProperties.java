@@ -26,7 +26,7 @@ import lombok.Data;
  */
 @Data
 @Component
-@ConfigurationProperties(prefix = "call")
+@ConfigurationProperties(prefix = "xmpp.call")
 public class CallProperties {
 
     /**

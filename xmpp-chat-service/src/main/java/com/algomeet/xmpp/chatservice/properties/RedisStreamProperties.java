@@ -1,13 +1,17 @@
 package com.algomeet.xmpp.chatservice.properties;
 
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
 import lombok.Data;
 
 @Data
 @Component
+@ConfigurationProperties(prefix = "redis.stream")
 public class RedisStreamProperties {
-	@Value("${stream.missed-call.key:missed-call-stream}")
-	private String streamMissedCallKey;
+
+    /**
+     * Redis stream key for storing missed call events.
+     */
+    private String missedCall = "missed-call-stream";
 }

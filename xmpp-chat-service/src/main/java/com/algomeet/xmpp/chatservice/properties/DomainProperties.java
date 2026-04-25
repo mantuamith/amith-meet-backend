@@ -1,19 +1,16 @@
 package com.algomeet.xmpp.chatservice.properties;
 
 
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
 import lombok.Data;
 
 @Data
 @Component
-public class DomainProperties {
-	
-    @Value("${xmpp.server.domain}")
+@ConfigurationProperties(prefix = "xmpp.server")
+public class DomainProperties {	
     private String domain;
 
-	@Value("${xmpp.server.group-chat-domain}")
 	private String groupChatDomain;
-
 }

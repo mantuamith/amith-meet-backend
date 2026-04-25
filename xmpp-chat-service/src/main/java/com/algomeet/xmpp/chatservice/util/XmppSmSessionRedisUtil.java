@@ -1,6 +1,6 @@
 package com.algomeet.xmpp.chatservice.util;
 
-import com.algomeet.xmpp.chatservice.properties.XmppSmRedisProperties;
+import com.algomeet.xmpp.chatservice.properties.StreamManagementProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
@@ -53,7 +53,7 @@ public class XmppSmSessionRedisUtil {
 	 * - TTL duration
 	 * - SM-related Redis settings
 	 */
-	private final XmppSmRedisProperties properties;
+	private final StreamManagementProperties properties;
 
 	/**
 	 * Redis key pattern for per-session SM state.
@@ -133,7 +133,7 @@ public class XmppSmSessionRedisUtil {
 				script,
 				List.of(key),
 				List.of(
-						String.valueOf(properties.getTtl().getSeconds()),
+						String.valueOf(properties.getSession().getRedisTtl().getSeconds()),
 						String.valueOf(h),
 						userSessionId
 						)
@@ -187,7 +187,7 @@ public class XmppSmSessionRedisUtil {
 				/**
 				 * Refresh expiration.
 				 */
-				.flatMap(success ->	redis.expire(key, properties.getTtl()))
+				.flatMap(success ->	redis.expire(key, properties.getSession().getRedisTtl()))
 
 				/**
 				 * Retry quick transient issues.

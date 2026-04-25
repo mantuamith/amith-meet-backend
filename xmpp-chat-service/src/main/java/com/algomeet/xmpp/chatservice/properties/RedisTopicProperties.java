@@ -1,17 +1,16 @@
 package com.algomeet.xmpp.chatservice.properties;
 
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
 import lombok.Data;
 
 @Data
 @Component
+@ConfigurationProperties(prefix = "redis.topic")
 public class RedisTopicProperties {
     /** The name of the Redis channel used for broadcasting synchronization events across nodes. */
-    @Value("${cluster.sync.topic:cluster-sync-topic}")
-    private String clusterSyncTopic;
+    private String clusterSync = "cluster-sync-topic";
     
-    @Value("${event.e2ee.topic:e2ee-event-topic}")
-    private String e2eeEventTopic;
+    private String e2eeEvents = "e2ee-event-topic";
 }

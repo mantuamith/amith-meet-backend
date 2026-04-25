@@ -36,7 +36,7 @@ public class MissedCallStreamPublisher {
 
 		// Ensure you are using the Reactive template
 		return reactiveRedisTemplate.opsForStream()
-				.add(MapRecord.create(redisStreamProperties.getStreamMissedCallKey(), body))
+				.add(MapRecord.create(redisStreamProperties.getMissedCall(), body))
 				.doOnNext(recordId ->  log.info("Produced missed call message ID: {}", recordId))
 				.doOnError(e -> log.error("Failed to add to Redis Stream", e));
 	}
