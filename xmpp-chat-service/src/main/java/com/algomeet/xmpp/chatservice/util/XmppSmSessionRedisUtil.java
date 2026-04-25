@@ -133,7 +133,7 @@ public class XmppSmSessionRedisUtil {
 				script,
 				List.of(key),
 				List.of(
-						String.valueOf(properties.getSession().getRedisTtl().getSeconds()),
+						String.valueOf(properties.getSession().getResumeTtl().getSeconds()),
 						String.valueOf(h),
 						userSessionId
 						)
@@ -187,7 +187,7 @@ public class XmppSmSessionRedisUtil {
 				/**
 				 * Refresh expiration.
 				 */
-				.flatMap(success ->	redis.expire(key, properties.getSession().getRedisTtl()))
+				.flatMap(success ->	redis.expire(key, properties.getSession().getResumeTtl()))
 
 				/**
 				 * Retry quick transient issues.

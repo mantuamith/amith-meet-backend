@@ -277,7 +277,7 @@ public class XmppSmSessionsRedisUtil {
 				/**
 				 * Keep set alive while user active.
 				 */
-				.then(redis.expire(key, properties.getSession().getRedisTtl()))
+				.then(redis.expire(key, properties.getSession().getResumeTtl()))
 
 				/**
 				 * Retry transient failures.

@@ -59,13 +59,13 @@ public class MongoSmBufferMessageIndexConfig {
              */
             Index ttlIndex = new Index()
                     .on("createdAt", Sort.Direction.ASC)
-                    .expire(properties.getSession().getRedisTtl())
+                    .expire(properties.getSession().getResumeTtl())
                     .named("sm_buffer_message_ttl_idx"); // Explicitly named for easier DB maintenance
 
             indexOps.ensureIndex(ttlIndex);
             
             log.info("Success: SM Buffer TTL index ensured with duration: {}", 
-            		properties.getSession().getRedisTtl());
+            		properties.getSession().getResumeTtl());
             
         } catch (Exception e) {
             log.error("Failed to initialize MongoDB indexes for SmBufferMessage. " +

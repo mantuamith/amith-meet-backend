@@ -42,6 +42,6 @@ public class StreamManagementProperties {
          *
          * Default: 60 seconds
          */
-        private Duration redisTtl = Duration.ofSeconds(60);
+        private Duration resumeTtl = Duration.ofSeconds(60);
     }
 }
