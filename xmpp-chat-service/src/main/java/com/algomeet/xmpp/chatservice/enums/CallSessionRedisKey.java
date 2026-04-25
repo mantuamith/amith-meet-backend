@@ -10,7 +10,7 @@ public enum CallSessionRedisKey {
      * ZSET of pending direct-call timeouts.
      * score = expiration timestamp
      */
-    DIRECT_CALL_TIMEOUT_QUEUE("xmpp:call:delayed-missed-call-tasks"),
+    DIRECT_CALL_TIMEOUT_QUEUE("xmpp:call:direct:delayed-missed-call-tasks"),
 
     /**
      * ZSET of pending group/MUC call timeouts.
@@ -76,5 +76,9 @@ public enum CallSessionRedisKey {
     
     public static String getSidFromMucSid(String mucSid) {
         return mucSid.split(MUC_SID_SEPARATOR)[0];
+    }
+    
+    public static String[] getSidAndMucSidPair(String mucSid) {
+        return new String[] {mucSid.substring(0, mucSid.indexOf(MUC_SID_SEPARATOR)), mucSid};
     }
 }

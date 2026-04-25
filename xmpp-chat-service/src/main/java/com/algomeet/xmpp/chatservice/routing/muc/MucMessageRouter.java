@@ -47,7 +47,7 @@ public class MucMessageRouter {
 	 * Handles distribution logic. Iterates through members or targets a specific occupant 
 	 * for Private Messages.
 	 */
-	public void broadcastToOccupants(ChannelHandlerContext ctx, String id, String roomJid, String fromJid, XmppMessageType msgType, MucRoomDto group, 
+	public void broadcastToOccupants(ChannelHandlerContext ctx, String id, String toRoomJid, String fromJid, XmppMessageType msgType, MucRoomDto group, 
 			MucMember senderMucMember, MucMember directReceiverMucMember, String originalXml) {
 
 		XmppPrincipal principal = ctx.channel().attr(XmppSessionAttributes.PRINCIPAL).get();
@@ -56,12 +56,12 @@ public class MucMessageRouter {
 
 		if (directReceiverMucMember != null) {			
 			// Target: Single recipient (Private Message within MUC)
-			publishOrNotify(ctx, id, roomJid, fromJid, msgType, senderMucMember, originalXml, 
+			publishOrNotify(ctx, id, toRoomJid, fromJid, msgType, senderMucMember, originalXml, 
 					directReceiverMucMember.getUserKey(), isJingleStanza, isJingleSessionInitiate, principal);
 		} else {						
 			// Target: All room members (Broadcast)
 			for(MucMember receiverMucMember : group.getMembers()) {
-				publishOrNotify(ctx, id, roomJid, fromJid, msgType, senderMucMember, originalXml, 
+				publishOrNotify(ctx, id, toRoomJid, fromJid, msgType, senderMucMember, originalXml, 
 						receiverMucMember.getUserKey(), isJingleStanza, isJingleSessionInitiate, principal);
 			}
 		}
@@ -70,13 +70,13 @@ public class MucMessageRouter {
 	/**
 	 * Core delivery method. Performs JID rewriting, cluster publishing, and push notification triggering.
 	 */
-	private void publishOrNotify(ChannelHandlerContext ctx, String id, String roomJid, String fromJid, XmppMessageType msgType, 
+	private void publishOrNotify(ChannelHandlerContext ctx, String id, String toRoomJid, String fromJid, XmppMessageType msgType, 
 			MucMember senderMucMember, String originalXml, String toUserKey, boolean isJingleStanza,
 			boolean isJingleSessionInitiate, XmppPrincipal principal) {
 
 		// 1. Call Tracking (For VoIP/Video logic)
 		if (isJingleStanza) {	        	
-			mucCallTracker.track(ctx, jidUtil.getBareJid(toUserKey), fromJid, originalXml, principal, XmppUtil.getRoomId(roomJid));
+			mucCallTracker.track(ctx, jidUtil.getBareJid(toUserKey), fromJid, originalXml, principal, XmppUtil.getRoomId(toRoomJid));
 		}
 
 		// 2. Anonymization (JID Rewriting)
@@ -86,7 +86,7 @@ public class MucMessageRouter {
 		 * 1. Change 'from' from UserJID to OccupantJID (Room anonymity).
 		 * 2. Change 'to' from RoomJID to the specific Recipient's JID for routing.
 		 */
-		String finalForwardXml = XmppStanzaMucUtil.rewriteMucStanzaForRecipient(originalXml, roomJid, fromJid, 
+		String finalForwardXml = XmppStanzaMucUtil.rewriteMucStanzaForRecipient(originalXml, toRoomJid, fromJid, 
 				toUserKey, domainProperties.getDomain(), senderMucMember);
 
 		// 3. Live Delivery

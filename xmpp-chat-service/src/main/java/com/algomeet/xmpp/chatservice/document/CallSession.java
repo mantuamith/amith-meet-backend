@@ -53,6 +53,8 @@ public class CallSession {
     private ParticipantCallStatus callerStatus;
     
     private ParticipantCallStatus calleeStatus;
+    
+    private Integer tenantId;
 
     private Long createdAt;    // When the call invitation was sent
     private Long acceptedAt;   // When the callee clicked "Answer"

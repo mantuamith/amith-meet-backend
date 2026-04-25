@@ -103,7 +103,7 @@ public class MucCallLifeCycleTracker {
 	 * If timeout worker crashes or call flow breaks,
 	 * metadata auto-expires after N minutes.
 	 */
-	@Value("${call.session-metadata-ttl-minutes:3}")
+	@Value("${call.session-metadata-ttl-minutes:10}")
 	private Integer callSessionMetadataTtlMinutes;
 
 	/**
@@ -231,8 +231,8 @@ public class MucCallLifeCycleTracker {
 
 		Map<String, String> data = new HashMap<>();
 		data.put(CallSessionMetadata.SID.getKey(), sid);
-		data.put(CallSessionMetadata.TO.getKey(), toJid);
-		data.put(CallSessionMetadata.FROM.getKey(), fromJid);
+		data.put(CallSessionMetadata.TO_JID.getKey(), toJid);
+		data.put(CallSessionMetadata.FROM_JID.getKey(), fromJid);
 		data.put(CallSessionMetadata.CALL_TYPE.getKey(), callType);
 		data.put(CallSessionMetadata.TENANT_ID.getKey(),
 				principal.getTenantId().toString());
