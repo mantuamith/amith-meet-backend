@@ -283,11 +283,11 @@ public class MucCallLifeCycleTracker {
 			String calleeSid) {
 
 		// Generate Redis MUC SID using sid and callee user key
-		String redisMucSid = CallSessionRedisKey.getMucSid(sid, calleeUserKey);
+		String mucId = CallSessionRedisKey.getMucSid(sid, calleeUserKey);
 
-		log.info("Call accepted MUC SID={}", redisMucSid);
+		log.info("Call accepted MUC SID={}", mucId);
 
-		handleResolution(redisMucSid);
+		handleResolution(mucId);
 
 		mucCallTrackerService.trackAcceptance(
 				sid,
@@ -473,7 +473,7 @@ public class MucCallLifeCycleTracker {
 	 */
 	private void handleResolution(String sid) {
 
-		redisTemplate.opsForZSet().remove(CallSessionRedisKey.DIRECT_CALL_TIMEOUT_QUEUE.getVal(), sid);
+		redisTemplate.opsForZSet().remove(CallSessionRedisKey.MUC_CALL_TIMEOUT_QUEUE.getVal(), sid);
 		redisTemplate.delete(CallSessionRedisKey.CALL_METADATA_PREFIX.format(sid));
 	}
 
@@ -483,7 +483,7 @@ public class MucCallLifeCycleTracker {
 	public boolean isCallInDelayQueue(String sid) {
 
 		Double score = redisTemplate.opsForZSet().score(
-				CallSessionRedisKey.DIRECT_CALL_TIMEOUT_QUEUE.getVal(),	sid);
+				CallSessionRedisKey.MUC_CALL_TIMEOUT_QUEUE.getVal(),	sid);
 
 		return score != null;
 	}
