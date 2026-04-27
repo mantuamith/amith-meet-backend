@@ -21,7 +21,6 @@ import com.algomeet.xmpp.chatservice.session.model.UserSession;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -47,7 +46,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Component
 public class UserSessionRegistry {
-    private static final String USER_SESSIONS_KEY_PREFIX = "algomeet:chat-user-sessions:";
+    private static final String USER_SESSIONS_KEY_PREFIX = "xmpp:user-sessions:";
     
     private final RedisTemplate<String, String> redisTemplate;
     

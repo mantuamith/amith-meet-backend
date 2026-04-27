@@ -10,7 +10,7 @@ import com.algomeet.xmpp.chatservice.connection.registry.LocalChannelRegistry;
 import com.algomeet.xmpp.chatservice.enums.UserState;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.routing.state.XmppBroadcastUserPresenceHandler;
-import com.algomeet.xmpp.chatservice.service.CallTrackerService;
+import com.algomeet.xmpp.chatservice.service.CallSessionRecoveryService;
 import com.algomeet.xmpp.chatservice.service.XmppSmBufferService;
 import com.algomeet.xmpp.chatservice.session.UserSessionRegistry;
 import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
@@ -38,7 +38,7 @@ public class ConnectionLifecycleHandler {
 
 	private final UserSessionRegistry userSessionRegistry;
 	private final LocalChannelRegistry localChannelRegistry;
-	private final CallTrackerService callTrackerService;
+	private final CallSessionRecoveryService callSessionRecoveryService;
 	private final DomainProperties domainProperties;
 	private final XmppBroadcastUserPresenceHandler xmppBroadcastUserPresenceHandler;
 	private final XmppSmBufferService xmppSmBufferService;
@@ -140,7 +140,7 @@ public class ConnectionLifecycleHandler {
 			safeExecute(() -> userSessionRegistry.removeSession(userKey, sessionId), "User Session Registry", userKey);
 
 			// Handle ongoing dropped calls.
-			callTrackerService.handleTransportDrop(sessionId).subscribe();
+			callSessionRecoveryService.handleTransportDrop(sessionId).subscribe();
 
 			// Broadcast user presence GONE
 			xmppBroadcastUserPresenceHandler.broadcastUserPresenceAsync(ctx, principal, UserState.GONE);

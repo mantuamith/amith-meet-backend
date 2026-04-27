@@ -97,7 +97,7 @@ public class MucAcceptInviteEventHandler {
      */
     private void saveToDatabase(String id, String roomBareJid, String senderJid, MucRoomDto group, MucMember sender, String xml) {
         StanzaInfo info = StanzaInfo.builder()
-                .stanzaId(id)
+                .messageId(id)
                 .stanzaType(XmppMessageType.GROUPCHAT.getXmlValue())
                 .build();
         

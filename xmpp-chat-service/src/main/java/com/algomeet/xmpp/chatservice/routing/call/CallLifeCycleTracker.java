@@ -6,7 +6,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
@@ -16,6 +15,7 @@ import com.algomeet.xmpp.chatservice.enums.CallSessionMetadata;
 import com.algomeet.xmpp.chatservice.enums.CallSessionRedisKey;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
+import com.algomeet.xmpp.chatservice.properties.CallProperties;
 import com.algomeet.xmpp.chatservice.service.CallTrackerService;
 import com.algomeet.xmpp.chatservice.service.OfflineMessageService;
 import com.algomeet.xmpp.chatservice.service.UnreadCountService;
@@ -40,12 +40,7 @@ public class CallLifeCycleTracker {
 	private final OfflineMessageService offlineMessageService;
 	private final CallTrackerService callTrackerService;
 	private final UnreadCountService unreadCountService;
-
-	@Value("${call.session-metadata-ttl-minutes:10}")
-	private Integer callSessionMetadataTtlMinutes;
-
-	@Value("${call.ringing-timeout-seconds:30}")
-	private Integer callRingingTimeoutSeconds;
+	private final CallProperties callProperties;
 
 	/**
 	 * Regex pattern to extract the Session ID (sid) from Jingle elements.
@@ -80,18 +75,18 @@ public class CallLifeCycleTracker {
 	 */
 	private void handleInitiate(String toJid, String fromJid, String xml, String sid, XmppPrincipal principal) {
 		// Calculate the exact epoch millisecond when the call should be considered "Missed"
-		long executeAt = System.currentTimeMillis() + (callRingingTimeoutSeconds * 1000);
+		long executeAt = System.currentTimeMillis() + (callProperties.getRingingTimeout().getSeconds() * 1000);
 
 		// Detect media type (Video/Audio) using quote-agnostic regex per XEP-0167
 		boolean isVideo = xml.matches("(?s).*media=['\"]video['\"].*");
-		String callType = isVideo ? "Video" : "Audio";
+		String callType = isVideo ? "video" : "audio";
 
 		// 1. Store call metadata in a Redis Hash. 
 		// This is the source of truth for the background worker if the call times out.
 		String metaKey = CallSessionRedisKey.CALL_METADATA_PREFIX.format(sid);
 		Map<String, String> data = new HashMap<>();
-		data.put(CallSessionMetadata.TO.getKey(), toJid);
-		data.put(CallSessionMetadata.FROM.getKey(), fromJid);
+		data.put(CallSessionMetadata.TO_JID.getKey(), toJid);
+		data.put(CallSessionMetadata.FROM_JID.getKey(), fromJid);
 		data.put(CallSessionMetadata.CALL_TYPE.getKey(), callType);
 		data.put(CallSessionMetadata.TENANT_ID.getKey(), principal.getTenantId().toString()); 
 		data.put(CallSessionMetadata.USERNAME.getKey(), principal.getUsername()); 
@@ -99,16 +94,17 @@ public class CallLifeCycleTracker {
 		redisTemplate.opsForHash().putAll(metaKey, data);
 
 		// Apply a safety TTL to avoid memory leaks if the server crashes before processing
-		redisTemplate.expire(metaKey, callSessionMetadataTtlMinutes, TimeUnit.MINUTES); 
+		redisTemplate.expire(metaKey, callProperties.getSessionMetadataTtl().getSeconds(), TimeUnit.SECONDS); 
 
 		// 2. Add the SID to the ZSET (Delayed Queue). 
 		// The 'score' is the expiration time; the worker polls for scores <= current time.
 		redisTemplate.opsForZSet().add(CallSessionRedisKey.DIRECT_CALL_TIMEOUT_QUEUE.getVal(), sid, executeAt);
-		log.info("Call [{}] initiated. SID: {}. Timeout scheduled in {}s", callType, sid, callRingingTimeoutSeconds);
+		log.info("Call [{}] initiated. SID: {}. Timeout scheduled in {}s", callType, sid, 
+				callProperties.getRingingTimeout().getSeconds());
 		
 		// Track call initiation for duration calculation
-		callTrackerService.trackInitiation(sid, principal.getUserKey(), principal.getSessionId(), XmppUtil.getUserKey(toJid), callType)
-		.subscribe();
+		callTrackerService.trackInitiation(sid, principal.getUserKey(), principal.getSessionId(), 
+				XmppUtil.getUserKey(toJid), callType).subscribe();
 	}
 
 	/**

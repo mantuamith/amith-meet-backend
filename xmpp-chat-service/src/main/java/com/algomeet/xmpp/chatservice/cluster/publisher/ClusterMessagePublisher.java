@@ -295,7 +295,7 @@ public class ClusterMessagePublisher {
 			 * the final socket delivery.
 			 */
 			redisTemplate.convertAndSend(
-					redisTopicProperties.getClusterSyncTopic(),
+					redisTopicProperties.getClusterSync(),
 					msg
 					);
 
@@ -312,7 +312,7 @@ public class ClusterMessagePublisher {
 			 */
 			log.error("CRITICAL: Failed to publish stanza [{}] to Redis topic [{}]. Error: {}",
 					id,
-					redisTopicProperties.getClusterSyncTopic(),
+					redisTopicProperties.getClusterSync(),
 					ex.getMessage()
 					);
 

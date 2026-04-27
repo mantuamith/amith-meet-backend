@@ -1,6 +1,9 @@
 package com.algomeet.xmpp.chatservice.util;
 
 import java.io.StringReader;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -14,6 +17,7 @@ import javax.xml.stream.XMLStreamReader;
 import org.springframework.util.StringUtils;
 
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
+import com.github.f4b6a3.ulid.UlidCreator;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -329,5 +333,90 @@ public class XmppStanzaUtil {
          * (like <r/> or <a/>), it cannot be a standard XMPP Ping.
          */
         return false;
+    }
+    
+    /**
+     * Injects a server-generated XEP-0359 stanza-id extension into an outgoing XMPP <message> stanza.
+     *
+     * This method is primarily used for:
+     * - Message Archive Management (MAM) correlation
+     * - Stable message identification across devices
+     * - Offline sync and deduplication
+     * - Reliable message tracking in distributed systems
+     *
+     * The generated stanza-id is based on a monotonic ULID to ensure:
+     * - Lexicographically sortable identifiers
+     * - High uniqueness under concurrent load
+     * - Time-ordered message indexing support
+     *
+     * @param xml    raw XMPP message XML string (must contain </message> closing tag)
+     * @param domain XMPP domain used as the 'by' attribute in stanza-id (server identity)
+     * @return XML message enriched with <stanza-id/> extension
+     */
+    public static String insertStanzaId(String xml, String ulidString, String domain) {
+        /**
+         * Construct XEP-0359 stanza-id extension element.
+         *
+         * Format:
+         * <stanza-id xmlns='urn:xmpp:sid:0'
+         *            by='domain.com'
+         *            id='ulid'/>
+         *
+         * 'by'  → identifies the entity that generated the ID (server/domain)
+         * 'id'  → globally unique message identifier
+         */
+        String stanzaIdExtension =
+                "<stanza-id xmlns='urn:xmpp:sid:0' by='" +
+                domain +
+                "' id='" +
+                ulidString +
+                "'/>";
+
+        /**
+         * Standard XMPP message closing tag.
+         * We inject stanza-id just before this closing tag.
+         */
+        String closingTag = "</message>";
+
+        /**
+         * Optimized fast-path:
+         * If XML ends correctly with </message>, safely insert stanza-id
+         * before the closing tag without full XML parsing.
+         */
+        if (xml.endsWith(closingTag)) {
+
+            // Remove closing tag, append stanza-id, then re-attach closing tag
+            return xml.substring(0, xml.length() - closingTag.length())
+                    + stanzaIdExtension
+                    + closingTag;
+
+        } else {
+
+            /**
+             * Fallback path:
+             * If XML is malformed, contains whitespace, or unexpected formatting,
+             * attempt a replace-based injection.
+             *
+             * WARNING:
+             * - Less safe than structured XML parsing
+             * - Slightly slower
+             * - Used only as a resilience fallback
+             */
+            return xml.replace(closingTag, stanzaIdExtension + closingTag);
+        }
+    }
+
+    /**
+     * Formats an Instant into an XMPP compliant ISO-8601 timestamp string.
+     * Format: CCYY-MM-DDThh:mm:ss[.sss]Z
+     */
+    public static String formatTimestamp(Instant createdAt) {
+        if (createdAt == null) {
+            return null;
+        }
+        
+        return DateTimeFormatter.ISO_INSTANT
+                .withZone(ZoneOffset.UTC)
+                .format(createdAt);
     }
 }

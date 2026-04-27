@@ -1,7 +1,6 @@
 package com.algomeet.signalservice.controller;
 
 import java.util.List;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
@@ -54,34 +53,33 @@ public class MessageBackupController implements MessageBackupControllerDoc{
      * @return {@link CommonResponse} with success status
      */
     @PostMapping
-    public ResponseEntity<CommonResponse<?>> saveMessage(@Validated @RequestBody MessageBackupDocument request) {
-    	request.setUserKey(SecurityUtil.getUserKey());
-    	
+    public ResponseEntity<CommonResponse<?>> saveMessage(@Validated @RequestBody MessageBackupDocument request) { 	
     	MessageBackupDocument saved = messageBackupService.insert(request);
+    	
     	if (saved == null) {
     		throw new RuntimeException("Error saving the message backup");
     	}
     	
         return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
     }
-    
+               
     /**
      * Retrieves a paginated list of chat messages exchanged between the
      * currently authenticated user and the specified peer.
      *
-     * @param peerKey the unique identifier of the peer user
+     * @param participantKey the unique identifier of the other chat participant/entity key
      * @param page    the page number (default = 0)
      * @param size    the page size (default = 50)
      * @return {@link Page} of {@link MessageBackupResponse} objects wrapped in a {@link CommonResponse}
      */
-    @GetMapping("/{peerKey}/conversation")
+    @GetMapping("/{participantKey}/conversation")
     public ResponseEntity<CommonResponse<Page<MessageBackupResponse>>> getMessagesConversations(
-            @PathVariable String peerKey,
+            @PathVariable String participantKey,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "50") int size) {
 
         Page<MessageBackupDocument> backupsPage =
-                messageBackupService.getConversation(SecurityUtil.getUserKey(), peerKey, page, size);
+                messageBackupService.getConversation(SecurityUtil.getUserKey(), participantKey, page, size);
 
         List<MessageBackupResponse> responseList = backupsPage.getContent()
                 .stream() 
