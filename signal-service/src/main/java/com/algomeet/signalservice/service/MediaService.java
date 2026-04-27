@@ -19,7 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 public class MediaService {
 
 	private final MediaClient mediaClient;
-	@Value("${mediaservice.support:true}")
+	@Value("${mediaservice.support:false}")
 	private boolean mediaServiceSupport;
 
 	public void adjustStorageUsage(String userKey, StorageUsageAdjustmentRequest request) {

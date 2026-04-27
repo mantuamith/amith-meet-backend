@@ -209,7 +209,7 @@ public class XmppSmBufferService {
          * If another server already holds it, this request
          * likely represents duplicate processing.
          */
-        String lockKey = "algomeet:lock:save:sm:stanza-id:" + id;
+        String lockKey = "xmpp:lock:save:sm:stanza-id:" + id;
 
         RLockReactive lock = redissonReactiveClient.getLock(lockKey);
 
@@ -331,7 +331,6 @@ public class XmppSmBufferService {
         return getUserSmSessionIds(receiverUserKey)
 
                 .flatMap(smSessionId -> {
-
                     /**
                      * Read message type from stanza.
                      *
@@ -339,7 +338,6 @@ public class XmppSmBufferService {
                      * chat, groupchat, normal, headline
                      */
                     String type = XmppStanzaUtil.getAttribute(xml, "type");
-
                     XmppMessageType msgType =
                             XmppMessageType.fromString(type);
 
@@ -354,7 +352,7 @@ public class XmppSmBufferService {
 
                         return smBufferMessageService.bufferStanza(
                                 smSessionId,
-
+                                
                                 /**
                                  * Generate fallback id if sender omitted stanza id.
                                  */
@@ -366,15 +364,12 @@ public class XmppSmBufferService {
                                 xml
                         );
                     }
-
                     /**
                      * Skip stanza from SM buffer path.
                      */
                     return Mono.empty();
                 })
-
                 .then()
-
                 .doOnSuccess(v ->
                         log.debug(
                                 "Completed processing stanza {} for user {}",
@@ -382,7 +377,6 @@ public class XmppSmBufferService {
                                 receiverUserKey
                         )
                 )
-
                 .doOnError(e ->
                         log.error(
                                 "Failed to process stanza {} for user {}",
@@ -484,7 +478,6 @@ public class XmppSmBufferService {
 
                                 .then();
                     })
-
                     .doOnSuccess(v ->
                             log.debug(
                                     "Completed processing stanza {} for user {}",
@@ -492,7 +485,6 @@ public class XmppSmBufferService {
                                     receiverUserKey
                             )
                     )
-
                     .doOnError(e ->
                             log.error(
                                     "Failed to process stanza {} for user {}",

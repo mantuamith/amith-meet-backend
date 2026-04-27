@@ -1,6 +1,6 @@
 package com.algomeet.xmpp.chatservice.util;
 
-import com.algomeet.xmpp.chatservice.properties.XmppSmRedisProperties;
+import com.algomeet.xmpp.chatservice.properties.StreamManagementProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
@@ -53,20 +53,20 @@ public class XmppSmSessionRedisUtil {
 	 * - TTL duration
 	 * - SM-related Redis settings
 	 */
-	private final XmppSmRedisProperties properties;
+	private final StreamManagementProperties properties;
 
 	/**
 	 * Redis key pattern for per-session SM state.
 	 *
 	 * Example:
-	 * algomeet:sm:session:abc123
+	 * xmpp:sm:user:session:abc123
 	 */
-	public static final String SM_SESSION_KEY = "algomeet:sm:session:%s";
+	public static final String SM_SESSION_KEY = "xmpp:sm:user:session:%s";
 
 	/**
 	 * Prefix used for scanning / indexing if needed.
 	 */
-	public static final String SM_SESSION_KEY_PREFIX = "algomeet:sm:session:";
+	public static final String SM_SESSION_KEY_PREFIX = "xmpp:sm:user:session:";
 
 	/**
 	 * Hash field storing latest inbound acknowledged counter.
@@ -133,7 +133,7 @@ public class XmppSmSessionRedisUtil {
 				script,
 				List.of(key),
 				List.of(
-						String.valueOf(properties.getTtl().getSeconds()),
+						String.valueOf(properties.getSession().getResumeTtl().getSeconds()),
 						String.valueOf(h),
 						userSessionId
 						)
@@ -187,7 +187,7 @@ public class XmppSmSessionRedisUtil {
 				/**
 				 * Refresh expiration.
 				 */
-				.flatMap(success ->	redis.expire(key, properties.getTtl()))
+				.flatMap(success ->	redis.expire(key, properties.getSession().getResumeTtl()))
 
 				/**
 				 * Retry quick transient issues.
@@ -266,8 +266,8 @@ public class XmppSmSessionRedisUtil {
 	 * Builds formatted Redis key from pattern.
 	 *
 	 * Example:
-	 * key("algomeet:sm:session:%s", "abc")
-	 * -> algomeet:sm:session:abc
+	 * key("xmpp:sm:user:session:%s", "abc")
+	 * -> xmpp:sm:user:session:abc
 	 */
 	private String key(String pattern, String smSessionId) {
 		return String.format(pattern, smSessionId);

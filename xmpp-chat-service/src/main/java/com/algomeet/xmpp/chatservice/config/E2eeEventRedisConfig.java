@@ -65,7 +65,7 @@ public class E2eeEventRedisConfig {
      */
     @PostConstruct
     public void setupClusterSubscription() {
-        String topic = redisTopicProperties.getE2eeEventTopic();
+        String topic = redisTopicProperties.getE2eeEvents();
         log.info("Initializing localized Redis E2EE Event subscriber on topic: {}", topic);
                 
         // 1. Create the adapter

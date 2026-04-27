@@ -30,6 +30,7 @@ import com.algomeet.xmpp.chatservice.util.XmppReceiptUtil;
 import com.algomeet.xmpp.chatservice.util.XmppServerAckUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
+import com.github.f4b6a3.ulid.UlidCreator;
 
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
@@ -64,14 +65,29 @@ public class XmppChatHandler {
 		String toUserKey = XmppUtil.getUserKey(toJid);
 		String fromUserKey = principal.getUserKey();
 		
+		String forArchiveXml = originalXml;
+		
 		// Get user sessions from redis
 		Set<UserSession> sessions = userSessionRegistry.getSessions(toUserKey);
 
 		// Persistence & XEP-0198 Acknowledgment
-		// Instead of .subscribe(), return the Mono and handle the sequence
-		boolean archivable = XmppStanzaUtil.isArchivable(originalXml);
-		if (msgType.supportsOfflineStorage() && archivable) {			
-			offlineMessageService.save(id, toUserKey, fromUserKey, type, originalXml)
+		boolean isArchivable = XmppStanzaUtil.isArchivable(originalXml);
+		if (msgType.supportsOfflineStorage() && isArchivable) {	
+			 /**
+	         * Generate a monotonic ULID used as the stanza-id value.
+	         *
+	         * Why ULID:
+	         * - time-sortable (better than UUID for message ordering)
+	         * - globally unique under distributed systems
+	         * - suitable for MAM storage and pagination cursors
+	         *
+	         * Note: Lowercasing ensures consistency across storage/query layers.
+	         */
+	        String ulidString = UlidCreator.getMonotonicUlid().toLowerCase();
+			// Insert stanza ID
+			forArchiveXml = XmppStanzaUtil.insertStanzaId(originalXml, ulidString, principal.getDomain());
+					    
+			offlineMessageService.save(id, toUserKey, fromUserKey, type, forArchiveXml)
 		            .doOnSuccess(saved -> {
 		            	boolean isAckMessage = false;
 		            	// Send an immediate server-level acknowledgment to the sender.
@@ -152,11 +168,12 @@ public class XmppChatHandler {
 		}   				
 
 		// Check if carbon copy is required, if archivable the Carbon Copy required
-		Boolean shouldCarbon = archivable;
+		Boolean shouldCarbon = isArchivable;
 		
 		// Broadast to Redis: Even if they are AWAY/DND, we attempt delivery 
 		// to their active WebSocket channels across the cluster.
-		clusterMessagePublisher.convertAndSendToUser(id, toUserKey, fromUserKey, ChatType.CHAT, false, shouldCarbon, originalXml, principal);
+		clusterMessagePublisher.convertAndSendToUser(id, toUserKey, fromUserKey, ChatType.CHAT, false, shouldCarbon, 
+				(isArchivable ? forArchiveXml : originalXml), principal);
 						
 		pushNotification(ctx, id, toUserKey, fromUserKey, type, originalXml, sessions, principal);
 	}

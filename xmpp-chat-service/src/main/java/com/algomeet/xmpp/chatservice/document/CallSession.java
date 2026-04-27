@@ -8,6 +8,7 @@ import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.algomeet.xmpp.chatservice.enums.CallStatus;
+import com.algomeet.xmpp.chatservice.enums.ParticipantCallStatus;
 
 @Data
 @Builder
@@ -47,9 +48,13 @@ public class CallSession {
     
     private String roomId;    // Room/Group chat Id
     
-    private CallStatus callerStatus;
+    private CallStatus status;
     
-    private CallStatus calleeStatus;
+    private ParticipantCallStatus callerStatus;
+    
+    private ParticipantCallStatus calleeStatus;
+    
+    private Integer tenantId;
 
     private Long createdAt;    // When the call invitation was sent
     private Long acceptedAt;   // When the callee clicked "Answer"

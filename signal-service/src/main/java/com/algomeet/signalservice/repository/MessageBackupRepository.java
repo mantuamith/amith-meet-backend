@@ -1,7 +1,6 @@
 package com.algomeet.signalservice.repository;
 
 import java.util.List;
-import java.util.Optional;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -16,11 +15,16 @@ import com.algomeet.signalservice.repository.projection.ConversationStorageStats
 import jakarta.transaction.Transactional;
 
 public interface MessageBackupRepository extends MongoRepository<MessageBackupDocument, String> {
+	
+	@Deprecated
 	@Query("{ '$or': [ " +
 			"{ 'userKey': ?0, 'senderKey': ?0, 'receiverKey': ?1 }, " +
 			"{ 'userKey': ?0, 'senderKey': ?1, 'receiverKey': ?0 } " +
 			"] }")
 	Page<MessageBackupDocument> findConversation(String userA, String userB, Pageable pageable);
+	
+	Page<MessageBackupDocument> findByConversationId(
+			String conversationId, Pageable pageable);
 
     // Custom delete query for both sides of conversation
     @Modifying

@@ -330,7 +330,7 @@ public class MucAddMemberEventHandler {
 			String xml) {
 
 		StanzaInfo info = StanzaInfo.builder()
-				.stanzaId(id)
+				.messageId(id)
 				.stanzaType(
 						XmppMessageType.GROUPCHAT.getXmlValue()
 						)

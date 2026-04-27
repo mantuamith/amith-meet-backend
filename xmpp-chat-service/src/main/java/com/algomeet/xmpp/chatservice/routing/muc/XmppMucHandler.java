@@ -66,7 +66,7 @@ public class XmppMucHandler {
 	 *
 	 * @param ctx         The Netty channel context for the current TCP connection.
 	 * @param id          The 'id' attribute of the XMPP stanza.
-	 * @param toRoomJid   The destination JID (e.g., room@conference.domain/nickname).
+	 * @param toRoomJid   The destination JID (e.g., room@conference.domain/<nickname|userkey>).
 	 * @param fromJid     The real JID of the sender.
 	 * @param type        The message type (e.g., groupchat, error, presence).
 	 * @param originalXml The full raw XML payload.
@@ -111,14 +111,25 @@ public class XmppMucHandler {
 
 			// 3. ARCHIVING (MAM - XEP-0313)
 			// Only archive messages that are storage-eligible (e.g., contain a <body>)
-			if(msgType.supportsOfflineStorage() && XmppStanzaUtil.isArchivable(originalXml)) {
-				StanzaInfo info = GroupChatParser.parse(originalXml);
-				String ulidString = UlidCreator.getMonotonicUlid().toLowerCase();
+			// Check if it's archivable
+			boolean isArchivable = XmppStanzaUtil.isArchivable(originalXml);
 
-				// Inject Stanza-ID (XEP-0359) to facilitate client-side de-duplication and synchronization
-				String stanzaIdExtension = String.format("<stanza-id xmlns='urn:xmpp:sid:0' by='%s' id='%s'/>", 
-						principal.getDomain(), ulidString);
-				forArchiveXml = originalXml.replace("</message>", stanzaIdExtension + "</message>");
+			if (msgType.supportsOfflineStorage() && isArchivable) {
+			    StanzaInfo info = GroupChatParser.parse(originalXml);
+			    
+		        /**
+		         * Generate a monotonic ULID used as the stanza-id value.
+		         *
+		         * Why ULID:
+		         * - time-sortable (better than UUID for message ordering)
+		         * - globally unique under distributed systems
+		         * - suitable for MAM storage and pagination cursors
+		         *
+		         * Note: Lowercasing ensures consistency across storage/query layers.
+		         */
+		        String ulidString = UlidCreator.getMonotonicUlid().toLowerCase();
+				// Insert stanza ID
+				forArchiveXml = XmppStanzaUtil.insertStanzaId(originalXml, ulidString, principal.getDomain());
 
 				xmppArchiveService.archiveEvent(forArchiveXml, info, toRoomJid, (pmRecipientMucMember != null ? pmRecipientMucMember.getUserKey() : null), 
 						fromJid, ulidString)
@@ -145,7 +156,7 @@ public class XmppMucHandler {
 						if (StringUtils.hasText(ackMessageId)) {
 							// Decrement the unread counter for this specific sender-recipient pair.
 							// Note: fromUserKey is the person who read it, toUserKey is the original sender.
-							mucUnreadCountService.decrementUnreadCount(senderMucMember.get().getUserKey(), toRoomId, principal).subscribe();
+							mucUnreadCountService.decrementUnreadCount(senderMucMember.get().getUserKey(), toRoomId, ackMessageId, principal).subscribe();
 						}
 					}
 
@@ -178,7 +189,7 @@ public class XmppMucHandler {
 				})
 				.doOnError(e -> {
 					log.error("MAM Archive Failure: {}", e.getMessage(), e);
-					handleArchiveError(ctx, id, fromJid, e);
+					handleArchiveError(ctx, id, principal, e);
 				})
 				.subscribe();
 			}
@@ -187,7 +198,7 @@ public class XmppMucHandler {
 			try {			
 				// Standard message propagation to members
 				mucMessageRouter.broadcastToOccupants(ctx, id, toRoomJid, fromJid, msgType, group, senderMucMember.get(), 
-						pmRecipientMucMember, originalXml);
+						pmRecipientMucMember, (isArchivable ? forArchiveXml : originalXml));
 
 			} catch (NumberFormatException e) {
 				log.error("Critical: Invalid roomId format in routing: {}", toRoomId);
@@ -228,7 +239,9 @@ public class XmppMucHandler {
 				&& xml.contains("http://jabber.org/protocol/muc#admin");
 	}
 
-	private void handleArchiveError(ChannelHandlerContext ctx, String id, String fromJid, Throwable e) {
+	private void handleArchiveError(ChannelHandlerContext ctx, String id, XmppPrincipal principal, Throwable e) {
+		String fromJid = principal.getBareJid();
+		
 		if (e instanceof DuplicateKeyException) {
 			// Duplicate stanza detected (idempotent case).
 			// Client MUST ignore this error; used only to support safe retries.

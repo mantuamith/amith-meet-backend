@@ -6,7 +6,7 @@ import lombok.Data;
 @Data
 @Builder
 public class StanzaInfo {
-    private String stanzaId;    // The 'id' attribute of the <message> or <presence>
+    private String messageId;    // The 'id' attribute of the <message> or <presence>
     private String stanzaType;  // "message", "presence", or "iq"
     private String type;        // 'groupchat', 'chat', 'unavailable', etc.
     private String category;    // 'message', 'reaction', 'retraction', or 'error'

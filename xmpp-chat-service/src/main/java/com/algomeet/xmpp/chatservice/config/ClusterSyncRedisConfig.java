@@ -52,7 +52,7 @@ public class ClusterSyncRedisConfig {
      */
     @PostConstruct
     public void setupClusterSubscription() {
-    	String topic = redisTopicProperties.getClusterSyncTopic();
+    	String topic = redisTopicProperties.getClusterSync();
         log.info("Initializing localized Redis Cluster Subscriber on topic: {}", topic);
         
         // 1. Create the adapter

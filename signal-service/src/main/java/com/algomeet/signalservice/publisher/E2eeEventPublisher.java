@@ -56,7 +56,7 @@ public class E2eeEventPublisher {
      */
     public void convertAndSend(UUID userKey, E2eeEvent event) {
         try {						
-            String topic = redisTopicProperties.getE2eeEventTopic();
+            String topic = redisTopicProperties.getE2eeEvents();
             
             log.info("Broadcasting E2EE event for user [{}] to topic [{}]", userKey, topic);
 

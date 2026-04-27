@@ -10,20 +10,21 @@ public enum CallSessionRedisKey {
      * ZSET of pending direct-call timeouts.
      * score = expiration timestamp
      */
-    DIRECT_CALL_TIMEOUT_QUEUE("algomeet:call:delayed-missed-call-tasks"),
+    DIRECT_CALL_TIMEOUT_QUEUE("xmpp:call:direct:delayed-missed-call-tasks"),
 
     /**
      * ZSET of pending group/MUC call timeouts.
      * score = expiration timestamp
      */
-    MUC_CALL_TIMEOUT_QUEUE("algomeet:call:muc:delayed-missed-call-tasks"),
+    MUC_CALL_TIMEOUT_QUEUE("xmpp:call:muc:delayed-missed-call-tasks"),
 
     /**
      * HASH prefix containing temporary call session metadata.
      */
-    CALL_METADATA_PREFIX("algomeet:call:metadata:");
+    CALL_METADATA_PREFIX("xmpp:call:metadata:");
 
     private final String val;
+    private static final String MUC_SID_SEPARATOR = "_";
 
     /**
      * Helper to build a specific metadata key for a session.
@@ -70,6 +71,14 @@ public enum CallSessionRedisKey {
      * @return participant-scoped MUC session identifier
      */
     public static String getMucSid(String sid, String receiverUserKey) {
-        return sid + "_" + receiverUserKey;
+        return sid + MUC_SID_SEPARATOR + receiverUserKey;
+    }
+    
+    public static String getSidFromMucSid(String mucSid) {
+        return mucSid.split(MUC_SID_SEPARATOR)[0];
+    }
+    
+    public static String[] getSidAndMucSidPair(String mucSid) {
+        return new String[] {mucSid.substring(0, mucSid.indexOf(MUC_SID_SEPARATOR)), mucSid};
     }
 }

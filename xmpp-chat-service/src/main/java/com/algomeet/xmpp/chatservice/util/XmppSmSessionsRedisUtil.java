@@ -1,6 +1,6 @@
 package com.algomeet.xmpp.chatservice.util;
 
-import com.algomeet.xmpp.chatservice.properties.XmppSmRedisProperties;
+
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -10,6 +10,9 @@ import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Component;
+
+import com.algomeet.xmpp.chatservice.properties.StreamManagementProperties;
+
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.util.retry.Retry;
@@ -69,16 +72,16 @@ public class XmppSmSessionsRedisUtil {
 	 * - TTL values
 	 * - SM redis settings
 	 */
-	private final XmppSmRedisProperties properties;
+	private final StreamManagementProperties properties;
 
 	/**
 	 * Redis SET key containing all active SM sessions for a user.
 	 *
 	 * Example:
-	 * algomeet:user:sessions:user123
+	 * xmpp:sm:sessions:user123
 	 */
 	private static final String USER_SESSIONS_INDEX =
-			"algomeet:user:sessions:%s";
+			"xmpp:sm:user:sessions:%s";
 
 	/**
 	 * Redis keyspace notification channel pattern for expired keys.
@@ -197,10 +200,10 @@ public class XmppSmSessionsRedisUtil {
 	 *
 	 * Expected key format:
 	 * --------------------------------------------------------
-	 * algomeet:sm:session:{userKey}:{sessionId}
+	 * xmpp:sm:session:{userKey}:{sessionId}
 	 *
 	 * Example:
-	 * algomeet:sm:session:user123:abc789
+	 * xmpp:sm:session:user123:abc789
 	 *
 	 * @param expiredKey full expired Redis key
 	 * @return completion signal
@@ -250,7 +253,7 @@ public class XmppSmSessionsRedisUtil {
 	 * Adds a Stream Management session to user's active set.
 	 *
 	 * Example:
-	 * SADD algomeet:user:sessions:user123 sm-001
+	 * SADD xmpp:user:sessions:user123 sm-001
 	 *
 	 * Also refreshes index TTL so active users retain mapping.
 	 *
@@ -274,7 +277,7 @@ public class XmppSmSessionsRedisUtil {
 				/**
 				 * Keep set alive while user active.
 				 */
-				.then(redis.expire(key, properties.getTtl()))
+				.then(redis.expire(key, properties.getSession().getResumeTtl()))
 
 				/**
 				 * Retry transient failures.
@@ -360,7 +363,7 @@ public class XmppSmSessionsRedisUtil {
 	 *
 	 * Example:
 	 * user123 ->
-	 * algomeet:user:sessions:user123
+	 * xmpp:user:sessions:user123
 	 */
 	private String formatIndexKey(String userKey) {
 		return String.format(USER_SESSIONS_INDEX, userKey);

@@ -11,7 +11,7 @@ import org.springframework.data.mongodb.core.index.IndexOperations;
 import org.springframework.data.mongodb.core.index.ReactiveIndexOperations;
 
 import com.algomeet.xmpp.chatservice.document.SmBufferMessage;
-import com.algomeet.xmpp.chatservice.properties.XmppSmRedisProperties;
+import com.algomeet.xmpp.chatservice.properties.StreamManagementProperties;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -31,7 +31,7 @@ import lombok.extern.slf4j.Slf4j;
 public class MongoSmBufferMessageIndexConfig {
 
 	private final ReactiveMongoTemplate reactiveMongoTemplate;
-    private final XmppSmRedisProperties properties;
+	private final StreamManagementProperties properties;
 
     /**
      * Initializes required indexes once the ApplicationContext is fully refreshed 
@@ -59,13 +59,13 @@ public class MongoSmBufferMessageIndexConfig {
              */
             Index ttlIndex = new Index()
                     .on("createdAt", Sort.Direction.ASC)
-                    .expire(properties.getTtl())
+                    .expire(properties.getSession().getResumeTtl())
                     .named("sm_buffer_message_ttl_idx"); // Explicitly named for easier DB maintenance
 
             indexOps.ensureIndex(ttlIndex);
             
             log.info("Success: SM Buffer TTL index ensured with duration: {}", 
-                    properties.getTtl());
+            		properties.getSession().getResumeTtl());
             
         } catch (Exception e) {
             log.error("Failed to initialize MongoDB indexes for SmBufferMessage. " +

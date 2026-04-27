@@ -1,10 +1,8 @@
 package com.algomeet.xmpp.chatservice.scheduler;
 
-import java.time.Instant;
-import java.util.Optional;
-import java.util.Set;
-import java.util.UUID;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.redisson.api.RLockReactive;
 import org.redisson.api.RedissonReactiveClient;
@@ -12,37 +10,14 @@ import org.springframework.data.domain.Range;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
-import org.springframework.util.CollectionUtils;
-import org.springframework.util.StringUtils;
 
-import com.algomeet.multitenancy.context.TenantContext;
-import com.algomeet.notificationservice.dto.Notification;
-import com.algomeet.notificationservice.enums.NotificationType;
-import com.algomeet.notificationservice.service.NotificationService;
-import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
-import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
-import com.algomeet.xmpp.chatservice.dto.MucMember;
-import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
-import com.algomeet.xmpp.chatservice.dto.StanzaInfo;
-import com.algomeet.xmpp.chatservice.enums.CallSessionMetadata;
 import com.algomeet.xmpp.chatservice.enums.CallSessionRedisKey;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
-import com.algomeet.xmpp.chatservice.enums.UserState;
-import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
-import com.algomeet.xmpp.chatservice.repository.CallTrackerRepository;
-import com.algomeet.xmpp.chatservice.service.GroupCacheService;
-import com.algomeet.xmpp.chatservice.service.OfflineMessageService;
-import com.algomeet.xmpp.chatservice.service.XmppArchiveService;
-import com.algomeet.xmpp.chatservice.session.UserSessionRegistry;
-import com.algomeet.xmpp.chatservice.session.model.UserSession;
-import com.algomeet.xmpp.chatservice.util.JidUtil;
-import com.algomeet.xmpp.chatservice.util.XmppUtil;
-import com.github.f4b6a3.ulid.UlidCreator;
+import com.algomeet.xmpp.chatservice.publisher.MissedCallStreamPublisher;
 
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Schedulers;
 
 /**
  * <h2>Direct Missed Call Background Worker (Reactive)</h2>
@@ -62,33 +37,34 @@ import reactor.core.scheduler.Schedulers;
 @Component
 @AllArgsConstructor
 public class MissedCallScheduler {
-	private final ClusterMessagePublisher clusterMessagePublisher;
-	private final OfflineMessageService offlineMessageService;
-	private final NotificationService notificationService;
-	private final GroupCacheService groupCacheService;
-	private final XmppArchiveService xmppArchiveService;
-	private final JidUtil jidUtil;
-	private final UserSessionRegistry userSessionRegistry;
 	private final RedissonReactiveClient redissonReactiveClient;
 	private final ReactiveRedisTemplate<String, String> reactiveRedisTemplate;
-	private final CallTrackerRepository callTrackerRepository;
+	private final MissedCallStreamPublisher missedCallStreamPublisher;
+
+	private final AtomicBoolean running = new AtomicBoolean(false);
 
 	/**
-	 * Main execution trigger. Subscribes to the reactive chain every second.
+	 * Main execution trigger. Subscribes to the reactive chain every 2 seconds.
 	 * Using {@code fixedDelay} ensures that a new execution doesn't start until
 	 * the previous reactive subscription has been initialized.
 	 */
 	@Scheduled(fixedDelay = 1000)
 	public void processExpiredCalls() {
-		loadMissedCalls(null).subscribe();
+		if (!running.compareAndSet(false, true)) {
+			return; // skip if previous run still executing
+		}
+
+		loadMissedCalls()
+		.doFinally(sig -> running.set(false))
+		.subscribe();
 	}
 
 	/**
 	 * Scans for expired sessions and acquires a distributed lock to prevent multi-node processing.
 	 * * @return A Mono signal indicating completion of the batch process.
 	 */
-	private Mono<Void> loadMissedCalls(XmppPrincipal principal) {
-		String lockKey = "algomeet:lock:process:missed-calls";
+	private Mono<Void> loadMissedCalls() {
+		String lockKey = "xmpp:lock:publish:direct-missed-calls";
 		RLockReactive lock = redissonReactiveClient.getLock(lockKey);
 
 		return Mono.<Void, Boolean>usingWhen(
@@ -104,14 +80,20 @@ public class MissedCallScheduler {
 					// 2. QUERY: Fetch all SIDs whose score (timeout) is <= now
 					return reactiveRedisTemplate.opsForZSet()
 							.rangeByScore(CallSessionRedisKey.DIRECT_CALL_TIMEOUT_QUEUE.getVal(), Range.closed(0.0, (double) now))
-							.<Void>flatMap(sid -> 
-							// 3. ATOMIC REMOVE: Only the node that deletes the SID processes it
-							reactiveRedisTemplate.opsForZSet()
-							.remove(CallSessionRedisKey.DIRECT_CALL_TIMEOUT_QUEUE.getVal(), sid)
-							.flatMap(removed -> (removed != null && removed > 0) 
-									? processMissedCallReactive(sid) 
-											: Mono.<Void>empty())
-									)
+							.<Void>flatMap(sid -> {
+								// 3. ATOMIC REMOVE: Only the node that deletes the SID processes it
+								return reactiveRedisTemplate.opsForZSet()
+										.remove(CallSessionRedisKey.DIRECT_CALL_TIMEOUT_QUEUE.getVal(), sid)
+										.flatMap(removed -> {
+											if (removed != null && removed > 0) {
+												// Publish
+												return missedCallStreamPublisher.publish(List.of(sid), ChatType.CHAT.name());
+											} else {
+												return Mono.<Void>empty();
+											}
+										})
+										.then();
+							})
 							.then();
 				},
 				// 4. CLEANUP: Safe unlock logic to prevent IllegalMonitorStateException crashes
@@ -133,113 +115,5 @@ public class MissedCallScheduler {
 					return Mono.empty();
 				})
 				.then();
-	}
-
-	/**
-	 * The core processing logic for an individual expired call session.
-	 * * @param sid The Session ID to process.
-	 * @return Mono<Void>
-	 */
-	private Mono<Void> processMissedCallReactive(String sid) {
-		String metaKey = CallSessionRedisKey.CALL_METADATA_PREFIX.format(sid);
-
-		return reactiveRedisTemplate.opsForHash().entries(metaKey)
-				.collectMap(
-						entry -> entry.getKey().toString(), 
-						entry -> entry.getValue().toString()
-						)
-				.flatMap(metadata -> {
-					if (metadata.isEmpty()) {
-						log.warn("Missed call metadata missing for SID: {}.", sid);
-						return Mono.empty();
-					}
-
-					String toJid = (String) metadata.get(CallSessionMetadata.TO.getKey());
-					String fromJid = (String) metadata.get(CallSessionMetadata.FROM.getKey());
-					String type = (String) metadata.get(CallSessionMetadata.CALL_TYPE.getKey());
-					String tenantId = (String) metadata.get(CallSessionMetadata.TENANT_ID.getKey());
-					String username = (String) metadata.get(CallSessionMetadata.USERNAME.getKey());
-
-					int tenantIdInt = Integer.parseInt(tenantId);
-					String toUserKey = XmppUtil.getUserKey(toJid);
-
-					log.info("Processing missed call SID: {} for user: {}", sid, toUserKey);
-
-					// --- CHANGE STARTS HERE ---
-					// Wrap EVERYTHING that touches synchronous Redis/Registry into the Runnable
-					return Mono.fromRunnable(() -> {
-						TenantContext.setCurrentTenant(tenantIdInt);
-						try {
-							// Move the blocking Registry call INSIDE the protected thread
-							Set<UserSession> userSessions = userSessionRegistry.getSessions(toUserKey);
-							boolean hasActiveSession = !CollectionUtils.isEmpty(userSessions) && userSessions.stream()
-									.anyMatch(s -> UserState.ACTIVE == s.getState());
-
-
-							sendMissedCallStanza(fromJid, toJid, sid, type);
-							sendMissedCallStanza(toJid, fromJid, sid, type);
-
-							// Delete by session ID
-							callTrackerRepository.deleteBySid(sid).subscribe();
-
-							if (!hasActiveSession) {
-								sendPush(toUserKey,
-										"video".equalsIgnoreCase(type) ? NotificationType.VIDEO_MISSED_CALL : NotificationType.AUDIO_MISSED_CALL,
-												"Missed " + type + " Call",
-												String.format("Missed %s call from %s", type, username),
-												tenantIdInt);
-							}	                     
-						} finally {
-							TenantContext.clear();
-						}
-					})
-							.subscribeOn(Schedulers.boundedElastic()) // This ensures the Runnable doesn't block Netty
-							.then(reactiveRedisTemplate.delete(metaKey))
-							.then();
-				});
-	}
-
-	/**
-	 * Generates a chat message with a custom 'call-log' extension.
-	 * Persists to offline storage for MAM/Archive and publishes to the cluster.
-	 */
-	private void sendMissedCallStanza(String fromJid, String toJid, String sid, String type) {
-		String id = java.util.UUID.randomUUID().toString();
-		String timestamp = Instant.now().toString();
-		String fromUserKey = XmppUtil.getUserKey(fromJid);
-		String toUserKey = XmppUtil.getUserKey(toJid);	
-
-		String xml = String.format(
-				"<message from='%s' to='%s' type='chat' id='%s'>" +
-						"<subject>Missed %s Call</subject>" +
-						"<body>Missed %s call</body>" +
-						"<call-log xmlns='urn:xmpp:algomeet:calls' type='%s' status='missed' timestamp='%s' sid='%s'/>" +
-						"</message>",
-						fromJid, toJid, id, type, type, type, timestamp, sid
-				);			
-
-		offlineMessageService.save(id, toUserKey, fromUserKey, XmppMessageType.HEADLINE.getXmlValue(), xml)
-		.doOnSuccess(success -> {
-			// Publish after successfully saved
-			clusterMessagePublisher.convertAndSendToUser(id, toUserKey, fromUserKey, ChatType.CHAT, xml);
-		})
-		.doOnError(e -> log.error("MAM Persistence failed for SID {}: {}", sid, e.getMessage()))
-		.subscribe();
-
-
-	}
-
-	/**
-	 * Out-of-band notification dispatcher for mobile platform delivery.
-	 */
-	private void sendPush(String to, NotificationType type, String title, String body, Integer tenantId) {        
-		Notification notif = Notification.builder()
-				.receiverIds(Set.of(to))
-				.type(type)
-				.title(title)
-				.body(body)
-				.tenantId(tenantId)
-				.build();
-		notificationService.sendPush(notif);
 	}
 }
