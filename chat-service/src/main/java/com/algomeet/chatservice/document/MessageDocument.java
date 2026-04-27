@@ -101,9 +101,9 @@ public class MessageDocument {
     
     private List<EncrytionMetadata> encryptionMetadata;
 
-    public boolean isGroupMessage() {
-        return groupId != null && !groupId.isEmpty();
-    }
+//    public boolean isGroupMessage() {
+//        return groupId != null && !groupId.isEmpty();
+//    }
 
     public boolean isVisibleTo(String userId) {
         // 1) hard delete for all

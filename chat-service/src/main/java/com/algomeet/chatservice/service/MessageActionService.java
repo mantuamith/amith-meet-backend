@@ -6,6 +6,7 @@ import com.algomeet.chatservice.dto.messageactions.ForwardRequest;
 import com.algomeet.chatservice.dto.messageactions.ReplyRequest;
 import com.algomeet.chatservice.mapper.MessageMapper;
 import com.algomeet.chatservice.model.MessageStatus;
+import com.algomeet.chatservice.model.MessageType;
 import com.algomeet.chatservice.repository.MessageRepository;
 import com.algomeet.chatservice.sync.messaging.SimpMessagingSyncTemplate;
 import com.algomeet.chatservice.dto.*;
@@ -114,13 +115,14 @@ public class MessageActionService {
         fwd.setSender(sender);
         fwd.setSenderKey(senderKey);
         fwd.setContent(req.getContent());
-        fwd.setType(original.getType());
         fwd.setMessageMediaType(original.getMessageMediaType());
         fwd.setMediaGroup(original.getMediaGroup());
 
         if (req.getGroupId() != null && !req.getGroupId().isBlank()) {
             fwd.setGroupId(req.getGroupId());
+            fwd.setType(MessageType.GROUP);
         } else {
+            fwd.setType(MessageType.DIRECT);
             fwd.setReceiver(req.getReceiver());
             fwd.setReceiverKey(req.getToKey());
         }
