@@ -1,6 +1,9 @@
 package com.algomeet.xmpp.chatservice.util;
 
 import java.io.StringReader;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -401,5 +404,19 @@ public class XmppStanzaUtil {
              */
             return xml.replace(closingTag, stanzaIdExtension + closingTag);
         }
+    }
+
+    /**
+     * Formats an Instant into an XMPP compliant ISO-8601 timestamp string.
+     * Format: CCYY-MM-DDThh:mm:ss[.sss]Z
+     */
+    public static String formatTimestamp(Instant createdAt) {
+        if (createdAt == null) {
+            return null;
+        }
+        
+        return DateTimeFormatter.ISO_INSTANT
+                .withZone(ZoneOffset.UTC)
+                .format(createdAt);
     }
 }

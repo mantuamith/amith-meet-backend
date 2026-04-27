@@ -2,6 +2,7 @@ package com.algomeet.xmpp.chatservice.repository;
 
 import com.algomeet.xmpp.chatservice.document.MucMessage;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.mongodb.repository.Query;
 import org.springframework.data.mongodb.repository.ReactiveMongoRepository;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -18,7 +19,15 @@ public interface MucMessageRepository extends ReactiveMongoRepository<MucMessage
         String roomId, String afterId, Pageable pageable
     );
     
-    
+    /**
+    * Retrieves older messages (scrolling up).
+    * Maps to MAM 'before' logic: get 'max' messages where ID < beforeId.
+    */
+   @Query("SELECT * FROM muc_messages WHERE room_id = :roomId AND id < :beforeId ORDER BY id DESC")
+   Flux<MucMessage> findByRoomIdAndIdLessThanOrderByIdDesc(
+       String roomId, String beforeId, Pageable pageable
+   );
+        
     /**
      * Efficiently counts unread messages using the {roomId: 1, id: 1} compound index.
      */
