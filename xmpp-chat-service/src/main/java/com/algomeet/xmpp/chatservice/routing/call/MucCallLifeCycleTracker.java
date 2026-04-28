@@ -5,11 +5,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import org.redisson.api.RSemaphoreReactive;
+import org.redisson.api.RedissonReactiveClient;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
+import com.algomeet.xmpp.chatservice.document.CallSession;
 import com.algomeet.xmpp.chatservice.enums.CallSessionMetadata;
 import com.algomeet.xmpp.chatservice.enums.CallSessionRedisKey;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
@@ -25,6 +28,8 @@ import com.algomeet.xmpp.chatservice.util.XmppUtil;
 import io.netty.channel.ChannelHandlerContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 /**
  * ============================================================================
@@ -95,6 +100,7 @@ public class MucCallLifeCycleTracker {
 	private final JidUtil jidUtil;
 	private final MucUnreadCountService mucUnreadCountService;
 	private final CallProperties callProperties;
+	private final RedissonReactiveClient redissonReactiveClient;
 
 	/**
 	 *
@@ -318,7 +324,6 @@ public class MucCallLifeCycleTracker {
 		 * NORMAL CALL END
 		 */
 		if (xml.contains("<success/>")) {
-			
 			mucCallTrackerService.finalizeAndNotify(sid, principal.getSessionId(), "success")
 			.subscribe();
 		}
@@ -357,12 +362,31 @@ public class MucCallLifeCycleTracker {
 		else if (xml.contains("<cancel/>")) {
 			// create from room JID
 			String fromRoomFullJid = jidUtil.getGroupBareJid(groupId) + "/"	+ XmppUtil.getUserKey(fromJid);
+			
+			// To prevent competing threads
+			// A Semaphore with 1 permit acts exactly like a non-reentrant lock
+			RSemaphoreReactive semaphore = redissonReactiveClient.getSemaphore("xmpp:lock:cancel:sid:" + sid + ":user-key:" + XmppUtil.getUserKey(fromJid));
+			// tryAcquire(permits, waitTime, unit)
+			// permits: 1 (only one process can enter)
+			// waitTime: 0 (immediate fail-fast; if the permit is taken, we discard the redundant trigger)
+			semaphore.tryAcquire(1, 0, TimeUnit.SECONDS) // Try to get 1 permit immediately
+			.flatMap(acquired -> {
+				if (!acquired) {
+					// If lock is held, another process is already finalizing this SID.
+					return Mono.empty();
+				}
 
-			handleCancelCall(ctx,
-					fromJid,
-					sid,
-					fromRoomFullJid,
-					callType);
+				return handleCancelCall(ctx,
+						fromJid,
+						sid,
+						fromRoomFullJid,
+						callType)
+						.then();
+			})
+			// Use finalize to ensure unlock happens regardless of success/error/empty
+			// Use doFinally to ensure the permit is ALWAYS released
+			.doFinally(sig -> semaphore.release(1).subscribe()) 
+			.then();
 		}
 
 		/**
@@ -409,48 +433,47 @@ public class MucCallLifeCycleTracker {
 		}
 	}
 
-	private void handleCancelCall(ChannelHandlerContext ctx,
+	private Flux<CallSession> handleCancelCall(ChannelHandlerContext ctx,
 			String fromJid,
 			String sid,
 			String fromRoomFullJid,
 			String callType) {
 
 		// Send logs to responders
-		mucCallTrackerService.findBySid(sid)
-		.doOnEach(callSession -> {
-			String calleeUserKey = callSession.get().getCallee();
+		return mucCallTrackerService.findBySid(sid)
+				.doOnEach(callSession -> {
+					String calleeUserKey = callSession.get().getCallee();
 
-			// Generate Redis MUC SID using sid and callee user key
-			String mucSid = CallSessionRedisKey.getMucSid(sid, calleeUserKey);	
-			boolean isCallInDelayQueue = isCallInDelayQueue(mucSid);
+					// Generate Redis MUC SID using sid and callee user key
+					String mucSid = CallSessionRedisKey.getMucSid(sid, calleeUserKey);	
+					boolean isCallInDelayQueue = isCallInDelayQueue(mucSid);
 
-			if(isCallInDelayQueue) {					
-				/**
-				 * Always cleanup first to avoid races.
-				 */
-				handleResolution(mucSid);
+					if(isCallInDelayQueue) {					
+						/**
+						 * Always cleanup first to avoid races.
+						 */
+						handleResolution(mucSid);
 
-				// Send to responder
-				sendCallLog(ctx, fromRoomFullJid, jidUtil.getBareJid(calleeUserKey),
-						sid, "missed",
-						"Missed Call", callType);
-			}
-		})
-		.doFinally(signal -> {
-			// Send call log to caller
-			sendCallLog(ctx, fromRoomFullJid, fromJid,
-					sid, "canceled",
-					"Call Canceled", callType);
+						// Send to responder
+						sendCallLog(ctx, fromRoomFullJid, jidUtil.getBareJid(calleeUserKey),
+								sid, "missed",
+								"Missed Call", callType);
+					}
+				})
+				.doFinally(signal -> {
+					// Send call log to caller
+					sendCallLog(ctx, fromRoomFullJid, fromJid,
+							sid, "canceled",
+							"Call Canceled", callType);
 
-			try {
-				// Delete muc call session records
-				mucCallTrackerService.deleteBySid(sid).subscribe();
-			} catch(Exception ex) {
-				// silent
-			}
+					try {
+						// Delete muc call session records
+						mucCallTrackerService.deleteBySid(sid).subscribe();
+					} catch(Exception ex) {
+						// silent
+					}
 
-		})
-		.subscribe();		
+				});		
 	}
 
 	/**
