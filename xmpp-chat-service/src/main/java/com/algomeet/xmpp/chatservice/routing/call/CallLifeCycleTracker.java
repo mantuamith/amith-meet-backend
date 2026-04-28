@@ -3,8 +3,6 @@ package com.algomeet.xmpp.chatservice.routing.call;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
@@ -19,6 +17,7 @@ import com.algomeet.xmpp.chatservice.properties.CallProperties;
 import com.algomeet.xmpp.chatservice.service.CallTrackerService;
 import com.algomeet.xmpp.chatservice.service.OfflineMessageService;
 import com.algomeet.xmpp.chatservice.service.UnreadCountService;
+import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
 
 import io.netty.channel.ChannelHandlerContext;
@@ -43,12 +42,6 @@ public class CallLifeCycleTracker {
 	private final CallProperties callProperties;
 
 	/**
-	 * Regex pattern to extract the Session ID (sid) from Jingle elements.
-	 * Compliant with XEP-0166 attribute quoting (supports both ' and ").
-	 */
-	private static final Pattern SID_PATTERN = Pattern.compile("sid=['\"]([^'\"]+)['\"]");
-
-	/**
 	 * Entry point for analyzing incoming XMPP stanzas for Jingle signaling actions.
 	 */
 	public void track(ChannelHandlerContext ctx, String toJid, String fromJid, String xml, XmppPrincipal principal) {
@@ -57,7 +50,7 @@ public class CallLifeCycleTracker {
 		boolean isAccept = xml.contains("session-accept");
 		boolean isTerminate = xml.contains("session-terminate");
 
-		String sid = extractSid(xml);
+		String sid = XmppStanzaUtil.getAttribute(xml, "sid");
 		if (sid == null) return;
 
 		if (isInitiate) {
@@ -234,11 +227,6 @@ public class CallLifeCycleTracker {
 	    // .score() returns Double (the score) if present, or null if not present
 	    Double score = redisTemplate.opsForZSet().score(CallSessionRedisKey.DIRECT_CALL_TIMEOUT_QUEUE.getVal(), sid);
 	    return score != null;
-	}
-
-	private String extractSid(String xml) {
-		Matcher matcher = SID_PATTERN.matcher(xml);
-		return matcher.find() ? matcher.group(1) : null;
 	}
 
 	/**

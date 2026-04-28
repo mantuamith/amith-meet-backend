@@ -4,8 +4,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
@@ -21,6 +19,7 @@ import com.algomeet.xmpp.chatservice.service.MucCallTrackerService;
 import com.algomeet.xmpp.chatservice.service.MucUnreadCountService;
 import com.algomeet.xmpp.chatservice.service.OfflineMessageService;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
+import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
 
 import io.netty.channel.ChannelHandlerContext;
@@ -98,16 +97,6 @@ public class MucCallLifeCycleTracker {
 	private final CallProperties callProperties;
 
 	/**
-	 * Extract Jingle SID from XML.
-	 *
-	 * Supports:
-	 * sid='abc'
-	 * sid="abc"
-	 */
-	private static final Pattern SID_PATTERN =
-			Pattern.compile("sid=['\"]([^'\"]+)['\"]");
-
-	/**
 	 *
 	 * Called whenever inbound call-related XMPP stanza is detected.
 	 *
@@ -139,7 +128,7 @@ public class MucCallLifeCycleTracker {
 		/**
 		 * Every call must have SID.
 		 */
-		String sid = extractSid(xml);		
+		String sid = XmppStanzaUtil.getAttribute(xml, "sid");		
 
 		if (sid == null) {
 			log.warn("Ignoring call stanza without SID");
@@ -486,15 +475,6 @@ public class MucCallLifeCycleTracker {
 				CallSessionRedisKey.MUC_CALL_TIMEOUT_QUEUE.getVal(),	sid);
 
 		return score != null;
-	}
-
-	/**
-	 * Extract Jingle SID.
-	 */
-	private String extractSid(String xml) {
-		Matcher matcher = SID_PATTERN.matcher(xml);
-
-		return matcher.find() ? matcher.group(1) : null;
 	}
 
 	/**
