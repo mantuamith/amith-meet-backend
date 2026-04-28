@@ -318,8 +318,8 @@ public class MucMissedCallService {
 
 		StanzaInfo info = StanzaInfo.builder().messageId(UUID.randomUUID().toString().toLowerCase()).build();
 
-		xmppArchiveService.archiveEvent(xml, info, jidUtil.getGroupBareJid(groupId), toUserKey, 
-				fromJid, UlidCreator.getMonotonicUlid().toLowerCase())
+		xmppArchiveService.archiveEvent(xml, info, groupId, toUserKey, 
+				fromUserKey, UlidCreator.getMonotonicUlid().toLowerCase())
 		.doOnSuccess(success -> {
 			// Publish 
 			clusterMessagePublisher.convertAndSendToUser(id, toUserKey, fromUserKey, ChatType.GROUPCHAT, xml);
