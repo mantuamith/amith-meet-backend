@@ -134,14 +134,13 @@ public class MucMissedCallService {
 						// This only executes once the Flux completes
 						CallSession session = referenceCallSession.get();
 						if (session == null) return Mono.empty();	
-
-						// 1. Check/Set the Redis Idempotency Flag
+						
 						//  Check Database for remaining records
 						return mucCallTrackerService.findFirstBySid(session.getSid())
 								// If the DB is empty (no records found), we send the stanza
 								.switchIfEmpty(Mono.fromRunnable(() ->  {
 
-									// lock for 5 seconds due to competing threads
+									// Lock for 5 seconds due to competing threads
 									String notificationToCallerFlagKey = "xmpp:flag:missed-call-sent:sid:" + session.getSid();
 
 									reactiveRedisTemplate.opsForValue()
