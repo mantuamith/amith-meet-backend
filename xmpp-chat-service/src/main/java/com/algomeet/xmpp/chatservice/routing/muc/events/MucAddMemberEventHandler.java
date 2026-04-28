@@ -270,7 +270,11 @@ public class MucAddMemberEventHandler {
 		 * ----------------------------------------------------------
 		 * Ensures historical traceability of room changes.
 		 */
-		saveToDatabase(stanzaId, roomBareJid, senderJid, group,	sender,	xml);
+		String ulidString = UlidCreator.getMonotonicUlid().toLowerCase();
+		// Insert stanza ID
+		String forArchiveXmlLog = XmppStanzaUtil.insertStanzaId(xmlLogStanza, ulidString, domainProperties.getDomain());
+		
+		saveToDatabase(stanzaId, roomBareJid, senderJid, group,	sender,	ulidString, forArchiveXmlLog);
 
 		/**
 		 * ----------------------------------------------------------
@@ -287,7 +291,7 @@ public class MucAddMemberEventHandler {
 				group,
 				sender,
 				null,
-				xmlLogStanza
+				forArchiveXmlLog
 				);
 
 		/**
@@ -327,6 +331,7 @@ public class MucAddMemberEventHandler {
 			String senderJid,
 			MucRoomDto group,
 			MucMember sender,
+			String ulidString,
 			String xml) {
 
 		StanzaInfo info = StanzaInfo.builder()
@@ -336,24 +341,8 @@ public class MucAddMemberEventHandler {
 						)
 				.build();
 
-		String ulidString = UlidCreator.getMonotonicUlid().toLowerCase();
-
-		/**
-		 * XEP-0359: Stable stanza identifier for deduplication/replay.
-		 */
-		String stanzaIdExtension =
-				String.format("<stanza-id xmlns='urn:xmpp:sid:0' by='%s' id='%s'/>",
-						domainProperties.getDomain(),
-						ulidString);
-
-		/**
-		 * Inject stanza-id before message closure.
-		 */
-		String enrichedXml = xml.replace("</message>", stanzaIdExtension + "</message>"
-				);
-
 		xmppArchiveService.archiveEvent(
-				enrichedXml,
+				xml,
 				info,
 				XmppUtil.getRoomId(roomBareJid),
 				null,

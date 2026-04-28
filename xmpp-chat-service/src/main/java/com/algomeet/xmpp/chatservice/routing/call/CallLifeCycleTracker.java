@@ -14,11 +14,13 @@ import com.algomeet.xmpp.chatservice.enums.CallSessionRedisKey;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
 import com.algomeet.xmpp.chatservice.properties.CallProperties;
+import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.service.CallTrackerService;
 import com.algomeet.xmpp.chatservice.service.OfflineMessageService;
 import com.algomeet.xmpp.chatservice.service.UnreadCountService;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
+import com.github.f4b6a3.ulid.UlidCreator;
 
 import io.netty.channel.ChannelHandlerContext;
 import lombok.RequiredArgsConstructor;
@@ -40,6 +42,7 @@ public class CallLifeCycleTracker {
 	private final CallTrackerService callTrackerService;
 	private final UnreadCountService unreadCountService;
 	private final CallProperties callProperties;
+	private final DomainProperties domainProperties;
 
 	/**
 	 * Entry point for analyzing incoming XMPP stanzas for Jingle signaling actions.
@@ -256,8 +259,12 @@ public class CallLifeCycleTracker {
 		String toUserKey = XmppUtil.getUserKey(toJid);
 		String fromUserKey = XmppUtil.getUserKey(fromJid);
 
+        String ulidString = UlidCreator.getMonotonicUlid().toLowerCase();
+		// Insert stanza ID
+		String forArchiveXml = XmppStanzaUtil.insertStanzaId(xml.toString(), ulidString, domainProperties.getDomain());
+		
 		// Persist to MongoDB for offline retrieval
-		offlineMessageService.save(messageId, toUserKey, fromUserKey, XmppMessageType.CHAT.getXmlValue(), xml.toString())
+		offlineMessageService.save(messageId, toUserKey, fromUserKey, XmppMessageType.CHAT.getXmlValue(), forArchiveXml)
 		.doOnSuccess(saved -> {
 			// Increment user unread message
 			unreadCountService.incrementUnreadCount(fromUserKey, toUserKey);
@@ -266,7 +273,7 @@ public class CallLifeCycleTracker {
 		.subscribe();
 
 		// Broadcast to cluster to ensure all logged-in devices of the user receive the log
-		clusterMessagePublisher.convertAndSendToUser(messageId, toUserKey, fromUserKey, ChatType.CHAT, xml.toString());
+		clusterMessagePublisher.convertAndSendToUser(messageId, toUserKey, fromUserKey, ChatType.CHAT, forArchiveXml);
 
 		log.debug("Published {} call log for SID: {}", status, sid);
 	}	

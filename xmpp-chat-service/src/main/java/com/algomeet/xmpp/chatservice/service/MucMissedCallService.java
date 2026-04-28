@@ -29,10 +29,12 @@ import com.algomeet.xmpp.chatservice.enums.CallSessionMetadata;
 import com.algomeet.xmpp.chatservice.enums.CallSessionRedisKey;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.enums.UserState;
+import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.session.UserSessionRegistry;
 import com.algomeet.xmpp.chatservice.session.model.UserSession;
 import com.algomeet.xmpp.chatservice.stanza.jingle.JingleTerminationIq;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
+import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
 import com.github.f4b6a3.ulid.UlidCreator;
 
@@ -70,6 +72,7 @@ public class MucMissedCallService {
 	private final ReactiveRedisTemplate<String, String> reactiveRedisTemplate;
 	private final MucCallTrackerService mucCallTrackerService;
 	private final MucUnreadCountService mucUnreadCountService;
+	private final DomainProperties domainProperties;
 
 	/**
 	 * Processes a batch of expired MUC sessions by acquiring distributed locks per SID.
@@ -318,11 +321,15 @@ public class MucMissedCallService {
 
 		StanzaInfo info = StanzaInfo.builder().messageId(UUID.randomUUID().toString().toLowerCase()).build();
 
-		xmppArchiveService.archiveEvent(xml, info, groupId, toUserKey, 
+		String ulidString = UlidCreator.getMonotonicUlid().toLowerCase();
+		// Insert stanza ID
+		String forArchiveXml = XmppStanzaUtil.insertStanzaId(xml, ulidString, domainProperties.getDomain());
+		
+		xmppArchiveService.archiveEvent(forArchiveXml, info, groupId, toUserKey, 
 				fromUserKey, UlidCreator.getMonotonicUlid().toLowerCase())
 		.doOnSuccess(success -> {
 			// Publish 
-			clusterMessagePublisher.convertAndSendToUser(id, toUserKey, fromUserKey, ChatType.GROUPCHAT, xml);
+			clusterMessagePublisher.convertAndSendToUser(id, toUserKey, fromUserKey, ChatType.GROUPCHAT, forArchiveXml);
 
 			// Increment MUC unread messages count 
 			mucUnreadCountService.incrementForRoomMembers(groupId,

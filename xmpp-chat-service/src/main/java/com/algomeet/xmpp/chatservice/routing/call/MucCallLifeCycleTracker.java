@@ -18,12 +18,14 @@ import com.algomeet.xmpp.chatservice.enums.CallSessionRedisKey;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
 import com.algomeet.xmpp.chatservice.properties.CallProperties;
+import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.service.MucCallTrackerService;
 import com.algomeet.xmpp.chatservice.service.MucUnreadCountService;
 import com.algomeet.xmpp.chatservice.service.OfflineMessageService;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
+import com.github.f4b6a3.ulid.UlidCreator;
 
 import io.netty.channel.ChannelHandlerContext;
 import lombok.RequiredArgsConstructor;
@@ -101,6 +103,7 @@ public class MucCallLifeCycleTracker {
 	private final MucUnreadCountService mucUnreadCountService;
 	private final CallProperties callProperties;
 	private final RedissonReactiveClient redissonReactiveClient;
+	private final DomainProperties domainProperties;
 
 	/**
 	 *
@@ -536,7 +539,10 @@ public class MucCallLifeCycleTracker {
 		String toUserKey = XmppUtil.getUserKey(toJid);
 		String roomId = XmppUtil.getRoomId(fromRoomJid);
 		String fromUserKey = XmppUtil.getResourceFromRoomFullJid(fromRoomJid);
-
+		
+        String ulidString = UlidCreator.getMonotonicUlid().toLowerCase();
+		// Insert stanza ID
+		String forArchiveXml = XmppStanzaUtil.insertStanzaId(xml.toString(), ulidString, domainProperties.getDomain());		
 		/**
 		 * Persist for offline retrieval.
 		 */
@@ -545,7 +551,7 @@ public class MucCallLifeCycleTracker {
 				toUserKey,
 				fromUserKey,
 				XmppMessageType.GROUPCHAT.getXmlValue(),
-				xml.toString()
+				forArchiveXml
 				)
 		.doOnSuccess(success -> {
 			// Increment MUC unread messages count 
@@ -564,7 +570,7 @@ public class MucCallLifeCycleTracker {
 				toUserKey,
 				fromUserKey,
 				ChatType.CHAT,
-				xml.toString()
+				forArchiveXml
 				);
 
 		log.debug("Published {} call log SID={}", status, sid);
