@@ -5,11 +5,16 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
+import com.algomeet.xmpp.chatservice.constant.XmppErrorConditions;
 import com.algomeet.xmpp.chatservice.document.MucMessage;
+import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
 import com.algomeet.xmpp.chatservice.dto.StanzaInfo;
+import com.algomeet.xmpp.chatservice.enums.XmppErrorType;
+import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.repository.MucMessageRepository;
 import com.algomeet.xmpp.chatservice.routing.dispacher.LocalStanzaDispatcher;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
+import com.algomeet.xmpp.chatservice.util.XmppUtil;
 
 import io.netty.channel.ChannelHandlerContext;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +37,9 @@ import reactor.core.publisher.Mono;
 public class XmppArchiveService {    
 	private final MucMessageRepository repository;
 	private final LocalStanzaDispatcher localStanzaDispatcher;
+	private final GroupCacheService groupCacheService;
+	private final XmppUtil xmppUtil;
+	private final DomainProperties domainProperties;
 
 	/**
 	 * Persists a room event (message or signaling) to the archive.
@@ -73,6 +81,17 @@ public class XmppArchiveService {
 		int maxResults = XmppStanzaUtil.getRsmMax(xml, 50);
 		String queryId = XmppStanzaUtil.getAttribute(xml, "id");
 
+		// Get room details
+		MucRoomDto room = groupCacheService.getCachedGroup(roomId);
+	
+		if (room == null || !(room.getMembers().stream()
+				.anyMatch(m -> principal.getUserKey().equalsIgnoreCase(m.getUserKey())))) {
+			log.error("Unauthorized access to room {}", roomId);
+			xmppUtil.sendError(ctx, queryId, principal.getBareJid(), domainProperties.getGroupChatDomain(), XmppErrorType.CANCEL, 
+					XmppErrorConditions.INTERNAL_SERVER_ERROR, "Unauthorized access");
+			return;
+		}
+		
 		// Strategy: If 'after' is present, we move forward in time.
 		// Otherwise (or if 'before' is present), we move backward into history.
 		if (StringUtils.hasText(afterId)) {
