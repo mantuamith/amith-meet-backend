@@ -99,13 +99,16 @@ public class MucMissedCallService {
 					.flatMap(mucSid -> {
 						
 						// Lock for possible competing threads
-						// Distributed lock key per mucSid to ensure only one cluster node processes this specific SID
+						// Distributed lock key per mucSid to ensure only one cluster node processes this specific MUC SID
+						// Example: a MUC call may contain multiple sessions sharing the same SID but having unique MUC ID,
+						// and some missed-call sessions may expire later in Redis and be picked up
+						// by another node for processing.
 						String lockKey = "xmpp:lock:process:muc-missed-calls:mucsid:" + mucSid;
 						RLockReactive lock = redissonReactiveClient.getLock(lockKey);
 
 						return Mono.usingWhen(
 								// 1. ACQUIRE: Attempt lock acquisition with a 300ms wait and 1s auto-release safety
-								lock.tryLock(100, 3000, TimeUnit.MILLISECONDS),
+								lock.tryLock(0, 3000, TimeUnit.MILLISECONDS),
 
 								acquired -> {
 									if (Boolean.FALSE.equals(acquired)) {
@@ -140,8 +143,13 @@ public class MucMissedCallService {
 								// If the DB is empty (no records found), we send the stanza
 								.switchIfEmpty(Mono.fromRunnable(() ->  {
 
-									// Lock for 5 seconds due to competing threads
-									String notificationToCallerFlagKey = "xmpp:flag:missed-call-sent:sid:" + session.getSid();
+									// Acquire a short-lived 5-second lock to prevent duplicate notifications
+									// caused by competing threads/nodes processing the same SID.
+									// Example: a MUC call may contain multiple sessions sharing the same SID,
+									// and some missed-call sessions may expire later in Redis and be picked up
+									// by another node for processing.
+									String notificationToCallerFlagKey = 
+											"xmpp:flag:missed-call-sent:sid:" + session.getSid();
 
 									reactiveRedisTemplate.opsForValue()
 									.setIfAbsent(notificationToCallerFlagKey, "true", Duration.ofSeconds(5))
