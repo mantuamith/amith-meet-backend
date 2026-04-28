@@ -200,6 +200,7 @@ public class MessageActionService {
         if (toGroup) {
             fwd.setType(MessageType.GROUP);
             fwd.setGroupId(req.getGroupId());
+            fwd.setGroupMessage(true);
 
             fwd.setReceiver(null);
             fwd.setReceiverKey(null);
@@ -208,6 +209,7 @@ public class MessageActionService {
             fwd.setType(MessageType.DIRECT);
             fwd.setReceiver(req.getReceiver());
             fwd.setReceiverKey(req.getToKey());
+            fwd.setGroupMessage(false);
 
             fwd.setGroupId(null);
         }
