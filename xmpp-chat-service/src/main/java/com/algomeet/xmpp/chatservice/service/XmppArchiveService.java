@@ -41,8 +41,8 @@ public class XmppArchiveService {
 	 * @param xml        The raw XML stanza content.
 	 * @param info       Metadata extracted from the stanza (ID, Category, Encryption status).
 	 * @param toRoomId   The internal ID of the room destination.
-	 * @param toMucMember The specific recipient (for private MUC messages).
-	 * @param from       The sender's JID or nickname.
+	 * @param toMucMember The specific recipient (for private MUC messages) User Key.
+	 * @param from       The sender's User Key.
 	 * @param internalId The unique internal ID (ULID/Snowflake) for database indexing.
 	 * @return A {@link Mono} containing the saved {@link MucMessage}.
 	 */
