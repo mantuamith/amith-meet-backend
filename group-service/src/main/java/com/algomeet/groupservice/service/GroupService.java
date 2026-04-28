@@ -56,15 +56,8 @@ public class GroupService {
 		if(request.isEmptyGroup()) {
 			//Ignore member list
 			group.setMembers(null);
-
-			// Assigned owner, this allowed us to assign group owner even if the group is empty.
-			if (StringUtils.hasText(request.getOwnerUserKey())) {
-				group.setOwnerUserKey(request.getOwnerUserKey());   
-			} else {
-				group.setOwnerUserKey(userKey);  
-			}
-		} 
-
+		}
+		group.setOwnerUserKey(userKey);
 		// Use for audit
 		group.setCreatedBy(userKey);
 		return GroupMapper.toResponse(groupRepository.save(group));

@@ -136,7 +136,12 @@ public class MessageService {
             log.debug("[Recent] empty user id");
             return List.of();
         }
+
         log.debug("[Recent] Computing thread list for user={}", userId);
+
+        // ✅ Fetch valid groups ONCE (IMPORTANT)
+        Set<String> validGroups = fetchGroupIdsForUsername(userId);
+
         List<MessageDocument> all = loadRecentScopeMessages(userId);
         if (all.isEmpty()) {
             log.debug("[Recent] user={} no messages", userId);
@@ -151,25 +156,34 @@ public class MessageService {
         if (visible.isEmpty()) return List.of();
 
         Map<String, List<MessageDocument>> byContact = new HashMap<>();
+
         for (MessageDocument m : visible) {
             String contactId = resolveThreadId(m, userId);
-            if (!hasText(contactId)) {
-                continue;
-            }
+            if (!hasText(contactId)) continue;
+
             byContact.computeIfAbsent(contactId, ignored -> new ArrayList<>()).add(m);
         }
 
         List<RecentReceivedMessageResponse> result = new ArrayList<>();
+
         for (Map.Entry<String, List<MessageDocument>> e : byContact.entrySet()) {
             String contactId = e.getKey();
             List<MessageDocument> thread = e.getValue();
+
+            // ✅ 🔥 CRITICAL FIX: filter invalid groups
+            boolean isGroup = thread.stream().anyMatch(MessageDocument::isGroupMessage);
+
+            if (isGroup && !validGroups.contains(contactId)) {
+                log.debug("[Recent] Skipping invalid/removed group={} for user={}", contactId, userId);
+                continue; // ❌ skip deleted or removed groups
+            }
 
             MessageDocument latest = thread.stream()
                     .filter(m -> m.getTimestamp() != null)
                     .max(Comparator.comparing(MessageDocument::getTimestamp))
                     .orElse(null);
+
             if (latest == null) {
-                // entire thread is invisible → drop from recent
                 continue;
             }
 
@@ -180,7 +194,14 @@ public class MessageService {
                     .filter(m -> isUnreadForThread(m, userId, contactId))
                     .count();
 
-            result.add(new RecentReceivedMessageResponse(contactId, lastText, ts, unread, latest.getEncryptionMetadata()));
+            result.add(new RecentReceivedMessageResponse(
+                    contactId,
+                    lastText,
+                    ts,
+                    unread,
+                    latest.getEncryptionMetadata()
+            ));
+
             log.trace("[Recent] user={} contact={} latestId={} unread={}",
                     userId, contactId, latest.getId(), unread);
         }
@@ -498,27 +519,43 @@ public class MessageService {
      * This uses updateMany so it's fast even for big threads.
      */
     public long clearChatForUser(String me, String contact) {
-        Criteria participants = new Criteria().orOperator(
-                new Criteria().andOperator(where("sender").is(me),     where("receiver").is(contact)),
-                new Criteria().andOperator(where("sender").is(contact), where("receiver").is(me))
-        );
 
-        Criteria notDeletedForAll = where("deletedForAll").ne(true);
+        boolean isGroup = messageRepository.existsByGroupId(contact)
+                || messageRepository.existsByReceiver(contact); // your detection logic
 
-        Criteria notAlreadyHiddenForMe = new Criteria().orOperator(
-                where("deletedForUsers").exists(false),
-                where("deletedForUsers").ne(me)
-        );
+        Criteria criteria;
 
+        if (isGroup) {
+            // ✅ GROUP CLEAR
+            criteria = new Criteria().andOperator(
+                    where("groupId").is(contact),
+                    where("deletedForAll").ne(true),
+                    new Criteria().orOperator(
+                            where("deletedForUsers").exists(false),
+                            where("deletedForUsers").ne(me)
+                    )
+            );
+        } else {
+            // ✅ 1:1 CLEAR (existing)
+            Criteria participants = new Criteria().orOperator(
+                    new Criteria().andOperator(where("sender").is(me), where("receiver").is(contact)),
+                    new Criteria().andOperator(where("sender").is(contact), where("receiver").is(me))
+            );
 
-        Query q = new Query(new Criteria().andOperator(
-                participants, notDeletedForAll, notAlreadyHiddenForMe
-        ));
+            criteria = new Criteria().andOperator(
+                    participants,
+                    where("deletedForAll").ne(true),
+                    new Criteria().orOperator(
+                            where("deletedForUsers").exists(false),
+                            where("deletedForUsers").ne(me)
+                    )
+            );
+        }
 
+        Query q = new Query(criteria);
         Update u = new Update().addToSet("deletedForUsers", me);
 
-        UpdateResult res = mongoTemplate.updateMulti(q, u, MessageDocument.class);
-        return res.getModifiedCount();
+        return mongoTemplate.updateMulti(q, u, MessageDocument.class).getModifiedCount();
     }
 
     /** After clear: notify FE + refresh counters and recent summary */
