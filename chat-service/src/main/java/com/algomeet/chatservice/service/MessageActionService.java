@@ -12,6 +12,7 @@ import com.algomeet.chatservice.sync.messaging.SimpMessagingSyncTemplate;
 import com.algomeet.chatservice.dto.*;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -24,6 +25,7 @@ import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class MessageActionService {
 
     private final MessageRepository messageRepository;
@@ -106,37 +108,137 @@ public class MessageActionService {
     }
 
     public MessageDocument forward(ForwardRequest req, String sender, String senderKey) {
-        MessageDocument original = messageRepository.findById(req.getOriginalMessageId()).orElse(null);
-        if (original == null) return null;
 
+        // ===============================
+        // 🔥 BASIC VALIDATION
+        // ===============================
+        if (req == null || req.getOriginalMessageId() == null) {
+            log.error("[Forward] Invalid request");
+            return null;
+        }
+
+        boolean toGroup = req.getGroupId() != null && !req.getGroupId().isBlank();
+        boolean toUser = req.getReceiver() != null && !req.getReceiver().isBlank();
+
+        if (!toGroup && !toUser) {
+            log.error("[Forward] Either groupId or receiver must be provided");
+            return null;
+        }
+
+        MessageDocument original = messageRepository
+                .findById(req.getOriginalMessageId())
+                .orElse(null);
+
+        if (original == null) {
+            log.error("[Forward] Original message not found id={}", req.getOriginalMessageId());
+            return null;
+        }
+
+        // ===============================
+        // 🔥 DESTINATION VALIDATION (BEFORE SAVE)
+        // ===============================
+        if (toGroup) {
+            try {
+                GroupDto group = groupClient.getGroupById(req.getGroupId());
+
+                if (group == null || group.getMembers() == null || group.getMembers().isEmpty()) {
+                    log.error("[Forward] Invalid or empty group groupId={}", req.getGroupId());
+                    return null;
+                }
+
+                boolean senderInGroup = group.getMembers().stream()
+                        .anyMatch(m -> sender.equals(m.getUsername()));
+
+                if (!senderInGroup) {
+                    log.error("[Forward] Sender {} not part of group {}", sender, req.getGroupId());
+                    return null;
+                }
+
+            } catch (Exception ex) {
+                log.error("[Forward] Group validation failed groupId={} error={}", req.getGroupId(), ex.getMessage());
+                return null;
+            }
+        }
+
+        if (toUser) {
+            if (req.getReceiver() == null || req.getReceiver().isBlank()) {
+                log.error("[Forward] Invalid receiver");
+                return null;
+            }
+        }
+
+        // ===============================
+        // 🔥 BUILD FORWARDED MESSAGE
+        // ===============================
         MessageDocument fwd = new MessageDocument();
-        fwd.setTimestamp(Instant.ofEpochSecond(req.getMsgForwardTimeStamp()));
+
+        fwd.setTimestamp(
+                req.getMsgForwardTimeStamp() != null
+                        ? Instant.ofEpochSecond(req.getMsgForwardTimeStamp())
+                        : Instant.now()
+        );
+
         fwd.setClientMessageId(req.getClientMessageId());
         fwd.setSender(sender);
         fwd.setSenderKey(senderKey);
-        fwd.setContent(req.getContent());
+
+        // content
+        fwd.setContent(req.getContent() != null ? req.getContent() : original.getContent());
         fwd.setMessageMediaType(original.getMessageMediaType());
         fwd.setMediaGroup(original.getMediaGroup());
 
-        if (req.getGroupId() != null && !req.getGroupId().isBlank()) {
-            fwd.setGroupId(req.getGroupId());
+        // encryption metadata
+        fwd.setEncryptionMetadata(
+                req.getEncryptionMetadata() != null
+                        ? req.getEncryptionMetadata()
+                        : original.getEncryptionMetadata()
+        );
+
+        // ===============================
+        // 🔥 DESTINATION RESOLUTION
+        // ===============================
+        if (toGroup) {
             fwd.setType(MessageType.GROUP);
+            fwd.setGroupId(req.getGroupId());
+
+            fwd.setReceiver(null);
+            fwd.setReceiverKey(null);
+
         } else {
             fwd.setType(MessageType.DIRECT);
             fwd.setReceiver(req.getReceiver());
             fwd.setReceiverKey(req.getToKey());
+
+            fwd.setGroupId(null);
         }
 
+        // ===============================
+        // 🔥 FORWARD METADATA
+        // ===============================
         ForwardInfo fi = new ForwardInfo();
         fi.setForwarded(true);
         fi.setOriginalFrom(original.getSender());
         fi.setOriginalMessageId(original.getId());
-        fi.setForwardedAt(req.getMsgForwardTimeStamp());
+        fi.setForwardedAt(
+                req.getMsgForwardTimeStamp() != null
+                        ? req.getMsgForwardTimeStamp()
+                        : Instant.now().getEpochSecond()
+        );
+
         fwd.setForwarded(fi);
 
+        // ===============================
+        // 🔥 GROUP READ TRACKING
+        // ===============================
         messageService.initializeReadTracking(fwd);
+
+        // ===============================
+        // 🔥 SAVE + DISPATCH
+        // ===============================
         MessageDocument saved = messageRepository.save(fwd);
+
         dispatchNewMessage(saved);
+
         return saved;
     }
 
@@ -166,49 +268,118 @@ public class MessageActionService {
     }
 
     public void dispatchNewMessage(MessageDocument doc) {
+
+        if (doc == null) return;
+
         var resp = messageMapper.toResponse(doc);
-		                
-        if (doc.isGroupMessage()) {
-            try {
-                
+
+        try {
+
+            // ===============================
+            // 🔥 GROUP MESSAGE FLOW
+            // ===============================
+            if (doc.isGroupMessage()) {
+
+                if (doc.getGroupId() == null || doc.getGroupId().isBlank()) {
+                    log.error("[Dispatch] Missing groupId for group message id={}", doc.getId());
+                    return;
+                }
+
                 GroupDto group = groupClient.getGroupById(doc.getGroupId());
-                // If a message includes media files, grant media access permissions to the
-                // message recipients.
+
+                // ✅ HARD SAFETY (VERY IMPORTANT)
+                if (group == null || group.getMembers() == null || group.getMembers().isEmpty()) {
+                    log.error("[Dispatch] Invalid group or no members groupId={}", doc.getGroupId());
+                    return;
+                }
+
+                // ✅ ensure sender is still part of group
+                boolean senderInGroup = group.getMembers().stream()
+                        .anyMatch(m -> doc.getSender().equals(m.getUsername()));
+
+                if (!senderInGroup) {
+                    log.warn("[Dispatch] Sender {} not part of group {}", doc.getSender(), doc.getGroupId());
+                    return;
+                }
+
+                // ✅ MEDIA SHARING
                 mediaService.share(doc, group);
-                messagingSyncTemplate.convertAndSendToUser(doc.getSender(), "/queue/update_message", resp);
-        		
-                for (Member member : group.members) {
-                    if (!Objects.equals(member.getUsername(), doc.getSender())) {
-                        messagingSyncTemplate.convertAndSendToUser(member.getUsername(), "/queue/messages", resp);
+
+                // ✅ SEND BACK TO SENDER (UI sync)
+                messagingSyncTemplate.convertAndSendToUser(
+                        doc.getSender(),
+                        "/queue/update_message",
+                        resp
+                );
+
+                // ✅ SEND TO ALL MEMBERS
+                for (Member member : group.getMembers()) {
+
+                    if (member == null || member.getUsername() == null) continue;
+
+                    if (!member.getUsername().equals(doc.getSender())) {
+
+                        messagingSyncTemplate.convertAndSendToUser(
+                                member.getUsername(),
+                                "/queue/messages",
+                                resp
+                        );
+
+                        // 🔥 unread update per member
                         messageService.sendUnreadCountUpdate(member.getUsername());
                     }
                 }
-            } catch (Exception ignored) {
 
+                return;
             }
-        } else {
-        	// If a message includes media files, grant media access permissions to the
-            // message recipients.
+
+            // ===============================
+            // 🔥 DIRECT MESSAGE FLOW
+            // ===============================
+            if (doc.getReceiver() == null || doc.getReceiver().isBlank()) {
+                log.error("[Dispatch] Missing receiver for direct message id={}", doc.getId());
+                return;
+            }
+
+            // ✅ MEDIA SHARING
             mediaService.share(doc);
-            
-            // receiver side
-            messagingSyncTemplate.convertAndSendToUser(doc.getReceiver(), "/queue/messages", resp);
+
+            // ✅ RECEIVER SIDE
+            messagingSyncTemplate.convertAndSendToUser(
+                    doc.getReceiver(),
+                    "/queue/messages",
+                    resp
+            );
+
             messageService.sendUnreadCountUpdate(doc.getReceiver());
+
             int unread = messageService.getUnreadCountFor(doc.getReceiver(), doc.getSender());
+
             messagingSyncTemplate.convertAndSendToUser(
                     doc.getReceiver(),
                     "/queue/unread/contact",
                     new UnreadCountResponse(doc.getSender(), unread)
             );
-            // sender side
-            messagingSyncTemplate.convertAndSendToUser(doc.getSender(), "/queue/update_message", resp);
+
+            // ✅ SENDER SIDE (sync)
+            messagingSyncTemplate.convertAndSendToUser(
+                    doc.getSender(),
+                    "/queue/update_message",
+                    resp
+            );
+
             messageService.sendUnreadCountUpdate(doc.getSender());
+
             int unreadForSender = messageService.getUnreadCountFor(doc.getSender(), doc.getReceiver());
+
             messagingSyncTemplate.convertAndSendToUser(
                     doc.getSender(),
                     "/queue/unread/contact",
                     new UnreadCountResponse(doc.getReceiver(), unreadForSender)
             );
+
+        } catch (Exception ex) {
+            log.error("[Dispatch ERROR] id={} error={}", doc.getId(), ex.getMessage(), ex);
         }
     }
 
