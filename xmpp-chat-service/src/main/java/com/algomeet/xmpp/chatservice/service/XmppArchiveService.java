@@ -122,7 +122,7 @@ public class XmppArchiveService {
 	 * Uses DESC order to find the N messages immediately preceding the 'beforeId'.
 	 */
 	private void loadBeforeId(ChannelHandlerContext ctx, String roomId, String beforeId, int maxResults, String queryId, XmppPrincipal principal) {
-		log.info("MAM Request for Room {}: beforeId={}, max={}", roomId, beforeId, maxResults);
+		log.debug("MAM Request for Room {}: beforeId={}, max={}", roomId, beforeId, maxResults);
 
 		PageRequest pageRequest = PageRequest.of(0, maxResults);
 
