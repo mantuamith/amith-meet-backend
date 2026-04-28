@@ -229,6 +229,7 @@ public class MessageActionService {
 
         fwd.setForwarded(fi);
 
+        fwd.setStatus(MessageStatus.SENT);
         // ===============================
         // 🔥 GROUP READ TRACKING
         // ===============================
