@@ -1,7 +1,5 @@
 package com.algomeet.xmpp.chatservice.service;
 
-import java.util.Collections;
-
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
