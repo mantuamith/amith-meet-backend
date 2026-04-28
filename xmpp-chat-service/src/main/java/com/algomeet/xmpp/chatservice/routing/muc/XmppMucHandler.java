@@ -131,8 +131,8 @@ public class XmppMucHandler {
 				// Insert stanza ID
 				forArchiveXml = XmppStanzaUtil.insertStanzaId(originalXml, ulidString, principal.getDomain());
 
-				xmppArchiveService.archiveEvent(forArchiveXml, info, toRoomJid, (pmRecipientMucMember != null ? pmRecipientMucMember.getUserKey() : null), 
-						fromJid, ulidString)
+				xmppArchiveService.archiveEvent(forArchiveXml, info, XmppUtil.getRoomId(toRoomJid), (pmRecipientMucMember != null ? pmRecipientMucMember.getUserKey() : null), 
+						XmppUtil.getUserKey(fromJid), ulidString)
 				.doOnSuccess(saved -> {
 					boolean isAckMessage = false;
 					// Send an immediate server-level acknowledgment to the sender.

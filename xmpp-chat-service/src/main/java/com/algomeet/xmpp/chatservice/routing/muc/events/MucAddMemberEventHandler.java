@@ -197,7 +197,7 @@ public class MucAddMemberEventHandler {
 		if (!newMemberSessions.isEmpty()) {
 
 			newMemberState = UserStateUtil.determineOverallState(
-							newMemberSessions);
+					newMemberSessions);
 
 			/**
 			 * Take latest activity across all devices.
@@ -355,9 +355,9 @@ public class MucAddMemberEventHandler {
 		xmppArchiveService.archiveEvent(
 				enrichedXml,
 				info,
-				roomBareJid,
+				XmppUtil.getRoomId(roomBareJid),
 				null,
-				senderJid,
+				sender.getUserKey(),
 				ulidString
 				);
 	}

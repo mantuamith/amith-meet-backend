@@ -30,6 +30,9 @@ public interface MucMessageRepository extends ReactiveMongoRepository<MucMessage
     		String roomId, String beforeId, Pageable pageable
     		);
         
+    // For the very first load (no cursor)
+    Flux<MucMessage> findByRoomIdOrderByIdDesc(String roomId, Pageable pageable);
+    
     /**
      * Efficiently counts unread messages using the {roomId: 1, id: 1} compound index.
      */

@@ -111,8 +111,8 @@ public class MucAcceptInviteEventHandler {
         // Append the stanza-id before closing the message tag
         String enrichedXml = xml.replace("</message>", stanzaIdExtension + "</message>");
 
-        xmppArchiveService.archiveEvent(enrichedXml, info, roomBareJid, null, 
-                senderJid, ulidString)
+        xmppArchiveService.archiveEvent(enrichedXml, info, XmppUtil.getRoomId(roomBareJid), null, 
+        		sender.getUserKey(), ulidString)
         .doOnError(error -> {
             log.error("Failed to archive join event for {} in room {}", senderJid, roomBareJid, error);
         })
