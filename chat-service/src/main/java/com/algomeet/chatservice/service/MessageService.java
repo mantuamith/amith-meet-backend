@@ -280,12 +280,19 @@ public class MessageService {
         if (message == null || !hasText(userId)) {
             return false;
         }
+
+        //ignore cleared/deleted messages
+        if (!message.isVisibleTo(userId)) {
+            return false;
+        }
+
         if (message.isGroupMessage()) {
             return hasText(resolveThreadId(message, userId))
                     && !userId.equals(message.getSender())
                     && !message.isReadBy(userId);
         }
-        return userId.equals(message.getReceiver()) && message.getStatus() != MessageStatus.READ;
+        return userId.equals(message.getReceiver())
+                && message.getStatus() != MessageStatus.READ;
     }
 
     private String resolveThreadId(MessageDocument message, String userId) {
@@ -423,19 +430,12 @@ public class MessageService {
     public void markMessagesAsRead(String reqSenderId, String contactId) {
 
         log.info("[Read] reader={} thread={}", reqSenderId, contactId);
-
+        boolean isGroup = messageRepository.existsByGroupId(contactId);
         List<MessageDocument> all;
-
-        // ===============================
-        // 🔥 DIRECT CHAT
-        // ===============================
-        all = messageRepository.findBySenderAndReceiver(contactId, reqSenderId);
-
-        // ===============================
-        // 🔥 GROUP CHAT (fallback)
-        // ===============================
-        if (all.isEmpty()) {
+        if (isGroup) {
             all = messageRepository.findByGroupId(contactId);
+        } else {
+            all = messageRepository.findBySenderAndReceiver(contactId, reqSenderId);
         }
 
         log.info("[Read] fetched size={}", all.size());
