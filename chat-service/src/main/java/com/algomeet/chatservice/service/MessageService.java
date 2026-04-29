@@ -419,23 +419,47 @@ public class MessageService {
     }
 
     public void markMessagesAsRead(String reqSenderId, String contactId) {
+
         log.info("[Read] reader={} thread={}", reqSenderId, contactId);
-        List<MessageDocument> all = messageRepository.findByReceiver(contactId).stream().toList();
+
+        List<MessageDocument> all;
+
+        // ===============================
+        // 🔥 DIRECT CHAT
+        // ===============================
+        all = messageRepository.findBySenderAndReceiver(contactId, reqSenderId);
+
+        // ===============================
+        // 🔥 GROUP CHAT (fallback)
+        // ===============================
         if (all.isEmpty()) {
-            all = messageRepository.findByGroupIdOrReceiver(contactId, contactId);
+            all = messageRepository.findByGroupId(contactId);
         }
+
+        log.info("[Read] fetched size={}", all.size());
+
         List<MessageDocument> messages = new ArrayList<>();
+
         for (MessageDocument message : all) {
+
+            // ignore deleted/hidden messages
+            if (!message.isVisibleTo(reqSenderId)) continue;
+
             if (message.isGroupMessage()) {
+
                 if (isGroupMember(message.getGroupId(), reqSenderId)
                         && !reqSenderId.equals(message.getSender())
                         && !message.isReadBy(reqSenderId)) {
+
                     message.markReadBy(reqSenderId);
                     messages.add(message);
                 }
                 continue;
             }
-            if (reqSenderId.equals(message.getReceiver()) && message.getStatus() != MessageStatus.READ) {
+
+            if (reqSenderId.equals(message.getReceiver())
+                    && message.getStatus() != MessageStatus.READ) {
+
                 message.setStatus(MessageStatus.READ);
                 message.setMsgReadTimeStamp(Instant.now().getEpochSecond());
                 messages.add(message);
@@ -444,11 +468,15 @@ public class MessageService {
 
         if (messages.isEmpty()) {
             log.debug("[Read] No eligible messages to mark. reader={} thread={}", reqSenderId, contactId);
+
             sendUnreadCountUpdate(reqSenderId);
+            //pushRecentUpdate(reqSenderId); // IMPORTANT
+
             return;
         }
 
         messageRepository.saveAll(messages);
+
         long nowSec = Instant.now().getEpochSecond();
         log.info("[Read] Updated count={}", messages.size());
 
@@ -456,13 +484,26 @@ public class MessageService {
                 messages.stream().collect(Collectors.groupingBy(MessageDocument::getSender));
 
         bySender.forEach((senderId, msgs) -> {
+
             List<String> ids = msgs.stream().map(MessageDocument::getId).toList();
-            ReadReceipt receipt = new ReadReceipt(contactId, messages.get(0).getGroupId(),ids,nowSec);
-            log.debug("[Read->Notify] toSender={} ids={} at={}", senderId, ids.size(), nowSec);
-            messagingSyncTemplate.convertAndSendToUser(senderId, "/queue/read-receipts", receipt);
+
+            ReadReceipt receipt = new ReadReceipt(
+                    contactId,
+                    msgs.get(0).getGroupId(),
+                    ids,
+                    nowSec
+            );
+
+            messagingSyncTemplate.convertAndSendToUser(
+                    senderId,
+                    "/queue/read-receipts",
+                    receipt
+            );
         });
-        // keep the reader's unread badges current
+
+        // CRITICAL
         sendUnreadCountUpdate(reqSenderId);
+        //pushRecentUpdate(reqSenderId); // IMPORTANT
     }
 
     public void updateMessageCallMeta(CallMessageMetaUpdate payload, String updaterUsername) {

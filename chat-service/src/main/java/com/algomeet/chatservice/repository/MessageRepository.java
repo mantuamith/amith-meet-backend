@@ -155,4 +155,8 @@ public interface MessageRepository extends MongoRepository<MessageDocument, Stri
     boolean existsByGroupId(String contactOrGroupId);
 
     boolean existsByReceiver(String contactOrReceiver);
+
+    List<MessageDocument> findByGroupId(String contactId);
+
+    List<MessageDocument> findBySenderAndReceiver(String contactId, String reqSenderId);
 }
