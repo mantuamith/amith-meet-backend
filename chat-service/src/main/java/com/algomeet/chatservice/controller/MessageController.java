@@ -18,6 +18,7 @@ import com.algomeet.chatservice.util.SecurityUtil;
 
 import jakarta.validation.Valid;
     import lombok.AllArgsConstructor;
+    import lombok.extern.slf4j.Slf4j;
     import org.springframework.data.domain.PageRequest;
     import org.springframework.data.domain.Pageable;
     import org.springframework.data.domain.Sort;
@@ -35,6 +36,7 @@ import jakarta.validation.Valid;
     @RestController
     @RequestMapping("/api/messages")
     @AllArgsConstructor
+    @Slf4j
     public class MessageController {
 
         private final MessageRepository messageRepository;
@@ -197,6 +199,8 @@ import jakarta.validation.Valid;
         public ResponseEntity<ClearChatResult> clearChat(@RequestBody @Valid ClearChatRequest req) {
             final String me = getCurrentUserName();
             long affected = messageService.clearChatForUser(me, req.getContactId());
+
+            log.info("Clear chat for user {} and affected {}", me, affected);
 
             // push real-time UI updates
             messageService.pushAfterClear(me, req.getContactId(), affected);

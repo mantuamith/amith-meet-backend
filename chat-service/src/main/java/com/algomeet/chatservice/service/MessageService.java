@@ -227,6 +227,8 @@ public class MessageService {
                 uniqueById.put(message.getId(), message);
             }
         }
+        log.info("UniqueId={}", uniqueById.size());
+        log.info("userId={}", userId);
 
         Set<String> groupIds = fetchGroupIdsForUsername(userId);
         if (!groupIds.isEmpty()) {
@@ -236,7 +238,7 @@ public class MessageService {
                 }
             }
         }
-
+        log.info("UniqueId values ={}", uniqueById.values());
         return new ArrayList<>(uniqueById.values());
     }
 
