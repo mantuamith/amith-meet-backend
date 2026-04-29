@@ -144,7 +144,7 @@ public class MucRetractionService {
 
             // Dispatch through the cluster layer
             clusterMessagePublisher.convertAndSendToUser(id, m.getUserKey(), principal.getUserKey(), 
-                    ChatType.GROUPCHAT, false, true, xml, principal);
+                    ChatType.GROUPCHAT, false, xml, principal);
         });				
     }	
 }
