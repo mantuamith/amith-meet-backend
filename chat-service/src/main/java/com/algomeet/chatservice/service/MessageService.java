@@ -575,8 +575,7 @@ public class MessageService {
      */
     public long clearChatForUser(String me, String contact) {
 
-        boolean isGroup = messageRepository.existsByGroupId(contact)
-                || messageRepository.existsByReceiver(contact); // your detection logic
+        boolean isGroup = messageRepository.existsByGroupId(contact);
 
         Criteria criteria;
 
@@ -591,14 +590,16 @@ public class MessageService {
                     )
             );
         } else {
-            // ✅ 1:1 CLEAR (existing)
+            // ✅ DIRECT CLEAR (FIXED)
+
             Criteria participants = new Criteria().orOperator(
-                    new Criteria().andOperator(where("sender").is(me), where("receiver").is(contact)),
-                    new Criteria().andOperator(where("sender").is(contact), where("receiver").is(me))
+                    where("sender").is(me).and("receiver").is(contact),
+                    where("sender").is(contact).and("receiver").is(me)
             );
 
             criteria = new Criteria().andOperator(
                     participants,
+                    where("groupId").is(null), // 🔥 critical fix
                     where("deletedForAll").ne(true),
                     new Criteria().orOperator(
                             where("deletedForUsers").exists(false),
@@ -610,7 +611,11 @@ public class MessageService {
         Query q = new Query(criteria);
         Update u = new Update().addToSet("deletedForUsers", me);
 
-        return mongoTemplate.updateMulti(q, u, MessageDocument.class).getModifiedCount();
+        long modified = mongoTemplate.updateMulti(q, u, MessageDocument.class).getModifiedCount();
+
+        log.info("[Clear] user={} contact={} modified={}", me, contact, modified);
+
+        return modified;
     }
 
     /** After clear: notify FE + refresh counters and recent summary */
