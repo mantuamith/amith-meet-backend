@@ -94,7 +94,7 @@ public class XmppChatHandler {
 			offlineMessageService.save(id, toUserKey, fromUserKey, type, forArchiveXml)
 		            .doOnSuccess(saved -> {
 		            	boolean isAckMessage = false;
-		            	boolean isRetractMessage = false;
+		            	boolean isRetractStanza = false;
 		    		            	
 		            	// Send an immediate server-level acknowledgment to the sender.
 		            	//
@@ -115,7 +115,7 @@ public class XmppChatHandler {
 		            	    // Ensure the retract ID is valid and not empty before proceeding
 		            	    if (StringUtils.hasText(retractMessageId)) {
 		            	        // Flag this message as a protocol-level retraction rather than a standard chat message
-		            	        isRetractMessage = true;
+		            	        isRetractStanza = true;
 		            	        
 		            	        // Execute the deletion logic (checking permissions, removing from offline storage, and updating MAM)
 		            	        processRetraction(retractMessageId, toUserKey, fromUserKey, principal).subscribe();
@@ -150,7 +150,7 @@ public class XmppChatHandler {
 					        }
 					    }
 					    
-					    if (!isAckMessage && !isRetractMessage) {
+					    if (!isAckMessage && !isRetractStanza) {
 					    	// Asynchronous Unread Tracking
 					    	// Increment the unread counter for the recipient (toUserKey) relative to the sender (fromUserKey).
 					    	// This is handled reactively to avoid blocking the Netty event loop during DB writes.
@@ -205,7 +205,7 @@ public class XmppChatHandler {
 
 					// Decrement the unread counter for this specific sender-recipient pair.
 					// Note: fromUserKey is the person who read it, toUserKey is the original sender.
-					//unreadCountService.decrementUnreadCount(toUserKey, fromUserKey, principal).subscribe();
+					unreadCountService.decrementUnreadCount(toUserKey, fromUserKey, principal).subscribe();
 
 					// Scenario: Record found, proceed to soft delete
 					log.info("Message found, sotf deleting offline record: {}", retractId);

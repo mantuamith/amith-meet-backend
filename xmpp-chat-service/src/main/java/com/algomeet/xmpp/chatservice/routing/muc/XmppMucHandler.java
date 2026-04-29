@@ -140,7 +140,7 @@ public class XmppMucHandler {
 						XmppUtil.getUserKey(fromJid), ulidString)
 				.doOnSuccess(saved -> {
 					boolean isAckMessage = false;
-	            	boolean isRetractMessage = false;
+	            	boolean isRetractStanza = false;
 	            	
 					// Send an immediate server-level acknowledgment to the sender.
 					//
@@ -161,7 +161,7 @@ public class XmppMucHandler {
 						// Ensure the retract ID is valid and not empty before proceeding
 						if (StringUtils.hasText(retractMessageId)) {
 							// Flag this message as a protocol-level retraction rather than a standard chat message
-							isRetractMessage = true;
+							isRetractStanza = true;
 						}
 	            	}
 	            	
@@ -180,7 +180,7 @@ public class XmppMucHandler {
 					}
 
 					// Count MUC private message
-					if(!isAckMessage && !isRetractMessage) {
+					if(!isAckMessage && !isRetractStanza) {
 						if (pmRecipientMucMember != null) {
 							// Increment MUC unread messages count 
 							mucUnreadCountService.incrementUnreadCount(pmRecipientMucMember.getUserKey(), 
