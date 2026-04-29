@@ -214,7 +214,7 @@ public class XmppMucHandler {
 
 			// 4. DISPATCHING
 			try {			
-				if(isMessageRetraction(originalXml, toRoomJid)) {
+				if(isMessageRetraction(originalXml)) {
 					mucRetractCommandRouter.retract(ctx, id, ulidString, toRoomJid, principal.getBareJid(), originalXml, principal);								
 					
 				} else {
@@ -298,7 +298,7 @@ public class XmppMucHandler {
 	 * @param roomJid The JID of the room (for MUC) or recipient.
 	 * @return true if the stanza is a <message/> and contains the retraction namespace.
 	 */
-	private boolean isMessageRetraction(String xml, String roomJid) {
+	private boolean isMessageRetraction(String xml) {
 	    // First, verify the stanza is a <message/> type to avoid processing <iq/> or <presence/>
 	    if (XmppStanzaUtil.isMessageStanza(xml)) {
 	        

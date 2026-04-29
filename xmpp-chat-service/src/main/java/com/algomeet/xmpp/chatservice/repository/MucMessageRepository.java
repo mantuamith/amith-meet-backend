@@ -44,4 +44,6 @@ public interface MucMessageRepository extends ReactiveMongoRepository<MucMessage
      * Sorted Ascending so the client receives them in chronological order.
      */
     Flux<MucMessage> findByRoomIdAndIdGreaterThanOrderByIdAsc(String roomId, String afterId);
+    
+    Mono<MucMessage> findByMessageId(String messageId);
 }

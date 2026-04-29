@@ -71,10 +71,10 @@ public class MucRetractionService {
         
         // Extract the target message ID (the 'retracted-id') from the XML payload
         String retractMessageId = xmppRetractUtil.getRetractMessageId(xml);
-
         if (StringUtils.hasText(retractMessageId)) {
-            xmppArchiveService.findById(retractMessageId)
+            xmppArchiveService.findByMessageId(retractMessageId.trim())
             .<Void>flatMap(message -> { 
+            	
                 // Authorization: Validate that the initiator is the one who sent the original message
                 if (message.getFrom().equalsIgnoreCase(principal.getUserKey())) {
 
@@ -84,7 +84,7 @@ public class MucRetractionService {
                     // Soft delete from MAM archive so the message is not returned in future history fetches
                     message.setDeletedAt(Instant.now());
                     message.setStanzaXml(XmppStanzaUtil.removeBodyTag(message.getStanzaXml()));
-                    
+
                     return xmppArchiveService.save(message)
                             .doOnSuccess(success -> {
                                 // Inform all online occupants via a broadcasted retraction stanza
