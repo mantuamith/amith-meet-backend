@@ -58,7 +58,7 @@ public class MessageRetractStanza {
         private String retractedId;
         private String by;
         private String stamp;
-        private String reasonText = "This message was retracted."; // Default text
+        private String reasonText; // Default text
 
         public Builder from(String from) {
             this.from = from;
