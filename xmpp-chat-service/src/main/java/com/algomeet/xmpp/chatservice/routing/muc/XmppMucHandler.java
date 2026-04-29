@@ -17,11 +17,13 @@ import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
 import com.algomeet.xmpp.chatservice.parser.GroupChatParser;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.service.GroupCacheService;
+import com.algomeet.xmpp.chatservice.service.MucRetractionService;
 import com.algomeet.xmpp.chatservice.service.MucUnreadCountService;
 import com.algomeet.xmpp.chatservice.service.XmppArchiveService;
 import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.algomeet.xmpp.chatservice.util.XmppReadUtil;
+import com.algomeet.xmpp.chatservice.util.XmppRetractUtil;
 import com.algomeet.xmpp.chatservice.util.XmppServerAckUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
@@ -59,6 +61,8 @@ public class XmppMucHandler {
 	private final MucUnreadCountService mucUnreadCountService;
 	private final XmppReadUtil xmppReadUtil;
 	private final XmppUtil xmppUtil;
+	private final MucRetractionService mucRetractCommandRouter;
+	private final XmppRetractUtil xmppRetractUtil;
 
 	/**
 	 * Main entry point for MUC stanza processing.
@@ -113,21 +117,22 @@ public class XmppMucHandler {
 			// Only archive messages that are storage-eligible (e.g., contain a <body>)
 			// Check if it's archivable
 			boolean isArchivable = XmppStanzaUtil.isArchivable(originalXml);
+			
+			 /**
+	         * Generate a monotonic ULID used as the stanza-id value.
+	         *
+	         * Why ULID:
+	         * - time-sortable (better than UUID for message ordering)
+	         * - globally unique under distributed systems
+	         * - suitable for MAM storage and pagination cursors
+	         *
+	         * Note: Lowercasing ensures consistency across storage/query layers.
+	         */
+	        String ulidString = UlidCreator.getMonotonicUlid().toLowerCase();
 
 			if (msgType.supportsOfflineStorage() && isArchivable) {
 			    StanzaInfo info = GroupChatParser.parse(originalXml);
-			    
-		        /**
-		         * Generate a monotonic ULID used as the stanza-id value.
-		         *
-		         * Why ULID:
-		         * - time-sortable (better than UUID for message ordering)
-		         * - globally unique under distributed systems
-		         * - suitable for MAM storage and pagination cursors
-		         *
-		         * Note: Lowercasing ensures consistency across storage/query layers.
-		         */
-		        String ulidString = UlidCreator.getMonotonicUlid().toLowerCase();
+			    		       
 				// Insert stanza ID
 				forArchiveXml = XmppStanzaUtil.insertStanzaId(originalXml, ulidString, principal.getDomain());
 
@@ -135,6 +140,8 @@ public class XmppMucHandler {
 						XmppUtil.getUserKey(fromJid), ulidString)
 				.doOnSuccess(saved -> {
 					boolean isAckMessage = false;
+	            	boolean isRetractMessage = false;
+	            	
 					// Send an immediate server-level acknowledgment to the sender.
 					//
 					// This acknowledgment confirms that:
@@ -146,6 +153,18 @@ public class XmppMucHandler {
 					// used to provide early delivery assurance back to the sender.
 					XmppServerAckUtil.send(ctx, id, domainProperties.getDomain(), fromJid);
 
+					// Check if the message contains the XMPP Message Retraction namespace (XEP-0424 / urn:xmpp:message-retract:1)
+					if (originalXml.contains(XmppRetractUtil.NS_RETRACT)) {		            	    
+						// Extract the 'id' attribute from the <retract/> element, which refers to the original message to be deleted
+						String retractMessageId = xmppRetractUtil.getRetractMessageId(originalXml);
+
+						// Ensure the retract ID is valid and not empty before proceeding
+						if (StringUtils.hasText(retractMessageId)) {
+							// Flag this message as a protocol-level retraction rather than a standard chat message
+							isRetractMessage = true;
+						}
+	            	}
+	            	
 					// --- XEP-0333: Chat Markers (Read Receipts) ---
 					// If the stanza contains the 'urn:xmpp:chat-markers:0' namespace (displayed), 
 					// the user has actively viewed the conversation.
@@ -161,8 +180,8 @@ public class XmppMucHandler {
 					}
 
 					// Count MUC private message
-					if (pmRecipientMucMember != null) {
-						if(!isAckMessage) {
+					if(!isAckMessage && !isRetractMessage) {
+						if (pmRecipientMucMember != null) {
 							// Increment MUC unread messages count 
 							mucUnreadCountService.incrementUnreadCount(pmRecipientMucMember.getUserKey(), 
 									XmppUtil.getRoomId(toRoomJid))
@@ -170,10 +189,9 @@ public class XmppMucHandler {
 								log.error("Storage failure for increment muc messages count {}: {}", id, e.getMessage(), e);
 							})
 							.subscribe();
-						}
-					} else {
-						// Count MUC group message
-						if(!isAckMessage) {
+						} else {
+							// Count MUC group message
+
 							// Increment MUC unread messages count 
 							mucUnreadCountService.incrementForRoomMembers(XmppUtil.getRoomId(toRoomJid),
 									group.getMembers().stream().map(m -> m.getUserKey()).toList(), 
@@ -196,9 +214,14 @@ public class XmppMucHandler {
 
 			// 4. DISPATCHING
 			try {			
-				// Standard message propagation to members
-				mucMessageRouter.broadcastToOccupants(ctx, id, toRoomJid, fromJid, msgType, group, senderMucMember.get(), 
-						pmRecipientMucMember, (isArchivable ? forArchiveXml : originalXml));
+				if(isMessageRetraction(originalXml, toRoomJid)) {
+					mucRetractCommandRouter.retract(ctx, id, ulidString, toRoomJid, principal.getBareJid(), originalXml, principal);								
+					
+				} else {
+					// Standard message propagation to members
+					mucMessageRouter.broadcastToOccupants(ctx, id, toRoomJid, fromJid, msgType, group, senderMucMember.get(), 
+							pmRecipientMucMember, (isArchivable ? forArchiveXml : originalXml));
+				}
 
 			} catch (NumberFormatException e) {
 				log.error("Critical: Invalid roomId format in routing: {}", toRoomId);
@@ -268,4 +291,26 @@ public class XmppMucHandler {
 		}
 		return false;
 	}	
+	
+	/**
+	 * Fast-check to determine if an incoming XML stanza is a Message Retraction request (XEP-0424).
+	 * * @param xml The raw XML string of the XMPP stanza.
+	 * @param roomJid The JID of the room (for MUC) or recipient.
+	 * @return true if the stanza is a <message/> and contains the retraction namespace.
+	 */
+	private boolean isMessageRetraction(String xml, String roomJid) {
+	    // First, verify the stanza is a <message/> type to avoid processing <iq/> or <presence/>
+	    if (XmppStanzaUtil.isMessageStanza(xml)) {
+	        
+	        /* * Perform a high-performance string scan for the retraction namespace.
+	         * We use indexOf() here to avoid the high CPU/memory overhead of parsing 
+	         * the full XML DOM for every incoming message. 
+	         * NS_RETRACT = "urn:xmpp:message-retract:1"
+	         */
+	        return xml.indexOf(XmppRetractUtil.NS_RETRACT) != -1;
+	    }
+	    
+	    // Not a message stanza or does not contain the retraction trigger
+	    return false;
+	}
 }

@@ -1,5 +1,6 @@
 package com.algomeet.xmpp.chatservice.routing.chat;
 
+import java.time.Instant;
 import java.util.Set;
 
 import org.springframework.dao.DuplicateKeyException;
@@ -27,6 +28,7 @@ import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
 import com.algomeet.xmpp.chatservice.session.model.UserSession;
 import com.algomeet.xmpp.chatservice.util.XmppReadUtil;
 import com.algomeet.xmpp.chatservice.util.XmppReceiptUtil;
+import com.algomeet.xmpp.chatservice.util.XmppRetractUtil;
 import com.algomeet.xmpp.chatservice.util.XmppServerAckUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
@@ -36,6 +38,7 @@ import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.publisher.Mono;
 
 @Slf4j
 @ChannelHandler.Sharable
@@ -53,6 +56,7 @@ public class XmppChatHandler {
 	private final XmppReceiptUtil xmppReceiptUtil;
 	private final XmppReadUtil xmppReadUtil;
 	private final XmppUtil xmppUtil;
+	private final XmppRetractUtil xmppRetractUtil;
 
 	/**
 	 * Handles 1-to-1 message routing, persistence for offline storage, 
@@ -90,6 +94,8 @@ public class XmppChatHandler {
 			offlineMessageService.save(id, toUserKey, fromUserKey, type, forArchiveXml)
 		            .doOnSuccess(saved -> {
 		            	boolean isAckMessage = false;
+		            	boolean isRetractMessage = false;
+		    		            	
 		            	// Send an immediate server-level acknowledgment to the sender.
 		            	//
 		            	// This acknowledgment confirms that:
@@ -99,7 +105,22 @@ public class XmppChatHandler {
 		            	//
 		            	// This is a custom acknowledgment (not client XEP-0198 ack),
 		            	// used to provide early delivery assurance back to the sender.
-		            	XmppServerAckUtil.send(ctx, id, domainProperties.getDomain(), fromJid);		                	               						
+		            	XmppServerAckUtil.send(ctx, id, domainProperties.getDomain(), fromJid);	
+		            	
+		            	// Check if the message contains the XMPP Message Retraction namespace (XEP-0424 / urn:xmpp:message-retract:1)
+		            	if (originalXml.contains(XmppRetractUtil.NS_RETRACT)) {		            	    
+		            	    // Extract the 'id' attribute from the <retract/> element, which refers to the original message to be deleted
+		            	    String retractMessageId = xmppRetractUtil.getRetractMessageId(originalXml);
+
+		            	    // Ensure the retract ID is valid and not empty before proceeding
+		            	    if (StringUtils.hasText(retractMessageId)) {
+		            	        // Flag this message as a protocol-level retraction rather than a standard chat message
+		            	        isRetractMessage = true;
+		            	        
+		            	        // Execute the deletion logic (checking permissions, removing from offline storage, and updating MAM)
+		            	        processRetraction(retractMessageId, toUserKey, fromUserKey, principal).subscribe();
+		            	    }
+		            	}
 						
 						// --- XEP-0184: Message Delivery Receipts ---
 					    // If the stanza contains the 'urn:xmpp:receipts' namespace, the recipient's 
@@ -129,7 +150,7 @@ public class XmppChatHandler {
 					        }
 					    }
 					    
-					    if (!isAckMessage) {
+					    if (!isAckMessage && !isRetractMessage) {
 					    	// Asynchronous Unread Tracking
 					    	// Increment the unread counter for the recipient (toUserKey) relative to the sender (fromUserKey).
 					    	// This is handled reactively to avoid blocking the Netty event loop during DB writes.
@@ -176,6 +197,24 @@ public class XmppChatHandler {
 				(isArchivable ? forArchiveXml : originalXml), principal);
 						
 		pushNotification(ctx, id, toUserKey, fromUserKey, type, originalXml, sessions, principal);
+	}
+	
+	public Mono<Void> processRetraction(String retractId, String toUserKey, String fromUserKey, XmppPrincipal principal) {
+		return offlineMessageService.findByIdAndSender(retractId, fromUserKey)
+				.flatMap(message -> {
+
+					// Decrement the unread counter for this specific sender-recipient pair.
+					// Note: fromUserKey is the person who read it, toUserKey is the original sender.
+					//unreadCountService.decrementUnreadCount(toUserKey, fromUserKey, principal).subscribe();
+
+					// Scenario: Record found, proceed to soft delete
+					log.info("Message found, sotf deleting offline record: {}", retractId);
+
+					message.setStanzaXml(XmppStanzaUtil.removeBodyTag(message.getStanzaXml()));
+					message.setDeletedAt(Instant.now());
+					return offlineMessageService.save(message)
+							.then();
+				});
 	}
 
 	private void pushNotification(ChannelHandlerContext ctx,

@@ -48,6 +48,8 @@ public class MucMessage {
     
     private boolean isE2EE;
     
+    private Instant deletedAt;
+    
     @Builder.Default
     private Instant createdAt = Instant.now();
 }

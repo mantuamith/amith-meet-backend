@@ -190,4 +190,13 @@ public class XmppArchiveService {
 				);
 		localStanzaDispatcher.dispatchLocally(principal.getUserKey(), principal.getUserKey(), fin);
 	}
+	
+	public Mono<MucMessage> findById(String id) {
+		return repository.findById(id);
+	}
+	
+	public Mono<MucMessage> save(MucMessage message) {
+		return repository.save(message);
+	}
+	
 }

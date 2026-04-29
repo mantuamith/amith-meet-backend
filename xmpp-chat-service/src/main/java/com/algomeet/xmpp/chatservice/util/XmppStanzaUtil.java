@@ -418,4 +418,18 @@ public class XmppStanzaUtil {
                 .withZone(ZoneOffset.UTC)
                 .format(createdAt);
     }
+    
+    
+    /**
+     * Remove the <body>...</body> tag
+     * @param xml The original XMPP stanza string.
+     * @return The modified XML string.
+     */
+    public static String removeBodyTag(String xml) {
+        if (xml == null) return null;
+        
+        // Regex looks for <body>...</body> including any characters inside (DOTALL mode)
+        // and replaces it with the blank.
+        return xml.replaceAll("(?s)<body>.*?</body>", "");
+    }
 }

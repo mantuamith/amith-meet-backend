@@ -93,4 +93,13 @@ public class OfflineMessageService {
     public Mono<Void> deleteAllByIds(List<String> messageIds) {
         return offlineMessageRepository.deleteAllById(messageIds);
     }
+        
+    public Mono<OfflineMessage> findByIdAndSender(String id, String sender) {
+        // Ensuring we check both ID and the 'from' JID for security
+        return offlineMessageRepository.findByIdAndFrom(id, sender);
+    }
+    
+    public Mono<OfflineMessage> save(OfflineMessage message) {
+    	return offlineMessageRepository.save(message);
+    }
 }
