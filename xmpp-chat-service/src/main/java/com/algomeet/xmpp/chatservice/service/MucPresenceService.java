@@ -23,6 +23,7 @@ import com.algomeet.xmpp.chatservice.session.UserSessionRegistry;
 import com.algomeet.xmpp.chatservice.session.model.UserSession;
 import com.algomeet.xmpp.chatservice.stanza.presence.MucUserPresenceBuilder;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
+import com.algomeet.xmpp.chatservice.util.MucRoleUtil;
 import com.algomeet.xmpp.chatservice.util.UserStateUtil;
 
 import io.netty.channel.ChannelHandlerContext;
@@ -93,7 +94,7 @@ public class MucPresenceService {
 						.from(roomJid, senderMucMember.get().getUserKey()) 
 						.show(newState.name().toString().toLowerCase())
 						.affiliation(senderMucMember.get().getRole())
-						.role(MucRole.fromString(senderMucMember.get().getRole()).getValue())
+						.role(MucRoleUtil.getMucRole(senderMucMember.get().getRole()).getValue())
 						.build();
 
 				// 4. Distribute via router to all active occupants in the room
@@ -182,7 +183,7 @@ public class MucPresenceService {
 						.status(newState.name().toString().toLowerCase())
 						.updatedAt(updatedAt != 0 ? Instant.ofEpochMilli(updatedAt).toString() : null)
 						.affiliation(member.getRole())
-						.role(MucRole.fromString(member.getRole()).getValue())
+						.role(MucRoleUtil.getMucRole(member.getRole()).getValue())
 						.build();
 
 				// Write directly to the Netty outbound pipeline for the receiving client
