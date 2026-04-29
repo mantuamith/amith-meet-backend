@@ -89,11 +89,15 @@ public class MessageActionService {
         reply.setContent(req.getContent());
         reply.setStatus(MessageStatus.SENT);
         reply.setClientMessageId(req.getClientMessageId());
-        reply.setTimestamp( Instant.ofEpochSecond(req.getMsgReplyTimeStamp()));
+        reply.setTimestamp(Instant.ofEpochSecond(req.getMsgReplyTimeStamp()));
         if (req.getGroupId() != null && !req.getGroupId().isBlank()) {
             reply.setGroupId(req.getGroupId());
+            reply.setGroupMessage(true);
+            reply.setType(MessageType.GROUP);
         } else {
             reply.setReceiver(req.getReceiver());
+            reply.setGroupMessage(false);
+            reply.setType(MessageType.DIRECT);
         }
         MessageDocument msg = messageRepository.findById(req.getReplyToMessageId()).orElse(null);
         ReplyContent replyContent = new ReplyContent();
