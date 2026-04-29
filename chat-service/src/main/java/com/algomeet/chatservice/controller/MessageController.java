@@ -151,15 +151,11 @@ import jakarta.validation.Valid;
             }
         }
 
-
-
-
         //API to GET  Recent Messages for a User ( all messaages from all users).
         @GetMapping("/recent")
         public List<RecentReceivedMessageResponse> getRecentMessages(@RequestParam String receiver) {
             return messageService.getRecentMessages(receiver);
         }
-
 
         // Recent unread messages API = TO Address
         @GetMapping("/recent/{userId}")
@@ -173,7 +169,6 @@ import jakarta.validation.Valid;
             messageService.resetUnreadCount(request.getSender(), request.getReceiver());
             return ResponseEntity.noContent().build();
         }
-
 
         @PostMapping("/mark-as-read")
         public ResponseEntity<Void> markAsRead(@Valid @RequestBody ResetUnreadRequest request) {

@@ -167,43 +167,48 @@ public class MessageService {
         List<RecentReceivedMessageResponse> result = new ArrayList<>();
 
         for (Map.Entry<String, List<MessageDocument>> e : byContact.entrySet()) {
-            String contactId = e.getKey();
-            List<MessageDocument> thread = e.getValue();
 
-            // ✅ 🔥 CRITICAL FIX: filter invalid groups
+            String contactId = e.getKey();
+
+            // 🔥 keep ONLY visible messages
+            List<MessageDocument> thread = e.getValue().stream()
+                    .filter(m -> m.isVisibleTo(userId))
+                    .toList();
+
+            // ✅ FULL CLEAR → remove thread completely
+            if (thread.isEmpty()) {
+                log.debug("[Recent] Thread fully cleared contact={} user={}", contactId, userId);
+                continue;
+            }
+
             boolean isGroup = thread.stream().anyMatch(MessageDocument::isGroupMessage);
 
             if (isGroup && !validGroups.contains(contactId)) {
-                log.debug("[Recent] Skipping invalid/removed group={} for user={}", contactId, userId);
-                continue; // ❌ skip deleted or removed groups
+                continue;
             }
 
+            // ✅ latest ONLY from visible messages
             MessageDocument latest = thread.stream()
                     .filter(m -> m.getTimestamp() != null)
                     .max(Comparator.comparing(MessageDocument::getTimestamp))
                     .orElse(null);
 
-            if (latest == null) {
-                continue;
-            }
+            if (latest == null) continue;
 
             long ts = latest.getTimestamp().toEpochMilli();
-            String lastText = latest.getContent();
 
+            // 🔥 unread ONLY from visible messages
             int unread = (int) thread.stream()
                     .filter(m -> isUnreadForThread(m, userId, contactId))
                     .count();
 
             result.add(new RecentReceivedMessageResponse(
                     contactId,
-                    lastText,
+                    latest.getContent(),
                     ts,
                     unread,
                     latest.getEncryptionMetadata()
             ));
-
-            log.trace("[Recent] user={} contact={} latestId={} unread={}",
-                    userId, contactId, latest.getId(), unread);
         }
 
         List<RecentReceivedMessageResponse> out = result.stream()
@@ -256,9 +261,16 @@ public class MessageService {
     }
 
     private boolean isUnreadForThread(MessageDocument message, String userId, String threadId) {
+
+        // 🔥 ADD THIS LINE
+        if (!message.isVisibleTo(userId)) {
+            return false;
+        }
+
         if (!isUnreadForUser(message, userId)) {
             return false;
         }
+
         return threadId.equals(resolveThreadId(message, userId));
     }
 
