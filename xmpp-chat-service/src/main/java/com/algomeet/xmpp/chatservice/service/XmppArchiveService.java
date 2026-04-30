@@ -133,7 +133,7 @@ public class XmppArchiveService {
 	        .collectList()
 	        // Explicitly define the generic type <Void> for flatMap
 	        .<Void>flatMap(list -> {
-	        	log.info("MAM SIZED {}", list);
+
 	            List<MucMessage> authorizedMessages = list.stream()
 	                .filter(msg -> isAuthorized(msg, principal))
 	                .collect(Collectors.toList());
@@ -224,7 +224,6 @@ public class XmppArchiveService {
 		// Determine the timestamp (assuming your msg object has a getTimestamp or similar)
 		// Format must be ISO-8601: 2026-04-27T10:16:25Z
 		String timestamp = XmppStanzaUtil.formatTimestamp(msg.getCreatedAt()); 
-    	log.info("dispatchMamResult MAM ");
 		String mamResult = String.format(
 				"<message to='%s'>" +
 						"<result xmlns='urn:xmpp:mam:2' %s id='%s'>" +
