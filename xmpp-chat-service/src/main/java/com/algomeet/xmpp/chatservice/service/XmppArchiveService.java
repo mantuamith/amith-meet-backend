@@ -208,7 +208,7 @@ public class XmppArchiveService {
 	 * Filters messages to ensure Private Messages within a MUC are only visible to the recipient.
 	 */
 	private boolean isAuthorized(MucMessage msg, XmppPrincipal principal) {
-		return msg.getHiddenFromUserKeys() != null || msg.getHiddenFromUserKeys().contains(principal.getUserKey());
+		return msg.getHiddenFromUserKeys() != null && msg.getHiddenFromUserKeys().contains(principal.getUserKey());
 	}
 	
 	
