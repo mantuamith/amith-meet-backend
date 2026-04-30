@@ -1,7 +1,9 @@
 package com.algomeet.xmpp.chatservice.service;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.mongodb.core.ReactiveMongoTemplate;
@@ -33,6 +35,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import org.springframework.data.domain.Pageable;
 
 /**
  * Service for managing XMPP Message Archive Management (MAM) as per XEP-0313.
@@ -109,7 +112,7 @@ public class XmppArchiveService {
 		// Strategy: If 'after' is present, we move forward in time.
 		// Otherwise (or if 'before' is present), we move backward into history.
 		if (StringUtils.hasText(afterId)) {
-			loadAfterId(ctx, roomId, afterId, maxResults, queryId, principal);
+			syncWithRetry(roomId, afterId, principal, queryId, maxResults);
 			
 			// Sync recent updates
 			syncRecentRoomUpdates(roomId, afterId, principal);
@@ -122,16 +125,39 @@ public class XmppArchiveService {
 	 * Handles "Load Newer" or "Sync from last disconnect" logic.
 	 * Uses ASC order to stream messages from the oldest in the set to the newest.
 	 */
-	private void loadAfterId(ChannelHandlerContext ctx, String roomId, String afterId, int maxResults, String queryId, XmppPrincipal principal) {
-		log.debug("MAM Request for Room {}: afterId={}, max={}", roomId, afterId, maxResults);
+	private void syncWithRetry(String roomId, String currentAfterId, XmppPrincipal principal, String queryId, int maxResults) {
+	    Pageable pageRequest = PageRequest.of(0, maxResults);
+	    
+	    repository.findByRoomIdAndIdGreaterThanAndToIsNullOrEqualtoUserkeyOrderByIdAsc(
+	            roomId, currentAfterId, principal.getUserKey(), pageRequest)
+	        .collectList()
+	        // Explicitly define the generic type <Void> for flatMap
+	        .<Void>flatMap(list -> {
+	            List<MucMessage> authorizedMessages = list.stream()
+	                .filter(msg -> isAuthorized(msg, principal))
+	                .collect(Collectors.toList());
 
-		PageRequest pageRequest = PageRequest.of(0, maxResults);
+	            // 1. RE-QUERY LOGIC: Empty authorized list but DB had data
+	            if (authorizedMessages.isEmpty() && !list.isEmpty()) {
+	                String newAfterId = list.get(list.size() - 1).getId();
+	                log.debug("No authorized messages in batch. Re-querying from {}", newAfterId);
+	                
+	                // Use fromRunnable to return Mono<Void> and trigger the next hop
+	                return Mono.fromRunnable(() -> 
+	                    syncWithRetry(roomId, newAfterId, principal, queryId, maxResults)
+	                );
+	            }
 
-		repository.findByRoomIdAndIdGreaterThanAndToIsNullOrEqualtoUserkeyOrderByIdAsc(roomId, afterId, principal.getUserKey(), pageRequest)
-		.filter(msg -> isAuthorized(msg, principal))
-		.concatMap(msg -> dispatchMamResult(msg, queryId, principal))
-		.doOnComplete(() -> sendFin(queryId, principal))
-		.subscribe();
+	            // 2. DISPATCH LOGIC: Process authorized messages or handle end of stream
+	            return Flux.fromIterable(authorizedMessages)
+	                .concatMap(msg -> dispatchMamResult(msg, queryId, principal))
+	                // .then() ensures the result is Mono<Void>
+	                .then(Mono.fromRunnable(() -> sendFin(queryId, principal)));
+	        })
+	        .subscribe(
+	            null,
+	            err -> log.error("MAM Sync failed for room {} at cursor {}", roomId, currentAfterId, err)
+	        );
 	}
 
 	/**
@@ -139,21 +165,43 @@ public class XmppArchiveService {
 	 * Uses DESC order to find the N messages immediately preceding the 'beforeId'.
 	 */
 	private void loadBeforeId(ChannelHandlerContext ctx, String roomId, String beforeId, int maxResults, String queryId, XmppPrincipal principal) {
-		log.debug("MAM Request for Room {}: beforeId={}, max={}", roomId, beforeId, maxResults);
+	    log.debug("MAM Request for Room {}: beforeId={}, max={}", roomId, beforeId, maxResults);
 
-		PageRequest pageRequest = PageRequest.of(0, maxResults);
+	    PageRequest pageRequest = PageRequest.of(0, maxResults);
 
-		// Determine the source Flux based on whether beforeId is present
-		Flux<MucMessage> messageFlux = (beforeId == null || beforeId.trim().isEmpty()) 
-				? repository.findByRoomIdOrderByIdDesc(roomId, principal.getUserKey(), pageRequest)
-						: repository.findHistoricalMessages(roomId, beforeId, principal.getUserKey(), pageRequest);
+	    // 1. Define the source Flux
+	    Flux<MucMessage> messageFlux = (beforeId == null || beforeId.trim().isEmpty()) 
+	            ? repository.findByRoomIdOrderByIdDesc(roomId, principal.getUserKey(), pageRequest)
+	            : repository.findHistoricalMessages(roomId, beforeId, principal.getUserKey(), pageRequest);
 
-		messageFlux
-		.filter(msg -> isAuthorized(msg, principal))
-		.concatMap(msg -> dispatchMamResult(msg, queryId, principal))
-		.doOnComplete(() -> sendFin(queryId, principal))
-		.doOnError(e -> log.error("MAM failure for room {}", roomId, e))
-		.subscribe();
+	    messageFlux
+	        .collectList()
+	        .<Void>flatMap(list -> {
+	            // 2. Secondary Java-side authorization filter
+	            List<MucMessage> authorizedMessages = list.stream()
+	                .filter(msg -> isAuthorized(msg, principal))
+	                .toList();
+
+	            // 3. RECURSION LOGIC: 
+	            // If we found nothing authorized, but the DB still had data, 
+	            // we must "walk" further back using the oldest ID in the current batch.
+	            if (authorizedMessages.isEmpty() && !list.isEmpty()) {
+	                String oldestIdInBatch = list.get(list.size() - 1).getId();
+	                log.debug("No authorized messages in batch for room {}. Walking back from {}", roomId, oldestIdInBatch);
+	                
+	                return Mono.fromRunnable(() -> 
+	                    loadBeforeId(ctx, roomId, oldestIdInBatch, maxResults, queryId, principal)
+	                );
+	            }
+
+	            // 4. DISPATCH LOGIC: 
+	            // Process the authorized batch (or handle the end of history if list was empty).
+	            return Flux.fromIterable(authorizedMessages)
+	                .concatMap(msg -> dispatchMamResult(msg, queryId, principal))
+	                .then(Mono.fromRunnable(() -> sendFin(queryId, principal)));
+	        })
+	        .doOnError(e -> log.error("MAM failure for room {} at beforeId {}", roomId, beforeId, e))
+	        .subscribe();
 	}
 	
 	/**
