@@ -74,66 +74,54 @@ public class XmppViewManagementHandler {
 		if (StringUtils.hasText(item.room)) {
 			// GROUP CHAT FLOW
 			xmppArchiveService.findByMessageId(item.id.trim())
-            .<Void>flatMap(message -> {             	
-                // Security Check: Only the sender of the message can hide it for themselves
-                // Note: If you want anyone to hide any message, you can remove this check.
-                if (message.getFrom().equalsIgnoreCase(principal.getUserKey())) {
+			.<Void>flatMap(message -> {             	
 
-                    log.info("Executing hide: Message {} in room {} by user {}", 
-                    		item.id, item.room, principal.getUserKey());
+				log.info("Executing hide: Message {} in room {} by user {}", 
+						item.id, item.room, principal.getUserKey());
 
-                    // Atomic update in MongoDB: add current user key to 'hiddenFromUserKeys'
-                    return xmppArchiveService.hideMessageForUser(message.getMessageId(), principal.getUserKey())
-                            .doOnSuccess(success -> {
-                                // Disseminate the change to user's other devices
-                            	composeAndSendGroupSync(item.id.trim(), item.room, principal);                            
-                            })
-                            .then();
-                } else {
-                    log.warn("Unauthorized hide attempt: User {} tried to hide message {} owned by {}", 
-                            principal.getUserKey(), item.id, message.getFrom());
+				// Atomic update in MongoDB: add current user key to 'hiddenFromUserKeys'
+				return xmppArchiveService.hideMessageForUser(message.getMessageId(), principal.getUserKey())
+						.doOnSuccess(success -> {
+							// Disseminate the change to user's other devices
+							composeAndSendGroupSync(item.id.trim(), item.room, principal);                            
+						})
+						.then();
+			})
+			.subscribe(); // Subscription triggers the reactive pipeline execution
 
-                    xmppUtil.sendError(ctx, item.id, principal.getBareJid(), domainProperties.getGroupChatDomain(), 
-                            XmppErrorType.CANCEL, XmppErrorConditions.FORBIDDEN, "You are not authorized to hide this message");
-
-                    return Mono.empty();
-                }
-            })
-            .subscribe(); // Subscription triggers the reactive pipeline execution
-			
 		} else {			
 			// DIRECT CHAT FLOW
 			composeAndSendDirectSync(item.id.trim(), principal);
 		}
 	}
-	
+
 	/**
 	 * Syncs the 'hide' state for 1-on-1 messages to other resources of the user.
 	 */
 	private void composeAndSendDirectSync(String targetId, XmppPrincipal principal) {
 		String id = UUID.randomUUID().toString();
-		
+
 		ViewManagementSyncStanza vmSync = ViewManagementSyncStanza.builder()
 				.id(id)
 				.targetId(targetId)
 				.from(principal.getBareJid())
 				.to(principal.getBareJid()) // To self (Bare JID) triggers fan-out
 				.build();
-		
+
 		String ulidString = UlidCreator.getMonotonicUlid().toLowerCase();		
 		String xml = XmppStanzaUtil.insertStanzaId(vmSync.toXml(), ulidString, principal.getDomain());
-		
+
 		// Push to the cluster for delivery to all active sessions for this user
 		clusterMessagePublisher.convertAndSendToUser(id, principal.getUserKey(), principal.getUserKey(), 
 				ChatType.CHAT, false, xml, principal);
 	}
-		
+
 	/**
 	 * Syncs the 'hide' state for MUC messages and archives the sync event if needed.
 	 */
 	private void composeAndSendGroupSync(String targetId, String roomJid, XmppPrincipal principal) {
 		String id = UUID.randomUUID().toString();
-		
+
 		ViewManagementSyncStanza vmSync = ViewManagementSyncStanza.builder()
 				.id(id)
 				.targetId(targetId)
@@ -141,11 +129,11 @@ public class XmppViewManagementHandler {
 				.from(principal.getBareJid())
 				.to(roomJid + "/" + principal.getUserKey()) // MUC targeted to the specific user resource
 				.build();
-		
+
 		String ulidString = UlidCreator.getMonotonicUlid().toLowerCase();
-		
+
 		String xml = XmppStanzaUtil.insertStanzaId(vmSync.toXml(), ulidString, principal.getDomain());
-		
+
 		// Publish to other active sessions
 		clusterMessagePublisher.convertAndSendToUser(id, principal.getUserKey(), principal.getUserKey(), 
 				ChatType.GROUPCHAT, false, xml, principal);
