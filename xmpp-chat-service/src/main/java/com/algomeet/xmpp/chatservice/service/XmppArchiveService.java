@@ -209,7 +209,7 @@ public class XmppArchiveService {
 	 * Filters messages to ensure Private Messages within a MUC are only visible to the recipient.
 	 */
 	private boolean isAuthorized(MucMessage msg, XmppPrincipal principal) {
-		return msg.getHiddenFromUserKeys() != null && !(msg.getHiddenFromUserKeys().contains(principal.getUserKey()));
+		return !(msg.getHiddenFromUserKeys() != null && msg.getHiddenFromUserKeys().contains(principal.getUserKey()));
 	}
 	
 	
@@ -224,7 +224,7 @@ public class XmppArchiveService {
 		// Determine the timestamp (assuming your msg object has a getTimestamp or similar)
 		// Format must be ISO-8601: 2026-04-27T10:16:25Z
 		String timestamp = XmppStanzaUtil.formatTimestamp(msg.getCreatedAt()); 
-
+    	log.info("dispatchMamResult MAM ");
 		String mamResult = String.format(
 				"<message to='%s'>" +
 						"<result xmlns='urn:xmpp:mam:2' %s id='%s'>" +
