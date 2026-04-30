@@ -133,6 +133,7 @@ public class XmppArchiveService {
 	        .collectList()
 	        // Explicitly define the generic type <Void> for flatMap
 	        .<Void>flatMap(list -> {
+	        	log.info("MAM SIZED {}", list);
 	            List<MucMessage> authorizedMessages = list.stream()
 	                .filter(msg -> isAuthorized(msg, principal))
 	                .collect(Collectors.toList());
@@ -208,7 +209,7 @@ public class XmppArchiveService {
 	 * Filters messages to ensure Private Messages within a MUC are only visible to the recipient.
 	 */
 	private boolean isAuthorized(MucMessage msg, XmppPrincipal principal) {
-		return msg.getHiddenFromUserKeys() != null && msg.getHiddenFromUserKeys().contains(principal.getUserKey());
+		return msg.getHiddenFromUserKeys() != null && !(msg.getHiddenFromUserKeys().contains(principal.getUserKey()));
 	}
 	
 	
