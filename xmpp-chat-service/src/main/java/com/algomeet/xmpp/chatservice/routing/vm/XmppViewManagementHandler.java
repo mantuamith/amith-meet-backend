@@ -84,9 +84,8 @@ public class XmppViewManagementHandler {
 				return xmppArchiveService.hideMessageForUser(message.getMessageId(), principal.getUserKey())
 						.doOnSuccess(success -> {
 							// Response to client
-							// Send response 
-							String resp = "<iq type='result' id='" + id +"'/>";
-							localStanzaDispatcher.dispatchLocally(principal.getUserKey(), principal.getUserKey(), resp);					
+							// Send response
+							sendIqResult(id, principal);				
 							
 							// Disseminate the change to user's other devices
 							composeAndSendGroupSync(item.id.trim(), item.room, principal);                            
@@ -100,8 +99,8 @@ public class XmppViewManagementHandler {
 			// DIRECT CHAT FLOW
 			composeAndSendDirectSync(item.id.trim(), principal);
 			
-			String resp = "<iq type='result' id='" + id +"'/>";
-			localStanzaDispatcher.dispatchLocally(principal.getUserKey(), principal.getUserKey(), resp);
+			// Send response
+			sendIqResult(id, principal);
 		}
 	}
 
@@ -148,5 +147,31 @@ public class XmppViewManagementHandler {
 		clusterMessagePublisher.convertAndSendToUser(id, principal.getUserKey(), principal.getUserKey(), 
 				ChatType.GROUPCHAT, false, xml, principal);
 		
+	}
+	
+	/**
+	 * Sends a standard XMPP IQ 'result' stanza back to the user's local session.
+	 * Used to acknowledge successful receipt and processing of a request.
+	 *
+	 * @param id        The unique ID of the original request stanza.
+	 * @param principal The session context of the requesting user.
+	 */
+	public void sendIqResult(String id, XmppPrincipal principal) {
+	    if (id == null || id.isBlank()) {
+	        log.warn("Attempted to send IQ result with null/empty ID for user {}", principal.getUserKey());
+	        return;
+	    }
+
+	    // Using a template or builder is safer than raw concatenation
+	    String iqResult = String.format("<iq type='result' id='%s'/>", id);
+
+	    log.debug("Dispatching IQ result: id={}, user={}", id, principal.getUserKey());
+
+	    // Dispatching to the user's own key as both sender and receiver for local session acknowledgement
+	    localStanzaDispatcher.dispatchLocally(
+	        principal.getUserKey(), 
+	        principal.getUserKey(), 
+	        iqResult
+	    );
 	}
 }
