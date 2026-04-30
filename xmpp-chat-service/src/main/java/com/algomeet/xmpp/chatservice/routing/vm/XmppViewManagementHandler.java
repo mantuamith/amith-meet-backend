@@ -11,6 +11,7 @@ import com.algomeet.xmpp.chatservice.constant.XmppErrorConditions;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.enums.XmppErrorType;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
+import com.algomeet.xmpp.chatservice.routing.dispacher.LocalStanzaDispatcher;
 import com.algomeet.xmpp.chatservice.service.XmppArchiveService;
 import com.algomeet.xmpp.chatservice.stanza.ViewManagementSyncStanza;
 import com.algomeet.xmpp.chatservice.stanza.parser.ViewManagementStaxParser;
@@ -21,7 +22,6 @@ import com.github.f4b6a3.ulid.UlidCreator;
 import io.netty.channel.ChannelHandlerContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import reactor.core.publisher.Mono;
 
 /**
  * Handler responsible for managing "View Management" stanzas.
@@ -37,7 +37,8 @@ public class XmppViewManagementHandler {
 	private final DomainProperties domainProperties;
 	private final XmppArchiveService xmppArchiveService;
 	private final ClusterMessagePublisher clusterMessagePublisher;
-
+	private final LocalStanzaDispatcher localStanzaDispatcher;
+	
 	/**
 	 * Main entry point for processing incoming View Management XML.
 	 */
@@ -48,7 +49,7 @@ public class XmppViewManagementHandler {
 			vmIq.items.forEach(item -> {
 				switch (item.action) {
 				case "hide":
-					handleHide(ctx, principal, item);
+					handleHide(ctx, vmIq.iqId, principal, item);
 					break;
 				default:
 					// Reject unsupported actions with a standard XMPP error
@@ -70,7 +71,7 @@ public class XmppViewManagementHandler {
 	/**
 	 * Logic to hide a message. Differentiates between MUC rooms and 1-on-1 chats.
 	 */
-	private void handleHide(ChannelHandlerContext ctx, XmppPrincipal principal, ViewManagementStaxParser.ViewItem item){
+	private void handleHide(ChannelHandlerContext ctx, String id, XmppPrincipal principal, ViewManagementStaxParser.ViewItem item){
 		if (StringUtils.hasText(item.room)) {
 			// GROUP CHAT FLOW
 			xmppArchiveService.findByMessageId(item.id.trim())
@@ -82,16 +83,25 @@ public class XmppViewManagementHandler {
 				// Atomic update in MongoDB: add current user key to 'hiddenFromUserKeys'
 				return xmppArchiveService.hideMessageForUser(message.getMessageId(), principal.getUserKey())
 						.doOnSuccess(success -> {
+							// Response to client
+							// Send response 
+							String resp = "<iq type='result' id='" + id +"'/>";
+							localStanzaDispatcher.dispatchLocally(principal.getUserKey(), principal.getUserKey(), resp);					
+							
 							// Disseminate the change to user's other devices
 							composeAndSendGroupSync(item.id.trim(), item.room, principal);                            
 						})
 						.then();
+
 			})
 			.subscribe(); // Subscription triggers the reactive pipeline execution
 
 		} else {			
 			// DIRECT CHAT FLOW
 			composeAndSendDirectSync(item.id.trim(), principal);
+			
+			String resp = "<iq type='result' id='" + id +"'/>";
+			localStanzaDispatcher.dispatchLocally(principal.getUserKey(), principal.getUserKey(), resp);
 		}
 	}
 
@@ -137,5 +147,6 @@ public class XmppViewManagementHandler {
 		// Publish to other active sessions
 		clusterMessagePublisher.convertAndSendToUser(id, principal.getUserKey(), principal.getUserKey(), 
 				ChatType.GROUPCHAT, false, xml, principal);
+		
 	}
 }
