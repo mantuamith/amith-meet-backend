@@ -1,6 +1,13 @@
 package com.algomeet.xmpp.chatservice.service;
 
+import java.util.Optional;
+import java.util.UUID;
+
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.mongodb.core.ReactiveMongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -10,11 +17,16 @@ import com.algomeet.xmpp.chatservice.document.MucMessage;
 import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
 import com.algomeet.xmpp.chatservice.dto.StanzaInfo;
 import com.algomeet.xmpp.chatservice.enums.XmppErrorType;
+import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.repository.MucMessageRepository;
 import com.algomeet.xmpp.chatservice.routing.dispacher.LocalStanzaDispatcher;
+import com.algomeet.xmpp.chatservice.stanza.MessageRetractStanza;
+import com.algomeet.xmpp.chatservice.stanza.ViewManagementSyncStanza;
+import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
+import com.github.f4b6a3.ulid.UlidCreator;
 
 import io.netty.channel.ChannelHandlerContext;
 import lombok.RequiredArgsConstructor;
@@ -40,6 +52,8 @@ public class XmppArchiveService {
 	private final GroupCacheService groupCacheService;
 	private final XmppUtil xmppUtil;
 	private final DomainProperties domainProperties;
+	private final ReactiveMongoTemplate reactiveMongoTemplate;
+	private final JidUtil jidUtil;
 
 	/**
 	 * Persists a room event (message or signaling) to the archive.
@@ -96,6 +110,9 @@ public class XmppArchiveService {
 		// Otherwise (or if 'before' is present), we move backward into history.
 		if (StringUtils.hasText(afterId)) {
 			loadAfterId(ctx, roomId, afterId, maxResults, queryId, principal);
+			
+			// Sync recent updates
+			syncRecentRoomUpdates(roomId, afterId, principal);
 		} else {
 			loadBeforeId(ctx, roomId, beforeId, maxResults, queryId, principal);
 		}
@@ -110,8 +127,7 @@ public class XmppArchiveService {
 
 		PageRequest pageRequest = PageRequest.of(0, maxResults);
 
-		repository.findByRoomIdAndIdGreaterThanOrderByIdAsc(roomId, afterId, pageRequest)
-		.filter(msg -> isAuthorized(msg, principal))
+		repository.findByRoomIdAndIdGreaterThanAndToIsNullOrEqualtoUserkeyOrderByIdAsc(roomId, afterId, principal.getUserKey(), pageRequest)
 		.concatMap(msg -> dispatchMamResult(msg, queryId, principal))
 		.doOnComplete(() -> sendFin(queryId, principal))
 		.subscribe();
@@ -128,22 +144,18 @@ public class XmppArchiveService {
 
 		// Determine the source Flux based on whether beforeId is present
 		Flux<MucMessage> messageFlux = (beforeId == null || beforeId.trim().isEmpty()) 
-				? repository.findByRoomIdOrderByIdDesc(roomId, pageRequest)
-						: repository.findByRoomIdAndIdLessThanOrderByIdDesc(roomId, beforeId, pageRequest);
+				? repository.findByRoomIdOrderByIdDesc(roomId, principal.getUserKey(), pageRequest)
+						: repository.findHistoricalMessages(roomId, beforeId, principal.getUserKey(), pageRequest);
 
 		messageFlux
-		.filter(msg -> isAuthorized(msg, principal))
 		.concatMap(msg -> dispatchMamResult(msg, queryId, principal))
 		.doOnComplete(() -> sendFin(queryId, principal))
 		.doOnError(e -> log.error("MAM failure for room {}", roomId, e))
 		.subscribe();
 	}
-
-	/**
-	 * Filters messages to ensure Private Messages within a MUC are only visible to the recipient.
-	 */
-	private boolean isAuthorized(MucMessage msg, XmppPrincipal principal) {
-		return msg.getTo() == null || msg.getTo().equalsIgnoreCase(principal.getUserKey());
+	
+	private boolean isPrincipalRecipient(MucMessage msg, XmppPrincipal principal) {
+		return (msg.getTo() == null || msg.getTo().equalsIgnoreCase(principal.getUserKey()));
 	}
 
 	/**
@@ -199,4 +211,143 @@ public class XmppArchiveService {
 		return repository.save(message);
 	}
 	
+	public Mono<Void> hideMessageForUser(String messageId, String userKey) {
+	    // 1. Locate the document by ID
+	    Query query = new Query(Criteria.where("messageId").is(messageId));
+
+	    // 2. Define the specific update (Atomic $addToSet)
+	    Update update = new Update()
+	    		.addToSet("hiddenFromUserKeys", userKey)
+	    		.set("updateCursorId", UlidCreator.getMonotonicUlid().toLowerCase());
+
+	    // 3. Execute 'updateFirst' to modify ONLY that field
+	    return reactiveMongoTemplate.updateFirst(query, update, MucMessage.class)
+	            .then();
+	}
+		
+	/**
+	 * Fetches and dispatches message updates (like retractions or view changes) that occurred 
+	 * in a specific room after a given cursor point.
+	 * 
+	 * @param roomId    The unique identifier of the MUC room.
+	 * @param afterId   The ULID cursor used to resume the update stream.
+	 * @param principal The session context of the user requesting the updates.
+	 */
+	private void syncRecentRoomUpdates(String roomId, String afterId, XmppPrincipal principal) {
+	    log.info("Syncing updates for Room {}: starting from cursor {}", roomId, afterId);
+
+	    // 1. Query the repository for all message changes in this room newer than the provided ULID.
+	    // OrderByIdAsc ensures we process and dispatch updates in the exact order they occurred.
+	    repository.findByRoomIdAndUpdateCursorIdGreaterThanOrderByIdAsc(roomId, afterId)
+	        
+	        // 2. Filter: Ensure the update is relevant to the requesting principal.
+	        // This prevents leaking "Delete for Me" events or private stanzas to the wrong users.
+	        .filter(msg -> isPrincipalRecipient(msg, principal))
+
+	        // 3. Sequential Dispatch: Use concatMap to ensure stanzas are sent to the local 
+	        // dispatcher in order. This maintains protocol consistency for the client.
+	        .concatMap(msg -> dispatchRecentUpdatesResult(msg, afterId, principal))
+
+	        // 4. Subscription: Since this is a void-returning fire-and-forget background task,
+	        // we subscribe to trigger the reactive pipeline. 
+	        // NOTE: In a production environment, consider adding error logging inside .subscribe().
+	        .subscribe(
+	            null, 
+	            error -> log.error("Failed to sync updates for user {} in room {}: {}", 
+	                                principal.getUserKey(), roomId, error.getMessage())
+	        );
+	}
+	
+	/**
+	 * Processes a single message update and dispatches the appropriate XMPP stanza 
+	 * if the update occurs after the client's current sync cursor (afterId).
+	 * 
+	 * @param msg       The message metadata containing deletion or visibility status.
+	 * @param afterId   The ULID string representing the client's last synchronized state.
+	 * @param principal The session context of the user receiving the update.
+	 * @return A Mono<Void> that completes after the stanza is dispatched or skipped.
+	 */
+	private Mono<Void> dispatchRecentUpdatesResult(MucMessage msg, String afterId, XmppPrincipal principal) {
+	    // 1. Lexicographical Guard: 
+	    // Since ULIDs are sortable, we only proceed if msg.getId() is chronologically older than afterId. 
+		// We exclude newer messages (>= afterId) to prevent duplicate processing, 
+		// as those are handled by the standard MAM (XEP-0313) catch-up mechanism.
+		if (msg.getId() != null && msg.getId().compareTo(afterId) > 0) {
+		    return Mono.empty();
+		}
+
+	    // 2. Wrap XML generation in Mono.fromCallable to keep the logic within the reactive pipeline.
+	    return Mono.fromCallable(() -> buildUpdateXml(msg, principal))
+	            .flatMap(optionalXml -> optionalXml
+	                .map(xml -> Mono.fromRunnable(() -> 
+	                    // 3. Side-effect: Dispatch the generated stanza to the user's local connection.
+	                    localStanzaDispatcher.dispatchLocally(principal.getUserKey(), principal.getUserKey(), xml)
+	                ).then()) // Convert Runnable to Mono<Void>
+	                .orElse(Mono.empty())
+	            );
+	}
+
+	/**
+	 * Strategy method to determine which type of synchronization stanza to generate.
+	 * Returns an Optional.empty() if no update (retraction or hide) is required for this user.
+	 */
+	private Optional<String> buildUpdateXml(MucMessage msg, XmppPrincipal principal) {
+	    // Priority 1: Global Retraction (XEP-0424). If deletedAt is set, everyone needs a retraction.
+	    if (msg.getDeletedAt() != null) {
+	        return Optional.of(buildRetractionXml(msg, principal));
+	    } 
+	    
+	    // Priority 2: "Delete for Me" (View Management). Only notify if this specific user hidden the message.
+	    if (msg.getHiddenFromUserKeys() != null && msg.getHiddenFromUserKeys().contains(principal.getUserKey())) {
+	        return Optional.of(buildHideEventXml(msg, principal));
+	    }
+
+	    return Optional.empty();
+	}
+
+	/**
+	 * Builds a XEP-0424 Message Retraction stanza for MUC groupchat.
+	 */
+	private String buildRetractionXml(MucMessage msg, XmppPrincipal principal) {
+	    String timestamp = XmppStanzaUtil.formatTimestamp(msg.getDeletedAt());
+	    // Construct the Occupant JID (room@service/nick)
+	    String groupJid = jidUtil.getGroupBareJid(msg.getRoomId()) + "/" + msg.getFrom();
+
+	    MessageRetractStanza retractStanza = MessageRetractStanza.builder()
+	            .id(UUID.randomUUID().toString()) // Unique ID for this specific retraction stanza
+	            .to(principal.getBareJid())       // Targeted at the user's bare JID
+	            .from(groupJid)                  // Originating from the room occupant address
+	            .by(groupJid)                    // The entity that performed the retraction
+	            .retractedId(msg.getMessageId()) // The original 'id' of the message to be removed
+	            .type(XmppMessageType.GROUPCHAT.getXmlValue())
+	            .stamp(timestamp)
+	            .build();
+
+	    // Injects the server's tracking ID (cursor) into the <stanza-id/> element for MAM/Syncing.
+	    return XmppStanzaUtil.insertStanzaId(retractStanza.toXml(), msg.getUpdateCursorId(), principal.getDomain());
+	}
+
+	/**
+	 * Builds a custom View Management Sync stanza to synchronize "hidden" state across devices.
+	 */
+	private String buildHideEventXml(MucMessage msg, XmppPrincipal principal) {
+		String xml = null;
+		try {
+			ViewManagementSyncStanza vmSync = ViewManagementSyncStanza.builder()
+					.id(UUID.randomUUID().toString())
+					.targetId(msg.getMessageId()) // The message ID that should be hidden from view
+					.from(principal.getBareJid()) // Sent from the user's bare JID
+					.room(jidUtil.getGroupBareJid(msg.getRoomId()))
+					.to(principal.getBareJid())   // Sent to self to ensure all connected resources (phone, web) sync
+					.build();
+			// Generate a fresh monotonic ULID for the view management event itself.
+			String ulidString = UlidCreator.getMonotonicUlid().toLowerCase();
+
+			// Inject the new ULID as the stanza-id so the client can update its sync cursor.
+			xml = XmppStanzaUtil.insertStanzaId(vmSync.toXml(), ulidString, principal.getDomain());
+		} catch(Exception ex) {
+			log.error("Error composing View management sync stanza ", ex);
+		}
+		return xml;
+	}
 }

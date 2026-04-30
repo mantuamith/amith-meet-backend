@@ -34,7 +34,7 @@ public class MessageRetractStanza {
      * Converts the object to a valid XML String.
      */
     public String toXml() {
-        return new StringBuilder()
+        StringBuilder sb = new StringBuilder()
             .append("<message from='").append(from).append("' ")
             .append("to='").append(to).append("' ")
             .append("type='").append(type).append("' ")
@@ -42,11 +42,16 @@ public class MessageRetractStanza {
             .append("<retracted xmlns='urn:xmpp:message-retract:1' ")
             .append("id='").append(retractedId).append("' ")
             .append("by='").append(by).append("' ")
-            .append("stamp='").append(stamp).append("'>")
-            .append(reasonText)
-            .append("</retracted>")
-            .append("</message>")
-            .toString();
+            .append("stamp='").append(stamp).append("'>");
+        
+          if (reasonText != null) {
+              sb.append(reasonText);
+          }
+            
+          sb.append("</retracted>")
+            .append("</message>");
+        
+        return sb.toString();
     }
 
     // --- Builder Class ---

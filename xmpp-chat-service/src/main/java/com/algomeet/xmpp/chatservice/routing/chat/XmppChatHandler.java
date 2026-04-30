@@ -208,9 +208,9 @@ public class XmppChatHandler {
 					unreadCountService.decrementUnreadCount(toUserKey, fromUserKey, principal).subscribe();
 
 					// Scenario: Record found, proceed to soft delete
-					log.info("Message found, sotf deleting offline record: {}", retractId);
+					log.info("Message found, soft deleting offline record by emptying the body of the message: {}", retractId);
 
-					message.setStanzaXml(XmppStanzaUtil.removeBodyTag(message.getStanzaXml()));
+					message.setStanzaXml(XmppStanzaUtil.emptyBodyTag(message.getStanzaXml()));
 					message.setDeletedAt(Instant.now());
 					return offlineMessageService.save(message)
 							.then();

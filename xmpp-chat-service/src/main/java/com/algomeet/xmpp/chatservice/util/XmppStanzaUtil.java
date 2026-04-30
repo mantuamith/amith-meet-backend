@@ -425,11 +425,24 @@ public class XmppStanzaUtil {
      * @param xml The original XMPP stanza string.
      * @return The modified XML string.
      */
-    public static String removeBodyTag(String xml) {
+    public static String replaceBodyTag(String xml, String newValue) {
         if (xml == null) return null;
         
         // Regex looks for <body>...</body> including any characters inside (DOTALL mode)
         // and replaces it with the blank.
-        return xml.replaceAll("(?s)<body>.*?</body>", "");
+        return xml.replaceAll("(?s)<body>.*?</body>", newValue);
+    }
+    
+    /**
+     * Remove the <body>...</body> tag
+     * @param xml The original XMPP stanza string.
+     * @return The modified XML string.
+     */
+    public static String emptyBodyTag(String xml) {
+        if (xml == null) return null;
+        
+        // Regex looks for <body>...</body> including any characters inside (DOTALL mode)
+        // and replaces it with the blank.
+        return xml.replaceAll("(?s)<body>.*?</body>", "<body></body>");
     }
 }
