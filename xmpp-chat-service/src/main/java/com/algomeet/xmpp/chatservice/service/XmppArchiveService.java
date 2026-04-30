@@ -128,6 +128,7 @@ public class XmppArchiveService {
 		PageRequest pageRequest = PageRequest.of(0, maxResults);
 
 		repository.findByRoomIdAndIdGreaterThanAndToIsNullOrEqualtoUserkeyOrderByIdAsc(roomId, afterId, principal.getUserKey(), pageRequest)
+		.filter(msg -> isAuthorized(msg, principal))
 		.concatMap(msg -> dispatchMamResult(msg, queryId, principal))
 		.doOnComplete(() -> sendFin(queryId, principal))
 		.subscribe();
@@ -148,11 +149,20 @@ public class XmppArchiveService {
 						: repository.findHistoricalMessages(roomId, beforeId, principal.getUserKey(), pageRequest);
 
 		messageFlux
+		.filter(msg -> isAuthorized(msg, principal))
 		.concatMap(msg -> dispatchMamResult(msg, queryId, principal))
 		.doOnComplete(() -> sendFin(queryId, principal))
 		.doOnError(e -> log.error("MAM failure for room {}", roomId, e))
 		.subscribe();
 	}
+	
+	/**
+	 * Filters messages to ensure Private Messages within a MUC are only visible to the recipient.
+	 */
+	private boolean isAuthorized(MucMessage msg, XmppPrincipal principal) {
+		return msg.getHiddenFromUserKeys() != null || msg.getHiddenFromUserKeys().contains(principal.getUserKey());
+	}
+	
 	
 	private boolean isPrincipalRecipient(MucMessage msg, XmppPrincipal principal) {
 		return (msg.getTo() == null || msg.getTo().equalsIgnoreCase(principal.getUserKey()));
