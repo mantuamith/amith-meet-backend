@@ -426,12 +426,14 @@ public class XmppStanzaUtil {
      * @param new string as body tag replacement.
      * @return The modified XML string.
      */
-    public static String replaceBodyTag(String xml, String newValue) {
+    public static String markAsRetractedStanza(String xml, String newBody) {
+    	String retractedTag = "<retracted xmlns='urn:xmpp:message-retract:1'/>";
         if (xml == null) return null;
         
         // Regex looks for <body>...</body> including any characters inside (DOTALL mode)
         // and replaces it with the blank.
-        return xml.replaceAll("(?s)<body>.*?</body>", newValue);
+        return xml.replaceAll("(?s)<body>.*?</body>", newBody)
+        		.replace("</message>", retractedTag + "</message>");        
     }
     
     /**
