@@ -453,7 +453,6 @@ public class XmppStanzaUtil {
 	 * @return true if the stanza is a <message/> and contains the retraction namespace.
 	 */
 	public static boolean isRetractStanza(String xml) {
-		final String bodyTag = "<body";
 		// First, verify the stanza is a <message/> type to avoid processing <iq/> or <presence/>
 		if (XmppStanzaUtil.isMessageStanza(xml)) {
 
@@ -462,7 +461,7 @@ public class XmppStanzaUtil {
 			 * the full XML DOM for every incoming message. 
 			 * NS_RETRACT = "urn:xmpp:message-retract:1"
 			 */
-			return xml.indexOf(XmppRetractUtil.NS_RETRACT) != -1 && xml.indexOf(bodyTag) == -1;
+			return xml.indexOf(XmppRetractUtil.NS_RETRACT) != -1 && xml.indexOf(BODY) == -1;
 		}
 
 		// Not a message stanza or does not contain the retraction trigger
