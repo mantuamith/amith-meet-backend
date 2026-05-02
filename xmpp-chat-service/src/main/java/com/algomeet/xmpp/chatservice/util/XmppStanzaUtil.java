@@ -445,4 +445,26 @@ public class XmppStanzaUtil {
         // and replaces it with the blank.
         return xml.replaceAll("(?s)<body>.*?</body>", "<body></body>");
     }
+        
+    /**
+	 * Fast-check to determine if an incoming XML stanza is a Message Retraction request (XEP-0424).
+	 * @param xml The raw XML string of the XMPP stanza.
+	 * @return true if the stanza is a <message/> and contains the retraction namespace.
+	 */
+	public static boolean isRetractStanza(String xml) {
+		final String bodyTag = "<body";
+		// First, verify the stanza is a <message/> type to avoid processing <iq/> or <presence/>
+		if (XmppStanzaUtil.isMessageStanza(xml)) {
+
+			/* * Perform a high-performance string scan for the retraction namespace.
+			 * We use indexOf() here to avoid the high CPU/memory overhead of parsing 
+			 * the full XML DOM for every incoming message. 
+			 * NS_RETRACT = "urn:xmpp:message-retract:1"
+			 */
+			return xml.indexOf(XmppRetractUtil.NS_RETRACT) != -1 && xml.indexOf(bodyTag) == -1;
+		}
+
+		// Not a message stanza or does not contain the retraction trigger
+		return false;
+	}
 }

@@ -108,7 +108,7 @@ public class XmppMucHandler {
 			// MUC User actions (nickname changes, room entry)
 			mucUserCommandRouter.handleCommandStanza(ctx, toRoomJid, principal.getBareJid(), originalXml, principal);	
 		
-		} else if(isRetractStanza(originalXml)) {
+		} else if(XmppStanzaUtil.isRetractStanza(originalXml)) {
 				mucRetractionService.retract(ctx, id, toRoomJid, principal.getBareJid(), originalXml, principal);								
 				
 		} else {
@@ -276,28 +276,5 @@ public class XmppMucHandler {
 			return jidArr.length > 1 && StringUtils.hasText(jidArr[1]);
 		}
 		return false;
-	}	
-
-	/**
-	 * Fast-check to determine if an incoming XML stanza is a Message Retraction request (XEP-0424).
-	 * * @param xml The raw XML string of the XMPP stanza.
-	 * @param roomJid The JID of the room (for MUC) or recipient.
-	 * @return true if the stanza is a <message/> and contains the retraction namespace.
-	 */
-	private boolean isRetractStanza(String xml) {
-		final String bodyTag = "<body";
-		// First, verify the stanza is a <message/> type to avoid processing <iq/> or <presence/>
-		if (XmppStanzaUtil.isMessageStanza(xml)) {
-
-			/* * Perform a high-performance string scan for the retraction namespace.
-			 * We use indexOf() here to avoid the high CPU/memory overhead of parsing 
-			 * the full XML DOM for every incoming message. 
-			 * NS_RETRACT = "urn:xmpp:message-retract:1"
-			 */
-			return xml.indexOf(XmppRetractUtil.NS_RETRACT) != -1 && xml.indexOf(bodyTag) == -1;
-		}
-
-		// Not a message stanza or does not contain the retraction trigger
-		return false;
-	}
+	}		
 }

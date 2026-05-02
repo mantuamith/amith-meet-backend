@@ -108,7 +108,7 @@ public class XmppChatHandler {
 		            	XmppServerAckUtil.send(ctx, id, domainProperties.getDomain(), fromJid);	
 		            	
 		            	// Check if the message contains the XMPP Message Retraction namespace (XEP-0424 / urn:xmpp:message-retract:1)
-		            	if (originalXml.contains(XmppRetractUtil.NS_RETRACT)) {		            	    
+		            	if (XmppStanzaUtil.isRetractStanza(originalXml)) {		            	    
 		            	    // Extract the 'id' attribute from the <retract/> element, which refers to the original message to be deleted
 		            	    String retractMessageId = xmppRetractUtil.getRetractMessageId(originalXml);
 
