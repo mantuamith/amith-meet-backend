@@ -423,6 +423,7 @@ public class XmppStanzaUtil {
     /**
      * Remove the <body>...</body> tag
      * @param xml The original XMPP stanza string.
+     * @param new string as body tag replacement.
      * @return The modified XML string.
      */
     public static String replaceBodyTag(String xml, String newValue) {
