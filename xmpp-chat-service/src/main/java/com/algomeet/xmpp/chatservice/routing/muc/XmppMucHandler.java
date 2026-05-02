@@ -61,7 +61,7 @@ public class XmppMucHandler {
 	private final MucUnreadCountService mucUnreadCountService;
 	private final XmppReadUtil xmppReadUtil;
 	private final XmppUtil xmppUtil;
-	private final MucRetractionService mucRetractCommandRouter;
+	private final MucRetractionService mucRetractionService;
 
 	/**
 	 * Main entry point for MUC stanza processing.
@@ -109,7 +109,7 @@ public class XmppMucHandler {
 			mucUserCommandRouter.handleCommandStanza(ctx, toRoomJid, principal.getBareJid(), originalXml, principal);	
 		
 		} else if(isRetractStanza(originalXml)) {
-				mucRetractCommandRouter.retract(ctx, id, toRoomJid, principal.getBareJid(), originalXml, principal);								
+				mucRetractionService.retract(ctx, id, toRoomJid, principal.getBareJid(), originalXml, principal);								
 				
 		} else {
 
@@ -285,6 +285,7 @@ public class XmppMucHandler {
 	 * @return true if the stanza is a <message/> and contains the retraction namespace.
 	 */
 	private boolean isRetractStanza(String xml) {
+		final String bodyTag = "<body";
 		// First, verify the stanza is a <message/> type to avoid processing <iq/> or <presence/>
 		if (XmppStanzaUtil.isMessageStanza(xml)) {
 
@@ -293,7 +294,7 @@ public class XmppMucHandler {
 			 * the full XML DOM for every incoming message. 
 			 * NS_RETRACT = "urn:xmpp:message-retract:1"
 			 */
-			return xml.indexOf(XmppRetractUtil.NS_RETRACT) != -1;
+			return xml.indexOf(XmppRetractUtil.NS_RETRACT) != -1 && xml.indexOf(bodyTag) == -1;
 		}
 
 		// Not a message stanza or does not contain the retraction trigger
