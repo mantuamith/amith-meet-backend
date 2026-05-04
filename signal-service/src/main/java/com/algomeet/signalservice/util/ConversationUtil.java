@@ -60,4 +60,38 @@ public class ConversationUtil {
     public static String getConversationId(String userKey, String peerIUserKey) {
         return (userKey + DELIMITER + peerIUserKey);
     }
+    
+    /**
+     * Extracts the "peer" user key from a conversationId.
+     *
+     * Expected format:
+     *   <currentUserKey>{DELIMITER}<peerUserKey>
+     *
+     * Example:
+     *   conversationId = "userA:userB"  -> returns "userB"
+     *
+     * Notes:
+     * - Returns null if the input is blank, malformed, or does not contain the delimiter.
+     * - Uses index-based parsing instead of split() to avoid unnecessary array creation.
+     *
+     * @param conversationId the composite conversation identifier
+     * @return the peer user key, or null if not resolvable
+     */
+    public static String getPeerKey(String conversationId) {
+        // Validate input (null, empty, or whitespace)
+        if (!org.springframework.util.StringUtils.hasText(conversationId)) {
+            return null;
+        }
+
+        // Find the first occurrence of the delimiter
+        int delimiterIndex = conversationId.indexOf(DELIMITER);
+
+        // If delimiter is missing or nothing exists after it, return null
+        if (delimiterIndex < 0 || delimiterIndex == conversationId.length() - 1) {
+            return null;
+        }
+
+        // Extract substring after the delimiter (peer user key)
+        return conversationId.substring(delimiterIndex + DELIMITER.length());
+    }
 }

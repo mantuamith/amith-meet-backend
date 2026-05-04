@@ -2,27 +2,39 @@ package com.algomeet.signalservice.service;
 
 import java.nio.charset.Charset;
 import java.time.Duration;
-import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.aggregation.Aggregation;
+import org.springframework.data.mongodb.core.aggregation.AggregationResults;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.core.script.DefaultRedisScript;
+import org.springframework.data.support.PageableExecutionUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.CollectionUtils;
+import org.springframework.util.StringUtils;
 
 import com.algomeet.signalservice.document.MessageBackupDocument;
 import com.algomeet.signalservice.dto.StorageUsageAdjustmentRequest;
+import com.algomeet.signalservice.exceptions.MessageInsertInProgressException;
+import com.algomeet.signalservice.exceptions.MessageUpdateStatusInProgressException;
 import com.algomeet.signalservice.exceptions.RecordNotFoundException;
 import com.algomeet.signalservice.repository.MessageBackupRepository;
 import com.algomeet.signalservice.repository.projection.ConversationStorageStats;
 import com.algomeet.signalservice.util.ConversationUtil;
 import com.algomeet.signalservice.util.SecurityUtil;
+import com.github.f4b6a3.ulid.UlidCreator;
+import com.mongodb.client.result.UpdateResult;
 
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
@@ -34,6 +46,7 @@ public class MessageBackupService {
 	private final MessageBackupRepository repository;
 	private final MediaService mediaService;
 	private final StringRedisTemplate redisTemplate;
+	private final MongoTemplate mongoTemplate;
 
 	/**
 	 * Inserts a message backup document into MongoDB with concurrency protection,
@@ -51,121 +64,138 @@ public class MessageBackupService {
 	 * @return persisted MessageBackupDocument
 	 */
 	public MessageBackupDocument insert(MessageBackupDocument backup) {
-	    // Resolve the authenticated user's identity from security context
-	    String userKey = SecurityUtil.getUserKey();
+		// Resolve the authenticated user's identity from security context
+		String userKey = SecurityUtil.getUserKey();
 
-	    // Assign owner of this message backup
-	    backup.setUserKey(SecurityUtil.getUserKey());
+		// Assign owner of this message backup
+		backup.setUserKey(SecurityUtil.getUserKey());
 
-	    // Build deterministic conversation ID so both directions map to the same thread
-	    String conversationId = ConversationUtil.getConversationId(
-	            userKey,
-	            backup.getSenderKey(),
-	            backup.getReceiverKey()
-	    );
-	    backup.setConversationId(conversationId);
+		// Build deterministic conversation ID so both directions map to the same thread
+		String conversationId = ConversationUtil.getConversationId(
+				userKey,
+				backup.getSenderKey(),
+				backup.getReceiverKey()
+				);
+		backup.setConversationId(conversationId);
 
-	    /**
-	     * Redis distributed lock key to prevent concurrent duplicate inserts
-	     * for the same messageId (idempotency + race-condition protection).
-	     *
-	     * Format:
-	     * signal:lock:message-backup:insert:{messageId}
-	     */
-	    String lockKey = "signal:lock:message-backup:insert:" + backup.getMessageId();
+		// Set stanza ID if empty
+		if (!StringUtils.hasText(backup.getStanzaId())) {
+			backup.setStanzaId(UlidCreator.getMonotonicUlid().toLowerCase());
+		}
 
-	    /**
-	     * Lock value used for safe release verification.
-	     * NOTE: In production systems, this should ideally be a UUID to ensure ownership safety.
-	     */
-	    String lockValue = UUID.randomUUID().toString();
+		/**
+		 * Redis distributed lock key to prevent concurrent duplicate inserts
+		 * for the same messageId (idempotency + race-condition protection).
+		 *
+		 * Format:
+		 * signal:lock:message-backup:insert:{messageId}
+		 */
+		String lockKey = "signal:lock:mb:insert:" + backup.getMessageId();
 
-	    // Lock TTL ensures deadlock prevention in case of unexpected failures
-	    long ttlSeconds = 5;
+		/**
+		 * Lock value used for safe release verification.
+		 * NOTE: In production systems, this should ideally be a UUID to ensure ownership safety.
+		 */
+		String lockValue = UUID.randomUUID().toString();
 
-	    // Attempt to acquire distributed lock
-	    boolean acquired = redisTemplate.opsForValue()
-	            .setIfAbsent(lockKey, lockValue, Duration.ofSeconds(ttlSeconds));
+		// Lock TTL ensures deadlock prevention in case of unexpected failures
+		long ttlSeconds = 5;
 
-	    // If lock is not acquired, another process is already inserting this message
-	    if (!Boolean.TRUE.equals(acquired)) {
-	        throw new IllegalStateException("Message insert in progress. Please retry.");
-	    }
+		// Attempt to acquire distributed lock
+		boolean acquired = redisTemplate.opsForValue()
+				.setIfAbsent(lockKey, lockValue, Duration.ofSeconds(ttlSeconds));
 
-	    try {
+		// If lock is not acquired, another process is already inserting this message
+		if (!Boolean.TRUE.equals(acquired)) {
+			throw new MessageInsertInProgressException();
+		}
 
-	        /**
-	         * Compute encrypted message size if not explicitly provided.
-	         * This is used for:
-	         * - user storage quota tracking
-	         * - billing / analytics
-	         * - storage optimization metrics
-	         */
-	        if (backup.getSize() == null || backup.getSize() == 0) {
-	            backup.setSize(
-	                    backup.getEncryptedMessage() != null
-	                            ? backup.getEncryptedMessage()
-	                                    .getBytes(Charset.forName("utf-8")).length
-	                            : 0L
-	            );
-	        }
+		/**
+		 * Compute encrypted message size if not explicitly provided.
+		 * This is used for:
+		 * - user storage quota tracking
+		 * - billing / analytics
+		 * - storage optimization metrics
+		 */
+		if (backup.getSize() == null || backup.getSize() == 0) {
+			backup.setSize(
+					backup.getEncryptedMessage() != null
+					? backup.getEncryptedMessage()
+							.getBytes(Charset.forName("utf-8")).length
+							: 0L
+					);
+		}
 
-	        /**
-	         * Adjust user storage usage atomically:
-	         * - increments message count by 1
-	         * - increments stored bytes by message size
-	         *
-	         * This ensures accurate quota tracking per user.
-	         */
-	        StorageUsageAdjustmentRequest req = new StorageUsageAdjustmentRequest();
-	        req.setChatMessageCountDelta(1L);
-	        req.setChatStorageBytesDelta(backup.getSize());
+		/**
+		 * Adjust user storage usage atomically:
+		 * - increments message count by 1
+		 * - increments stored bytes by message size
+		 *
+		 * This ensures accurate quota tracking per user.
+		 */
+		StorageUsageAdjustmentRequest req = new StorageUsageAdjustmentRequest();
+		req.setChatMessageCountDelta(1L);
+		req.setChatStorageBytesDelta(backup.getSize());
 
-	        mediaService.adjustStorageUsage(userKey, req);
+		mediaService.adjustStorageUsage(userKey, req);
 
-	        // Persist message backup into MongoDB
-	        return repository.save(backup);
-
-	    } finally {
-	        /**
-	         * Safely release Redis lock using Lua script to ensure:
-	         * - only the lock owner can delete it
-	         * - avoids accidental deletion of another process's lock
-	         */
-	        releaseLock(lockKey, lockValue);
-	    }
+		// Persist message backup into MongoDB
+		return repository.save(backup);
 	}
 
-	/**
-	 * Safely releases a Redis distributed lock using a Lua script.
-	 *
-	 * The script ensures atomic check-and-delete:
-	 * - Only deletes the lock if the stored value matches the expected value.
-	 * - Prevents race conditions where another process acquires the lock before deletion.
-	 *
-	 * @param key Redis lock key
-	 * @param value expected lock value for ownership validation
-	 */
-	private void releaseLock(String key, String value) {
+	public Page<MessageBackupDocument> getConversationMessages(String userKey, String peerKey, int page, int size) {
+		Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "stanzaId"));
 
-	    String script =
-	            "if redis.call('get', KEYS[1]) == ARGV[1] then " +
-	            "return redis.call('del', KEYS[1]) " +
-	            "else return 0 end";
-
-	    redisTemplate.execute(
-	            new DefaultRedisScript<>(script, Long.class),
-	            Collections.singletonList(key),
-	            value
-	    );
+		// Get converation ID
+		String converationId = ConversationUtil.getConversationId(userKey, peerKey);		
+		return repository.findByConversationId(converationId, pageable);
 	}
 
-	public Page<MessageBackupDocument> getConversation(String userKey, String participantKey, int page, int size) {
-		Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "timestamp"));
+	public Page<MessageBackupDocument> getConversationMessages(String userKey, String peerKey, String stanzaId, int page, int size) {
+		Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.ASC, "stanzaId"));
+
+		// Get converation ID
+		String converationId = ConversationUtil.getConversationId(userKey, peerKey);		
+		return repository.findByConversationIdAndStanzaIdGreaterThan(converationId, stanzaId, pageable);
+	}
+
+	public Page<MessageBackupDocument> syncMessageUpdates(String userKey, String peerKey, String cursorStanzaId, String limitStanzaId, int page, int size) {
+		Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.ASC, "stanzaId"));
+		Query query = new Query();
+
+		String conversationId = ConversationUtil.getConversationId(userKey, peerKey);
+		// Filter: conversationId AND updateCursorId > cursorStanzaId AND stanzaId <= limitStanzaId
+		query.addCriteria(
+				Criteria.where("conversationId").is(conversationId)
+				.and("updateCursorId").gt(cursorStanzaId)
+				.and("stanzaId").lte(limitStanzaId)
+				);
+
+		// 2. Projection: Only return specific fields
+		query.fields()
+		.include("messageId")		
+		.include("stanzaId")
+		.include("sentAt")
+		.include("deliveredAt")
+		.include("readAt")
+		.include("deletedAt")
+		.include("editCount");
+
+		// 3. Execution
+		long count = mongoTemplate.count(query, MessageBackupDocument.class);
+		query.with(pageable);
+
+		List<MessageBackupDocument> results = mongoTemplate.find(query, MessageBackupDocument.class);
+
+		return PageableExecutionUtils.getPage(results, pageable, () -> count);
+	}
+
+	public Page<MessageBackupDocument> getSyncConversationMessages(String userKey, String participantKey, String stanzaId, int page, int size) {
+		Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.ASC, "stanzaId"));
 
 		// Get converation ID
 		String converationId = ConversationUtil.getConversationId(userKey, participantKey);		
-		return repository.findByConversationId(converationId, pageable);
+		return repository.findByConversationIdAndStanzaIdGreaterThan(converationId, stanzaId, pageable);
 	}
 
 	public MessageBackupDocument getMessage(String messageId) {
@@ -176,9 +206,57 @@ public class MessageBackupService {
 	public List<MessageBackupDocument> getMessages(List<String> messageIds) {
 		List<MessageBackupDocument> messageList = repository.findAllById(messageIds);		
 		return messageList;
-	}	
+	}
 
-	public MessageBackupDocument update(String messageId, MessageBackupDocument backup) {
+	public List<String> getConversationContacts(String userKey){
+		List<String> conversationIds = findUniqueConversationIds(userKey);
+
+		if (!CollectionUtils.isEmpty(conversationIds)) {
+			return conversationIds.stream().map(ConversationUtil::getPeerKey).toList();
+		}
+
+		return List.of();
+	}
+
+	private List<String> findUniqueConversationIds(String userKey) {
+		Aggregation aggregation = Aggregation.newAggregation(
+				// 1. Filter only for messages belonging to this user
+				Aggregation.match(Criteria.where("userKey").is(userKey)),
+
+				// 2. Group by the deterministic conversationId
+				// and find the maximum timestamp for that specific chat
+				Aggregation.group("conversationId")
+				.max("timestamp").as("lastInteraction"),
+
+				// 3. Sort conversations: most recent messages first
+				Aggregation.sort(Sort.Direction.DESC, "lastInteraction"),
+
+				// 4. Project the ID (which is the conversationId) to our DTO
+				Aggregation.project().and("_id").as("conversationId")
+				);
+
+		AggregationResults<ConversationIdResult> results = mongoTemplate.aggregate(
+				aggregation, "message_backups", ConversationIdResult.class
+				);
+
+		return results.getMappedResults().stream()
+				.map(ConversationIdResult::getConversationId)
+				.collect(Collectors.toList());
+	}
+
+	// Simple DTO for mapping
+	@Data
+	private static class ConversationIdResult {
+		private String conversationId;
+	}
+
+	// Helper class to map aggregation results
+	@Data
+	private static class ContactResult {
+		private String contactKey;
+	}
+
+	public MessageBackupDocument update(String messageId, MessageBackupDocument backup) {	
 		backup.setMessageId(messageId);
 		Optional<MessageBackupDocument> updateOpt = repository.findById(messageId);
 
@@ -209,6 +287,59 @@ public class MessageBackupService {
 		}).get());
 	}
 
+	public MessageBackupDocument edit(String messageId, MessageBackupDocument backup) {	
+		backup.setMessageId(messageId);
+		Optional<MessageBackupDocument> updateOpt = repository.findById(messageId);
+
+		if (updateOpt.isEmpty()) {
+			throw new RecordNotFoundException("Message ID not found");
+		}
+
+		// Set the message size
+		if (backup.getSize() == null || backup.getSize() == 0) {
+			backup.setSize(backup.getEncryptedMessage() != null 
+					? backup.getEncryptedMessage().getBytes(Charset.forName("utf-8")).length : 0L);
+		}
+
+		// Update user storage usage 
+		StorageUsageAdjustmentRequest req = new StorageUsageAdjustmentRequest();
+		req.setChatStorageBytesDelta(backup.getSize() - updateOpt.get().getSize());
+		mediaService.adjustStorageUsage(backup.getUserKey(), req);
+
+		String updateStanzaId = UlidCreator.getMonotonicUlid().toLowerCase();
+
+		return repository.save(updateOpt.map(b -> {
+			if(StringUtils.hasText(backup.getUserKey())) {
+				b.setUserKey(backup.getUserKey());
+			}
+
+			b.setEditCount(b.getEditCount() != null ? (b.getEditCount() + 1) : 1);
+			b.setUpdateCursorId(updateStanzaId);
+			b.setEncryptedMessage(backup.getEncryptedMessage());
+
+			if(StringUtils.hasText(backup.getSenderKey())) {
+				b.setSenderKey(backup.getSenderKey());
+			}
+
+			if(StringUtils.hasText(backup.getReceiverKey())) {
+				b.setReceiverKey(backup.getReceiverKey());
+			}
+
+			if(StringUtils.hasText(backup.getAlgorithm())) {
+				b.setAlgorithm(backup.getAlgorithm());
+			}
+
+			if(StringUtils.hasText(backup.getVersion())) {
+				b.setVersion(backup.getVersion());
+			}
+
+			if(StringUtils.hasText(backup.getSalt())) {
+				b.setSalt(backup.getSalt());
+			}
+			return b;
+		}).get());
+	}
+
 	public void delete(String messageId) {
 		Optional<MessageBackupDocument> updateOpt = repository.findById(messageId);		
 		if (updateOpt.isEmpty()) {
@@ -234,17 +365,17 @@ public class MessageBackupService {
 				.orElse(new ConversationStorageStats(0L, 0L)); // Or handle empty
 
 
-				long totalSize = stats != null ? stats.getTotalSize() : 0L;
-				long messageCount = stats != null ? stats.getMessageCount() : 0L;
+		long totalSize = stats != null ? stats.getTotalSize() : 0L;
+		long messageCount = stats != null ? stats.getMessageCount() : 0L;
 
-				// Update user storage usage 
-				StorageUsageAdjustmentRequest req = new StorageUsageAdjustmentRequest();
-				req.setChatMessageCountDelta(-messageCount);
-				req.setChatStorageBytesDelta(-totalSize);
-				mediaService.adjustStorageUsage(userKey, req);
+		// Update user storage usage 
+		StorageUsageAdjustmentRequest req = new StorageUsageAdjustmentRequest();
+		req.setChatMessageCountDelta(-messageCount);
+		req.setChatStorageBytesDelta(-totalSize);
+		mediaService.adjustStorageUsage(userKey, req);
 
 
-				repository.deleteConversation(userKey, peerKey);				
+		repository.deleteConversation(userKey, peerKey);				
 	}	
 
 	public void deleteByUserKey(String userKey ){
@@ -252,5 +383,53 @@ public class MessageBackupService {
 
 		// Delete user storage usage
 		mediaService.deleteStorage(userKey);
-	}		
+	}	
+
+	public void updateStatus(String messageId, String timestampField, String stanzaId, Long timestamp) {
+		/**
+		 * Redis distributed lock key to prevent concurrent duplicate inserts
+		 * for the same messageId (idempotency + race-condition protection).
+		 *
+		 * Format:
+		 * signal:lock:message-backup:insert:{messageId}
+		 */
+		String lockKey = "signal:lock:mb:update-status:" + stanzaId;
+
+		/**
+		 * Lock value used for safe release verification.
+		 * NOTE: In production systems, this should ideally be a UUID to ensure ownership safety.
+		 */
+		String lockValue = UUID.randomUUID().toString();
+
+		// Lock TTL ensures deadlock prevention in case of unexpected failures
+		long ttlSeconds = 5;
+
+		// Attempt to acquire distributed lock
+		boolean acquired = redisTemplate.opsForValue()
+				.setIfAbsent(lockKey, lockValue, Duration.ofSeconds(ttlSeconds));
+
+		// If lock is not acquired, another process is already inserting this message
+		if (!Boolean.TRUE.equals(acquired)) {
+			throw new MessageUpdateStatusInProgressException();
+		}
+
+		// Atomic update for high-concurrency environments
+		Query query = new Query(Criteria.where("messageId").is(messageId)
+				.and("userKey").is(SecurityUtil.getUserKey()));
+
+		Update update = new Update()
+				.set(timestampField, timestamp)
+				.set("updateCursorId", stanzaId);
+
+		// Clean up message
+		if ("deletedAt".equals(timestampField)) {
+			update.set("encryptedMessage", null);
+		}
+
+		UpdateResult result = mongoTemplate.updateFirst(query, update, MessageBackupDocument.class);
+
+		if (result.getMatchedCount() == 0) {
+			throw new RecordNotFoundException("Message backup not found: " + messageId);
+		}
+	}
 }

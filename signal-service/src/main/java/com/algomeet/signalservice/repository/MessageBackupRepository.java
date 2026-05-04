@@ -25,6 +25,9 @@ public interface MessageBackupRepository extends MongoRepository<MessageBackupDo
 	
 	Page<MessageBackupDocument> findByConversationId(
 			String conversationId, Pageable pageable);
+	
+	Page<MessageBackupDocument> findByConversationIdAndStanzaIdGreaterThan(
+	        String conversationId, String stanzaId, Pageable pageable);
 
     // Custom delete query for both sides of conversation
     @Modifying

@@ -9,6 +9,7 @@ import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Pattern;
@@ -20,10 +21,19 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @Document(collection = "message_backups")
 @CompoundIndexes({
-	@CompoundIndex(
-		    name = "idx_conversation_stanza",
-		    def = "{'conversationId':1, 'stanzaId':-1}"
-		)
+	// 1. For Chat History: Fetching messages within a specific 1:1 chat
+    @CompoundIndex(
+        name = "idx_conversation_stanza", 
+        def = "{'conversationId':1, 'stanzaId':-1}"
+    ),
+    
+    // 2. For the Conversation List: Optimized for ESR (Equality, Sort, Range)
+    // By putting timestamp before conversationId, MongoDB can find the 
+    // latest unique conversations for a user with minimal index walking.
+    @CompoundIndex(
+        name = "idx_user_inbox_view", 
+        def = "{'userKey': 1, 'timestamp': -1, 'conversationId': 1}"
+    )
 })
 public class MessageBackupDocument {
 	@Id
@@ -37,17 +47,24 @@ public class MessageBackupDocument {
 	 */
 	@Indexed
 	@Size(max = 45)
-	@NotBlank
 	private String stanzaId;
 
 	/** 
 	 * Deterministic conversation identifier for this message record.
 	 * Composed of the record owner's userKey and the other chat participant/entity key.
 	 * Used to group and query messages belonging to the same conversation.
+	 * 
+	 * Format: <User Key>_<Peer User Key>
+	 * 
+	 * Auto populated field.
 	 */
+    @Schema(hidden = true)
 	private String conversationId;
 
-	@Deprecated
+    /**
+     * Auto populated field.
+     */
+    @Schema(hidden = true)
 	@Size(max = 45)
 	@Field("userKey")
 	private String userKey;   
@@ -79,10 +96,23 @@ public class MessageBackupDocument {
 
 	@Field("readAt")
 	private Long readAt;
+	
+	// Soft delete / tombstone (for retention/compaction)
+	private Long deletedAt;
+	
+    // Useful for finding all reactions, replies and etc to a specific message
+    @Indexed
+    private String refersTo;      
+  
+    private Integer editCount;
+    
+    @Schema(hidden = true)
+    @Indexed(unique = true, sparse = true)
+    private String updateCursorId;
 
 	@Field("size")
 	private Long size;
-
+	
 	/** Algorithm name, e.g. "AES/GCM/NoPadding" or "AES-CBC". */
 	@Size(max = 32)
 	@Field("algorithm")
