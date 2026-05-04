@@ -4,28 +4,34 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
+import org.redisson.api.RSemaphoreReactive;
+import org.redisson.api.RedissonReactiveClient;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
+import com.algomeet.xmpp.chatservice.document.CallSession;
 import com.algomeet.xmpp.chatservice.enums.CallSessionMetadata;
 import com.algomeet.xmpp.chatservice.enums.CallSessionRedisKey;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
 import com.algomeet.xmpp.chatservice.properties.CallProperties;
+import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.service.MucCallTrackerService;
 import com.algomeet.xmpp.chatservice.service.MucUnreadCountService;
 import com.algomeet.xmpp.chatservice.service.OfflineMessageService;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
+import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
+import com.github.f4b6a3.ulid.UlidCreator;
 
 import io.netty.channel.ChannelHandlerContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 /**
  * ============================================================================
@@ -96,16 +102,8 @@ public class MucCallLifeCycleTracker {
 	private final JidUtil jidUtil;
 	private final MucUnreadCountService mucUnreadCountService;
 	private final CallProperties callProperties;
-
-	/**
-	 * Extract Jingle SID from XML.
-	 *
-	 * Supports:
-	 * sid='abc'
-	 * sid="abc"
-	 */
-	private static final Pattern SID_PATTERN =
-			Pattern.compile("sid=['\"]([^'\"]+)['\"]");
+	private final RedissonReactiveClient redissonReactiveClient;
+	private final DomainProperties domainProperties;
 
 	/**
 	 *
@@ -139,7 +137,7 @@ public class MucCallLifeCycleTracker {
 		/**
 		 * Every call must have SID.
 		 */
-		String sid = extractSid(xml);		
+		String sid = XmppStanzaUtil.getAttribute(xml, "sid");		
 
 		if (sid == null) {
 			log.warn("Ignoring call stanza without SID");
@@ -329,7 +327,6 @@ public class MucCallLifeCycleTracker {
 		 * NORMAL CALL END
 		 */
 		if (xml.contains("<success/>")) {
-			
 			mucCallTrackerService.finalizeAndNotify(sid, principal.getSessionId(), "success")
 			.subscribe();
 		}
@@ -368,12 +365,31 @@ public class MucCallLifeCycleTracker {
 		else if (xml.contains("<cancel/>")) {
 			// create from room JID
 			String fromRoomFullJid = jidUtil.getGroupBareJid(groupId) + "/"	+ XmppUtil.getUserKey(fromJid);
+			
+			// To prevent competing threads
+			// A Semaphore with 1 permit acts exactly like a non-reentrant lock
+			RSemaphoreReactive semaphore = redissonReactiveClient.getSemaphore("xmpp:lock:cancel:sid:" + sid + ":user-key:" + XmppUtil.getUserKey(fromJid));
+			// tryAcquire(permits, waitTime, unit)
+			// permits: 1 (only one process can enter)
+			// waitTime: 0 (immediate fail-fast; if the permit is taken, we discard the redundant trigger)
+			semaphore.tryAcquire(1, 0, TimeUnit.SECONDS) // Try to get 1 permit immediately
+			.flatMap(acquired -> {
+				if (!acquired) {
+					// If lock is held, another process is already finalizing this SID.
+					return Mono.empty();
+				}
 
-			handleCancelCall(ctx,
-					fromJid,
-					sid,
-					fromRoomFullJid,
-					callType);
+				return handleCancelCall(ctx,
+						fromJid,
+						sid,
+						fromRoomFullJid,
+						callType)
+						.then();
+			})
+			// Use finalize to ensure unlock happens regardless of success/error/empty
+			// Use doFinally to ensure the permit is ALWAYS released
+			.doFinally(sig -> semaphore.release(1).subscribe()) 
+			.then();
 		}
 
 		/**
@@ -420,48 +436,47 @@ public class MucCallLifeCycleTracker {
 		}
 	}
 
-	private void handleCancelCall(ChannelHandlerContext ctx,
+	private Flux<CallSession> handleCancelCall(ChannelHandlerContext ctx,
 			String fromJid,
 			String sid,
 			String fromRoomFullJid,
 			String callType) {
 
 		// Send logs to responders
-		mucCallTrackerService.findBySid(sid)
-		.doOnEach(callSession -> {
-			String calleeUserKey = callSession.get().getCallee();
+		return mucCallTrackerService.findBySid(sid)
+				.doOnEach(callSession -> {
+					String calleeUserKey = callSession.get().getCallee();
 
-			// Generate Redis MUC SID using sid and callee user key
-			String mucSid = CallSessionRedisKey.getMucSid(sid, calleeUserKey);	
-			boolean isCallInDelayQueue = isCallInDelayQueue(mucSid);
+					// Generate Redis MUC SID using sid and callee user key
+					String mucSid = CallSessionRedisKey.getMucSid(sid, calleeUserKey);	
+					boolean isCallInDelayQueue = isCallInDelayQueue(mucSid);
 
-			if(isCallInDelayQueue) {					
-				/**
-				 * Always cleanup first to avoid races.
-				 */
-				handleResolution(mucSid);
+					if(isCallInDelayQueue) {					
+						/**
+						 * Always cleanup first to avoid races.
+						 */
+						handleResolution(mucSid);
 
-				// Send to responder
-				sendCallLog(ctx, fromRoomFullJid, jidUtil.getBareJid(calleeUserKey),
-						sid, "missed",
-						"Missed Call", callType);
-			}
-		})
-		.doFinally(signal -> {
-			// Send call log to caller
-			sendCallLog(ctx, fromRoomFullJid, fromJid,
-					sid, "canceled",
-					"Call Canceled", callType);
+						// Send to responder
+						sendCallLog(ctx, fromRoomFullJid, jidUtil.getBareJid(calleeUserKey),
+								sid, "missed",
+								"Missed Call", callType);
+					}
+				})
+				.doFinally(signal -> {
+					// Send call log to caller
+					sendCallLog(ctx, fromRoomFullJid, fromJid,
+							sid, "canceled",
+							"Call Canceled", callType);
 
-			try {
-				// Delete muc call session records
-				mucCallTrackerService.deleteBySid(sid).subscribe();
-			} catch(Exception ex) {
-				// silent
-			}
+					try {
+						// Delete muc call session records
+						mucCallTrackerService.deleteBySid(sid).subscribe();
+					} catch(Exception ex) {
+						// silent
+					}
 
-		})
-		.subscribe();		
+				});		
 	}
 
 	/**
@@ -486,15 +501,6 @@ public class MucCallLifeCycleTracker {
 				CallSessionRedisKey.MUC_CALL_TIMEOUT_QUEUE.getVal(),	sid);
 
 		return score != null;
-	}
-
-	/**
-	 * Extract Jingle SID.
-	 */
-	private String extractSid(String xml) {
-		Matcher matcher = SID_PATTERN.matcher(xml);
-
-		return matcher.find() ? matcher.group(1) : null;
 	}
 
 	/**
@@ -533,7 +539,10 @@ public class MucCallLifeCycleTracker {
 		String toUserKey = XmppUtil.getUserKey(toJid);
 		String roomId = XmppUtil.getRoomId(fromRoomJid);
 		String fromUserKey = XmppUtil.getResourceFromRoomFullJid(fromRoomJid);
-
+		
+        String ulidString = UlidCreator.getMonotonicUlid().toLowerCase();
+		// Insert stanza ID
+		String forArchiveXml = XmppStanzaUtil.insertStanzaId(xml.toString(), ulidString, domainProperties.getDomain());		
 		/**
 		 * Persist for offline retrieval.
 		 */
@@ -542,7 +551,7 @@ public class MucCallLifeCycleTracker {
 				toUserKey,
 				fromUserKey,
 				XmppMessageType.GROUPCHAT.getXmlValue(),
-				xml.toString()
+				forArchiveXml
 				)
 		.doOnSuccess(success -> {
 			// Increment MUC unread messages count 
@@ -561,7 +570,7 @@ public class MucCallLifeCycleTracker {
 				toUserKey,
 				fromUserKey,
 				ChatType.CHAT,
-				xml.toString()
+				forArchiveXml
 				);
 
 		log.debug("Published {} call log SID={}", status, sid);

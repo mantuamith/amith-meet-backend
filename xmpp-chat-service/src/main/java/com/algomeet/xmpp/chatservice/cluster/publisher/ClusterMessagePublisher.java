@@ -313,7 +313,8 @@ public class ClusterMessagePublisher {
 			log.error("CRITICAL: Failed to publish stanza [{}] to Redis topic [{}]. Error: {}",
 					id,
 					redisTopicProperties.getClusterSync(),
-					ex.getMessage()
+					ex.getMessage(),
+					ex
 					);
 
 			throw new ClusterMessageException(

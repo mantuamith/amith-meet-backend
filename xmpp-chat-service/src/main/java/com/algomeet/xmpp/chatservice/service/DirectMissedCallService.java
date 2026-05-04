@@ -20,10 +20,13 @@ import com.algomeet.xmpp.chatservice.enums.CallSessionRedisKey;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.enums.UserState;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
+import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.session.UserSessionRegistry;
 import com.algomeet.xmpp.chatservice.session.model.UserSession;
 import com.algomeet.xmpp.chatservice.stanza.jingle.JingleTerminationIq;
+import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
+import com.github.f4b6a3.ulid.UlidCreator;
 
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -56,6 +59,7 @@ public class DirectMissedCallService {
 	private final ReactiveRedisTemplate<String, String> reactiveRedisTemplate;
 	private final CallTrackerService callTrackerService;
 	private final UnreadCountService unreadCountService;
+	private final DomainProperties domainProperties;
 
 	/**
 	 * Scans for expired sessions and acquires a distributed lock to prevent multi-node processing.
@@ -178,10 +182,14 @@ public class DirectMissedCallService {
 						fromJid, toJid, id, type, type, type, timestamp, sid
 				);			
 
-		offlineMessageService.save(id, toUserKey, fromUserKey, XmppMessageType.HEADLINE.getXmlValue(), xml)
+		String ulidString = UlidCreator.getMonotonicUlid().toLowerCase();
+		// Insert stanza ID
+		String forArchiveXml = XmppStanzaUtil.insertStanzaId(xml, ulidString, domainProperties.getDomain());	
+			
+		offlineMessageService.save(id, toUserKey, fromUserKey, XmppMessageType.HEADLINE.getXmlValue(), forArchiveXml)
 		.doOnSuccess(success -> {
 			// Publish after successfully saved
-			clusterMessagePublisher.convertAndSendToUser(id, toUserKey, fromUserKey, ChatType.CHAT, xml);
+			clusterMessagePublisher.convertAndSendToUser(id, toUserKey, fromUserKey, ChatType.CHAT, forArchiveXml);
 			
 			// Increment user unread message
 			unreadCountService.incrementUnreadCount(fromUserKey, toUserKey);

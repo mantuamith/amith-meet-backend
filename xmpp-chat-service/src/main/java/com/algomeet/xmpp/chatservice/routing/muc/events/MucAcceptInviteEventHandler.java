@@ -17,6 +17,7 @@ import com.algomeet.xmpp.chatservice.service.MucPresenceService;
 import com.algomeet.xmpp.chatservice.service.XmppArchiveService;
 import com.algomeet.xmpp.chatservice.stanza.presence.MucUserPresenceBuilder;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
+import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
 import com.github.f4b6a3.ulid.UlidCreator;
 
@@ -79,11 +80,15 @@ public class MucAcceptInviteEventHandler {
         String body = sender.getUsername() + " has joined the group";
         String logXml = buildAcceptInviteLog(roomBareJid, body, sender.getUserKey(), senderJid);
         
+        String ulidString = UlidCreator.getMonotonicUlid().toLowerCase();
+		// Insert stanza ID
+		String forArchiveLogXml = XmppStanzaUtil.insertStanzaId(xml, ulidString, domainProperties.getDomain());
+        
         // 4. Persistence: Archive the join event to the database for future Message Archive Management (MAM) queries.
-        saveToDatabase(stanzaId, roomJid, senderJid, group, sender, logXml);
+        saveToDatabase(stanzaId, roomJid, senderJid, group, sender, ulidString, forArchiveLogXml);
         
         // 5. Broadcast: Real-time notification to all online occupants via the MessageRouter.
-        xmppBroadCastHandler.broadcastToOccupants(ctx, stanzaId, roomJid, senderJid, XmppMessageType.GROUPCHAT, group, sender, null, logXml);
+        xmppBroadCastHandler.broadcastToOccupants(ctx, stanzaId, roomJid, senderJid, XmppMessageType.GROUPCHAT, group, sender, null, forArchiveLogXml);
                 
         // Push group members presence to user
         mucPresenceService.pushGroupParticipantsPresenceToUser(ctx, group, sender.getUserKey());
@@ -95,24 +100,15 @@ public class MucAcceptInviteEventHandler {
      * Persists the join event to the archive. 
      * Injects a unique Stanza-ID (XEP-0359) using a monotonic ULID for stable ordering.
      */
-    private void saveToDatabase(String id, String roomBareJid, String senderJid, MucRoomDto group, MucMember sender, String xml) {
+    private void saveToDatabase(String id, String roomBareJid, String senderJid, MucRoomDto group, MucMember sender, String ulidString, String xml) {
         StanzaInfo info = StanzaInfo.builder()
                 .messageId(id)
                 .stanzaType(XmppMessageType.GROUPCHAT.getXmlValue())
                 .build();
         
-        // Generate a ULID for chronological sorting and deduplication
-        String ulidString = UlidCreator.getMonotonicUlid().toLowerCase();
-        
-        // XEP-0359: Unique and Stable Stanza IDs. Crucial for MAM and client sync.
-        String stanzaIdExtension = String.format("<stanza-id xmlns='urn:xmpp:sid:0' by='%s' id='%s'/>", 
-                domainProperties.getDomain(), ulidString);
-        
-        // Append the stanza-id before closing the message tag
-        String enrichedXml = xml.replace("</message>", stanzaIdExtension + "</message>");
 
-        xmppArchiveService.archiveEvent(enrichedXml, info, roomBareJid, null, 
-                senderJid, ulidString)
+        xmppArchiveService.archiveEvent(xml, info, XmppUtil.getRoomId(roomBareJid), null, 
+        		sender.getUserKey(), ulidString)
         .doOnError(error -> {
             log.error("Failed to archive join event for {} in room {}", senderJid, roomBareJid, error);
         })

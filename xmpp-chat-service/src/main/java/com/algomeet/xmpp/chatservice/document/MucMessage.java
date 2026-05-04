@@ -11,13 +11,24 @@ import org.springframework.data.mongodb.core.mapping.Document;
 import jakarta.validation.constraints.Size;
 
 import java.time.Instant;
+import java.util.HashSet;
+import java.util.Set;
 
 @Data
 @Builder
 @Document(collection = "muc_messages")
 // 1. COMPOUND INDEX for MAM Queries (Room + Sequential ID)
 @CompoundIndexes({
-    @CompoundIndex(name = "room_id_seq_idx", def = "{'roomId': 1, 'id': 1}")
+	// Optimized for the specific findByRoomIdAndIdGreaterThan... query
+    @CompoundIndex(name = "room_id_to_idx", def = "{'roomId': 1, 'id': 1, 'to': 1}"),    
+    // Existing cursor index for recentUpdates logic
+    @CompoundIndex(name = "room_updatecursorid_seq_idx", def = "{'roomId': 1, 'updateCursorId': 1}"),
+    
+    // Optimized for Sync (Forward) and History (Backward)
+    // roomId: 1 (Equality) 
+    // id: -1 (Optimized for "Latest messages first")
+    // to: 1 (Filter)
+    @CompoundIndex(name = "idx_muc_history_optimized", def = "{'roomId': 1, 'id': -1, 'to': 1}")
 })
 public class MucMessage {    
     @Id
@@ -34,6 +45,7 @@ public class MucMessage {
     private String from;
     
     // Used for DIRECT PRIVATE MESSAGE (PM) WITHIN MUC 
+    @Indexed
     private String to;
     
     @Size(max = 20000, message = "XML stanza is too large") // Max length 20kb
@@ -47,6 +59,27 @@ public class MucMessage {
     private String refersTo;     
     
     private boolean isE2EE;
+    
+    private Instant deletedAt;
+    
+    private Set<String> hiddenFromUserKeys = new HashSet<>();
+    
+    /**
+     * Monotonically increasing ULID used as a synchronization cursor for this message record.
+     *
+     * Updated whenever the message state changes (e.g. hide, delete, edit, reaction).
+     *
+     * Enables efficient incremental sync queries such as:
+     * find records where updateCursorId > client's last known cursor.
+     *
+     * ULID is used so values remain lexicographically sortable by creation time.
+     *
+     * This is a server-side update marker and is different from:
+     * - id        : MongoDB document identifier
+     * - messageId : Original client/XMPP message identifier
+     */
+    @Indexed(unique = true, sparse = true)
+    private String updateCursorId;
     
     @Builder.Default
     private Instant createdAt = Instant.now();

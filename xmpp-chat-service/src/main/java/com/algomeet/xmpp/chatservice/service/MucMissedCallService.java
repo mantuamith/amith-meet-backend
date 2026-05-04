@@ -29,10 +29,12 @@ import com.algomeet.xmpp.chatservice.enums.CallSessionMetadata;
 import com.algomeet.xmpp.chatservice.enums.CallSessionRedisKey;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.enums.UserState;
+import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.session.UserSessionRegistry;
 import com.algomeet.xmpp.chatservice.session.model.UserSession;
 import com.algomeet.xmpp.chatservice.stanza.jingle.JingleTerminationIq;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
+import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
 import com.github.f4b6a3.ulid.UlidCreator;
 
@@ -70,6 +72,7 @@ public class MucMissedCallService {
 	private final ReactiveRedisTemplate<String, String> reactiveRedisTemplate;
 	private final MucCallTrackerService mucCallTrackerService;
 	private final MucUnreadCountService mucUnreadCountService;
+	private final DomainProperties domainProperties;
 
 	/**
 	 * Processes a batch of expired MUC sessions by acquiring distributed locks per SID.
@@ -77,6 +80,7 @@ public class MucMissedCallService {
 	 * is complete to send the final missed call notification to the caller.
 	 *
 	 * @param mucSids List of unique Multi-User Chat session identifiers to process.
+	 * @return 
 	 * @return A Mono<Void> that signals when the entire batch and post-processing are complete.
 	 */
 	public Mono<Void> loadMissedCalls(List<String> mucSids) {
@@ -90,69 +94,89 @@ public class MucMissedCallService {
 
 		// Pre-fetch session metadata to populate the reference for the doFinally block.
 		// Note: We subscribe here to initiate the fetch immediately.
-		getMucMissedCallSession(mucSids.get(0))
-		.doOnNext(referenceCallSession::set)
-		.subscribe();
+		return getMucMissedCallSession(mucSids.get(0))
+				.doOnNext(referenceCallSession::set)
+				.flatMap(next -> {
 
-		return Flux.fromIterable(mucSids)
-				.flatMap(mucSid -> {
-					// Distributed lock key per mucSid to ensure only one cluster node processes this specific SID
-					String lockKey = "xmpp:lock:process:muc-missed-calls:mucsid:" + mucSid;
-					RLockReactive lock = redissonReactiveClient.getLock(lockKey);
+					return Flux.fromIterable(mucSids)
+					.flatMap(mucSid -> {
+						
+						// Lock for possible competing threads
+						// Distributed lock key per mucSid to ensure only one cluster node processes this specific MUC SID
+						// Example: a MUC call may contain multiple sessions sharing the same SID but having unique MUC ID,
+						// and some missed-call sessions may expire later in Redis and be picked up
+						// by another node for processing.
+						String lockKey = "xmpp:lock:process:muc-missed-calls:mucsid:" + mucSid;
+						RLockReactive lock = redissonReactiveClient.getLock(lockKey);
 
-					return Mono.usingWhen(
-							// 1. ACQUIRE: Attempt lock acquisition with a 300ms wait and 1s auto-release safety
-							lock.tryLock(300, 1000, TimeUnit.MILLISECONDS),
+						return Mono.usingWhen(
+								// 1. ACQUIRE: Attempt lock acquisition with a 300ms wait and 1s auto-release safety
+								lock.tryLock(0, 3000, TimeUnit.MILLISECONDS),
 
-							acquired -> {
-								if (Boolean.FALSE.equals(acquired)) {
-									log.debug("Lock busy for mucSid: {}, skipping to avoid duplicate processing", mucSid);
-									return Mono.empty();
-								}
+								acquired -> {
+									if (Boolean.FALSE.equals(acquired)) {
+										log.debug("Lock busy for mucSid: {}, skipping to avoid duplicate processing", mucSid);
+										return Mono.empty();
+									}
 
-								// 2. WORK: Proceed with core business logic once lock is secured
-								return processMissedCall(mucSid)
-										.doOnSuccess(v -> log.info("Successfully processed missed call for: {}", mucSid));
-							},
+									// 2. WORK: Proceed with core business logic once lock is secured
+									return processMissedCall(mucSid)
+											.doOnSuccess(v -> log.info("Successfully processed missed call for: {}", mucSid));
+								},
 
-							// 3. RELEASE: Ensure the lock is released in all termination scenarios (Success/Error/Cancel)
-							acquired -> Boolean.TRUE.equals(acquired) ? safeUnlock(lock) : Mono.empty(),
-									(acquired, err) -> Boolean.TRUE.equals(acquired) ? safeUnlock(lock) : Mono.empty(),
-											acquired -> Boolean.TRUE.equals(acquired) ? safeUnlock(lock) : Mono.empty()
-							)
-							.onErrorResume(e -> {
-								// Fail-safe: log individual errors but allow the rest of the Flux to continue
-								log.error("Resilient processing failed for mucSid: {}", mucSid, e);
-								return Mono.empty(); 
-							});
-				}, 10) // Concurrency throttle: Prevents overwhelming Redis/Thread pool during 100k+ bursts
+								// 3. RELEASE: Ensure the lock is released in all termination scenarios (Success/Error/Cancel)
+								acquired -> Boolean.TRUE.equals(acquired) ? safeUnlock(lock) : Mono.empty(),
+										(acquired, err) -> Boolean.TRUE.equals(acquired) ? safeUnlock(lock) : Mono.empty(),
+												acquired -> Boolean.TRUE.equals(acquired) ? safeUnlock(lock) : Mono.empty()
+								)
+								.onErrorResume(e -> {
+									// Fail-safe: log individual errors but allow the rest of the Flux to continue
+									log.error("Resilient processing failed for mucSid: {}", mucSid, e);
+									return Mono.empty(); 
+								});
+					}, 10) // Concurrency throttle: Prevents overwhelming Redis/Thread pool during 100k+ bursts
 
-				.then(Mono.defer(() -> {
-					// This only executes once the Flux completes
-					CallSession session = referenceCallSession.get();
-					if (session == null) return Mono.empty();
-					String notificationFlagKey = "xmpp:flag:missed-call-sent:sid:" + session.getSid();
+					.then(Mono.defer(() -> {
+						// This only executes once the Flux completes
+						CallSession session = referenceCallSession.get();
+						if (session == null) return Mono.empty();	
+						
+						//  Check Database for remaining records
+						return mucCallTrackerService.findFirstBySid(session.getSid())
+								// If the DB is empty (no records found), we send the stanza
+								.switchIfEmpty(Mono.fromRunnable(() ->  {
 
-					// 1. Check/Set the Redis Idempotency Flag
-					return reactiveRedisTemplate.opsForValue()
-							.setIfAbsent(notificationFlagKey, "true", Duration.ofSeconds(5))
-							.filter(isFirst -> isFirst) // Only continue if we are the first node
-							.flatMap(isFirst -> 
-							// 2. Check Database for remaining records
-							mucCallTrackerService.findFirstBySid(session.getSid())
-							// If the DB is empty (no records found), we send the stanza
-							.switchIfEmpty(Mono.fromRunnable(() -> {
-								String fromJid = jidUtil.getGroupBareJid(session.getCaller());
-								String toJid = jidUtil.getBareJid(session.getCaller());
+									// Acquire a short-lived 5-second lock to prevent duplicate notifications
+									// caused by competing threads/nodes processing the same SID.
+									// Example: a MUC call may contain multiple sessions sharing the same SID,
+									// and some missed-call sessions may expire later in Redis and be picked up
+									// by another node for processing.
+									String notificationToCallerFlagKey = 
+											"xmpp:flag:missed-call-sent:sid:" + session.getSid();
 
-								sendGroupChatMissedCallStanza(fromJid, toJid, session.getSid(), 
-										session.getCallType(), session.getRoomId());
+									reactiveRedisTemplate.opsForValue()
+									.setIfAbsent(notificationToCallerFlagKey, "true", Duration.ofSeconds(5))
+									.filter(isFirst -> isFirst) // Only continue if we are the first node
+									.flatMap(isFirst ->  {
 
-								log.info("Call SID {} fully processed. Notification sent to {}", session.getSid(), toJid);
-							}))
-									)
-							.then(); // Ensure we return Mono<Void>
-				}));
+										String fromJid = jidUtil.getGroupBareJid(session.getCaller());
+										String toJid = jidUtil.getBareJid(session.getCaller());
+
+										sendGroupChatMissedCallStanza(fromJid, toJid, session.getSid(), 
+												session.getCallType(), session.getRoomId());
+
+										log.info("Call SID {} fully processed. Notification sent to {}", session.getSid(), toJid);
+
+										return Mono.empty();
+									})
+									.then();
+
+								}))
+								.then(); // Ensure we return Mono<Void>
+					}))
+					.then();
+				})
+				.then();
 	}
 
 	/**
@@ -297,11 +321,15 @@ public class MucMissedCallService {
 
 		StanzaInfo info = StanzaInfo.builder().messageId(UUID.randomUUID().toString().toLowerCase()).build();
 
-		xmppArchiveService.archiveEvent(xml, info, jidUtil.getGroupBareJid(groupId), toUserKey, 
-				fromJid, UlidCreator.getMonotonicUlid().toLowerCase())
+		String ulidString = UlidCreator.getMonotonicUlid().toLowerCase();
+		// Insert stanza ID
+		String forArchiveXml = XmppStanzaUtil.insertStanzaId(xml, ulidString, domainProperties.getDomain());
+		
+		xmppArchiveService.archiveEvent(forArchiveXml, info, groupId, toUserKey, 
+				fromUserKey, UlidCreator.getMonotonicUlid().toLowerCase())
 		.doOnSuccess(success -> {
 			// Publish 
-			clusterMessagePublisher.convertAndSendToUser(id, toUserKey, fromUserKey, ChatType.GROUPCHAT, xml);
+			clusterMessagePublisher.convertAndSendToUser(id, toUserKey, fromUserKey, ChatType.GROUPCHAT, forArchiveXml);
 
 			// Increment MUC unread messages count 
 			mucUnreadCountService.incrementForRoomMembers(groupId,

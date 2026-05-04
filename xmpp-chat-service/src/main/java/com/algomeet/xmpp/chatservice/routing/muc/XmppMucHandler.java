@@ -17,11 +17,13 @@ import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
 import com.algomeet.xmpp.chatservice.parser.GroupChatParser;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.service.GroupCacheService;
+import com.algomeet.xmpp.chatservice.service.MucRetractionService;
 import com.algomeet.xmpp.chatservice.service.MucUnreadCountService;
 import com.algomeet.xmpp.chatservice.service.XmppArchiveService;
 import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.algomeet.xmpp.chatservice.util.XmppReadUtil;
+import com.algomeet.xmpp.chatservice.util.XmppRetractUtil;
 import com.algomeet.xmpp.chatservice.util.XmppServerAckUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
@@ -59,6 +61,7 @@ public class XmppMucHandler {
 	private final MucUnreadCountService mucUnreadCountService;
 	private final XmppReadUtil xmppReadUtil;
 	private final XmppUtil xmppUtil;
+	private final MucRetractionService mucRetractionService;
 
 	/**
 	 * Main entry point for MUC stanza processing.
@@ -82,7 +85,7 @@ public class XmppMucHandler {
 		// Fetch room metadata and membership from the cache
 		// Set tenant Id to support multi-tenancy 
 		TenantContext.setCurrentTenant(principal.getTenantId());
-		
+
 		MucRoomDto group = groupCacheService.getCachedGroup(toRoomId);
 
 		// Verify if the sender is an authorized member and is not muted
@@ -97,15 +100,19 @@ public class XmppMucHandler {
 					XmppErrorConditions.INTERNAL_SERVER_ERROR, "You are not allowed to send messages to this room");
 			return;
 		}
-	
+
 		if (isModerationCommand(type, originalXml)) {
 			// MUC Admin actions (kick, ban, mute)
 			mucAdminCommandRouter.handleCommandStanza(ctx, toRoomJid, originalXml, senderMucMember.get(), principal);
 		} else if(isUserCommandStanza(originalXml, toRoomJid)) {
 			// MUC User actions (nickname changes, room entry)
-			mucUserCommandRouter.handleCommandStanza(ctx, toRoomJid, principal.getBareJid(), originalXml, principal);		
+			mucUserCommandRouter.handleCommandStanza(ctx, toRoomJid, principal.getBareJid(), originalXml, principal);	
+		
+		} else if(XmppStanzaUtil.isRetractStanza(originalXml)) {
+				mucRetractionService.retract(ctx, id, toRoomJid, principal.getBareJid(), originalXml, principal);								
+				
 		} else {
-			
+
 			// 2. DIRECT PRIVATE MESSAGE (PM) WITHIN MUC CHECK
 			MucMember pmRecipientMucMember = resolveDirectPmRecipient(ctx, id, fromJid, toRoomJid, group);
 
@@ -114,27 +121,29 @@ public class XmppMucHandler {
 			// Check if it's archivable
 			boolean isArchivable = XmppStanzaUtil.isArchivable(originalXml);
 
+			/**
+			 * Generate a monotonic ULID used as the stanza-id value.
+			 *
+			 * Why ULID:
+			 * - time-sortable (better than UUID for message ordering)
+			 * - globally unique under distributed systems
+			 * - suitable for MAM storage and pagination cursors
+			 *
+			 * Note: Lowercasing ensures consistency across storage/query layers.
+			 */
+			String ulidString = UlidCreator.getMonotonicUlid().toLowerCase();
+
 			if (msgType.supportsOfflineStorage() && isArchivable) {
-			    StanzaInfo info = GroupChatParser.parse(originalXml);
-			    
-		        /**
-		         * Generate a monotonic ULID used as the stanza-id value.
-		         *
-		         * Why ULID:
-		         * - time-sortable (better than UUID for message ordering)
-		         * - globally unique under distributed systems
-		         * - suitable for MAM storage and pagination cursors
-		         *
-		         * Note: Lowercasing ensures consistency across storage/query layers.
-		         */
-		        String ulidString = UlidCreator.getMonotonicUlid().toLowerCase();
+				StanzaInfo info = GroupChatParser.parse(originalXml);
+
 				// Insert stanza ID
 				forArchiveXml = XmppStanzaUtil.insertStanzaId(originalXml, ulidString, principal.getDomain());
 
-				xmppArchiveService.archiveEvent(forArchiveXml, info, toRoomJid, (pmRecipientMucMember != null ? pmRecipientMucMember.getUserKey() : null), 
-						fromJid, ulidString)
+				xmppArchiveService.archiveEvent(forArchiveXml, info, XmppUtil.getRoomId(toRoomJid), (pmRecipientMucMember != null ? pmRecipientMucMember.getUserKey() : null), 
+						XmppUtil.getUserKey(fromJid), ulidString)
 				.doOnSuccess(saved -> {
 					boolean isAckMessage = false;
+
 					// Send an immediate server-level acknowledgment to the sender.
 					//
 					// This acknowledgment confirms that:
@@ -161,8 +170,8 @@ public class XmppMucHandler {
 					}
 
 					// Count MUC private message
-					if (pmRecipientMucMember != null) {
-						if(!isAckMessage) {
+					if(!isAckMessage) {
+						if (pmRecipientMucMember != null) {
 							// Increment MUC unread messages count 
 							mucUnreadCountService.incrementUnreadCount(pmRecipientMucMember.getUserKey(), 
 									XmppUtil.getRoomId(toRoomJid))
@@ -170,10 +179,9 @@ public class XmppMucHandler {
 								log.error("Storage failure for increment muc messages count {}: {}", id, e.getMessage(), e);
 							})
 							.subscribe();
-						}
-					} else {
-						// Count MUC group message
-						if(!isAckMessage) {
+						} else {
+							// Count MUC group message
+
 							// Increment MUC unread messages count 
 							mucUnreadCountService.incrementForRoomMembers(XmppUtil.getRoomId(toRoomJid),
 									group.getMembers().stream().map(m -> m.getUserKey()).toList(), 
@@ -196,6 +204,7 @@ public class XmppMucHandler {
 
 			// 4. DISPATCHING
 			try {			
+
 				// Standard message propagation to members
 				mucMessageRouter.broadcastToOccupants(ctx, id, toRoomJid, fromJid, msgType, group, senderMucMember.get(), 
 						pmRecipientMucMember, (isArchivable ? forArchiveXml : originalXml));
@@ -241,7 +250,7 @@ public class XmppMucHandler {
 
 	private void handleArchiveError(ChannelHandlerContext ctx, String id, XmppPrincipal principal, Throwable e) {
 		String fromJid = principal.getBareJid();
-		
+
 		if (e instanceof DuplicateKeyException) {
 			// Duplicate stanza detected (idempotent case).
 			// Client MUST ignore this error; used only to support safe retries.
@@ -267,5 +276,5 @@ public class XmppMucHandler {
 			return jidArr.length > 1 && StringUtils.hasText(jidArr[1]);
 		}
 		return false;
-	}	
+	}		
 }

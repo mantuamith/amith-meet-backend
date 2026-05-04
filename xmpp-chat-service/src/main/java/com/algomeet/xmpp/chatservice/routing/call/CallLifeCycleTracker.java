@@ -3,8 +3,6 @@ package com.algomeet.xmpp.chatservice.routing.call;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
@@ -16,10 +14,13 @@ import com.algomeet.xmpp.chatservice.enums.CallSessionRedisKey;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
 import com.algomeet.xmpp.chatservice.properties.CallProperties;
+import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.service.CallTrackerService;
 import com.algomeet.xmpp.chatservice.service.OfflineMessageService;
 import com.algomeet.xmpp.chatservice.service.UnreadCountService;
+import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
+import com.github.f4b6a3.ulid.UlidCreator;
 
 import io.netty.channel.ChannelHandlerContext;
 import lombok.RequiredArgsConstructor;
@@ -41,12 +42,7 @@ public class CallLifeCycleTracker {
 	private final CallTrackerService callTrackerService;
 	private final UnreadCountService unreadCountService;
 	private final CallProperties callProperties;
-
-	/**
-	 * Regex pattern to extract the Session ID (sid) from Jingle elements.
-	 * Compliant with XEP-0166 attribute quoting (supports both ' and ").
-	 */
-	private static final Pattern SID_PATTERN = Pattern.compile("sid=['\"]([^'\"]+)['\"]");
+	private final DomainProperties domainProperties;
 
 	/**
 	 * Entry point for analyzing incoming XMPP stanzas for Jingle signaling actions.
@@ -57,7 +53,7 @@ public class CallLifeCycleTracker {
 		boolean isAccept = xml.contains("session-accept");
 		boolean isTerminate = xml.contains("session-terminate");
 
-		String sid = extractSid(xml);
+		String sid = XmppStanzaUtil.getAttribute(xml, "sid");
 		if (sid == null) return;
 
 		if (isInitiate) {
@@ -236,11 +232,6 @@ public class CallLifeCycleTracker {
 	    return score != null;
 	}
 
-	private String extractSid(String xml) {
-		Matcher matcher = SID_PATTERN.matcher(xml);
-		return matcher.find() ? matcher.group(1) : null;
-	}
-
 	/**
 	 * Constructs the XMPP 'headline' message and persists it to the Offline store/Cluster.
 	 */
@@ -268,8 +259,12 @@ public class CallLifeCycleTracker {
 		String toUserKey = XmppUtil.getUserKey(toJid);
 		String fromUserKey = XmppUtil.getUserKey(fromJid);
 
+        String ulidString = UlidCreator.getMonotonicUlid().toLowerCase();
+		// Insert stanza ID
+		String forArchiveXml = XmppStanzaUtil.insertStanzaId(xml.toString(), ulidString, domainProperties.getDomain());
+		
 		// Persist to MongoDB for offline retrieval
-		offlineMessageService.save(messageId, toUserKey, fromUserKey, XmppMessageType.CHAT.getXmlValue(), xml.toString())
+		offlineMessageService.save(messageId, toUserKey, fromUserKey, XmppMessageType.CHAT.getXmlValue(), forArchiveXml)
 		.doOnSuccess(saved -> {
 			// Increment user unread message
 			unreadCountService.incrementUnreadCount(fromUserKey, toUserKey);
@@ -278,7 +273,7 @@ public class CallLifeCycleTracker {
 		.subscribe();
 
 		// Broadcast to cluster to ensure all logged-in devices of the user receive the log
-		clusterMessagePublisher.convertAndSendToUser(messageId, toUserKey, fromUserKey, ChatType.CHAT, xml.toString());
+		clusterMessagePublisher.convertAndSendToUser(messageId, toUserKey, fromUserKey, ChatType.CHAT, forArchiveXml);
 
 		log.debug("Published {} call log for SID: {}", status, sid);
 	}	

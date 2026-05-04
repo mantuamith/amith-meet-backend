@@ -15,8 +15,11 @@ import com.algomeet.xmpp.chatservice.document.CallSession;
 import com.algomeet.xmpp.chatservice.enums.CallStatus;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
+import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.repository.CallTrackerRepository;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
+import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
+import com.github.f4b6a3.ulid.UlidCreator;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -81,6 +84,7 @@ public class CallTrackerService {
 	private final RedissonReactiveClient redissonReactiveClient;
 	
 	private final UnreadCountService unreadCountService;
+	private final DomainProperties domainProperties;
 	
 
 	/**
@@ -364,7 +368,11 @@ public class CallTrackerService {
 				status,
 				ts);
 
-		publish(callerMsgId, session.getCaller(), session.getCallee(), ChatType.CHAT, callerMsg);
+        String ulidString = UlidCreator.getMonotonicUlid().toLowerCase();
+		// Insert stanza ID
+		String forArchiveCallerMsg = XmppStanzaUtil.insertStanzaId(callerMsg, ulidString, domainProperties.getDomain());
+		
+		publish(callerMsgId, session.getCaller(), session.getCallee(), ChatType.CHAT, forArchiveCallerMsg);
 
 		// Send compose and send call logs to responder/callee
 		String calleeMsg = composeCallLogStanza(
@@ -376,8 +384,12 @@ public class CallTrackerService {
 				duration,
 				status,
 				ts);
+		
+        String ulidStringCallee = UlidCreator.getMonotonicUlid().toLowerCase();
+		// Insert stanza ID
+		String forArchiveCalleeMsg = XmppStanzaUtil.insertStanzaId(calleeMsg, ulidStringCallee, domainProperties.getDomain());
 
-		publish(calleeMsgId, session.getCallee(), session.getCaller(), ChatType.CHAT, calleeMsg);
+		publish(calleeMsgId, session.getCallee(), session.getCaller(), ChatType.CHAT, forArchiveCalleeMsg);
 	}
 
 	/**

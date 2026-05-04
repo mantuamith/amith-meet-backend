@@ -35,6 +35,8 @@ public class OfflineMessage {
     @Builder.Default
     private Instant createdAt = Instant.now(); // Used for XEP-0203 Delayed Delivery stamp
 
+    private Instant deletedAt;
+    
     /**
      * Optional: MongoDB TTL (Time To Live) index.
      * Automatically deletes messages after 6 months if never delivered.

@@ -12,4 +12,6 @@ public interface OfflineMessageRepository extends ReactiveMongoRepository<Offlin
     
     // Use Mono<Void> for reactive deletion
     Mono<Void> deleteByTo(String to);
+    
+    Mono<OfflineMessage> findByIdAndFrom(String id, String from);
 }
