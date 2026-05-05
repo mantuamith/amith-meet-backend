@@ -131,6 +131,13 @@ public class MessageBackupDocument {
     private Integer editCount;
     
     @Indexed(unique = true, sparse = true)
+    @io.swagger.v3.oas.annotations.media.Schema(
+        description = "Cursor used for incremental sync ordering. " +
+                      "Set this to the stanza-id of the edit (replace) request when a message is updated; " +
+                      "otherwise leave it blank." +
+                      "This field is monotonic and used for cursor-based lookup.",
+        example = "01kqs6j68dqtejmb653qhp35sz"
+    )
     private String updateCursorId;
 
 	@Field("size")
