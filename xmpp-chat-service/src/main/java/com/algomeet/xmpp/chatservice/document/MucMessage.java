@@ -20,67 +20,88 @@ import java.util.Set;
 // 1. COMPOUND INDEX for MAM Queries (Room + Sequential ID)
 @CompoundIndexes({
 	// Optimized for the specific findByRoomIdAndIdGreaterThan... query
-    @CompoundIndex(name = "room_id_to_idx", def = "{'roomId': 1, 'id': 1, 'to': 1}"),    
-    // Existing cursor index for recentUpdates logic
-    @CompoundIndex(name = "room_updatecursorid_seq_idx", def = "{'roomId': 1, 'updateCursorId': 1}"),
-    
-    // Optimized for Sync (Forward) and History (Backward)
-    // roomId: 1 (Equality) 
-    // id: -1 (Optimized for "Latest messages first")
-    // to: 1 (Filter)
-    @CompoundIndex(name = "idx_muc_history_optimized", def = "{'roomId': 1, 'id': -1, 'to': 1}")
+	@CompoundIndex(name = "room_id_to_idx", def = "{'roomId': 1, 'id': 1, 'to': 1}"),    
+	// Existing cursor index for recentUpdates logic
+	@CompoundIndex(name = "room_updatecursorid_seq_idx", def = "{'roomId': 1, 'updateCursorId': 1}"),
+
+	// Optimized for Sync (Forward) and History (Backward)
+	// roomId: 1 (Equality) 
+	// id: -1 (Optimized for "Latest messages first")
+	// to: 1 (Filter)
+	@CompoundIndex(name = "idx_muc_history_optimized", def = "{'roomId': 1, 'id': -1, 'to': 1}"),
+	
+	/**
+	 * Optimized index for incremental synchronization of MUC history.
+	 * 
+	 * <p>This index follows the <b>ESR (Equality, Sort, Range)</b> rule to handle 
+	 * billion-scale message datasets with millisecond latency:</p>
+	 * <ul>
+	 *   <li><b>Equality (roomId):</b> Quickly narrows the search space to a specific chat room.</li>
+	 *   <li><b>Sort/Range (updateCursorId):</b> Provides a high-performance anchor for 
+	 *       incremental sync (e.g., "Give me everything since my last cursor").</li>
+	 *   <li><b>Range (id):</b> Allows the query to be "covered" by the index when 
+	 *       applying an upper-bound limit (limitId), preventing the database from 
+	 *       needing to fetch documents from disk to verify the ID constraint.</li>
+	 * </ul>
+	 * 
+	 * <p>Crucial for maintaining high throughput in {@code findByRoomIdAndUpdateCursorIdGreaterThanAndIdLessThanEqualOrderByIdAsc}.</p>
+	 */
+	@CompoundIndex(
+			name = "idx_muc_sync_optimized", 
+			def = "{'roomId': 1, 'updateCursorId': 1, 'id': 1}"
+			)
 })
 public class MucMessage {    
-    @Id
-    private String id;           // ULID or Sequential String
+	@Id
+	private String id;           // ULID or Sequential String
 
-    // 2. UNIQUE INDEX for Message ID
-    // Prevents duplicate messages if a client retries a send
-    @Indexed(unique = true, sparse = true)
-    private String messageId; 
-    
-    // Indexed via the Compound Index above, but good for simple lookups
-    private String roomId;
-    
-    private String from;
-    
-    // Used for DIRECT PRIVATE MESSAGE (PM) WITHIN MUC 
-    @Indexed
-    private String to;
-    
-    @Size(max = 20000, message = "XML stanza is too large") // Max length 20kb
-    private String stanzaXml;
-    
-    private String category;
-    
-    // 3. INDEX for Threading/Reactions
-    // Useful for finding all reactions to a specific message
-    @Indexed
-    private String refersTo;     
-    
-    private boolean isE2EE;
-    
-    private Instant deletedAt;
-    
-    private Set<String> hiddenFromUserKeys = new HashSet<>();
-    
-    /**
-     * Monotonically increasing ULID used as a synchronization cursor for this message record.
-     *
-     * Updated whenever the message state changes (e.g. hide, delete, edit, reaction).
-     *
-     * Enables efficient incremental sync queries such as:
-     * find records where updateCursorId > client's last known cursor.
-     *
-     * ULID is used so values remain lexicographically sortable by creation time.
-     *
-     * This is a server-side update marker and is different from:
-     * - id        : MongoDB document identifier
-     * - messageId : Original client/XMPP message identifier
-     */
-    @Indexed(unique = true, sparse = true)
-    private String updateCursorId;
-    
-    @Builder.Default
-    private Instant createdAt = Instant.now();
+	// 2. UNIQUE INDEX for Message ID
+	// Prevents duplicate messages if a client retries a send
+	@Indexed(unique = true, sparse = true)
+	private String messageId; 
+
+	// Indexed via the Compound Index above, but good for simple lookups
+	private String roomId;
+
+	private String from;
+
+	// Used for DIRECT PRIVATE MESSAGE (PM) WITHIN MUC 
+	@Indexed
+	private String to;
+
+	@Size(max = 20000, message = "XML stanza is too large") // Max length 20kb
+	private String stanzaXml;
+
+	private String category;
+
+	// 3. INDEX for Threading/Reactions
+	// Useful for finding all reactions to a specific message
+	@Indexed
+	private String refersTo;     
+
+	private boolean isE2EE;
+
+	private Instant deletedAt;
+
+	private Set<String> hiddenFromUserKeys = new HashSet<>();
+
+	/**
+	 * Monotonically increasing ULID used as a synchronization cursor for this message record.
+	 *
+	 * Updated whenever the message state changes (e.g. hide, delete, edit, reaction).
+	 *
+	 * Enables efficient incremental sync queries such as:
+	 * find records where updateCursorId > client's last known cursor.
+	 *
+	 * ULID is used so values remain lexicographically sortable by creation time.
+	 *
+	 * This is a server-side update marker and is different from:
+	 * - id        : MongoDB document identifier
+	 * - messageId : Original client/XMPP message identifier
+	 */
+	@Indexed(unique = true, sparse = true)
+	private String updateCursorId;
+
+	@Builder.Default
+	private Instant createdAt = Instant.now();
 }

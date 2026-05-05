@@ -296,7 +296,7 @@ public class XmppArchiveService {
 
 	    // 1. Query the repository for all message changes in this room newer than the provided ULID.
 	    // OrderByIdAsc ensures we process and dispatch updates in the exact order they occurred.
-	    repository.findByRoomIdAndUpdateCursorIdGreaterThanOrderByIdAsc(roomId, afterId)
+	    repository.findByRoomIdAndUpdateCursorIdGreaterThanAndIdLessThanEqualOrderByIdAsc(roomId, afterId, afterId)
 	        
 	        // 2. Filter: Ensure the update is relevant to the requesting principal.
 	        // This prevents leaking "Delete for Me" events or private stanzas to the wrong users.
@@ -326,15 +326,8 @@ public class XmppArchiveService {
 	 * @return A Mono<Void> that completes after the stanza is dispatched or skipped.
 	 */
 	private Mono<Void> dispatchRecentUpdatesResult(MucMessage msg, String afterId, XmppPrincipal principal) {
-	    // 1. Lexicographical Guard: 
-	    // Since ULIDs are sortable, we only proceed if msg.getId() is chronologically older than afterId. 
-		// We exclude newer messages (>= afterId) to prevent duplicate processing, 
-		// as those are handled by the standard MAM (XEP-0313) catch-up mechanism.
-		if (msg.getId() != null && msg.getId().compareTo(afterId) > 0) {
-		    return Mono.empty();
-		}
 
-	    // 2. Wrap XML generation in Mono.fromCallable to keep the logic within the reactive pipeline.
+	    // Wrap XML generation in Mono.fromCallable to keep the logic within the reactive pipeline.
 	    return Mono.fromCallable(() -> buildUpdateXml(msg, principal))
 	            .flatMap(optionalXml -> optionalXml
 	                .map(xml -> Mono.fromRunnable(() -> 

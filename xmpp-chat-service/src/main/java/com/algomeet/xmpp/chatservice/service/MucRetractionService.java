@@ -82,15 +82,14 @@ public class MucRetractionService {
                     log.info("Executing retraction: Message {} in room {} by user {}", 
                             retractMessageId, roomJid, principal.getUserKey());
 
-                    String newString = "<retracted xmlns='urn:xmpp:message-retract:1'/>"
-                    		+ "<body>This message was deleted</body>";
+                    String newString = "<body>This message was deleted</body>";
                     
                     String ulidString = UlidCreator.getMonotonicUlid().toLowerCase();
                     
                     // Soft delete from MAM archive so the message is not returned in future history fetches
                     message.setDeletedAt(Instant.now());
                     message.setUpdateCursorId(ulidString);
-                    message.setStanzaXml(XmppStanzaUtil.replaceBodyTag(message.getStanzaXml(), newString));
+                    message.setStanzaXml(XmppStanzaUtil.markAsRetractedStanza(message.getStanzaXml(), newString));
 
                     return xmppArchiveService.save(message)
                             .doOnSuccess(success -> {
