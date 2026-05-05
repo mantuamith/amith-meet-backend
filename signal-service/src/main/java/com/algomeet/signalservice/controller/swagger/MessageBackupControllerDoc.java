@@ -76,11 +76,10 @@ public interface MessageBackupControllerDoc {
         summary = "Sync message events",
         description = "Retrieve message state changes (edited, deleted, read) BEFORE a given stanzaId"
     )
-    ResponseEntity<CommonResponse<Page<MessageBackupResponse>>> syncMessages(
+    ResponseEntity<CommonResponse<List<MessageBackupResponse>>> syncMessages(
         @Parameter(description = "Peer user key", example = "user_123") String peerKey,
         @Parameter(description = "Cursor (stanzaId). Fetch events BEFORE this ID", example = "01HXYZ...") String before,
-        @Parameter(description = "Page index", example = "0") int page,
-        @Parameter(description = "Page size", example = "50") int size
+        @Parameter(description = "Max results", example = "3000") int maxResults
     );
 
     @Operation(summary = "Get messages by IDs")

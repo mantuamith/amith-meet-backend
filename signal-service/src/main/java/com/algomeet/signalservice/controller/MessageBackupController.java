@@ -126,23 +126,20 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 	}     
 
 	@GetMapping("/{peerKey}/conversation/sync")
-	public ResponseEntity<CommonResponse<Page<MessageBackupResponse>>> syncMessages(
+	public ResponseEntity<CommonResponse<List<MessageBackupResponse>>> syncMessages(
 			@PathVariable String peerKey,
 			@RequestParam("before") String before,
-			@RequestParam(defaultValue = "0") int page,
-			@RequestParam(defaultValue = "50") int size) {
+			@RequestParam(defaultValue = "5000") int maxResults) {
 
-		Page<MessageBackupDocument> backupsPage =
-				messageBackupService.syncMessageUpdates(SecurityUtil.getUserKey(), peerKey, before, before, page, size);
+		List<MessageBackupDocument> backupsPage =
+				messageBackupService.syncMessageUpdates(SecurityUtil.getUserKey(), peerKey, before, before, maxResults);
 
-		List<MessageBackupResponse> responseList = backupsPage.getContent()
+		List<MessageBackupResponse> responseList = backupsPage
 				.stream() 
 				.map(MessageBackupResponse::from)
 				.collect(Collectors.toList());
 
-		Page<MessageBackupResponse> responsePage =
-				new PageImpl<>(responseList, PageRequest.of(page, size), backupsPage.getTotalElements());
-		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, responsePage));
+		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, responseList));
 	}
 
 	/**

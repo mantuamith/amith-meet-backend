@@ -160,19 +160,25 @@ public class MessageBackupService {
 		return repository.findByConversationIdAndStanzaIdGreaterThan(converationId, stanzaId, pageable);
 	}
 
-	public Page<MessageBackupDocument> syncMessageUpdates(String userKey, String peerKey, String cursorStanzaId, String limitStanzaId, int page, int size) {
-		Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.ASC, FIELD_STANZA_ID));
-		Query query = new Query();
+	public List<MessageBackupDocument> syncMessageUpdates(
+	        String userKey,
+	        String peerKey,
+	        String cursorStanzaId,
+	        String limitStanzaId,
+	        int maxResults // safety cap (e.g., 1000)
+	) {
+	    Query query = new Query();
 
-		String conversationId = ConversationUtil.getConversationId(userKey, peerKey);
-		// Filter: conversationId AND updateCursorId > cursorStanzaId AND stanzaId <= limitStanzaId
+	    String conversationId = ConversationUtil.getConversationId(userKey, peerKey);
+
+	    // Filter: conversationId AND updateCursorId > cursorStanzaId AND stanzaId <= limitStanzaId
 	    query.addCriteria(
 	            Criteria.where(FIELD_CONVERSATION_ID).is(conversationId)
-	            .and(FIELD_UPDATE_CURSOR_ID).gt(cursorStanzaId)
-	            .and(FIELD_STANZA_ID).lte(limitStanzaId)
+	                    .and(FIELD_UPDATE_CURSOR_ID).gt(cursorStanzaId)
+	                    .and(FIELD_STANZA_ID).lte(limitStanzaId)
 	    );
 
-	    // Projection using constants
+	    // Projection
 	    query.fields()
 	            .include(FIELD_MESSAGE_ID)
 	            .include(FIELD_STANZA_ID)
@@ -188,15 +194,16 @@ public class MessageBackupService {
 	            .include(FIELD_DELETED_AT)
 	            .include(FIELD_EDIT_COUNT);
 
-		// Execution
-		long count = mongoTemplate.count(query, MessageBackupDocument.class);
-		query.with(pageable);
+	    // Sort (IMPORTANT: keep deterministic order)
+	    query.with(Sort.by(Sort.Direction.ASC, FIELD_STANZA_ID));
 
-		List<MessageBackupDocument> results = mongoTemplate.find(query, MessageBackupDocument.class);
+	    // Limit (VERY IMPORTANT to avoid unbounded fetch)
+	    query.limit(maxResults);
 
-		return PageableExecutionUtils.getPage(results, pageable, () -> count);
+	    // Execute
+	    return mongoTemplate.find(query, MessageBackupDocument.class);
 	}
-
+	
 	public Page<MessageBackupDocument> getSyncConversationMessages(String userKey, String participantKey, String stanzaId, int page, int size) {
 		Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.ASC, FIELD_STANZA_ID));
 
