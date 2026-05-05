@@ -30,10 +30,11 @@ import lombok.NoArgsConstructor;
     // By putting timestamp before conversationId, MongoDB can find the 
     // latest unique conversations for a user with minimal index walking.
     @CompoundIndex(
-        name = "idx_user_ts_cid", 
+        name = "idx_user_inbox_view", 
         def = "{'userKey': 1, 'timestamp': -1, 'conversationId': 1}"
     ),
     
+    // 3. Retrieve record updates
     @CompoundIndex(
          name = "idx_cid_sid_ucid", 
          def = "{'conversationId': 1, 'stanzaId': 1, 'updateCursorId': 1}"
