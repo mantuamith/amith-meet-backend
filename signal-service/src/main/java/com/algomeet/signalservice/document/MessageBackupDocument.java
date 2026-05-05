@@ -10,7 +10,6 @@ import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
 
 import io.swagger.v3.oas.annotations.media.Schema;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
@@ -31,11 +30,35 @@ import lombok.NoArgsConstructor;
     // By putting timestamp before conversationId, MongoDB can find the 
     // latest unique conversations for a user with minimal index walking.
     @CompoundIndex(
-        name = "idx_user_inbox_view", 
+        name = "idx_user_ts_cid", 
         def = "{'userKey': 1, 'timestamp': -1, 'conversationId': 1}"
+    ),
+    
+    @CompoundIndex(
+         name = "idx_cid_sid_ucid", 
+         def = "{'conversationId': 1, 'stanzaId': 1, 'updateCursorId': 1}"
     )
 })
 public class MessageBackupDocument {
+	// These constants match the @Field names or the variable names
+    public static final String FIELD_CONVERSATION_ID = "conversationId";
+    public static final String FIELD_USER_KEY = "userKey";
+    public static final String FIELD_STANZA_ID = "stanzaId";
+    public static final String FIELD_UPDATE_CURSOR_ID = "updateCursorId";
+    public static final String FIELD_MESSAGE_ID = "messageId";
+    public static final String FIELD_SENDER_KEY = "senderKey";
+    public static final String FIELD_RECEIVER_KEY = "receiverKey";
+    public static final String FIELD_ENCRYPTED_MSG = "encryptedMessage";
+    public static final String FIELD_ALGORITHM = "algorithm";
+    public static final String FIELD_VERSION = "version";
+    public static final String FIELD_SALT = "salt";
+    public static final String FIELD_SENT_AT = "sentAt";
+    public static final String FIELD_DELIVERED_AT = "deliveredAt";
+    public static final String FIELD_READ_AT = "readAt";
+    public static final String FIELD_DELETED_AT = "deletedAt";
+    public static final String FIELD_EDIT_COUNT = "editCount";
+    public static final String FIELD_TIMESTAMP = "timestamp";
+    
 	@Id
 	@Size(max = 56)
 	private String messageId;

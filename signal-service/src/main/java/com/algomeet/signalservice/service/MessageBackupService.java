@@ -25,6 +25,7 @@ import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
 import com.algomeet.signalservice.document.MessageBackupDocument;
+import static com.algomeet.signalservice.document.MessageBackupDocument.*;
 import com.algomeet.signalservice.dto.StorageUsageAdjustmentRequest;
 import com.algomeet.signalservice.exceptions.MessageInsertInProgressException;
 import com.algomeet.signalservice.exceptions.MessageUpdateStatusInProgressException;
@@ -144,7 +145,7 @@ public class MessageBackupService {
 	}
 
 	public Page<MessageBackupDocument> getConversationMessages(String userKey, String peerKey, int page, int size) {
-		Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "stanzaId"));
+		Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, FIELD_STANZA_ID));
 
 		// Get converation ID
 		String converationId = ConversationUtil.getConversationId(userKey, peerKey);		
@@ -152,7 +153,7 @@ public class MessageBackupService {
 	}
 
 	public Page<MessageBackupDocument> getConversationMessages(String userKey, String peerKey, String stanzaId, int page, int size) {
-		Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.ASC, "stanzaId"));
+		Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.ASC, FIELD_STANZA_ID));
 
 		// Get converation ID
 		String converationId = ConversationUtil.getConversationId(userKey, peerKey);		
@@ -160,28 +161,34 @@ public class MessageBackupService {
 	}
 
 	public Page<MessageBackupDocument> syncMessageUpdates(String userKey, String peerKey, String cursorStanzaId, String limitStanzaId, int page, int size) {
-		Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.ASC, "stanzaId"));
+		Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.ASC, FIELD_STANZA_ID));
 		Query query = new Query();
 
 		String conversationId = ConversationUtil.getConversationId(userKey, peerKey);
 		// Filter: conversationId AND updateCursorId > cursorStanzaId AND stanzaId <= limitStanzaId
-		query.addCriteria(
-				Criteria.where("conversationId").is(conversationId)
-				.and("updateCursorId").gt(cursorStanzaId)
-				.and("stanzaId").lte(limitStanzaId)
-				);
+	    query.addCriteria(
+	            Criteria.where(FIELD_CONVERSATION_ID).is(conversationId)
+	            .and(FIELD_UPDATE_CURSOR_ID).gt(cursorStanzaId)
+	            .and(FIELD_STANZA_ID).lte(limitStanzaId)
+	    );
 
-		// 2. Projection: Only return specific fields
-		query.fields()
-		.include("messageId")		
-		.include("stanzaId")
-		.include("sentAt")
-		.include("deliveredAt")
-		.include("readAt")
-		.include("deletedAt")
-		.include("editCount");
+	    // Projection using constants
+	    query.fields()
+	            .include(FIELD_MESSAGE_ID)
+	            .include(FIELD_STANZA_ID)
+	            .include(FIELD_SENDER_KEY)
+	            .include(FIELD_RECEIVER_KEY)
+	            .include(FIELD_ENCRYPTED_MSG)
+	            .include(FIELD_ALGORITHM)
+	            .include(FIELD_VERSION)
+	            .include(FIELD_SALT)
+	            .include(FIELD_SENT_AT)
+	            .include(FIELD_DELIVERED_AT)
+	            .include(FIELD_READ_AT)
+	            .include(FIELD_DELETED_AT)
+	            .include(FIELD_EDIT_COUNT);
 
-		// 3. Execution
+		// Execution
 		long count = mongoTemplate.count(query, MessageBackupDocument.class);
 		query.with(pageable);
 
@@ -191,7 +198,7 @@ public class MessageBackupService {
 	}
 
 	public Page<MessageBackupDocument> getSyncConversationMessages(String userKey, String participantKey, String stanzaId, int page, int size) {
-		Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.ASC, "stanzaId"));
+		Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.ASC, FIELD_STANZA_ID));
 
 		// Get converation ID
 		String converationId = ConversationUtil.getConversationId(userKey, participantKey);		
@@ -221,18 +228,18 @@ public class MessageBackupService {
 	private List<String> findUniqueConversationIds(String userKey) {
 		Aggregation aggregation = Aggregation.newAggregation(
 				// 1. Filter only for messages belonging to this user
-				Aggregation.match(Criteria.where("userKey").is(userKey)),
+				Aggregation.match(Criteria.where(FIELD_USER_KEY).is(userKey)),
 
 				// 2. Group by the deterministic conversationId
 				// and find the maximum timestamp for that specific chat
-				Aggregation.group("conversationId")
-				.max("timestamp").as("lastInteraction"),
+				Aggregation.group(FIELD_CONVERSATION_ID)
+				.max(FIELD_TIMESTAMP).as("lastInteraction"),
 
 				// 3. Sort conversations: most recent messages first
 				Aggregation.sort(Sort.Direction.DESC, "lastInteraction"),
 
 				// 4. Project the ID (which is the conversationId) to our DTO
-				Aggregation.project().and("_id").as("conversationId")
+				Aggregation.project().and("_id").as(FIELD_CONVERSATION_ID)
 				);
 
 		AggregationResults<ConversationIdResult> results = mongoTemplate.aggregate(
@@ -414,16 +421,16 @@ public class MessageBackupService {
 		}
 
 		// Atomic update for high-concurrency environments
-		Query query = new Query(Criteria.where("messageId").is(messageId)
-				.and("userKey").is(SecurityUtil.getUserKey()));
+		Query query = new Query(Criteria.where(FIELD_MESSAGE_ID).is(messageId)
+				.and(FIELD_USER_KEY).is(SecurityUtil.getUserKey()));
 
 		Update update = new Update()
 				.set(timestampField, timestamp)
-				.set("updateCursorId", stanzaId);
+				.set(FIELD_UPDATE_CURSOR_ID, stanzaId);
 
 		// Clean up message
-		if ("deletedAt".equals(timestampField)) {
-			update.set("encryptedMessage", null);
+		if (FIELD_DELETED_AT.equals(timestampField)) {
+			update.set(FIELD_ENCRYPTED_MSG, null);
 		}
 
 		UpdateResult result = mongoTemplate.updateFirst(query, update, MessageBackupDocument.class);

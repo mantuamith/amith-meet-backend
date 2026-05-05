@@ -36,6 +36,7 @@ import com.algomeet.signalservice.exceptions.RecordNotFoundException;
 import com.algomeet.signalservice.service.MessageBackupService;
 import com.algomeet.signalservice.util.SecurityUtil;
 import com.github.f4b6a3.ulid.UlidCreator;
+import static com.algomeet.signalservice.document.MessageBackupDocument.*;
 
 import lombok.RequiredArgsConstructor;
 /**
@@ -300,7 +301,7 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 	public ResponseEntity<CommonResponse<?>> markAsSent(
 			@PathVariable String messageId,
 			@Validated @RequestBody MessageStatusUpdateRequest request) {
-		return processStatusUpdate(messageId, "sentAt", request);
+		return processStatusUpdate(messageId, FIELD_SENT_AT, request);
 	}
 
 	/**
@@ -310,7 +311,7 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 	public ResponseEntity<CommonResponse<?>> markAsDelivered(
 			@PathVariable String messageId,
 			@Validated @RequestBody MessageStatusUpdateRequest request) {
-		return processStatusUpdate(messageId, "deliveredAt", request);
+		return processStatusUpdate(messageId, FIELD_DELIVERED_AT, request);
 	}
 
 	/**
@@ -320,7 +321,7 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 	public ResponseEntity<CommonResponse<?>> markAsRead(
 			@PathVariable String messageId,
 			@Validated @RequestBody MessageStatusUpdateRequest request) {
-		return processStatusUpdate(messageId, "readAt", request);
+		return processStatusUpdate(messageId, FIELD_READ_AT, request);
 	}
 
 	/**
@@ -330,7 +331,7 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 	public ResponseEntity<CommonResponse<?>> markAsDeleted(
 			@PathVariable String messageId,
 			@Validated @RequestBody MessageStatusUpdateRequest request) {
-		return processStatusUpdate(messageId, "deletedAt", request);
+		return processStatusUpdate(messageId, FIELD_DELETED_AT, request);
 	}
 
 	/**
