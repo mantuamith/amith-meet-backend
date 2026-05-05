@@ -107,7 +107,7 @@ public interface MessageBackupControllerDoc {
         @RequestBody MessageBackupDocument request
     );
 
-    @Operation(summary = "Edit message (partial update)")
+    @Operation(summary = "Edit message (partial update), do not use this if you need the history of the original message or previous message updates.")
     ResponseEntity<CommonResponse<MessageBackupResponse>> editMessage(
         String messageId,
         @RequestBody MessageBackupDocument request
