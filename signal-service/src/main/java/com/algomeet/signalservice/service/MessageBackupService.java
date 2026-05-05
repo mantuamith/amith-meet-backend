@@ -1,5 +1,23 @@
 package com.algomeet.signalservice.service;
 
+import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_ALGORITHM;
+import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_CONVERSATION_ID;
+import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_DELETED_AT;
+import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_DELIVERED_AT;
+import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_EDIT_COUNT;
+import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_ENCRYPTED_MSG;
+import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_MESSAGE_ID;
+import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_READ_AT;
+import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_RECEIVER_KEY;
+import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_SALT;
+import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_SENDER_KEY;
+import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_SENT_AT;
+import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_STANZA_ID;
+import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_TIMESTAMP;
+import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_UPDATE_CURSOR_ID;
+import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_USER_KEY;
+import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_VERSION;
+
 import java.nio.charset.Charset;
 import java.time.Duration;
 import java.util.List;
@@ -18,14 +36,12 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.support.PageableExecutionUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
 import com.algomeet.signalservice.document.MessageBackupDocument;
-import static com.algomeet.signalservice.document.MessageBackupDocument.*;
 import com.algomeet.signalservice.dto.StorageUsageAdjustmentRequest;
 import com.algomeet.signalservice.exceptions.MessageInsertInProgressException;
 import com.algomeet.signalservice.exceptions.MessageUpdateStatusInProgressException;
