@@ -112,10 +112,10 @@ public class XmppArchiveService {
 		// Strategy: If 'after' is present, we move forward in time.
 		// Otherwise (or if 'before' is present), we move backward into history.
 		if (StringUtils.hasText(afterId)) {
-			syncWithRetry(roomId, afterId, principal, queryId, maxResults);
-			
 			// Sync recent updates
 			syncRecentRoomUpdates(roomId, afterId, principal);
+			
+			syncWithRetry(roomId, afterId, principal, queryId, maxResults);
 		} else {
 			loadBeforeId(ctx, roomId, beforeId, maxResults, queryId, principal);
 		}
