@@ -1,6 +1,7 @@
 package com.algomeet.signalservice.controller;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
@@ -149,7 +150,7 @@ class MessageBackupControllerTest {
     void getMessage_success() throws Exception {
         MessageBackupDocument doc = sampleMessageBackupDocument();
 
-        when(messageBackupService.getMessage("msg-1")).thenReturn(doc);
+        when(messageBackupService.getMessage(doc.getUserKey(), "msg-1")).thenReturn(doc);
 
         mockMvc.perform(get("/signal/backup/chat-messages/msg-1"))
                 .andExpect(status().isOk())
@@ -159,7 +160,7 @@ class MessageBackupControllerTest {
 
     @Test
     void getMessage_notFound() throws Exception {
-        when(messageBackupService.getMessage("msg-1")).thenThrow(new RecordNotFoundException("not found"));
+        when(messageBackupService.getMessage(anyString(), anyString())).thenThrow(new RecordNotFoundException("not found"));
 
         mockMvc.perform(get("/signal/backup/chat-messages/msg-1"))
                 .andExpect(status().isNotFound())
@@ -175,7 +176,7 @@ class MessageBackupControllerTest {
 
         MessageBackupDocument saved = sampleMessageBackupDocument();
 
-        when(messageBackupService.update(eq("msg-1"), any())).thenReturn(saved);
+        when(messageBackupService.update(anyString(), eq("msg-1"), any())).thenReturn(saved);
 
         mockMvc.perform(put("/signal/backup/chat-messages/msg-1")
                 .with(csrf())
@@ -190,7 +191,7 @@ class MessageBackupControllerTest {
     void updateMessage_notFound() throws Exception {
         MessageBackupDocument request = sampleMessageBackupDocument();
 
-        when(messageBackupService.update(eq("msg-1"), any())).thenThrow(new RecordNotFoundException("not found"));
+        when(messageBackupService.update(anyString(), eq("msg-1"), any())).thenThrow(new RecordNotFoundException("not found"));
 
         mockMvc.perform(put("/signal/backup/chat-messages/msg-1")
                 .with(csrf())
@@ -205,7 +206,7 @@ class MessageBackupControllerTest {
      * ------------------------------------------------- */
     @Test
     void deleteMessage_success() throws Exception {
-        doNothing().when(messageBackupService).delete("msg-1");
+        doNothing().when(messageBackupService).delete(anyString(), anyString());
 
         mockMvc.perform(delete("/signal/backup/chat-messages/msg-1")
                 .with(csrf()))
@@ -216,7 +217,7 @@ class MessageBackupControllerTest {
     @Test
     void deleteMessage_notFound() throws Exception {
         doThrow(new RecordNotFoundException("not found"))
-                .when(messageBackupService).delete("msg-1");
+                .when(messageBackupService).delete(anyString(), anyString());
 
         mockMvc.perform(delete("/signal/backup/chat-messages/msg-1")
                 .with(csrf()))

@@ -1,6 +1,7 @@
 package com.algomeet.signalservice.repository;
 
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -48,4 +49,10 @@ public interface MessageBackupRepository extends MongoRepository<MessageBackupDo
     						"} }"
     })
     List<ConversationStorageStats> getConversationStorageStats(String userA, String userB);
+    
+    /**
+     * Retrieves a message backup only if it belongs to the specified user.
+     * Use this instead of findById for better security and index locality.
+     */
+    Optional<MessageBackupDocument> findByMessageIdAndUserKey(String messageId, String userKey);
 }

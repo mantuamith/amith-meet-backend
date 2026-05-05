@@ -212,8 +212,8 @@ public class MessageBackupService {
 		return repository.findByConversationIdAndStanzaIdGreaterThan(converationId, stanzaId, pageable);
 	}
 
-	public MessageBackupDocument getMessage(String messageId) {
-		Optional<MessageBackupDocument> backupOpt = repository.findById(messageId);		
+	public MessageBackupDocument getMessage(String userKey, String messageId) {
+		Optional<MessageBackupDocument> backupOpt = repository.findByMessageIdAndUserKey(messageId, userKey);	
 		return backupOpt.orElseThrow(() -> new RecordNotFoundException("Message ID not found"));
 	}
 
@@ -270,9 +270,9 @@ public class MessageBackupService {
 		private String contactKey;
 	}
 
-	public MessageBackupDocument update(String messageId, MessageBackupDocument backup) {	
+	public MessageBackupDocument update(String userKey,  String messageId, MessageBackupDocument backup) {	
 		backup.setMessageId(messageId);
-		Optional<MessageBackupDocument> updateOpt = repository.findById(messageId);
+		Optional<MessageBackupDocument> updateOpt = repository.findByMessageIdAndUserKey(messageId, userKey);
 
 		if (updateOpt.isEmpty()) {
 			throw new RecordNotFoundException("Message ID not found");
@@ -289,21 +289,42 @@ public class MessageBackupService {
 		req.setChatStorageBytesDelta(backup.getSize() - updateOpt.get().getSize());
 		mediaService.adjustStorageUsage(backup.getUserKey(), req);
 
-		return repository.save(updateOpt.map(b -> {
-			b.setUserKey(backup.getUserKey());
-			b.setEncryptedMessage(backup.getEncryptedMessage());
-			b.setSenderKey(backup.getSenderKey());
-			b.setReceiverKey(backup.getReceiverKey());
-			b.setAlgorithm(backup.getAlgorithm());
-			b.setVersion(backup.getVersion());
-			b.setSalt(backup.getSalt());
-			return b;
+		return repository.save(updateOpt.map(existing -> {
+			// Core Identity & Routing
+		    if (backup.getUserKey() != null) existing.setUserKey(backup.getUserKey());
+		    if (backup.getConversationId() != null) existing.setConversationId(backup.getConversationId());
+		    if (backup.getStanzaId() != null) existing.setStanzaId(backup.getStanzaId());
+		    
+		    // Encryption Metadata
+		    if (backup.getEncryptedMessage() != null) existing.setEncryptedMessage(backup.getEncryptedMessage());
+		    if (backup.getSenderKey() != null) existing.setSenderKey(backup.getSenderKey());
+		    if (backup.getReceiverKey() != null) existing.setReceiverKey(backup.getReceiverKey());
+		    if (backup.getAlgorithm() != null) existing.setAlgorithm(backup.getAlgorithm());
+		    if (backup.getVersion() != null) existing.setVersion(backup.getVersion());
+		    if (backup.getSalt() != null) existing.setSalt(backup.getSalt());
+		    
+		    // State & Timestamps
+		    if (backup.getSentAt() != null) existing.setSentAt(backup.getSentAt());
+		    if (backup.getDeliveredAt() != null) existing.setDeliveredAt(backup.getDeliveredAt());
+		    if (backup.getReadAt() != null) existing.setReadAt(backup.getReadAt());
+		    if (backup.getDeletedAt() != null) existing.setDeletedAt(backup.getDeletedAt());
+		    
+		    // Relationships & Sync
+		    if (backup.getRefersTo() != null) existing.setRefersTo(backup.getRefersTo());
+		    if (backup.getEditCount() != null) existing.setEditCount(backup.getEditCount());
+		    if (backup.getUpdateCursorId() != null) existing.setUpdateCursorId(backup.getUpdateCursorId());
+		    if (backup.getSize() != null) existing.setSize(backup.getSize());
+		    
+		    // Note: timestamp is usually 'Instant.now()' on creation, 
+		    // but you can update it here if you want to track 'last modified'
+		    
+		    return existing;
 		}).get());
 	}
 
-	public MessageBackupDocument edit(String messageId, MessageBackupDocument backup) {	
+	public MessageBackupDocument edit(String userKey, String messageId, MessageBackupDocument backup) {	
 		backup.setMessageId(messageId);
-		Optional<MessageBackupDocument> updateOpt = repository.findById(messageId);
+		Optional<MessageBackupDocument> updateOpt = repository.findByMessageIdAndUserKey(messageId, userKey);
 
 		if (updateOpt.isEmpty()) {
 			throw new RecordNotFoundException("Message ID not found");
@@ -320,23 +341,20 @@ public class MessageBackupService {
 		req.setChatStorageBytesDelta(backup.getSize() - updateOpt.get().getSize());
 		mediaService.adjustStorageUsage(backup.getUserKey(), req);
 
-		String updateStanzaId = UlidCreator.getMonotonicUlid().toLowerCase();
+		String updateStanzaId;		
+		
+		if(StringUtils.hasText(backup.getUpdateCursorId())) {
+			updateStanzaId = backup.getUpdateCursorId();
+		} else {
+			updateStanzaId = UlidCreator.getMonotonicUlid().toLowerCase();
+		}
 
 		return repository.save(updateOpt.map(b -> {
-			if(StringUtils.hasText(backup.getUserKey())) {
-				b.setUserKey(backup.getUserKey());
-			}
-
 			b.setEditCount(b.getEditCount() != null ? (b.getEditCount() + 1) : 1);
 			b.setUpdateCursorId(updateStanzaId);
-			b.setEncryptedMessage(backup.getEncryptedMessage());
-
-			if(StringUtils.hasText(backup.getSenderKey())) {
-				b.setSenderKey(backup.getSenderKey());
-			}
-
-			if(StringUtils.hasText(backup.getReceiverKey())) {
-				b.setReceiverKey(backup.getReceiverKey());
+			
+			if(StringUtils.hasText(backup.getEncryptedMessage())) {
+				b.setEncryptedMessage(backup.getEncryptedMessage());
 			}
 
 			if(StringUtils.hasText(backup.getAlgorithm())) {
@@ -354,8 +372,8 @@ public class MessageBackupService {
 		}).get());
 	}
 
-	public void delete(String messageId) {
-		Optional<MessageBackupDocument> updateOpt = repository.findById(messageId);		
+	public void delete(String userKey, String messageId) {
+		Optional<MessageBackupDocument> updateOpt = repository.findByMessageIdAndUserKey(messageId, userKey);	
 		if (updateOpt.isEmpty()) {
 			throw new RecordNotFoundException("Message ID not found");
 		}

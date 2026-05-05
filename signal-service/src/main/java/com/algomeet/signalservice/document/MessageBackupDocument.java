@@ -130,7 +130,6 @@ public class MessageBackupDocument {
   
     private Integer editCount;
     
-    @Schema(hidden = true)
     @Indexed(unique = true, sparse = true)
     private String updateCursorId;
 

@@ -203,7 +203,7 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 	@GetMapping("/{messageId}")
 	public ResponseEntity<CommonResponse<MessageBackupResponse>> getMessage(@PathVariable String messageId) {
 		try {
-			MessageBackupDocument saved = messageBackupService.getMessage(messageId);     
+			MessageBackupDocument saved = messageBackupService.getMessage(SecurityUtil.getUserKey(), messageId);     
 			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, MessageBackupResponse.from(saved)));
 
 		} catch (RecordNotFoundException ex) {
@@ -222,7 +222,7 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 	public ResponseEntity<CommonResponse<MessageBackupResponse>> updateMessage(@PathVariable String messageId, 
 			@RequestBody MessageBackupDocument request) {
 		try {
-			MessageBackupDocument saved = messageBackupService.update(messageId, request);
+			MessageBackupDocument saved = messageBackupService.update(SecurityUtil.getUserKey(), messageId, request);
 			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, MessageBackupResponse.from(saved)));
 		} catch (RecordNotFoundException ex) {
 			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.MESSAGE_BACKUP_NOT_FOUND));
@@ -245,7 +245,7 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 	public ResponseEntity<CommonResponse<MessageBackupResponse>> editMessage(@PathVariable String messageId, 
 			@RequestBody MessageBackupDocument request) {
 		try {
-			MessageBackupDocument saved = messageBackupService.edit(messageId, request);
+			MessageBackupDocument saved = messageBackupService.edit(SecurityUtil.getUserKey(), messageId, request);
 			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, MessageBackupResponse.from(saved)));
 		} catch (RecordNotFoundException ex) {
 			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.MESSAGE_BACKUP_NOT_FOUND));
@@ -261,7 +261,7 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 	@DeleteMapping("/{messageId}")
 	public ResponseEntity<CommonResponse<?>> deleteMessage(@PathVariable String messageId) {
 		try {
-			messageBackupService.delete(messageId);        
+			messageBackupService.delete(SecurityUtil.getUserKey(), messageId);        
 			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
 		} catch (RecordNotFoundException ex) {
 			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.MESSAGE_BACKUP_NOT_FOUND));

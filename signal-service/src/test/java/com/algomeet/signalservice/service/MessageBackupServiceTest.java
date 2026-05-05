@@ -99,7 +99,7 @@ class MessageBackupServiceTest {
 		.thenReturn(Optional.of(document));
 
 		MessageBackupDocument result =
-				service.getMessage("msg-1");
+				service.getMessage("user-1", "msg-1");
 
 		assertNotNull(result);
 		assertEquals("msg-1", result.getMessageId());
@@ -111,7 +111,7 @@ class MessageBackupServiceTest {
 		.thenReturn(Optional.empty());
 
 		assertThrows(RecordNotFoundException.class,
-				() -> service.getMessage("missing"));
+				() -> service.getMessage("user-1", "missing"));
 	}
 
 	/* -------------------------------------------------
@@ -159,7 +159,7 @@ class MessageBackupServiceTest {
 		.thenReturn(update);
 
 		MessageBackupDocument result =
-				service.update("msg-1", update);
+				service.update("user-1", "msg-1", update);
 
 		assertEquals("msg-1", result.getMessageId());
 		verify(repository).save(any(MessageBackupDocument.class));
@@ -171,7 +171,7 @@ class MessageBackupServiceTest {
 		.thenReturn(Optional.empty());
 
 		assertThrows(RecordNotFoundException.class,
-				() -> service.update("msg-1", document));
+				() -> service.update("user-1", "msg-1", document));
 
 		verify(repository, never()).save(any());
 	}
@@ -192,7 +192,7 @@ class MessageBackupServiceTest {
 
 		doNothing().when(repository).deleteById("msg-1");
 
-		service.delete("msg-1");
+		service.delete("user-1", "msg-1");
 
 		verify(repository).deleteById("msg-1");
 	}
@@ -203,7 +203,7 @@ class MessageBackupServiceTest {
 		.thenReturn(Optional.empty());
 
 		assertThrows(RecordNotFoundException.class,
-				() -> service.delete("msg-1"));
+				() -> service.delete("user-1", "msg-1"));
 
 		verify(repository, never()).deleteById(any());
 	}
