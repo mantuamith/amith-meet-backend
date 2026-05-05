@@ -115,9 +115,9 @@ public class XmppArchiveService {
 			// Sync recent updates
 			syncRecentRoomUpdates(roomId, afterId, principal);
 			
-			syncWithRetry(roomId, afterId, principal, queryId, maxResults);
+			loadAfterWithRetry(roomId, afterId, principal, queryId, maxResults);
 		} else {
-			loadBeforeId(ctx, roomId, beforeId, maxResults, queryId, principal);
+			loadBeforeIdWithRetry(ctx, roomId, beforeId, maxResults, queryId, principal);
 		}
 	}
 
@@ -125,7 +125,7 @@ public class XmppArchiveService {
 	 * Handles "Load Newer" or "Sync from last disconnect" logic.
 	 * Uses ASC order to stream messages from the oldest in the set to the newest.
 	 */
-	private void syncWithRetry(String roomId, String currentAfterId, XmppPrincipal principal, String queryId, int maxResults) {
+	private void loadAfterWithRetry(String roomId, String currentAfterId, XmppPrincipal principal, String queryId, int maxResults) {
 	    Pageable pageRequest = PageRequest.of(0, maxResults);
 	    
 	    repository.findByRoomIdAndIdGreaterThanAndToIsNullOrEqualtoUserkeyOrderByIdAsc(
@@ -145,7 +145,7 @@ public class XmppArchiveService {
 	                
 	                // Use fromRunnable to return Mono<Void> and trigger the next hop
 	                return Mono.fromRunnable(() -> 
-	                    syncWithRetry(roomId, newAfterId, principal, queryId, maxResults)
+	                    loadAfterWithRetry(roomId, newAfterId, principal, queryId, maxResults)
 	                );
 	            }
 
@@ -165,7 +165,7 @@ public class XmppArchiveService {
 	 * Handles "Infinite Scroll" logic (loading older messages).
 	 * Uses DESC order to find the N messages immediately preceding the 'beforeId'.
 	 */
-	private void loadBeforeId(ChannelHandlerContext ctx, String roomId, String beforeId, int maxResults, String queryId, XmppPrincipal principal) {
+	private void loadBeforeIdWithRetry(ChannelHandlerContext ctx, String roomId, String beforeId, int maxResults, String queryId, XmppPrincipal principal) {
 	    log.debug("MAM Request for Room {}: beforeId={}, max={}", roomId, beforeId, maxResults);
 
 	    PageRequest pageRequest = PageRequest.of(0, maxResults);
@@ -191,7 +191,7 @@ public class XmppArchiveService {
 	                log.debug("No authorized messages in batch for room {}. Walking back from {}", roomId, oldestIdInBatch);
 	                
 	                return Mono.fromRunnable(() -> 
-	                    loadBeforeId(ctx, roomId, oldestIdInBatch, maxResults, queryId, principal)
+	                    loadBeforeIdWithRetry(ctx, roomId, oldestIdInBatch, maxResults, queryId, principal)
 	                );
 	            }
 
