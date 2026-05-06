@@ -11,6 +11,7 @@ import java.util.stream.Collectors;
 import java.time.Instant;
 import java.util.UUID;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
@@ -39,6 +40,7 @@ import lombok.RequiredArgsConstructor;
 
 import java.security.SecureRandom;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class GroupService {
@@ -256,7 +258,7 @@ public class GroupService {
 				}
 
 				if(memberReq.getRole() != null) {
-					if(isUserAllowedToUpdateMemberWithRole(user.getRole(), memberReq.getRole(), updateMember.getRole())) {
+					if(!isUserAllowedToUpdateMemberWithRole(user.getRole(), memberReq.getRole(), updateMember.getRole())) {
 						throw new RuntimeException("User not authorize to change user role.");
 					}
 
