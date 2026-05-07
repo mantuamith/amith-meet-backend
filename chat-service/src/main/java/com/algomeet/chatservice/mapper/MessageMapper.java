@@ -28,6 +28,8 @@ public class MessageMapper {
                 .encryptionMetadata(document.getEncryptionMetadata())
                 .msgReadTimeStamp(document.getMsgReadTimeStamp())
                 .msgDeliveredTimeStamp(document.getMsgDeliveredTimeStamp())
+                .readByUsers(document.getReadByUsers())
+                .deliveredByUsers(document.getDeliveredByUsers())
                 .build();
     }
 }
