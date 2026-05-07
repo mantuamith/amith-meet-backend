@@ -4,6 +4,7 @@ import com.algomeet.chatservice.client.GroupClient;
 import com.algomeet.chatservice.document.*;
 import com.algomeet.chatservice.dto.messageactions.ForwardRequest;
 import com.algomeet.chatservice.dto.messageactions.ReplyRequest;
+import com.algomeet.chatservice.exception.MessageEditException;
 import com.algomeet.chatservice.mapper.MessageMapper;
 import com.algomeet.chatservice.model.MessageStatus;
 import com.algomeet.chatservice.model.MessageType;
@@ -11,15 +12,19 @@ import com.algomeet.chatservice.repository.MessageRepository;
 import com.algomeet.chatservice.sync.messaging.SimpMessagingSyncTemplate;
 import com.algomeet.chatservice.dto.*;
 
+import com.mongodb.client.result.UpdateResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.mongodb.core.FindAndModifyOptions;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 
@@ -66,19 +71,79 @@ public class MessageActionService {
     }
 
     public MessageDocument editMessage(String messageId, String newContent, String requester) {
-        MessageDocument msg = messageRepository.findById(messageId).orElse(null);
-        if (msg == null) return null;
-        if (!requester.equals(msg.getSender())) return null;
 
-        Query q = Query.query(Criteria.where("_id").is(messageId));
+        // 1. Validate content
+        if (newContent == null || newContent.trim().isEmpty()) {
+            throw new MessageEditException("Invalid content", HttpStatus.BAD_REQUEST);
+        }
+        newContent = newContent.trim();
+
+        // 2. Fetch message (needed for read logic)
+        MessageDocument msg = messageRepository.findById(messageId).orElse(null);
+        if (msg == null){
+            throw new MessageEditException("Message not found", HttpStatus.NOT_FOUND);
+        }
+
+        // 3. Ownership
+        if (!requester.equals(msg.getSender())) {
+            throw new MessageEditException("Not allowed to edit", HttpStatus.FORBIDDEN);
+        }
+
+        // 4. Avoid unnecessary update
+        if (newContent.equals(msg.getContent())) return msg;
+
+        // 5. Deleted checks
+        if (Boolean.TRUE.equals(msg.getDeletedForAll()))
+            return null;
+
+        if (!msg.isVisibleTo(requester)) return null;
+
+        // 6. Time check
+        Instant now = Instant.now();
+        if (msg.getTimestamp().plusSeconds(300).isBefore(Instant.now())) {
+            throw new MessageEditException("Edit time expired", HttpStatus.CONFLICT);
+        }
+
+        // 7. Read check (DM + GROUP SAFE)
+        if (msg.isGroupMessage()) {
+            if (msg.getReadByUsers() != null &&
+                    msg.getReadByUsers().stream().anyMatch(u -> !u.equals(msg.getSender()))) {
+                return null;
+            }
+        } else {
+            if (msg.isReadBy(msg.getReceiver())) {
+                throw new MessageEditException("Message already read", HttpStatus.CONFLICT);
+            }
+        }
+
+        // 8. Ensure metadata exists
+        if (msg.getMetaData() == null) {
+            msg.setMetaData(new MessageMetaData());
+        }
+
+        // 9. Atomic update (SAFE)
+        Query q = Query.query(
+                Criteria.where("_id").is(messageId)
+                        .and("sender").is(requester)
+        );
+
         Update u = new Update()
                 .set("content", newContent)
-                .set("metaData.isEdited", true);
-        mongoTemplate.updateFirst(q, u, MessageDocument.class);
+                .set("metaData.isEdited", true)
+                .set("metaData.editedAt", System.currentTimeMillis());
 
-        // return updated
-        MessageDocument updated = messageRepository.findById(messageId).orElse(msg);
+        MessageDocument updated = mongoTemplate.findAndModify(
+                q,
+                u,
+                FindAndModifyOptions.options().returnNew(true),
+                MessageDocument.class
+        );
+
+        if (updated == null) return null;
+
+        // 10. Push update
         pushUpdatedToParticipants(updated);
+
         return updated;
     }
 
@@ -109,6 +174,34 @@ public class MessageActionService {
         MessageDocument saved = messageRepository.save(reply);
         dispatchNewMessage(saved);
         return saved;
+    }
+
+    public void forwardBatch(
+            List<ForwardRequest>  req,
+            String sender,
+            String senderKey
+    ) {
+
+        if (req == null  || req.isEmpty()) {
+            return;
+        }
+
+        List<ForwardRequest> ordered = req
+                .stream()
+                .sorted(Comparator.comparing(
+                        ForwardRequest::getSequence,
+                        Comparator.nullsLast(Integer::compareTo)
+                ))
+                .toList();
+
+        for (ForwardRequest item : ordered) {
+
+            MessageDocument saved = forward(item, sender, senderKey);
+
+            if (saved != null) {
+                dispatchNewMessage(saved);
+            }
+        }
     }
 
     public MessageDocument forward(ForwardRequest req, String sender, String senderKey) {
@@ -178,7 +271,7 @@ public class MessageActionService {
 
         fwd.setTimestamp(
                 req.getMsgForwardTimeStamp() != null
-                        ? Instant.ofEpochSecond(req.getMsgForwardTimeStamp())
+                        ? Instant.ofEpochMilli(req.getMsgForwardTimeStamp())
                         : Instant.now()
         );
 
@@ -232,7 +325,7 @@ public class MessageActionService {
         );
 
         fwd.setForwarded(fi);
-
+        fwd.setSequence(req.getSequence());
         fwd.setStatus(MessageStatus.SENT);
         // ===============================
         // 🔥 GROUP READ TRACKING
@@ -242,11 +335,10 @@ public class MessageActionService {
         // ===============================
         // 🔥 SAVE + DISPATCH
         // ===============================
-        MessageDocument saved = messageRepository.save(fwd);
 
-        dispatchNewMessage(saved);
+        //dispatchNewMessage(saved);
 
-        return saved;
+        return messageRepository.save(fwd);
     }
 
     /* -------- Push helpers (STOMP fanout) -------- */
@@ -256,20 +348,66 @@ public class MessageActionService {
     }
 
     public void pushUpdatedToParticipants(MessageDocument doc) {
+
+        if (doc == null) return;
+
         var resp = messageMapper.toResponse(doc);
+
+        // OPTIONAL (recommended)
+        // resp.setEventType("EDIT");
+
         if (doc.isGroupMessage()) {
             try {
                 GroupDto group = groupClient.getGroupById(doc.getGroupId());
-                for (Member member : group.members) {
-                    messagingSyncTemplate.convertAndSendToUser(member.getUsername(), "/queue/update_message", resp);
+
+                if (group == null || group.getMembers() == null) {
+                    log.error("[PushUpdate] Invalid group for id={}", doc.getId());
+                    return;
                 }
-            } catch (Exception ignored) {}
-        } else {
-            if (doc.getSender() != null) {
-                messagingSyncTemplate.convertAndSendToUser(doc.getSender(), "/queue/update_message", resp);
+
+                for (Member member : group.getMembers()) {
+
+                    if (member == null || member.getUsername() == null) continue;
+
+                    // Skip users who deleted message
+                    if (doc.getDeletedForUsers() != null &&
+                            doc.getDeletedForUsers().contains(member.getUsername())) {
+                        continue;
+                    }
+
+                    messagingSyncTemplate.convertAndSendToUser(
+                            member.getUsername(),
+                            "/queue/update_message",
+                            resp
+                    );
+                }
+
+            } catch (Exception ex) {
+                log.error("[PushUpdate ERROR] groupId={} error={}", doc.getGroupId(), ex.getMessage(), ex);
             }
-            if (doc.getReceiver() != null) {
-                messagingSyncTemplate.convertAndSendToUser(doc.getReceiver(), "/queue/update_message", resp);
+
+        } else {
+
+            // Sender
+            if (doc.getSender() != null &&
+                    (doc.getDeletedForUsers() == null || !doc.getDeletedForUsers().contains(doc.getSender()))) {
+
+                messagingSyncTemplate.convertAndSendToUser(
+                        doc.getSender(),
+                        "/queue/update_message",
+                        resp
+                );
+            }
+
+            // Receiver
+            if (doc.getReceiver() != null &&
+                    (doc.getDeletedForUsers() == null || !doc.getDeletedForUsers().contains(doc.getReceiver()))) {
+
+                messagingSyncTemplate.convertAndSendToUser(
+                        doc.getReceiver(),
+                        "/queue/update_message",
+                        resp
+                );
             }
         }
     }
