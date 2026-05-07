@@ -8,6 +8,7 @@ import java.util.List;
 
 @Data
 public class ForwardRequest {
+    private Integer sequence;
     @NotBlank
     private String originalMessageId;
 

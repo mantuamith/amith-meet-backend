@@ -24,6 +24,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 
@@ -175,6 +176,34 @@ public class MessageActionService {
         return saved;
     }
 
+    public void forwardBatch(
+            List<ForwardRequest>  req,
+            String sender,
+            String senderKey
+    ) {
+
+        if (req == null  || req.isEmpty()) {
+            return;
+        }
+
+        List<ForwardRequest> ordered = req
+                .stream()
+                .sorted(Comparator.comparing(
+                        ForwardRequest::getSequence,
+                        Comparator.nullsLast(Integer::compareTo)
+                ))
+                .toList();
+
+        for (ForwardRequest item : ordered) {
+
+            MessageDocument saved = forward(item, sender, senderKey);
+
+            if (saved != null) {
+                dispatchNewMessage(saved);
+            }
+        }
+    }
+
     public MessageDocument forward(ForwardRequest req, String sender, String senderKey) {
 
         // ===============================
@@ -242,7 +271,7 @@ public class MessageActionService {
 
         fwd.setTimestamp(
                 req.getMsgForwardTimeStamp() != null
-                        ? Instant.ofEpochSecond(req.getMsgForwardTimeStamp())
+                        ? Instant.ofEpochMilli(req.getMsgForwardTimeStamp())
                         : Instant.now()
         );
 
@@ -296,7 +325,7 @@ public class MessageActionService {
         );
 
         fwd.setForwarded(fi);
-
+        fwd.setSequence(req.getSequence());
         fwd.setStatus(MessageStatus.SENT);
         // ===============================
         // 🔥 GROUP READ TRACKING
@@ -306,11 +335,10 @@ public class MessageActionService {
         // ===============================
         // 🔥 SAVE + DISPATCH
         // ===============================
-        MessageDocument saved = messageRepository.save(fwd);
 
-        dispatchNewMessage(saved);
+        //dispatchNewMessage(saved);
 
-        return saved;
+        return messageRepository.save(fwd);
     }
 
     /* -------- Push helpers (STOMP fanout) -------- */
