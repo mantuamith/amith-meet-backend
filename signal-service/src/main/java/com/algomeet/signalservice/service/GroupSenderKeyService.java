@@ -16,20 +16,23 @@ import com.algomeet.signalservice.dto.GroupResponse;
 import com.algomeet.signalservice.dto.GroupSenderKeyRequest;
 import com.algomeet.signalservice.dto.GroupSenderKeyResponse;
 import com.algomeet.signalservice.dto.MemberResponse;
+import com.algomeet.signalservice.dto.UserDeviceResponse;
 import com.algomeet.signalservice.entity.GroupSenderKey;
 import com.algomeet.signalservice.entity.GroupSenderKeyId;
-import com.algomeet.signalservice.entity.UserDevice;
 import com.algomeet.signalservice.entity.UserDeviceId;
 import com.algomeet.signalservice.exceptions.RecordNotFoundException;
 import com.algomeet.signalservice.mapper.GroupSenderKeyMapper;
 import com.algomeet.signalservice.mapper.GroupSenderKeyViewMapper;
+import com.algomeet.signalservice.mapper.UserDeviceMapper;
 import com.algomeet.signalservice.repository.GroupSenderKeyRepository;
 import com.algomeet.signalservice.repository.UserDeviceRepository;
 import com.algomeet.signalservice.view.GroupSenderKeyView;
 import com.algomeet.signalservice.view.UserDeviceView;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -59,15 +62,17 @@ public class GroupSenderKeyService {
 	}
 
 	@Transactional(readOnly = true)
-	public List<UserDeviceView> getMissingDevices(UUID senderUserKey, String groupId) {
+	public List<UserDeviceResponse> getMissingDevices(UUID senderUserKey, String groupId) {
 	    // 1. Initial validation and early exit
 	    GroupResponse group = groupClient.getGroupById(groupId);
+	    log.info("group {} ", group);
 	    if (group == null || group.getMembers() == null || group.getMembers().isEmpty()) {
 	        return Collections.emptyList();
 	    }
 
 	    Set<MemberResponse> members = group.getMembers();
 	    String senderKeyStr = senderUserKey.toString();
+	    log.info("group {} ", members);
 	    
 	    // 2. Extract UUIDs - Compare as Strings first to avoid unnecessary UUID parsing
 	    List<UUID> groupMemberIds = new ArrayList<>(members.size());
@@ -85,21 +90,28 @@ public class GroupSenderKeyService {
 
 	    // 3. Identify devices that have already been processed
 	    // Use the UserDeviceId object itself in the Set for O(1) lookup performance
-	    List<GroupSenderKey> existingKeys = repository.findByIdSenderUserKeyAndIdGroupId(senderUserKey, groupId);
+	    List<GroupSenderKeyView> existingKeys = repository.findByIdSenderUserKeyAndIdGroupId(senderUserKey, groupId);
 	    Set<UserDeviceId> processedDeviceIds = new HashSet<>(existingKeys != null ? existingKeys.size() : 0);
 	    
+	    log.info("existingKeys {} ", existingKeys);
 	    if (existingKeys != null) {
-	        for (GroupSenderKey e : existingKeys) {
+	        for (GroupSenderKeyView e : existingKeys) {
 	            // Mapping GroupSenderKey parts to a UserDeviceId for direct comparison later
+	        	
+	        	log.info("GroupSenderKeyView {} ", new UserDeviceId(
+		                e.getReceiverUserKey(), 
+		                e.getReceiverDeviceId()
+		            ));
 	            processedDeviceIds.add(new UserDeviceId(
-	                e.getId().getReceiverUserKey(), 
-	                e.getId().getReceiverDeviceId()
+	                e.getReceiverUserKey(), 
+	                e.getReceiverDeviceId()
 	            ));
 	        }
 	    }
 
 	    // 4. Batch fetch all devices for the group members
 	    List<UserDeviceView> deviceList = deviceRepository.findByIdUserKeyIn(groupMemberIds);
+	    log.info("deviceList {} ", deviceList);
 	    if (deviceList == null || deviceList.isEmpty()) {
 	        return Collections.emptyList();
 	    }
@@ -107,13 +119,14 @@ public class GroupSenderKeyService {
 	    // 5. Filter out devices that are already in the 'processed' set
 	    List<UserDeviceView> missingDevices = new ArrayList<>();
 	    for (UserDeviceView device : deviceList) {
+	    	log.info("UserDeviceView {} ", device);
 	        // device.getId() returns a UserDeviceId, which has optimized equals/hashCode
 	        if (!processedDeviceIds.contains(device.getId())) {
 	            missingDevices.add(device);
 	        }
 	    }
 
-	    return missingDevices;
+	    return missingDevices.stream().map(UserDeviceMapper::toResponse).toList();
 	}
 
 	public List<GroupSenderKeyResponse> longPoll(

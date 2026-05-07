@@ -19,12 +19,13 @@ public interface GroupSenderKeyRepository extends JpaRepository<GroupSenderKey, 
 
 	@Query(value = """
 	        SELECT 
-	            group_id AS groupId, 
-	            receiver_user_key AS receiverUserKey, 
-	            receiver_device_id AS receiverDeviceId, 
-	            sender_user_key AS senderUserKey, 
-	            sender_device_id AS senderDeviceId, 
-	            created_at AS createdAt
+	            group_id as groupId, 
+	            receiver_user_key as receiverUserKey, 
+	            receiver_device_id as receiverDeviceId, 
+	            sender_user_key as senderUserKey, 
+	            sender_device_id as senderDeviceId, 
+	            created_at as createdAt,
+	            deleted_at as deletedAt
 	        FROM signal_group_sender_keys
 	        WHERE sender_user_key = :senderUserKey 
 	          AND sender_device_id = :senderDeviceId 
@@ -40,17 +41,18 @@ public interface GroupSenderKeyRepository extends JpaRepository<GroupSenderKey, 
     
     @Query(value = """
 	        SELECT 
-	            group_id AS groupId, 
-	            receiver_user_key AS receiverUserKey, 
-	            receiver_device_id AS receiverDeviceId, 
-	            sender_user_key AS senderUserKey, 
-	            sender_device_id AS senderDeviceId, 
-	            created_at AS createdAt
+	            group_id as groupId, 
+	            receiver_user_key as receiverUserKey, 
+	            receiver_device_id as receiverDeviceId, 
+	            sender_user_key as senderUserKey, 
+	            sender_device_id as senderDeviceId, 
+	            created_at as createdAt,
+	            deleted_at as deletedAt
 	        FROM signal_group_sender_keys
 	        WHERE sender_user_key = :senderUserKey 
 	          AND group_id = :groupId
 	        """, nativeQuery = true)
-    List<GroupSenderKey> findByIdSenderUserKeyAndIdGroupId(
+    List<GroupSenderKeyView> findByIdSenderUserKeyAndIdGroupId(
     		@Param("senderUserKey") UUID senderUserKey, 
     		@Param("groupId") String groupId);
        

@@ -6,7 +6,6 @@ import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -19,7 +18,6 @@ import com.algomeet.signalservice.controller.swagger.GroupSenderKeyControllerDoc
 import com.algomeet.signalservice.dto.CommonResponse;
 import com.algomeet.signalservice.dto.GroupSenderKeyRequest;
 import com.algomeet.signalservice.dto.GroupSenderKeyResponse;
-import com.algomeet.signalservice.entity.GroupSenderKeyId;
 import com.algomeet.signalservice.enums.ResponseCode;
 import com.algomeet.signalservice.exceptions.RecordNotFoundException;
 import com.algomeet.signalservice.service.GroupSenderKeyService;
@@ -35,6 +33,7 @@ public class GroupSenderKeyController implements GroupSenderKeyControllerDoc{
 	private final GroupSenderKeyService service;
 
 	/** Sender device uploads SKDM */
+	@Deprecated
 	@PostMapping("/{senderDeviceId}/groups/{groupId}/sender-keys")
 	public ResponseEntity<CommonResponse<GroupSenderKeyResponse>> create(
 			@PathVariable Integer senderDeviceId,
@@ -53,6 +52,7 @@ public class GroupSenderKeyController implements GroupSenderKeyControllerDoc{
 	}
 
 	/** Fetch sender key for a device+group */
+	@Deprecated
 	@GetMapping("/{senderDeviceId}/groups/{groupId}/sender-keys")
 	public ResponseEntity<CommonResponse<List<GroupSenderKeyResponse>>> get(
 			@PathVariable Integer senderDeviceId,
@@ -65,22 +65,6 @@ public class GroupSenderKeyController implements GroupSenderKeyControllerDoc{
 
 			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS,
 					list));
-		} catch (RecordNotFoundException ex) {
-			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
-					CommonResponse.from(ResponseCode.USER_DEVICE_ID_NOT_FOUND));
-		}
-	}
-	
-	@GetMapping("/missing-sender-keys/groups/{groupId}")
-	public ResponseEntity<CommonResponse<List<GroupSenderKeyResponse>>> getMissingSenderKeys(
-			@PathVariable String groupId) {
-
-		UUID senderUserKey = UUID.fromString(SecurityUtil.getUserKey());
-		try {
-          
-
-			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS,
-					null));
 		} catch (RecordNotFoundException ex) {
 			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
 					CommonResponse.from(ResponseCode.USER_DEVICE_ID_NOT_FOUND));
@@ -108,6 +92,7 @@ public class GroupSenderKeyController implements GroupSenderKeyControllerDoc{
 	}	
 	
 	/** Receiver device polls for SKDM */
+	@Deprecated
 	@GetMapping("/{receiverDeviceId}/groups/{groupId}/sender-keys/receiver")
 	public ResponseEntity<CommonResponse<List<GroupSenderKeyResponse>>> getSenderKeys(
 			@PathVariable Integer receiverDeviceId,
@@ -123,39 +108,5 @@ public class GroupSenderKeyController implements GroupSenderKeyControllerDoc{
 			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
 					CommonResponse.from(ResponseCode.USER_DEVICE_GROUP_SENDER_KEY_NOT_FOUND));
 		}
-	}
-	
-	@DeleteMapping("/{senderDeviceId}/groups/{groupId}/sender-keys/sender")
-	public ResponseEntity<CommonResponse<?>> deleteBySender(
-			@PathVariable Integer senderDeviceId,
-			@PathVariable String groupId,
-			@RequestParam UUID receiverUserKey,
-			@RequestParam Integer receiverDeviceId) {
-		try {
-			UUID senderUserKey = UUID.fromString(SecurityUtil.getUserKey());
-			service.delete(new GroupSenderKeyId(senderUserKey, senderDeviceId, receiverUserKey, receiverDeviceId, groupId));
-
-			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
-		} catch(RecordNotFoundException ex) {
-			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
-					CommonResponse.from(ResponseCode.USER_DEVICE_GROUP_SENDER_KEY_NOT_FOUND));
-		}
-	}
-		
-	@DeleteMapping("/{receiverDeviceId}/groups/{groupId}/sender-keys/receiver")
-	public ResponseEntity<CommonResponse<?>> deleteByReceiver(
-			@PathVariable Integer receiverDeviceId,
-			@PathVariable String groupId,
-			@RequestParam UUID senderUserKey,
-			@RequestParam Integer senderDeviceId) {
-		try {
-			UUID receiverUserKey = UUID.fromString(SecurityUtil.getUserKey());
-			service.softDelete(new GroupSenderKeyId(senderUserKey, senderDeviceId, receiverUserKey, receiverDeviceId, groupId));
-
-			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
-		} catch(RecordNotFoundException ex) {
-			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
-					CommonResponse.from(ResponseCode.USER_DEVICE_GROUP_SENDER_KEY_NOT_FOUND));
-		}
-	}
+	}	
 }
