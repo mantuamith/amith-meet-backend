@@ -15,7 +15,7 @@ public class MessageMapper {
                 .to(document.isGroupMessage() ? document.getGroupId() : document.getReceiver())
                 .fromKey(document.getSenderKey())          // NEW
                 .toKey(document.getReceiverKey())          // NEW
-                .timestamp(document.getTimestamp() != null ? document.getTimestamp().toEpochMilli() : null)
+                .timestamp(document.getTimestamp() != null ? document.getTimestamp().toEpochMilli()/1000 : null)
                 .type(document.getType())
                 .clientMessageId(document.getClientMessageId())
                 .status(document.getStatus())
