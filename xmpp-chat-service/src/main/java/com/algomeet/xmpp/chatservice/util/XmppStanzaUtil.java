@@ -235,6 +235,10 @@ public class XmppStanzaUtil {
 
         return matcher.find() ? matcher.group(1) : null;
     }
+
+	public static String replaceBodyTag(String xml, String tagName) {
+      return "";
+    }
     
     /**
      * Determines if the incoming XML string is one of the three core XMPP stanzas:
