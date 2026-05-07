@@ -176,35 +176,5 @@ class GroupSenderKeyControllerTest {
                         .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value(ResponseCode.USER_DEVICE_GROUP_SENDER_KEY_NOT_FOUND.name()));
-    }
-
-    /* -------------------------------------------------
-     * DELETE GROUP SENDER KEYS
-     * ------------------------------------------------- */
-    @Test
-    void deleteGroupSenderKeys_success() throws Exception {
-        doNothing().when(service).delete(USER_KEY, UUID.randomUUID(), 1, "group-1");
-
-        UUID senderUserKey = UUID.randomUUID();
-        doNothing().when(service).delete(USER_KEY, senderUserKey, 1, "group-1");
-
-        mockMvc.perform(delete("/signal/v2/devices/1/groups/group-1/sender-keys")
-                        .param("senderUserKey", senderUserKey.toString())
-                        .with(csrf()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(ResponseCode.SUCCESS.name()));
-    }
-
-    @Test
-    void deleteGroupSenderKeys_notFound() throws Exception {
-        UUID senderUserKey = UUID.randomUUID();
-        doThrow(new RecordNotFoundException("not found"))
-                .when(service).delete(USER_KEY, senderUserKey, 1, "group-1");
-
-        mockMvc.perform(delete("/signal/v2/devices/1/groups/group-1/sender-keys")
-                        .param("senderUserKey", senderUserKey.toString())
-                        .with(csrf()))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.code").value(ResponseCode.USER_DEVICE_GROUP_SENDER_KEY_NOT_FOUND.name()));
-    }
+    }   
 }

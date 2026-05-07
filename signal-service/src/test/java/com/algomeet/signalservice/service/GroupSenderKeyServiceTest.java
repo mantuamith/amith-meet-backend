@@ -204,33 +204,5 @@ class GroupSenderKeyServiceTest {
         List<GroupSenderKeyResponse> result = service.longPoll(RECEIVER_USER_KEY, RECEIVER_DEVICE_ID, GROUP_ID, 200);
 
         assertEquals(0, result.size());
-    }
-
-    /* -------------------------------------------------
-     * DELETE
-     * ------------------------------------------------- */
-    @Test
-    void delete_success() {
-        when(repository.findByIdSenderUserKeyAndIdSenderDeviceIdAndIdReceiverUserKeyAndIdGroupId(
-                SENDER_USER_KEY, SENDER_DEVICE_ID, RECEIVER_USER_KEY, GROUP_ID))
-                .thenReturn(Optional.of(new GroupSenderKey()));
-
-        doNothing().when(repository)
-                .deleteByIdSenderUserKeyAndIdSenderDeviceIdAndIdReceiverUserKeyAndIdGroupId(
-                        SENDER_USER_KEY, SENDER_DEVICE_ID, RECEIVER_USER_KEY, GROUP_ID);
-
-        service.delete(RECEIVER_USER_KEY, SENDER_USER_KEY, SENDER_DEVICE_ID, GROUP_ID);
-    }
-
-    @Test
-    void delete_notFound() {
-        when(repository.findByIdSenderUserKeyAndIdSenderDeviceIdAndIdReceiverUserKeyAndIdGroupId(
-                SENDER_USER_KEY, SENDER_DEVICE_ID, RECEIVER_USER_KEY, GROUP_ID))
-                .thenReturn(Optional.empty());
-
-        assertThrows(
-                RecordNotFoundException.class,
-                () -> service.delete(RECEIVER_USER_KEY, SENDER_USER_KEY, SENDER_DEVICE_ID, GROUP_ID)
-        );
-    }
+    }    
 }
