@@ -19,6 +19,7 @@ import com.algomeet.signalservice.controller.swagger.GroupSenderKeyControllerDoc
 import com.algomeet.signalservice.dto.CommonResponse;
 import com.algomeet.signalservice.dto.GroupSenderKeyRequest;
 import com.algomeet.signalservice.dto.GroupSenderKeyResponse;
+import com.algomeet.signalservice.entity.GroupSenderKeyId;
 import com.algomeet.signalservice.enums.ResponseCode;
 import com.algomeet.signalservice.exceptions.RecordNotFoundException;
 import com.algomeet.signalservice.service.GroupSenderKeyService;
@@ -107,20 +108,38 @@ public class GroupSenderKeyController implements GroupSenderKeyControllerDoc{
 					CommonResponse.from(ResponseCode.USER_DEVICE_GROUP_SENDER_KEY_NOT_FOUND));
 		}
 	}
-
-	@DeleteMapping("/{senderDeviceId}/groups/{groupId}/sender-keys")
-	public ResponseEntity<CommonResponse<List<GroupSenderKeyResponse>>> delete(
+	
+	@DeleteMapping("/{senderDeviceId}/groups/{groupId}/sender-keys/sender")
+	public ResponseEntity<CommonResponse<?>> deleteBySender(
 			@PathVariable Integer senderDeviceId,
 			@PathVariable String groupId,
-			@RequestParam UUID senderUserKey) {
+			@RequestParam UUID receiverUserKey,
+			@RequestParam Integer receiverDeviceId) {
 		try {
-			UUID receiverUserKey = UUID.fromString(SecurityUtil.getUserKey());
-			service.delete(receiverUserKey, senderUserKey, senderDeviceId, groupId);
+			UUID senderUserKey = UUID.fromString(SecurityUtil.getUserKey());
+			service.delete(new GroupSenderKeyId(senderUserKey, senderDeviceId, receiverUserKey, receiverDeviceId, groupId));
 
 			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
 		} catch(RecordNotFoundException ex) {
 			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
 					CommonResponse.from(ResponseCode.USER_DEVICE_GROUP_SENDER_KEY_NOT_FOUND));
 		}
-	}		
+	}
+		
+	@DeleteMapping("/{receiverDeviceId}/groups/{groupId}/sender-keys/receiver")
+	public ResponseEntity<CommonResponse<?>> deleteByReceiver(
+			@PathVariable Integer receiverDeviceId,
+			@PathVariable String groupId,
+			@RequestParam UUID senderUserKey,
+			@RequestParam Integer senderDeviceId) {
+		try {
+			UUID receiverUserKey = UUID.fromString(SecurityUtil.getUserKey());
+			service.delete(new GroupSenderKeyId(senderUserKey, senderDeviceId, receiverUserKey, receiverDeviceId, groupId));
+
+			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
+		} catch(RecordNotFoundException ex) {
+			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+					CommonResponse.from(ResponseCode.USER_DEVICE_GROUP_SENDER_KEY_NOT_FOUND));
+		}
+	}
 }

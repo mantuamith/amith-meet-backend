@@ -37,18 +37,10 @@ public interface GroupSenderKeyRepository extends JpaRepository<GroupSenderKey, 
     
     List<GroupSenderKey> findByIdReceiverUserKeyAndIdReceiverDeviceIdAndIdGroupId(
             UUID receiverUserKey, Integer receiverDeviceId, String groupId);
-    
-    Optional<GroupSenderKey> findByIdSenderUserKeyAndIdSenderDeviceIdAndIdReceiverUserKeyAndIdGroupId(
-            UUID senderUserKey,
-            Integer senderDeviceId,
-            UUID receiverUserKey,
-            String groupId);
-    
+   
     @Modifying
     @Transactional
-    void deleteByIdSenderUserKeyAndIdSenderDeviceIdAndIdReceiverUserKeyAndIdGroupId(
-            UUID senderUserKey,
-            Integer senderDeviceId,
+    void deleteByIdReceiverUserKeyAndIdReceiverDeviceId(
             UUID receiverUserKey,
-            String groupId);
+            Integer receiverDeviceId);
 }

@@ -2,7 +2,6 @@ package com.algomeet.signalservice.service;
 
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -10,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.algomeet.signalservice.dto.GroupSenderKeyRequest;
 import com.algomeet.signalservice.dto.GroupSenderKeyResponse;
 import com.algomeet.signalservice.entity.GroupSenderKey;
+import com.algomeet.signalservice.entity.GroupSenderKeyId;
 import com.algomeet.signalservice.entity.UserDeviceId;
 import com.algomeet.signalservice.exceptions.RecordNotFoundException;
 import com.algomeet.signalservice.mapper.GroupSenderKeyMapper;
@@ -66,16 +66,10 @@ public class GroupSenderKeyService {
 		        .map(GroupSenderKeyMapper::toDto)
 		        .toList();
 	}
-
+	
 	@Transactional
-	public void delete(
-			UUID receiverUserKey, UUID senderUserKey, Integer senderDeviceId, String groupId) {
-
-		repository.findByIdSenderUserKeyAndIdSenderDeviceIdAndIdReceiverUserKeyAndIdGroupId(
-				senderUserKey, senderDeviceId, receiverUserKey, groupId)
-		.orElseThrow(() -> new RecordNotFoundException("Group sender key not found"));			
-		
-		repository.deleteByIdSenderUserKeyAndIdSenderDeviceIdAndIdReceiverUserKeyAndIdGroupId(senderUserKey, senderDeviceId, receiverUserKey, groupId);
-	}
+	public void delete(GroupSenderKeyId id) {		
+		repository.deleteById(id);
+	}	
 }
 

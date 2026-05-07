@@ -18,6 +18,7 @@ import com.algomeet.signalservice.dto.DevicePreKeyBundleRequest;
 import com.algomeet.signalservice.dto.DevicePreKeyBundleResponse;
 import com.algomeet.signalservice.dto.UserDeviceRequest;
 import com.algomeet.signalservice.dto.UserDeviceResponse;
+import com.algomeet.signalservice.entity.DeviceKeyBackupId;
 import com.algomeet.signalservice.entity.KyberPreKey;
 import com.algomeet.signalservice.entity.KyberPreKeyId;
 import com.algomeet.signalservice.entity.OneTimePreKey;
@@ -33,8 +34,11 @@ import com.algomeet.signalservice.mapper.KyberPreKeyMapper;
 import com.algomeet.signalservice.mapper.OneTimePreKeyMapper;
 import com.algomeet.signalservice.mapper.SignedPreKeyMapper;
 import com.algomeet.signalservice.mapper.UserDeviceMapper;
+import com.algomeet.signalservice.repository.DeviceKeyBackupRepository;
+import com.algomeet.signalservice.repository.GroupSenderKeyRepository;
 import com.algomeet.signalservice.repository.KyberPreKeyRepository;
 import com.algomeet.signalservice.repository.OneTimePreKeyRepository;
+import com.algomeet.signalservice.repository.SessionBackupRepository;
 import com.algomeet.signalservice.repository.SignedPreKeyRepository;
 import com.algomeet.signalservice.repository.UserDeviceRepository;
 import com.algomeet.signalservice.util.SecurityUtil;
@@ -49,6 +53,9 @@ public class UserDeviceService {
 	private final KyberPreKeyRepository kyberPreKeyRepository;
 	private final OneTimePreKeyRepository oneTimePreKeyRepository;
 	private final SubscriberAsyncService subscriberAsyncService;
+	private final GroupSenderKeyRepository groupSenderKeyRepository;
+	private final SessionBackupRepository sessionBackupRepository;
+	private final DeviceKeyBackupRepository deviceKeyBackupRepository;
 
 	public UserDeviceResponse registerDevice(UUID userKey, UserDeviceRequest request) {
 		// To generate new device ID, get maximum user device ID from table then increment it by 1.
@@ -112,7 +119,14 @@ public class UserDeviceService {
 		kyberPreKeyRepository.deleteById(kyberPreKeyId);
 
 		oneTimePreKeyRepository.deleteByUserKeyAndDeviceId(userKey, deviceId);
-
+				
+		groupSenderKeyRepository.deleteByIdReceiverUserKeyAndIdReceiverDeviceId(userKey, deviceId);
+		
+		// Delete backups
+		sessionBackupRepository.deleteByIdUserKeyAndIdDeviceId(userKey, deviceId);		
+		deviceKeyBackupRepository.deleteById(new DeviceKeyBackupId(userKey, deviceId));
+		
+		//Delete device
 		repository.deleteById(id);	
 		
 		// publish signal event to subscribers
