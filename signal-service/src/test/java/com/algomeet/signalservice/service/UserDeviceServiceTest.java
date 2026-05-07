@@ -26,6 +26,7 @@ import com.algomeet.signalservice.exceptions.DeviceExistsException;
 import com.algomeet.signalservice.exceptions.OneTimePreKeyExistsException;
 import com.algomeet.signalservice.exceptions.RecordNotFoundException;
 import com.algomeet.signalservice.repository.*;
+import com.algomeet.signalservice.view.*;
 
 @ExtendWith(MockitoExtension.class)
 class UserDeviceServiceTest {
@@ -93,8 +94,34 @@ class UserDeviceServiceTest {
 
     @Test
     void getDevicesByUser_success() {
-        UserDevice device = new UserDevice();
-        device.setId(new UserDeviceId(USER_KEY, 1));
+        UserDeviceView device = new UserDeviceView() {
+
+			@Override
+			public UserDeviceId getId() {
+				return new UserDeviceId(USER_KEY, 1);
+			}
+
+			@Override
+			public Integer getRegistrationId() {
+				return null;
+			}
+
+			@Override
+			public String getIdentityKey() {
+				return null;
+			}
+
+			@Override
+			public Instant getCreatedAt() {
+				return null;
+			}
+
+			@Override
+			public Instant getUpdatedAt() {
+				return null;
+			}       	
+        };
+        
 
         when(repository.findByIdUserKeyIn(List.of(USER_KEY)))
                 .thenReturn(List.of(device));

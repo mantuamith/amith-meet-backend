@@ -24,6 +24,9 @@ public enum ResponseCode {
 	GROUP_SENDER_KEY_BACKUP_EXISTS("GROUP_SENDER_KEY_BACKUP_EXISTS", "sender-key-backup.already-exists"),
 	GROUP_SENDER_KEY_BACKUP_NOT_FOUND("GROUP_SENDER_KEY_BACKUP_NOT_FOUND", "sender-key-backup.not-found"),
 	GROUP_SESSION_BACKUP_EXISTS("GROUP_SESSION_BACKUP_EXISTS", "group-session-backup.already-exists"),	
+	
+	INVALID_DATE_FORMAT("INVALID_DATE_FORMAT", "invalid-date-format"),
+	MESSAGE_SYNC_IN_PROGRESS("MESSAGE_SYNC_IN_PROGRESS", "message-sync-inprogress"),
 	;
 	
     private final String code;

@@ -23,32 +23,37 @@ public interface MucMessageRepository extends ReactiveMongoRepository<MucMessage
 			);
 
 	/**
-	 * Retrieves message records for the given room whose update cursor is newer
-	 * than the supplied cursor value.
-	 *
-	 * Used for incremental synchronization of recent changes such as:
-	 * - deleted messages
-	 * - hidden/unhidden messages
-	 * - edits
-	 * - reactions
-	 *
-	 * Comparison is lexicographical because updateCursorId is a ULID, which is
-	 * naturally sortable by time when stored as a string.
-	 *
-	 * Results are ordered by document id ascending to provide deterministic paging.
-	 *
-	 * Example:
-	 * Client sends last known cursor = "01JTABC..."
-	 * Server returns all room messages where updateCursorId > last known cursor.
-	 *
-	 * @param roomId   target MUC room identifier
-	 * @param afterId  last cursor previously received by client
-	 * @param pageable limits batch size for sync pagination
-	 * @return stream of updated message records newer than the given cursor
-	 */
-	Flux<MucMessage> findByRoomIdAndUpdateCursorIdGreaterThanOrderByIdAsc(
-			String roomId, String afterId
-			);
+     * Performs a range-based synchronization query for Multi-User Chat (MUC) messages.
+     * 
+     * <p>This method implements a synchronized "catch-up" mechanism, allowing clients to 
+     * retrieve updates that occurred after a specific state (represented by the cursor) 
+     * up to a specific snapshot point (the limit ID).</p>
+     * 
+     * <b>Query Logic:</b>
+     * <ul>
+     *   <li>{@code roomId}: Equality match for the specific chat room.</li>
+     *   <li>{@code updateCursorId}: Greater-than filter to find records modified/created 
+     *       after the client's last sync point.</li>
+     *   <li>{@code id}: Less-than-or-equal filter to ensure a deterministic result set 
+     *       and prevent "sliding window" issues where new messages arrive during the query.</li>
+     * </ul>
+     * 
+     * <b>Performance Note:</b>
+     * This method relies on an ESR-compliant (Equality, Sort, Range) compound index:
+     * {@code { "roomId": 1, "updateCursorId": 1, "id": 1 }}.
+     *
+     * @param roomId               The unique identifier of the MUC room.
+     * @param afterUpdateCursorId  The cursor ID from the last successful sync; only 
+     *                             messages with a higher cursor will be returned.
+     * @param limitId              The upper bound message ID (usually the current 
+     *                             max ID known to the server) to cap the result set.
+     * @return A {@link Flux} of {@link MucMessage} sorted chronologically by their primary ID.
+     */
+    Flux<MucMessage> findByRoomIdAndUpdateCursorIdGreaterThanAndIdLessThanEqualOrderByIdAsc(
+            String roomId, 
+            String afterUpdateCursorId, 
+            String limitId
+    );
 
 	/**
 	 * Retrieves older messages (scrolling up).

@@ -1,15 +1,24 @@
 package com.algomeet.signalservice.service;
 
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.algomeet.signalservice.client.GroupClient;
+import com.algomeet.signalservice.dto.GroupResponse;
 import com.algomeet.signalservice.dto.GroupSenderKeyRequest;
 import com.algomeet.signalservice.dto.GroupSenderKeyResponse;
+import com.algomeet.signalservice.dto.MemberResponse;
 import com.algomeet.signalservice.entity.GroupSenderKey;
+import com.algomeet.signalservice.entity.GroupSenderKeyId;
+import com.algomeet.signalservice.entity.UserDevice;
 import com.algomeet.signalservice.entity.UserDeviceId;
 import com.algomeet.signalservice.exceptions.RecordNotFoundException;
 import com.algomeet.signalservice.mapper.GroupSenderKeyMapper;
@@ -17,6 +26,7 @@ import com.algomeet.signalservice.mapper.GroupSenderKeyViewMapper;
 import com.algomeet.signalservice.repository.GroupSenderKeyRepository;
 import com.algomeet.signalservice.repository.UserDeviceRepository;
 import com.algomeet.signalservice.view.GroupSenderKeyView;
+import com.algomeet.signalservice.view.UserDeviceView;
 
 import lombok.RequiredArgsConstructor;
 
@@ -26,6 +36,7 @@ import lombok.RequiredArgsConstructor;
 public class GroupSenderKeyService {
 	private final GroupSenderKeyRepository repository;
 	private final UserDeviceRepository deviceRepository;
+	private final GroupClient groupClient;
 
 	public GroupSenderKeyResponse create(UUID senderUserKey, Integer senderDeviceId, String groupId, GroupSenderKeyRequest request) {
 		deviceRepository.findById(new UserDeviceId(senderUserKey, senderDeviceId))
@@ -47,12 +58,70 @@ public class GroupSenderKeyService {
 		return list.stream().map(GroupSenderKeyViewMapper::toDto).toList();
 	}
 
+	@Transactional(readOnly = true)
+	public List<UserDeviceView> getMissingDevices(UUID senderUserKey, String groupId) {
+	    // 1. Initial validation and early exit
+	    GroupResponse group = groupClient.getGroupById(groupId);
+	    if (group == null || group.getMembers() == null || group.getMembers().isEmpty()) {
+	        return Collections.emptyList();
+	    }
+
+	    Set<MemberResponse> members = group.getMembers();
+	    String senderKeyStr = senderUserKey.toString();
+	    
+	    // 2. Extract UUIDs - Compare as Strings first to avoid unnecessary UUID parsing
+	    List<UUID> groupMemberIds = new ArrayList<>(members.size());
+	    for (MemberResponse m : members) {
+	        String key = m.getUserKey();
+	        if (key != null && !senderKeyStr.equals(key)) {
+	            groupMemberIds.add(UUID.fromString(key));
+	        }
+	    }
+
+	    // If only the sender was in the group, no need to query devices
+	    if (groupMemberIds.isEmpty()) {
+	        return Collections.emptyList();
+	    }
+
+	    // 3. Identify devices that have already been processed
+	    // Use the UserDeviceId object itself in the Set for O(1) lookup performance
+	    List<GroupSenderKey> existingKeys = repository.findByIdSenderUserKeyAndIdGroupId(senderUserKey, groupId);
+	    Set<UserDeviceId> processedDeviceIds = new HashSet<>(existingKeys != null ? existingKeys.size() : 0);
+	    
+	    if (existingKeys != null) {
+	        for (GroupSenderKey e : existingKeys) {
+	            // Mapping GroupSenderKey parts to a UserDeviceId for direct comparison later
+	            processedDeviceIds.add(new UserDeviceId(
+	                e.getId().getReceiverUserKey(), 
+	                e.getId().getReceiverDeviceId()
+	            ));
+	        }
+	    }
+
+	    // 4. Batch fetch all devices for the group members
+	    List<UserDeviceView> deviceList = deviceRepository.findByIdUserKeyIn(groupMemberIds);
+	    if (deviceList == null || deviceList.isEmpty()) {
+	        return Collections.emptyList();
+	    }
+
+	    // 5. Filter out devices that are already in the 'processed' set
+	    List<UserDeviceView> missingDevices = new ArrayList<>();
+	    for (UserDeviceView device : deviceList) {
+	        // device.getId() returns a UserDeviceId, which has optimized equals/hashCode
+	        if (!processedDeviceIds.contains(device.getId())) {
+	            missingDevices.add(device);
+	        }
+	    }
+
+	    return missingDevices;
+	}
+
 	public List<GroupSenderKeyResponse> longPoll(
 			UUID receiverUserKey, Integer receiverDeviceId, String groupId, long timeoutMs) {
 		return getSenderKeys(
 				receiverUserKey, receiverDeviceId, groupId);
 	}
-	
+
 	public List<GroupSenderKeyResponse> getSenderKeys(
 			UUID receiverUserKey, Integer receiverDeviceId, String groupId) {
 
@@ -60,22 +129,33 @@ public class GroupSenderKeyService {
 		.orElseThrow(() -> new RecordNotFoundException("User device ID not found"));
 
 		return repository
-		        .findByIdReceiverUserKeyAndIdReceiverDeviceIdAndIdGroupId(
-		                receiverUserKey, receiverDeviceId, groupId)
-		        .stream()
-		        .map(GroupSenderKeyMapper::toDto)
-		        .toList();
+				.findByIdReceiverUserKeyAndIdReceiverDeviceIdAndIdGroupId(
+						receiverUserKey, receiverDeviceId, groupId)
+				.stream()
+				.map(GroupSenderKeyMapper::toDto)
+				.toList();
 	}
 
 	@Transactional
-	public void delete(
-			UUID receiverUserKey, UUID senderUserKey, Integer senderDeviceId, String groupId) {
+	public void delete(GroupSenderKeyId id) {		
+		repository.deleteById(id);
+	}	
 
-		repository.findByIdSenderUserKeyAndIdSenderDeviceIdAndIdReceiverUserKeyAndIdGroupId(
-				senderUserKey, senderDeviceId, receiverUserKey, groupId)
-		.orElseThrow(() -> new RecordNotFoundException("Group sender key not found"));			
-		
-		repository.deleteByIdSenderUserKeyAndIdSenderDeviceIdAndIdReceiverUserKeyAndIdGroupId(senderUserKey, senderDeviceId, receiverUserKey, groupId);
+	/**
+	 * Soft delete the record to reduce the database load this record will still be used in other queries.
+	 * @param id
+	 */
+	@Transactional
+	public void softDelete(GroupSenderKeyId id) {	
+		repository.findById(id).ifPresent(groupSenderKey -> {
+			groupSenderKey.setSkdmCipher(null);
+			groupSenderKey.setDeletedAt(Instant.now());
+			repository.save(groupSenderKey);
+		});
+	}	
+
+	private String buildReceiverDeviceKey(UUID receiverUserKey, Integer receiverDeviceId) {
+		return receiverUserKey + "_" + receiverDeviceId;
 	}
 }
 

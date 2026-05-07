@@ -112,12 +112,12 @@ public class XmppArchiveService {
 		// Strategy: If 'after' is present, we move forward in time.
 		// Otherwise (or if 'before' is present), we move backward into history.
 		if (StringUtils.hasText(afterId)) {
-			syncWithRetry(roomId, afterId, principal, queryId, maxResults);
-			
 			// Sync recent updates
 			syncRecentRoomUpdates(roomId, afterId, principal);
+			
+			loadAfterWithRetry(roomId, afterId, principal, queryId, maxResults);
 		} else {
-			loadBeforeId(ctx, roomId, beforeId, maxResults, queryId, principal);
+			loadBeforeIdWithRetry(ctx, roomId, beforeId, maxResults, queryId, principal);
 		}
 	}
 
@@ -125,7 +125,7 @@ public class XmppArchiveService {
 	 * Handles "Load Newer" or "Sync from last disconnect" logic.
 	 * Uses ASC order to stream messages from the oldest in the set to the newest.
 	 */
-	private void syncWithRetry(String roomId, String currentAfterId, XmppPrincipal principal, String queryId, int maxResults) {
+	private void loadAfterWithRetry(String roomId, String currentAfterId, XmppPrincipal principal, String queryId, int maxResults) {
 	    Pageable pageRequest = PageRequest.of(0, maxResults);
 	    
 	    repository.findByRoomIdAndIdGreaterThanAndToIsNullOrEqualtoUserkeyOrderByIdAsc(
@@ -145,7 +145,7 @@ public class XmppArchiveService {
 	                
 	                // Use fromRunnable to return Mono<Void> and trigger the next hop
 	                return Mono.fromRunnable(() -> 
-	                    syncWithRetry(roomId, newAfterId, principal, queryId, maxResults)
+	                    loadAfterWithRetry(roomId, newAfterId, principal, queryId, maxResults)
 	                );
 	            }
 
@@ -165,7 +165,7 @@ public class XmppArchiveService {
 	 * Handles "Infinite Scroll" logic (loading older messages).
 	 * Uses DESC order to find the N messages immediately preceding the 'beforeId'.
 	 */
-	private void loadBeforeId(ChannelHandlerContext ctx, String roomId, String beforeId, int maxResults, String queryId, XmppPrincipal principal) {
+	private void loadBeforeIdWithRetry(ChannelHandlerContext ctx, String roomId, String beforeId, int maxResults, String queryId, XmppPrincipal principal) {
 	    log.debug("MAM Request for Room {}: beforeId={}, max={}", roomId, beforeId, maxResults);
 
 	    PageRequest pageRequest = PageRequest.of(0, maxResults);
@@ -191,7 +191,7 @@ public class XmppArchiveService {
 	                log.debug("No authorized messages in batch for room {}. Walking back from {}", roomId, oldestIdInBatch);
 	                
 	                return Mono.fromRunnable(() -> 
-	                    loadBeforeId(ctx, roomId, oldestIdInBatch, maxResults, queryId, principal)
+	                    loadBeforeIdWithRetry(ctx, roomId, oldestIdInBatch, maxResults, queryId, principal)
 	                );
 	            }
 
@@ -296,7 +296,7 @@ public class XmppArchiveService {
 
 	    // 1. Query the repository for all message changes in this room newer than the provided ULID.
 	    // OrderByIdAsc ensures we process and dispatch updates in the exact order they occurred.
-	    repository.findByRoomIdAndUpdateCursorIdGreaterThanOrderByIdAsc(roomId, afterId)
+	    repository.findByRoomIdAndUpdateCursorIdGreaterThanAndIdLessThanEqualOrderByIdAsc(roomId, afterId, afterId)
 	        
 	        // 2. Filter: Ensure the update is relevant to the requesting principal.
 	        // This prevents leaking "Delete for Me" events or private stanzas to the wrong users.
@@ -326,15 +326,8 @@ public class XmppArchiveService {
 	 * @return A Mono<Void> that completes after the stanza is dispatched or skipped.
 	 */
 	private Mono<Void> dispatchRecentUpdatesResult(MucMessage msg, String afterId, XmppPrincipal principal) {
-	    // 1. Lexicographical Guard: 
-	    // Since ULIDs are sortable, we only proceed if msg.getId() is chronologically older than afterId. 
-		// We exclude newer messages (>= afterId) to prevent duplicate processing, 
-		// as those are handled by the standard MAM (XEP-0313) catch-up mechanism.
-		if (msg.getId() != null && msg.getId().compareTo(afterId) > 0) {
-		    return Mono.empty();
-		}
 
-	    // 2. Wrap XML generation in Mono.fromCallable to keep the logic within the reactive pipeline.
+	    // Wrap XML generation in Mono.fromCallable to keep the logic within the reactive pipeline.
 	    return Mono.fromCallable(() -> buildUpdateXml(msg, principal))
 	            .flatMap(optionalXml -> optionalXml
 	                .map(xml -> Mono.fromRunnable(() -> 
