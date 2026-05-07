@@ -127,7 +127,11 @@ public class MessageDocument {
             return true;
         }
         if (isGroupMessage()) {
-            return readByUsers != null && readByUsers.contains(userId);
+            Optional<UserStatus> existing = getReadByUsers()
+                    .stream()
+                    .filter(u -> u.getUsername().equals(userId))
+                    .findFirst();
+            return readByUsers != null && existing.isPresent();
         }
         return userId.equals(receiver) && status == MessageStatus.READ;
     }
@@ -140,7 +144,11 @@ public class MessageDocument {
             return true;
         }
         if (isGroupMessage()) {
-            return deliveredByUsers != null && deliveredByUsers.contains(userId);
+            Optional<UserStatus> existing = getReadByUsers()
+                    .stream()
+                    .filter(u -> u.getUsername().equals(userId))
+                    .findFirst();
+            return deliveredByUsers != null && existing.isPresent();
         }
         return userId.equals(receiver) && (status == MessageStatus.DELIVERED || status == MessageStatus.READ);
     }
