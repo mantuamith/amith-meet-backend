@@ -1,5 +1,6 @@
 package com.algomeet.chatservice.document;
 
+import com.algomeet.chatservice.dto.UserStatus;
 import com.algomeet.chatservice.model.MessageMediaType;
 import com.algomeet.chatservice.model.MessageStatus;
 import com.algomeet.chatservice.model.MessageType;
@@ -15,9 +16,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
 
 import java.time.Instant;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 import static java.lang.Boolean.TRUE;
 
@@ -93,10 +92,10 @@ public class MessageDocument {
     private Long msgDeliveredTimeStamp;
 
     @Field("deliveredByUsers")
-    private Set<String> deliveredByUsers = new HashSet<>();
+    private List<UserStatus> deliveredByUsers = new ArrayList<>();
 
     @Field("readByUsers")
-    private Set<String> readByUsers = new HashSet<>();
+    private List<UserStatus> readByUsers = new ArrayList<>();
 
     @Field("failedRecipients")
     private List<String> failedRecipients;
@@ -146,24 +145,38 @@ public class MessageDocument {
         return userId.equals(receiver) && (status == MessageStatus.DELIVERED || status == MessageStatus.READ);
     }
 
-    public void markReadBy(String userId) {
-        if (userId == null) {
-            return;
+    public void markReadBy(String userId, Long ts) {
+        if (getReadByUsers() == null) {
+            setReadByUsers(new ArrayList<>());
         }
-        if (readByUsers == null) {
-            readByUsers = new HashSet<>();
+
+        Optional<UserStatus> existing = getReadByUsers()
+                .stream()
+                .filter(u -> u.getUsername().equals(userId))
+                .findFirst();
+
+        if (existing.isPresent()) {
+            existing.get().setTimestamp(ts);
+        } else {
+            getReadByUsers().add(new UserStatus(userId, ts));
         }
-        readByUsers.add(userId);
     }
 
-    public void markDeliveredTo(String userId) {
-        if (userId == null) {
-            return;
-        }
+    public void markDeliveredTo(String userId, Long ts) {
         if (deliveredByUsers == null) {
-            deliveredByUsers = new HashSet<>();
+            setDeliveredByUsers(new ArrayList<>());
         }
-        deliveredByUsers.add(userId);
+
+        Optional<UserStatus> existing = getDeliveredByUsers()
+                .stream()
+                .filter(u -> u.getUsername().equals(userId))
+                .findFirst();
+
+        if (existing.isPresent()) {
+            existing.get().setTimestamp(ts);
+        } else {
+            deliveredByUsers.add(new UserStatus(userId, ts));
+        }
     }
 
     // TODO(migration): when you move “delete for me” to UUIDs, add:

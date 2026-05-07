@@ -1,6 +1,7 @@
 package com.algomeet.chatservice.document;
 
 import com.algomeet.chatservice.dto.MessageStatusUpdate;
+import com.algomeet.chatservice.dto.UserStatus;
 import com.algomeet.chatservice.model.MessageStatus;
 import com.algomeet.chatservice.model.MessageType;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -38,5 +39,8 @@ public class MessageResponse {
     private Long msgReadTimeStamp;
 
     private Long msgDeliveredTimeStamp;
+
+    private List<UserStatus> readByUsers;
+    private List<UserStatus> deliveredByUsers;
 
 }

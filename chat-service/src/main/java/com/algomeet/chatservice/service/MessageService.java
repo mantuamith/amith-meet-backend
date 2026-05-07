@@ -259,7 +259,7 @@ public class MessageService {
         if (message == null || !message.isGroupMessage()) {
             return;
         }
-        message.markReadBy(message.getSender());
+        message.markReadBy(message.getSender(), Instant.now().toEpochMilli());
     }
 
     private boolean isUnreadForThread(MessageDocument message, String userId, String threadId) {
@@ -348,8 +348,11 @@ public class MessageService {
                 if (isGroupMember(message.getGroupId(), receiverUsername)
                         && !receiverUsername.equals(message.getSender())
                         && !message.isDeliveredTo(receiverUsername)) {
-                    message.markDeliveredTo(receiverUsername);
-                    message.setStatus(MessageStatus.DELIVERED);
+
+                    message.markDeliveredTo(receiverUsername, deliverStatus.getStatusTimeStamp());
+                    if (message.getStatus() == MessageStatus.SENT) {
+                        message.setStatus(MessageStatus.DELIVERED);
+                    }
                     message.setMsgDeliveredTimeStamp(deliverStatus.getStatusTimeStamp());
                     messages.add(message);
                 }
@@ -388,11 +391,14 @@ public class MessageService {
         List<MessageDocument> candidates = messageRepository.findAllById(readUpdate.getMessageIds());
         List<MessageDocument> messages = new ArrayList<>();
         for (MessageDocument message : candidates) {
+            if (!message.isVisibleTo(readerId))
+                continue;
+
             if (message.isGroupMessage()) {
                 if (isGroupMember(message.getGroupId(), readerId)
                         && !readerId.equals(message.getSender())
                         && !message.isReadBy(readerId)) {
-                    message.markReadBy(readerId);
+                    message.markReadBy(readerId,  readUpdate.getStatusTimeStamp());
                     messages.add(message);
                 }
                 continue;
@@ -453,7 +459,7 @@ public class MessageService {
                         && !reqSenderId.equals(message.getSender())
                         && !message.isReadBy(reqSenderId)) {
 
-                    message.markReadBy(reqSenderId);
+                    message.markReadBy(reqSenderId, Instant.now().toEpochMilli());
                     messages.add(message);
                 }
                 continue;
@@ -463,7 +469,7 @@ public class MessageService {
                     && message.getStatus() != MessageStatus.READ) {
 
                 message.setStatus(MessageStatus.READ);
-                message.setMsgReadTimeStamp(Instant.now().getEpochSecond());
+                message.setMsgReadTimeStamp(Instant.now().toEpochMilli());
                 messages.add(message);
             }
         }
