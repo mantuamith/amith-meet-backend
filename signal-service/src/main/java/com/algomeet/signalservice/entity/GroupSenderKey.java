@@ -13,36 +13,41 @@ import lombok.Data;
 @Data
 @Entity
 @Table(
-	    name = "signal_group_sender_keys",
-	    indexes = {
-	        @Index(
-	            name = "idx_receiver_user_device_group",
-	            columnList = "receiver_user_key, receiver_device_id, group_id"
-	        ),
-	        @Index(
-		            name = "idx_sender_user_device_group",
-		            columnList = "sender_user_key, sender_device_id, group_id"
-		        )
-	        ,
-	        @Index(
-		            name = "idx_receiver_user_device",
-		            columnList = "receiver_user_key, receiver_device_id"
-		        )
-	    }
-	)
+		name = "signal_group_sender_keys",
+		indexes = {
+				@Index(
+						name = "idx_receiver_user_device_group",
+						columnList = "receiver_user_key, receiver_device_id, group_id"
+						),
+				@Index(
+						name = "idx_sender_user_device_group",
+						columnList = "sender_user_key, sender_device_id, group_id"
+						),
+				@Index(
+						name = "idx_receiver_user_device",
+						columnList = "receiver_user_key, receiver_device_id"
+						),
+				@Index(
+						name = "idx_sender_user_group",
+						columnList = "sender_user_key, group_id"
+						)
+		})
 public class GroupSenderKey {
 	@EmbeddedId
 	private GroupSenderKeyId id;
-	
+
 	/** Sender key distribution message */
-    @Column(nullable = false, length = 3000)
+	@Column(nullable = false, length = 3000)
 	private String skdmCipher;
-    		
+
 	private Instant createdAt;
-	
-    @PrePersist
-    protected void onCreate() {
-        Instant now = Instant.now();
-        this.createdAt = now;
-    }
+
+	/** Soft delete */
+	private Instant deletedAt;
+
+	@PrePersist
+	protected void onCreate() {
+		Instant now = Instant.now();
+		this.createdAt = now;
+	}
 }

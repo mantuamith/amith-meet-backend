@@ -7,6 +7,7 @@ import com.algomeet.signalservice.dto.UserDeviceRequest;
 import com.algomeet.signalservice.dto.UserDeviceResponse;
 import com.algomeet.signalservice.entity.UserDevice;
 import com.algomeet.signalservice.entity.UserDeviceId;
+import com.algomeet.signalservice.view.UserDeviceView;
 
 public class UserDeviceMapper {	
     public static UserDevice toEntity(UUID userKey, Integer deviceId, UserDeviceRequest dto) {
@@ -20,6 +21,18 @@ public class UserDeviceMapper {
     }
 
     public static UserDeviceResponse toResponse(UserDevice device) {
+        UserDeviceResponse dto = new UserDeviceResponse();
+        dto.setUserKey(device.getId().getUserKey());
+        dto.setDeviceId(device.getId().getDeviceId());
+        dto.setRegistrationId(device.getRegistrationId());
+        dto.setIdentityKey(device.getIdentityKey());
+        
+        dto.setCreatedAt(device.getCreatedAt());
+        dto.setUpdatedAt(device.getUpdatedAt());
+        return dto;
+    }
+    
+    public static UserDeviceResponse toResponse(UserDeviceView device) {
         UserDeviceResponse dto = new UserDeviceResponse();
         dto.setUserKey(device.getId().getUserKey());
         dto.setDeviceId(device.getId().getDeviceId());

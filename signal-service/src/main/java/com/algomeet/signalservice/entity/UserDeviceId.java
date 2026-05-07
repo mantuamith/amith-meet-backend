@@ -14,8 +14,7 @@ import lombok.NoArgsConstructor;
 @Embeddable
 @Data
 public class UserDeviceId implements Serializable {
-    private static final long serialVersionUID = 1L;
-    
+    private static final long serialVersionUID = 1L;    
 	private UUID userKey;
 	
     private Integer deviceId;

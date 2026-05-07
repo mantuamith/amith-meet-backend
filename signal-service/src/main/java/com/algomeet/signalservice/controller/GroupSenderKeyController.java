@@ -71,6 +71,22 @@ public class GroupSenderKeyController implements GroupSenderKeyControllerDoc{
 		}
 	}
 	
+	@GetMapping("/missing-sender-keys/groups/{groupId}")
+	public ResponseEntity<CommonResponse<List<GroupSenderKeyResponse>>> getMissingSenderKeys(
+			@PathVariable String groupId) {
+
+		UUID senderUserKey = UUID.fromString(SecurityUtil.getUserKey());
+		try {
+          
+
+			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS,
+					null));
+		} catch (RecordNotFoundException ex) {
+			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+					CommonResponse.from(ResponseCode.USER_DEVICE_ID_NOT_FOUND));
+		}
+	}
+	
 	/** Receiver device polls for SKDM */
 	@Deprecated
 	@GetMapping("/{receiverDeviceId}/groups/{groupId}/sender-keys/poll")
@@ -134,7 +150,7 @@ public class GroupSenderKeyController implements GroupSenderKeyControllerDoc{
 			@RequestParam Integer senderDeviceId) {
 		try {
 			UUID receiverUserKey = UUID.fromString(SecurityUtil.getUserKey());
-			service.delete(new GroupSenderKeyId(senderUserKey, senderDeviceId, receiverUserKey, receiverDeviceId, groupId));
+			service.softDelete(new GroupSenderKeyId(senderUserKey, senderDeviceId, receiverUserKey, receiverDeviceId, groupId));
 
 			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
 		} catch(RecordNotFoundException ex) {

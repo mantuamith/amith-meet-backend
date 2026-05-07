@@ -240,9 +240,9 @@ public class UserDeviceService {
 	@Transactional(readOnly = true)
 	private List<UserDevice> getDevicesOptimized(UUID userKey, Optional<List<Integer>> deviceIds) {
 		if (deviceIds.isPresent()) {
-			return repository.findAllByUserKeyAndDeviceIdsWithKeys(userKey, deviceIds.get());
+			return repository.findByIdUserKeyAndIdDeviceIdIn(userKey, deviceIds.get());
 		} else {
-			return repository.findAllByUserKeyWithKeys(userKey);
+			return repository.findByIdUserKey(userKey);
 		}
 	}
 

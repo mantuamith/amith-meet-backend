@@ -12,7 +12,7 @@ import com.algomeet.signalservice.dto.StorageUsageAdjustmentRequest;
 import com.algomeet.signalservice.dto.StorageUsageResponse;
 
 
-@FeignClient(name = "media-service", url = "${media.service.url}")
+@FeignClient(name = "media-service", url = "${feign.client.media-service.url}")
 public interface MediaClient {
 
 	@PutMapping("/internal/media/users/{userKey}/storage-usage")
