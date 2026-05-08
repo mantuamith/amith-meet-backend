@@ -10,9 +10,11 @@ import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.dto.MucMember;
 import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
 import com.algomeet.xmpp.chatservice.enums.PresenceMetaAction;
+import com.algomeet.xmpp.chatservice.enums.PresenceType;
 import com.algomeet.xmpp.chatservice.routing.muc.events.MucAcceptInviteEventHandler;
 import com.algomeet.xmpp.chatservice.routing.muc.events.MucChangeNickNameEventHandler;
 import com.algomeet.xmpp.chatservice.routing.muc.events.MucMemberJoinEventHandler;
+import com.algomeet.xmpp.chatservice.routing.muc.events.MucMemberLeftEventHandler;
 import com.algomeet.xmpp.chatservice.routing.muc.events.MucMemberPresenceEventHandler;
 import com.algomeet.xmpp.chatservice.service.GroupCacheService;
 import com.algomeet.xmpp.chatservice.util.MucMetaActionParser;
@@ -41,6 +43,7 @@ public class MucUserCommandRouter {
 	private final MucChangeNickNameEventHandler mucChangeNickNameEventHandler;
 	private final MucMemberJoinEventHandler mucMemberJoinEventHandler;
 	private final MucMemberPresenceEventHandler mucMemberPresenceEventHandler;
+	private final MucMemberLeftEventHandler mucMemberLeftEventHandler;
 	/**
 	 * Top-level handler for incoming command stanzas targeting a specific room.
 	 * * @param ctx       The Netty channel context for the current session.
@@ -50,10 +53,10 @@ public class MucUserCommandRouter {
 	 * @param group     The room DTO containing current occupant information.
 	 * @param sender    The MUC member profile of the initiator.
 	 */
-	public void handleCommandStanza(ChannelHandlerContext ctx, String roomJid, String senderJid, String xml, XmppPrincipal principal) {
+	public void handleCommandStanza(ChannelHandlerContext ctx, String type, String roomJid, String senderJid, String xml, XmppPrincipal principal) {
 		// Set tenant Id to support multi-tenancy 
 		TenantContext.setCurrentTenant(principal.getTenantId());
-		
+
 		Optional<String> actionOpt = MucMetaActionParser.extractAction(xml);
 		String action = actionOpt.orElse(null);
 
@@ -63,10 +66,11 @@ public class MucUserCommandRouter {
 			Optional<MucMember> senderMucMember = group.getMembers().stream()
 					.filter(m -> m.getUserKey().equals(principal.getUserKey()))
 					.findFirst();
-			
+
 			mucAcceptInviteEventHandler.handleAcceptedInvite(ctx,  roomJid, xml, group, senderMucMember.get());
-		} else {
 			
+		} else {
+
 			// Get group from cache
 			MucRoomDto group = groupCacheService.getCachedGroup(XmppUtil.getRoomId(roomJid));
 			Optional<MucMember> senderMucMember = group.getMembers().stream()
@@ -75,19 +79,21 @@ public class MucUserCommandRouter {
 
 			String[] roomJidArr = roomJid.split("/");
 			String resoure = null;
-			
+
 			if(roomJidArr.length > 1 && StringUtils.hasText(roomJidArr[1])) {
 				resoure = roomJidArr[1].trim();
 			}
 
 			if (isPublishPresenceRequest(xml)) {
-				mucMemberJoinEventHandler.handleMemberJoin(ctx,  roomJid, xml, group, senderMucMember.get());
-
+				mucMemberJoinEventHandler.handleMemberJoin(ctx, roomJid, xml, group, senderMucMember.get());	
+				
+			} else if (PresenceType.UNAVAILABLE.getValue().equals(type)) {
+				mucMemberLeftEventHandler.handleMemberLeftRoom(ctx, roomJid, xml, group, senderMucMember.get());
+				
 			} else if (resoure != null && resoure.trim().equalsIgnoreCase(senderMucMember.get().getUserKey())) {
 				mucMemberPresenceEventHandler.handleMemberPresence(ctx, roomJid, xml, group, senderMucMember.get());
-
+			
 			} else {
-				
 				mucChangeNickNameEventHandler.handleChangeNicknameRequest(ctx, roomJid, xml, group, senderMucMember.get());
 			}
 		}

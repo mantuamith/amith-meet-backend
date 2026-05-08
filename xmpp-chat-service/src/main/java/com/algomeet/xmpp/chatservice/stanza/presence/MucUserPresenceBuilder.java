@@ -13,6 +13,7 @@ import java.util.List;
 public class MucUserPresenceBuilder {
 
     private String fromRoomJid;
+    private String type;
     private String nickname;
     private String toJid;
     private String affiliation;
@@ -31,6 +32,11 @@ public class MucUserPresenceBuilder {
     public MucUserPresenceBuilder from(String roomJid, String nickname) {
         this.fromRoomJid = roomJid;
         this.nickname = nickname;
+        return this;
+    }
+    
+    public MucUserPresenceBuilder type(String type) {
+        this.type = type;
         return this;
     }
 
@@ -88,6 +94,7 @@ public class MucUserPresenceBuilder {
         // Presence Opening Tag
         xml.append("<presence from='").append(fromRoomJid).append("/").append(nickname).append("'");
         if (toJid != null) xml.append(" to='").append(toJid).append("'");
+        if (type != null) xml.append(" type='").append(type).append("'");
         xml.append(">");
 
         // MUC User Extension
