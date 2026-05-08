@@ -249,7 +249,7 @@ public class MucAddMemberEventHandler {
 		 * ----------------------------------------------------------
 		 * Human-readable audit trail message.
 		 */
-		String stanzaId = UUID.randomUUID().toString();
+		String messageId = UUID.randomUUID().toString();
 
 		String body =
 				sender.getUsername()
@@ -257,7 +257,7 @@ public class MucAddMemberEventHandler {
 				+ newMemberOpt.get().getUsername();
 
 		String xmlLogStanza = buildMemberAddedLogStanza(
-				stanzaId,
+				messageId,
 				senderJid,
 				roomBareJid,
 				body,
@@ -274,7 +274,7 @@ public class MucAddMemberEventHandler {
 		// Insert stanza ID
 		String forArchiveXmlLog = XmppStanzaUtil.insertStanzaId(xmlLogStanza, ulidString, domainProperties.getDomain());
 		
-		saveToDatabase(stanzaId, roomBareJid, senderJid, group,	sender,	ulidString, forArchiveXmlLog);
+		saveToDatabase(messageId, roomBareJid, senderJid, group,	sender,	ulidString, forArchiveXmlLog);
 
 		/**
 		 * ----------------------------------------------------------
@@ -284,7 +284,7 @@ public class MucAddMemberEventHandler {
 		 */
 		xmppBroadCastHandler.broadcastToOccupants(
 				ctx,
-				stanzaId,
+				messageId,
 				roomJid,
 				senderJid,
 				XmppMessageType.GROUPCHAT,

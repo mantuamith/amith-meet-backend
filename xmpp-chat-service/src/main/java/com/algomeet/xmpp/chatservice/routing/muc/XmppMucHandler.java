@@ -106,7 +106,7 @@ public class XmppMucHandler {
 			mucAdminCommandRouter.handleCommandStanza(ctx, toRoomJid, originalXml, senderMucMember.get(), principal);
 		} else if(isUserCommandStanza(originalXml, toRoomJid)) {
 			// MUC User actions (nickname changes, room entry)
-			mucUserCommandRouter.handleCommandStanza(ctx, toRoomJid, principal.getBareJid(), originalXml, principal);	
+			mucUserCommandRouter.handleCommandStanza(ctx, type, toRoomJid,  principal.getBareJid(), originalXml, principal);	
 		
 		} else if(XmppStanzaUtil.isRetractStanza(originalXml)) {
 				mucRetractionService.retract(ctx, id, toRoomJid, principal.getBareJid(), originalXml, principal);								
