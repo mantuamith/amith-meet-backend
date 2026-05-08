@@ -179,13 +179,13 @@ public class GroupSenderKeyService {
 	}
 		
 	@Transactional
-	public void delete(String currentUserKey, String groupId) {
-		
+	public void delete(String currentUserKey, String groupId) {		
 	    GroupResponse group = groupClient.getGroupById(groupId);
 	    if (!(group == null || group.getMembers() == null || group.getMembers().isEmpty())) {
 	    	if(!(group.getMembers().stream()
 	    			.anyMatch(m -> m.getUserKey().equals(currentUserKey) 
 	    					&& (GroupRole.OWNER ==  m.getRole() || GroupRole.ADMIN ==  m.getRole())))) {
+	    		// Not authorize to delete the group sender keys
 	    		return;
 	    	}
 	    }
