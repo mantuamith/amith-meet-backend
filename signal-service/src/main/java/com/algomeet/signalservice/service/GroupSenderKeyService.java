@@ -21,6 +21,7 @@ import com.algomeet.signalservice.dto.UserDeviceResponse;
 import com.algomeet.signalservice.entity.GroupSenderKey;
 import com.algomeet.signalservice.entity.GroupSenderKeyId;
 import com.algomeet.signalservice.entity.UserDeviceId;
+import com.algomeet.signalservice.enums.GroupRole;
 import com.algomeet.signalservice.exceptions.RecordNotFoundException;
 import com.algomeet.signalservice.mapper.GroupSenderKeyMapper;
 import com.algomeet.signalservice.mapper.GroupSenderKeyViewMapper;
@@ -66,14 +67,12 @@ public class GroupSenderKeyService {
 	public List<UserDeviceResponse> getMissingDevices(UUID senderUserKey, String groupId) {
 	    // 1. Initial validation and early exit
 	    GroupResponse group = groupClient.getGroupById(groupId);
-	    log.info("group {} ", group);
 	    if (group == null || group.getMembers() == null || group.getMembers().isEmpty()) {
 	        return Collections.emptyList();
 	    }
 
 	    Set<MemberResponse> members = group.getMembers();
 	    String senderKeyStr = senderUserKey.toString();
-	    log.info("group {} ", members);
 	    
 	    // 2. Extract UUIDs - Compare as Strings first to avoid unnecessary UUID parsing
 	    List<UUID> groupMemberIds = new ArrayList<>(members.size());
@@ -93,16 +92,10 @@ public class GroupSenderKeyService {
 	    // Use the UserDeviceId object itself in the Set for O(1) lookup performance
 	    List<GroupSenderKeyView> existingKeys = repository.findByIdSenderUserKeyAndIdGroupId(senderUserKey, groupId);
 	    Set<UserDeviceId> processedDeviceIds = new HashSet<>(existingKeys != null ? existingKeys.size() : 0);
-	    
-	    log.info("existingKeys {} ", existingKeys);
+
 	    if (existingKeys != null) {
 	        for (GroupSenderKeyView e : existingKeys) {
-	            // Mapping GroupSenderKey parts to a UserDeviceId for direct comparison later
-	        	
-	        	log.info("GroupSenderKeyView {} ", new UserDeviceId(
-		                e.getReceiverUserKey(), 
-		                e.getReceiverDeviceId()
-		            ));
+	            // Mapping GroupSenderKey parts to a UserDeviceId for direct comparison later	        	
 	            processedDeviceIds.add(new UserDeviceId(
 	                e.getReceiverUserKey(), 
 	                e.getReceiverDeviceId()
@@ -186,8 +179,18 @@ public class GroupSenderKeyService {
 	}
 		
 	@Transactional
-	public void delete(String groupId) {	
-		if(repository.findByIdGroupId(groupId).isEmpty()) {
+	public void delete(String currentUserKey, String groupId) {
+		
+	    GroupResponse group = groupClient.getGroupById(groupId);
+	    if (!(group == null || group.getMembers() == null || group.getMembers().isEmpty())) {
+	    	if(!(group.getMembers().stream()
+	    			.anyMatch(m -> m.getUserKey().equals(currentUserKey) 
+	    					&& (GroupRole.OWNER ==  m.getRole() || GroupRole.ADMIN ==  m.getRole())))) {
+	    		return;
+	    	}
+	    }
+	    
+		if(repository.findFirstByIdGroupId(groupId).isEmpty()) {
 			throw new RecordNotFoundException("Group sender keys not found");
 		}
 		

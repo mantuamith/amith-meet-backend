@@ -1,6 +1,7 @@
 package com.algomeet.signalservice.repository;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -62,7 +63,7 @@ public interface GroupSenderKeyRepository extends JpaRepository<GroupSenderKey, 
             UUID receiverUserKey,
             Integer receiverDeviceId);
     
-    List<GroupSenderKeyView> findByIdGroupId(String groupId);
+    Optional<GroupSenderKeyView> findFirstByIdGroupId(String groupId);
     
     @Modifying
     @Transactional

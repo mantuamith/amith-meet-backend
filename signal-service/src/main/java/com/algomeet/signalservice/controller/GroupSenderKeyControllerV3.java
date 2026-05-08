@@ -173,8 +173,8 @@ public class GroupSenderKeyControllerV3 implements GroupSenderKeyControllerV3Doc
             @PathVariable String groupId) {
         try {
             UUID receiverUserKey = currentUserKey();
-
-            service.delete(groupId);
+            // Delete group sender keys
+            service.delete(receiverUserKey.toString(), groupId);
 
             return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
         } catch (RecordNotFoundException ex) {
