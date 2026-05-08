@@ -24,6 +24,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
@@ -177,30 +178,124 @@ public class MessageActionService {
     }
 
     public void forwardBatch(
-            List<ForwardRequest>  req,
+            List<ForwardRequest> req,
             String sender,
             String senderKey
     ) {
 
-        if (req == null  || req.isEmpty()) {
+        if (req == null || req.isEmpty()) {
             return;
         }
 
-        List<ForwardRequest> ordered = req
-                .stream()
+        List<ForwardRequest> ordered = req.stream()
                 .sorted(Comparator.comparing(
                         ForwardRequest::getSequence,
                         Comparator.nullsLast(Integer::compareTo)
                 ))
                 .toList();
 
+        List<MessageDocument> savedDocs = new ArrayList<>();
+
         for (ForwardRequest item : ordered) {
 
             MessageDocument saved = forward(item, sender, senderKey);
 
             if (saved != null) {
-                dispatchNewMessage(saved);
+                savedDocs.add(saved);
             }
+        }
+
+        dispatchForwardBatch(savedDocs);
+    }
+
+    public void dispatchForwardBatch(List<MessageDocument> docs) {
+
+        if (docs == null || docs.isEmpty()) {
+            return;
+        }
+
+        try {
+
+            List<MessageResponse> responses = docs.stream()
+                    .map(messageMapper::toResponse)
+                    .toList();
+
+            MessageDocument first = docs.get(0);
+
+            // ===================================
+            // GROUP FLOW
+            // ===================================
+            if (first.isGroupMessage()) {
+
+                GroupDto group = groupClient.getGroupById(first.getGroupId());
+
+                if (group == null || group.getMembers() == null) {
+                    return;
+                }
+
+                // sender sync
+                messagingSyncTemplate.convertAndSendToUser(
+                        first.getSender(),
+                        "/queue/update_message_batch",
+                        ForwardBatchResponse.builder()
+                                .messages(responses)
+                                .build()
+                );
+
+                // group members
+                for (Member member : group.getMembers()) {
+
+                    if (member == null || member.getUsername() == null) {
+                        continue;
+                    }
+
+                    if (!member.getUsername().equals(first.getSender())) {
+
+                        messagingSyncTemplate.convertAndSendToUser(
+                                member.getUsername(),
+                                "/queue/messages_batch",
+                                ForwardBatchResponse.builder()
+                                        .messages(responses)
+                                        .build()
+                        );
+
+                        messageService.sendUnreadCountUpdate(member.getUsername());
+                    }
+                }
+
+                return;
+            }
+
+            // ===================================
+            // DIRECT FLOW
+            // ===================================
+            messagingSyncTemplate.convertAndSendToUser(
+                    first.getReceiver(),
+                    "/queue/messages_batch",
+                    ForwardBatchResponse.builder()
+                            .messages(responses)
+                            .build()
+            );
+
+            messageService.sendUnreadCountUpdate(first.getReceiver());
+
+            messagingSyncTemplate.convertAndSendToUser(
+                    first.getSender(),
+                    "/queue/update_message_batch",
+                    ForwardBatchResponse.builder()
+                            .messages(responses)
+                            .build()
+            );
+
+            messageService.sendUnreadCountUpdate(first.getSender());
+
+        } catch (Exception ex) {
+
+            log.error(
+                    "[Batch Dispatch ERROR] error={}",
+                    ex.getMessage(),
+                    ex
+            );
         }
     }
 
@@ -331,12 +426,6 @@ public class MessageActionService {
         // 🔥 GROUP READ TRACKING
         // ===============================
         messageService.initializeReadTracking(fwd);
-
-        // ===============================
-        // 🔥 SAVE + DISPATCH
-        // ===============================
-
-        //dispatchNewMessage(saved);
 
         return messageRepository.save(fwd);
     }
