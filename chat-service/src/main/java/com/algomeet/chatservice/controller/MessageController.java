@@ -208,4 +208,31 @@ import jakarta.validation.Valid;
             return ResponseEntity.ok(new ClearChatResult(affected, req.getContactId()));
         }
 
+        @GetMapping("/group/{groupId}/{messageId}/receipts")
+        public ResponseEntity<GroupMessageReceiptResponse> getGroupReceipts(
+                @PathVariable String groupId,
+                @PathVariable String messageId
+        ) {
+            String currentUser = SecurityContextHolder.getContext().getAuthentication().getName();
+
+            GroupDto group = groupClient.getGroupById(groupId);
+
+            boolean member = group.getMembers()
+                    .stream()
+                    .anyMatch(m -> currentUser.equals(m.getUsername()));
+
+            if (!member) {
+                throw new RuntimeException("Access denied");
+            }
+
+            GroupMessageReceiptResponse response =
+                    messageService.getGroupMessageReceipts(groupId, messageId);
+
+            if (response == null) {
+                return ResponseEntity.notFound().build();
+            }
+
+            return ResponseEntity.ok(response);
+        }
+
     }
