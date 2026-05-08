@@ -664,4 +664,63 @@ public class MessageService {
         markMessagesAsDelivered(msUpdate, receiverUsername);
     }
 
+    public GroupMessageReceiptResponse getGroupMessageReceipts(
+            String groupId,
+            String messageId
+    ) {
+
+        if (!hasText(groupId) || !hasText(messageId)) {
+            return null;
+        }
+
+        MessageDocument msg = messageRepository
+                .findById(messageId)
+                .orElse(null);
+
+        if (msg == null) {
+            return null;
+        }
+
+        // ✅ must be group message
+        if (!msg.isGroupMessage()) {
+            return null;
+        }
+
+        // ✅ validate group ownership
+        if (!groupId.equals(msg.getGroupId())) {
+            return null;
+        }
+
+        List<UserStatus> delivered =
+                msg.getDeliveredByUsers() != null
+                        ? msg.getDeliveredByUsers()
+                        .stream()
+                        .filter(Objects::nonNull)
+                        .filter(u -> u.getUsername() != null)
+                        .filter(u -> !u.getUsername().equals(msg.getSender()))
+                        .sorted(Comparator.comparing(UserStatus::getTimestamp))
+                        .toList()
+                        : List.of();
+
+        List<UserStatus> read =
+                msg.getReadByUsers() != null
+                        ? msg.getReadByUsers()
+                        .stream()
+                        .filter(Objects::nonNull)
+                        .filter(u -> u.getUsername() != null)
+                        .filter(u -> !u.getUsername().equals(msg.getSender()))
+                        .sorted(Comparator.comparing(UserStatus::getTimestamp))
+                        .toList()
+                        : List.of();
+
+        return new GroupMessageReceiptResponse(
+                groupId,
+                msg.getId(),
+                delivered.size(),
+                read.size(),
+                delivered,
+                read
+        );
+    }
+
 }
