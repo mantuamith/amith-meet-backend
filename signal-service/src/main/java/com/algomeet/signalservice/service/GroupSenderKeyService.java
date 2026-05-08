@@ -9,6 +9,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -177,7 +179,18 @@ public class GroupSenderKeyService {
 	        entity.setDeletedAt(Instant.now());
 	    });
 	}
+	
+	@Transactional
+	public void delete(UUID senderUserKey, UUID receiverUserKey, String groupId) {	
+		Pageable limitOne = PageRequest.of(0, 1);
 		
+		if(repository.findFirstBySenderUserKeyAndReceiverUserKeyAndGroupId(senderUserKey, receiverUserKey, groupId, limitOne).isEmpty()) {
+			throw new RecordNotFoundException("Group sender keys not found");
+		}
+
+		repository.deleteByIdSenderUserKeyAndIdReceiverUserKeyAndIdGroupId(senderUserKey, receiverUserKey, groupId);
+	}
+			
 	@Transactional
 	public void delete(String currentUserKey, String groupId) {		
 	    GroupResponse group = groupClient.getGroupById(groupId);
@@ -189,8 +202,9 @@ public class GroupSenderKeyService {
 	    		return;
 	    	}
 	    }
+	    Pageable limitOne = PageRequest.of(0, 1);
 	    
-		if(repository.findFirstByIdGroupId(groupId).isEmpty()) {
+		if(repository.findFirstByGroupId(groupId, limitOne).isEmpty()) {
 			throw new RecordNotFoundException("Group sender keys not found");
 		}
 		

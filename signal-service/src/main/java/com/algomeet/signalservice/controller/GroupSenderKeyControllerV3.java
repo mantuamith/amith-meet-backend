@@ -167,6 +167,24 @@ public class GroupSenderKeyControllerV3 implements GroupSenderKeyControllerV3Doc
         }
     }
     
+    /** Delete receiver member key mapping */
+    @DeleteMapping("/members/{receiverUserKey}")
+    public ResponseEntity<CommonResponse<?>> deleteSenderKeys(
+            @PathVariable String groupId,
+            @PathVariable UUID receiverUserKey) {
+
+        try {
+            UUID senderUserKey = currentUserKey();
+
+            service.delete(senderUserKey, receiverUserKey, groupId);
+
+            return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
+        } catch (RecordNotFoundException ex) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(CommonResponse.from(ResponseCode.USER_DEVICE_GROUP_SENDER_KEY_NOT_FOUND));
+        }
+    }       
+    
     /** delete */
     @DeleteMapping
     public ResponseEntity<CommonResponse<?>> delete(
