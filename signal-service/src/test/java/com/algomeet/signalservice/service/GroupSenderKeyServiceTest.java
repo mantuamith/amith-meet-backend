@@ -133,6 +133,11 @@ class GroupSenderKeyServiceTest {
 			@Override
 			public Instant getCreatedAt() {
 				return null;
+			}
+
+			@Override
+			public Instant getDeletedAt() {
+				return null;
 			}        	
         };
        
@@ -172,7 +177,7 @@ class GroupSenderKeyServiceTest {
         when(deviceRepository.findById(new UserDeviceId(RECEIVER_USER_KEY, RECEIVER_DEVICE_ID)))
                 .thenReturn(Optional.of(userDevice));
 
-        when(repository.findByIdReceiverUserKeyAndIdReceiverDeviceIdAndIdGroupId(
+        when(repository.findByIdReceiverUserKeyAndIdReceiverDeviceIdAndIdGroupIdAndDeletedAtIsNull(
                 RECEIVER_USER_KEY, RECEIVER_DEVICE_ID, GROUP_ID))
                 .thenReturn(List.of(groupSenderKey));
 
@@ -197,7 +202,7 @@ class GroupSenderKeyServiceTest {
         when(deviceRepository.findById(new UserDeviceId(RECEIVER_USER_KEY, RECEIVER_DEVICE_ID)))
                 .thenReturn(Optional.of(new UserDevice()));
 
-        when(repository.findByIdReceiverUserKeyAndIdReceiverDeviceIdAndIdGroupId(
+        when(repository.findByIdReceiverUserKeyAndIdReceiverDeviceIdAndIdGroupIdAndDeletedAtIsNull(
                 RECEIVER_USER_KEY, RECEIVER_DEVICE_ID, GROUP_ID))
                 .thenReturn(List.of()); // no pending keys
 
