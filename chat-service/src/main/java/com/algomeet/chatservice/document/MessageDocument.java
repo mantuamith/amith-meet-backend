@@ -80,8 +80,6 @@ public class MessageDocument {
     private List<MediaItem> mediaGroup;    // optional media items
     private MessageMetaData metaData;      // reply, reactions, etc.
     private ForwardInfo forwarded;         // forward tracking
-    @Field("sequence")
-    private Integer sequence;
 
     private ReplyContent replyContent;
 

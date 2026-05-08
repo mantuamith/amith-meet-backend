@@ -318,6 +318,7 @@ public class MessageActionService {
         fi.setForwarded(true);
         fi.setOriginalFrom(original.getSender());
         fi.setOriginalMessageId(original.getId());
+        fi.setSequence(req.getSequence());
         fi.setForwardedAt(
                 req.getMsgForwardTimeStamp() != null
                         ? req.getMsgForwardTimeStamp()
@@ -325,7 +326,6 @@ public class MessageActionService {
         );
 
         fwd.setForwarded(fi);
-        fwd.setSequence(req.getSequence());
         fwd.setStatus(MessageStatus.SENT);
         // ===============================
         // 🔥 GROUP READ TRACKING
@@ -380,6 +380,12 @@ public class MessageActionService {
                             "/queue/update_message",
                             resp
                     );
+
+                    try {
+                        Thread.sleep(15);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
                 }
 
             } catch (Exception ex) {
