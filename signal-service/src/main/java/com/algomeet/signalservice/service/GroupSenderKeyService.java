@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -142,7 +143,7 @@ public class GroupSenderKeyService {
 		.orElseThrow(() -> new RecordNotFoundException("User device ID not found"));
 
 		return repository
-				.findByIdReceiverUserKeyAndIdReceiverDeviceIdAndIdGroupId(
+				.findByIdReceiverUserKeyAndIdReceiverDeviceIdAndIdGroupIdAndDeletedAtIsNull(
 						receiverUserKey, receiverDeviceId, groupId)
 				.stream()
 				.map(GroupSenderKeyMapper::toDto)
@@ -150,25 +151,47 @@ public class GroupSenderKeyService {
 	}
 
 	@Transactional
-	public void delete(GroupSenderKeyId id) {		
+	public void delete(GroupSenderKeyId id) {	
+		if(repository.findById(id).isEmpty()) {
+			throw new RecordNotFoundException("User device group sender key not found");
+		}
+		
 		repository.deleteById(id);
 	}	
 
 	/**
-	 * Soft delete the record to reduce the database load this record will still be used in other queries.
-	 * @param id
+	 * Soft deletes a GroupSenderKey record.
+	 *
+	 * <p>The record is not physically removed because it may still be referenced
+	 * by other queries for audit or synchronization purposes.
+	 * The encrypted payload is cleared to reduce storage usage.</p>
+	 *
+	 * @param id composite key identifying the record
 	 */
 	@Transactional
-	public void softDelete(GroupSenderKeyId id) {	
-		repository.findById(id).ifPresent(groupSenderKey -> {
-			groupSenderKey.setSkdmCipher(null);
-			groupSenderKey.setDeletedAt(Instant.now());
-			repository.save(groupSenderKey);
-		});
-	}	
-
-	private String buildReceiverDeviceKey(UUID receiverUserKey, Integer receiverDeviceId) {
-		return receiverUserKey + "_" + receiverDeviceId;
+	public void markAsProcessed(GroupSenderKeyId id) {
+		Optional<GroupSenderKey>  senderKeyOpt = repository.findById(id);
+		if(senderKeyOpt.isEmpty()) {
+			throw new RecordNotFoundException("Group sender key not found");
+		}
+		
+		if(senderKeyOpt.isPresent() && senderKeyOpt.get().getDeletedAt() != null) {
+			throw new RecordNotFoundException("Group sender key not found");
+		}
+		
+	    repository.findById(id).ifPresent(entity -> {
+	        entity.setSkdmCipher(null); // clear sensitive payload
+	        entity.setDeletedAt(Instant.now());
+	    });
 	}
+		
+	@Transactional
+	public void delete(String groupId) {	
+		if(repository.findByIdGroupId(groupId).isEmpty()) {
+			throw new RecordNotFoundException("Group sender keys not found");
+		}
+		
+		repository.deleteByIdGroupId(groupId);
+	}	
 }
 

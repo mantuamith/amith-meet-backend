@@ -33,6 +33,7 @@ public class GroupSenderKeyMapper {
 		dto.setSenderDeviceId(entity.getId().getSenderDeviceId());
 		dto.setSkdmCipher(entity.getSkdmCipher());
 		dto.setCreatedAt(entity.getCreatedAt());
+		dto.setDeletedAt(entity.getDeletedAt());
 
 		return dto;
 	}

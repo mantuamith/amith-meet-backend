@@ -78,6 +78,25 @@ public class GroupSenderKeyControllerV3 implements GroupSenderKeyControllerV3Doc
         }
     }
 
+    /** Receiver fetch inbox sender-keys */
+    @GetMapping("/devices/{receiverDeviceId}/receiver")
+    public ResponseEntity<CommonResponse<List<GroupSenderKeyResponse>>> getSenderKeys(
+            @PathVariable String groupId,
+            @PathVariable Integer receiverDeviceId) {
+
+        try {
+            return ResponseEntity.ok(
+                    CommonResponse.from(
+                            ResponseCode.SUCCESS,
+                            service.getSenderKeys(currentUserKey(), receiverDeviceId, groupId)
+                    )
+            );
+        } catch (RecordNotFoundException ex) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(CommonResponse.from(ResponseCode.USER_DEVICE_GROUP_SENDER_KEY_NOT_FOUND));
+        }
+    }
+    
     /** Missing sender-key devices (important optimization endpoint) */
     @GetMapping("/devices/missing")
     public ResponseEntity<CommonResponse<List<UserDeviceResponse>>> getMissingSenderKeys(
@@ -96,30 +115,11 @@ public class GroupSenderKeyControllerV3 implements GroupSenderKeyControllerV3Doc
         }
     }
 
-    /** Receiver fetch inbox sender-keys */
-    @GetMapping("/devices/{receiverDeviceId}")
-    public ResponseEntity<CommonResponse<List<GroupSenderKeyResponse>>> getSenderKeys(
-            @PathVariable String groupId,
-            @PathVariable Integer receiverDeviceId) {
-
-        try {
-            return ResponseEntity.ok(
-                    CommonResponse.from(
-                            ResponseCode.SUCCESS,
-                            service.getSenderKeys(currentUserKey(), receiverDeviceId, groupId)
-                    )
-            );
-        } catch (RecordNotFoundException ex) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(CommonResponse.from(ResponseCode.USER_DEVICE_GROUP_SENDER_KEY_NOT_FOUND));
-        }
-    }
-
     /** Delete sender key mapping */
-    @DeleteMapping
+    @DeleteMapping("/devices/{senderDeviceId}")
     public ResponseEntity<CommonResponse<?>> deleteBySender(
             @PathVariable String groupId,
-            @RequestParam Integer senderDeviceId,
+            @PathVariable Integer senderDeviceId,
             @RequestParam UUID receiverUserKey,
             @RequestParam Integer receiverDeviceId) {
 
@@ -142,23 +142,39 @@ public class GroupSenderKeyControllerV3 implements GroupSenderKeyControllerV3Doc
     }
 
     /** Receiver soft delete */
-    @DeleteMapping("/receiver")
-    public ResponseEntity<CommonResponse<?>> deleteByReceiver(
+    @DeleteMapping("/devices/{receiverDeviceId}/receiver")
+    public ResponseEntity<CommonResponse<?>> markAsProcessed(
             @PathVariable String groupId,
+            @PathVariable Integer receiverDeviceId,
             @RequestParam UUID senderUserKey,
-            @RequestParam Integer senderDeviceId,
-            @RequestParam Integer receiverDeviceId) {
+            @RequestParam Integer senderDeviceId) {
 
         try {
             UUID receiverUserKey = currentUserKey();
 
-            service.softDelete(new GroupSenderKeyId(
+            service.markAsProcessed(new GroupSenderKeyId(
                     senderUserKey,
                     senderDeviceId,
                     receiverUserKey,
                     receiverDeviceId,
                     groupId
             ));
+
+            return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
+        } catch (RecordNotFoundException ex) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(CommonResponse.from(ResponseCode.USER_DEVICE_GROUP_SENDER_KEY_NOT_FOUND));
+        }
+    }
+    
+    /** delete */
+    @DeleteMapping
+    public ResponseEntity<CommonResponse<?>> delete(
+            @PathVariable String groupId) {
+        try {
+            UUID receiverUserKey = currentUserKey();
+
+            service.delete(groupId);
 
             return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
         } catch (RecordNotFoundException ex) {

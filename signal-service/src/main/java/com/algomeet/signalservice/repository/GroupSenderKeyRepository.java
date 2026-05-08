@@ -1,7 +1,6 @@
 package com.algomeet.signalservice.repository;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -30,13 +29,14 @@ public interface GroupSenderKeyRepository extends JpaRepository<GroupSenderKey, 
 	        WHERE sender_user_key = :senderUserKey 
 	          AND sender_device_id = :senderDeviceId 
 	          AND group_id = :groupId
+	          AND deleted_at is null
 	        """, nativeQuery = true)
 	List<GroupSenderKeyView> findByIdSenderUserKeyAndIdSenderDeviceIdAndIdGroupId(
 			@Param("senderUserKey") UUID senderUserKey, 
 		    @Param("senderDeviceId") Integer senderDeviceId, 
 		    @Param("groupId") String groupId);
     
-    List<GroupSenderKey> findByIdReceiverUserKeyAndIdReceiverDeviceIdAndIdGroupId(
+    List<GroupSenderKey> findByIdReceiverUserKeyAndIdReceiverDeviceIdAndIdGroupIdAndDeletedAtIsNull(
             UUID receiverUserKey, Integer receiverDeviceId, String groupId);
     
     @Query(value = """
@@ -61,4 +61,10 @@ public interface GroupSenderKeyRepository extends JpaRepository<GroupSenderKey, 
     void deleteByIdReceiverUserKeyAndIdReceiverDeviceId(
             UUID receiverUserKey,
             Integer receiverDeviceId);
+    
+    List<GroupSenderKeyView> findByIdGroupId(String groupId);
+    
+    @Modifying
+    @Transactional
+    void deleteByIdGroupId(String groupId);
 }
