@@ -135,8 +135,18 @@ public class MucUserCommandRouter {
 		}
 	}
 
+	/**
+	 * Checks if the stanza is a MUC presence publish/join request.
+	 *
+	 * This is used to detect when a user is joining or publishing presence to a room,
+	 * identified by the presence of the MUC namespace.
+	 *
+	 * Example detected pattern:
+	 * <presence>
+	 *   <x xmlns='http://jabber.org/protocol/muc'/>
+	 * </presence>
+	 */
 	private boolean isPublishPresenceRequest(String xml) {
-		return (xml.contains("http://jabber.org/protocol/muc"));
-	}     
-
+	    return (xml.contains("http://jabber.org/protocol/muc"));
+	}
 }
