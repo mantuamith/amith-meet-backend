@@ -118,7 +118,7 @@ public class XmppMucHandler {
 		} else {
 
 			// 2. DIRECT PRIVATE MESSAGE (PM) WITHIN MUC CHECK
-			MucMember pmRecipientMucMember = resolveDirectPmRecipient(ctx, id, fromJid, toRoomJid, group);
+			MucMember pmToMucMember = resolveDirectPmRecipient(ctx, id, fromJid, toRoomJid, group);
 
 			// 3. ARCHIVING (MAM - XEP-0313)
 			// Only archive messages that are storage-eligible (e.g., contain a <body>)
@@ -143,7 +143,7 @@ public class XmppMucHandler {
 				// Insert stanza ID
 				forArchiveXml = XmppStanzaUtil.insertStanzaId(originalXml, ulidString, principal.getDomain());
 
-				xmppArchiveService.archiveEvent(forArchiveXml, info, XmppUtil.getRoomId(toRoomJid), (pmRecipientMucMember != null ? pmRecipientMucMember.getUserKey() : null), 
+				xmppArchiveService.archiveEvent(forArchiveXml, info, XmppUtil.getRoomId(toRoomJid), (pmToMucMember != null ? pmToMucMember.getUserKey() : null), 
 						XmppUtil.getUserKey(fromJid), ulidString)
 				.doOnSuccess(saved -> {
 					boolean isAckMessage = false;
@@ -175,9 +175,9 @@ public class XmppMucHandler {
 
 					// Count MUC private message
 					if(!isAckMessage) {
-						if (pmRecipientMucMember != null) {
+						if (pmToMucMember != null) {
 							// Increment MUC unread messages count 
-							mucUnreadCountService.incrementUnreadCount(pmRecipientMucMember.getUserKey(), 
+							mucUnreadCountService.incrementUnreadCount(pmToMucMember.getUserKey(), 
 									XmppUtil.getRoomId(toRoomJid))
 							.doOnError(e -> {
 								log.error("Storage failure for increment muc messages count {}: {}", id, e.getMessage(), e);
@@ -211,7 +211,7 @@ public class XmppMucHandler {
 
 				// Standard message propagation to members
 				mucMessageRouter.broadcastToOccupants(ctx, id, toRoomJid, fromJid, msgType, group, 
-						pmRecipientMucMember, (isArchivable ? forArchiveXml : originalXml));
+						pmToMucMember, (isArchivable ? forArchiveXml : originalXml));
 
 			} catch (NumberFormatException e) {
 				log.error("Critical: Invalid roomId format in routing: {}", toRoomId);
