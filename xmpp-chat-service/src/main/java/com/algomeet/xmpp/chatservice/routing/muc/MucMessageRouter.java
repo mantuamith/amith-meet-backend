@@ -100,13 +100,32 @@ public class MucMessageRouter {
 		boolean hasActiveSession = hasSessions && userSessions.stream().anyMatch(s -> UserState.ACTIVE == s.getState());
 
 		if (!hasActiveSession) {					
+			/**
+			 * Handle push notification delivery for archivable messages or Jingle session initiation.
+			 *
+			 * Conditions:
+			 * - Message supports offline storage AND is archivable stanza
+			 *   OR
+			 * - It is a Jingle session initiation request (real-time call/session setup)
+			 *
+			 * Behavior:
+			 * - For Jingle session initiate: trigger Jingle-specific push handling
+			 * - For normal messages: extract message body and send standard push notification
+			 */
 			if ((msgType.supportsOfflineStorage() && XmppStanzaUtil.isArchivable(originalXml)) || isJingleSessionInitiate) {
-				if (isJingleSessionInitiate) {
-					jingleNotificationHandler.handlePush(ctx, id, toUserKey, XmppUtil.getUserKey(fromJid), originalXml, principal);
-				} else {
-					String body = XmppUtil.getMessageBody(originalXml);
-					sendPushNotification(toUserKey, body, NotificationType.GROUP_MESSAGE, principal);
-				}
+			    if (isJingleSessionInitiate) {
+			        jingleNotificationHandler.handlePush(
+			                ctx,
+			                id,
+			                toUserKey,
+			                XmppUtil.getUserKey(fromJid),
+			                originalXml,
+			                principal
+			        );
+			    } else {
+			        String body = XmppUtil.getMessageBody(originalXml);
+			        sendPushNotification(toUserKey, body, NotificationType.GROUP_MESSAGE, principal);
+			    }
 			}
 		}
 	}
