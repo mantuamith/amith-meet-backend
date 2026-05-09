@@ -77,7 +77,7 @@ public class MucAcceptInviteEventHandler {
                       
         // 3. Prepare a system message to log the join event in the chat stream.
         String stanzaId = UUID.randomUUID().toString();
-        String body = sender.getUsername() + " has joined the group";
+        String body = sender.getUsername() + " joined";
         String acceptedInvitationLogXml = buildAcceptInviteLog(roomBareJid, body, sender.getUserKey(), senderJid);
         
         String ulidString = UlidCreator.getMonotonicUlid().toLowerCase();
