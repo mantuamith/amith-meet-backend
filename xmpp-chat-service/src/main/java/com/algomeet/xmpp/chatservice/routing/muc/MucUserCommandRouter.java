@@ -60,6 +60,17 @@ public class MucUserCommandRouter {
 		String action = actionOpt.orElse(null);
 
 		if (PresenceMetaAction.INVITE_ACCEPT == PresenceMetaAction.fromString(action)) {
+			/**
+			 * Accepted invite stanza.
+			 *
+			 * Example:
+			 * <presence to='room@conference.example.com/nick'>
+			 *   <x xmlns='http://jabber.org/protocol/muc'/>
+			 *   <x xmlns='http://algomeet.app/protocol/muc#meta'>
+			 *     <action>invite_accept</action>
+			 *   </x>
+			 * </presence>
+			 */
 			// Force refresh group cache
 			MucRoomDto group = groupCacheService.refreshCachedGroup(XmppUtil.getRoomId(roomJid));
 			Optional<MucMember> senderMucMember = group.getMembers().stream()
@@ -84,12 +95,37 @@ public class MucUserCommandRouter {
 			}
 
 			if (isPublishPresenceRequest(xml)) {
+				/**
+				 * Join room stanza.
+				 *
+				 * Example:
+				 * <presence to='room@conference.example.com/nick'>
+				 *   <x xmlns='http://jabber.org/protocol/muc'/>
+				 * </presence>
+				 */
 				mucMemberJoinEventHandler.handleMemberJoinRequest(ctx, roomJid, xml, group, senderMucMember.get());	
 				
 			} else if (PresenceType.UNAVAILABLE.getValue().equals(type)) {
+				/**
+				 * Left room stanza.
+				 *
+				 * Example:
+				 * <presence
+				 *   to='room@conference.example.com/nick'
+				 *   type='unavailable'/>
+				 */
 				mucMemberLeftEventHandler.handleMemberLeftRoom(ctx, roomJid, xml, group, principal);
 				
 			} else if (resoure != null && resoure.trim().equalsIgnoreCase(senderMucMember.get().getUserKey())) {
+				/**
+				 * Member room presence update stanza.
+				 *
+				 * Example:
+				 * <presence to='room@conference.example.com/nick'>
+				 *   <show>away</show>
+				 *   <status>AFK</status>
+				 * </presence>
+				 */
 				mucMemberPresenceEventHandler.handleMemberPresenceRequest(ctx, roomJid, xml, group, senderMucMember.get());
 			
 			} else {
