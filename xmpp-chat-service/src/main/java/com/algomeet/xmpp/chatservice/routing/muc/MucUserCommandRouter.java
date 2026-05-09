@@ -59,6 +59,12 @@ public class MucUserCommandRouter {
 		
 		Optional<String> actionOpt = MucMetaActionParser.extractAction(xml);
 		String action = actionOpt.orElse(null);
+		
+		// Force refresh group cache
+		MucRoomDto group = groupCacheService.refreshCachedGroup(XmppUtil.getRoomId(roomJid));
+		Optional<MucMember> senderMucMember = group.getMembers().stream()
+				.filter(m -> m.getUserKey().equals(principal.getUserKey()))
+				.findFirst();
 
 		if (PresenceMetaAction.INVITE_ACCEPT == PresenceMetaAction.fromString(action)) {
 			/**
@@ -72,22 +78,10 @@ public class MucUserCommandRouter {
 			 *   </x>
 			 * </presence>
 			 */
-			// Force refresh group cache
-			MucRoomDto group = groupCacheService.refreshCachedGroup(XmppUtil.getRoomId(roomJid));
-			Optional<MucMember> senderMucMember = group.getMembers().stream()
-					.filter(m -> m.getUserKey().equals(principal.getUserKey()))
-					.findFirst();
 
 			mucAcceptInviteEventHandler.handleAcceptedInvite(ctx,  roomJid, xml, group, senderMucMember.get());
 			
 		} else {
-
-			// Get group from cache
-			MucRoomDto group = groupCacheService.getCachedGroup(XmppUtil.getRoomId(roomJid));
-			Optional<MucMember> senderMucMember = group.getMembers().stream()
-					.filter(m -> m.getUserKey().equals(principal.getUserKey()))
-					.findFirst();
-
 			String[] roomJidArr = roomJid.split("/");
 			String resoure = null;
 
