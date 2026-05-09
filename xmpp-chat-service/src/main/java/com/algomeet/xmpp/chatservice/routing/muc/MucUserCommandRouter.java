@@ -55,7 +55,8 @@ public class MucUserCommandRouter {
 	 */
 	public void handleCommandStanza(ChannelHandlerContext ctx, String type, String roomJid, String xml, XmppPrincipal principal) {
 		// Set tenant Id to support multi-tenancy 
-
+		TenantContext.setCurrentTenant(principal.getTenantId());
+		
 		Optional<String> actionOpt = MucMetaActionParser.extractAction(xml);
 		String action = actionOpt.orElse(null);
 
