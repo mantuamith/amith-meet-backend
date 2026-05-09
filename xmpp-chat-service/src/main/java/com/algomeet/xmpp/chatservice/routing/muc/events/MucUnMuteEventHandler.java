@@ -110,10 +110,9 @@ public class MucUnMuteEventHandler {
 	            "      <actor jid='%s'/>" +
 	            "      <reason>%s</reason>" +
 	            "    </item>" +
-	            "    <status code='%d'/>" + 
 	            "  </x>" +
 	            "</presence>",
-	            roomJid, victimUserKey, affiliation, restoredRole, targetJid, actorJid, reason, PresenceStatusCode.ROOM_CONFIG_CHANGED.getCode()
+	            roomJid, victimUserKey, affiliation, restoredRole, targetJid, actorJid, reason
 	    );
 	}
 	
