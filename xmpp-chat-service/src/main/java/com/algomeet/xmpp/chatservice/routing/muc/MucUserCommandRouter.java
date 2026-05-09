@@ -15,7 +15,7 @@ import com.algomeet.xmpp.chatservice.routing.muc.events.MucAcceptInviteEventHand
 import com.algomeet.xmpp.chatservice.routing.muc.events.MucChangeNickNameEventHandler;
 import com.algomeet.xmpp.chatservice.routing.muc.events.MucMemberJoinEventHandler;
 import com.algomeet.xmpp.chatservice.routing.muc.events.MucMemberLeftEventHandler;
-import com.algomeet.xmpp.chatservice.routing.muc.events.MucMemberPresenceEventHandler;
+import com.algomeet.xmpp.chatservice.routing.muc.events.MucMemberPresenceUpdateEventHandler;
 import com.algomeet.xmpp.chatservice.service.GroupCacheService;
 import com.algomeet.xmpp.chatservice.util.MucMetaActionParser;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
@@ -42,7 +42,7 @@ public class MucUserCommandRouter {
 	private final MucAcceptInviteEventHandler mucAcceptInviteEventHandler;
 	private final MucChangeNickNameEventHandler mucChangeNickNameEventHandler;
 	private final MucMemberJoinEventHandler mucMemberJoinEventHandler;
-	private final MucMemberPresenceEventHandler mucMemberPresenceEventHandler;
+	private final MucMemberPresenceUpdateEventHandler mucMemberPresenceEventHandler;
 	private final MucMemberLeftEventHandler mucMemberLeftEventHandler;
 	/**
 	 * Top-level handler for incoming command stanzas targeting a specific room.
