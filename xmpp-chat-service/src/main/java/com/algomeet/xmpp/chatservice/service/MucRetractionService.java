@@ -63,9 +63,9 @@ public class MucRetractionService {
      * @param xml       The raw XML payload of the retraction request.
      * @param principal The authenticated security principal.
      */
-    public void retract(ChannelHandlerContext ctx, String id, String roomJid, String fromJid, String xml, XmppPrincipal principal) {
+    public void retract(ChannelHandlerContext ctx, String id, String roomJid, String xml, XmppPrincipal principal) {
         // Set tenant context to ensure data isolation in the shared database
-        TenantContext.setCurrentTenant(principal.getTenantId());		
+        TenantContext.setCurrentTenant(principal.getTenantId());	
 
         // Fetch room metadata to identify members for the broadcast
         MucRoomDto group = groupCacheService.getCachedGroup(XmppUtil.getRoomId(roomJid));
@@ -103,7 +103,7 @@ public class MucRetractionService {
                     log.warn("Unauthorized retraction attempt: User {} tried to retract message {} (Owner: {})", 
                             principal.getUserKey(), retractMessageId, message.getFrom());
 
-                    xmppUtil.sendError(ctx, id, fromJid, domainProperties.getGroupChatDomain(), 
+                    xmppUtil.sendError(ctx, id, principal.getBareJid(), domainProperties.getGroupChatDomain(), 
                             XmppErrorType.CANCEL, XmppErrorConditions.FORBIDDEN, "You are not authorized to retract this message");
 
                     return Mono.empty();

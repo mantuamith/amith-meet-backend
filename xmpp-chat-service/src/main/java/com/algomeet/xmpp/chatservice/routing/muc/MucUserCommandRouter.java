@@ -53,9 +53,8 @@ public class MucUserCommandRouter {
 	 * @param group     The room DTO containing current occupant information.
 	 * @param sender    The MUC member profile of the initiator.
 	 */
-	public void handleCommandStanza(ChannelHandlerContext ctx, String type, String roomJid, String senderJid, String xml, XmppPrincipal principal) {
+	public void handleCommandStanza(ChannelHandlerContext ctx, String type, String roomJid, String xml, XmppPrincipal principal) {
 		// Set tenant Id to support multi-tenancy 
-		TenantContext.setCurrentTenant(principal.getTenantId());
 
 		Optional<String> actionOpt = MucMetaActionParser.extractAction(xml);
 		String action = actionOpt.orElse(null);
