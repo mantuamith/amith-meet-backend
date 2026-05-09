@@ -61,7 +61,7 @@ public class MucUserCommandRouter {
 
 		if (PresenceMetaAction.INVITE_ACCEPT == PresenceMetaAction.fromString(action)) {
 			/**
-			 * Accepted invite stanza.
+			 * Accepted invite request stanza.
 			 *
 			 * Example:
 			 * <presence to='room@conference.example.com/nick'>
@@ -96,7 +96,7 @@ public class MucUserCommandRouter {
 
 			if (isPublishPresenceRequest(xml)) {
 				/**
-				 * Join room stanza.
+				 * Join room request stanza.
 				 *
 				 * Example:
 				 * <presence to='room@conference.example.com/nick'>
@@ -107,7 +107,7 @@ public class MucUserCommandRouter {
 				
 			} else if (PresenceType.UNAVAILABLE.getValue().equals(type)) {
 				/**
-				 * Left room stanza.
+				 * Left room request stanza.
 				 *
 				 * Example:
 				 * <presence
@@ -118,7 +118,7 @@ public class MucUserCommandRouter {
 				
 			} else if (resoure != null && resoure.trim().equalsIgnoreCase(senderMucMember.get().getUserKey())) {
 				/**
-				 * Member room presence update stanza.
+				 * Member room presence update request stanza.
 				 *
 				 * Example:
 				 * <presence to='room@conference.example.com/nick'>
@@ -129,6 +129,13 @@ public class MucUserCommandRouter {
 				mucMemberPresenceEventHandler.handleMemberPresenceRequest(ctx, roomJid, xml, group, senderMucMember.get());
 			
 			} else {
+				/**
+				 * Change group member nickname request stanza.
+				 *
+				 * Example:
+				 * <presence 
+				 *     to='289c5f4d-58a0-4def-bf5b-0fd15c045575@conference.algomeet.app/James'/>
+				 */
 				mucChangeNickNameEventHandler.handleChangeNicknameRequest(ctx, roomJid, xml, group, senderMucMember.get());
 			}
 		}

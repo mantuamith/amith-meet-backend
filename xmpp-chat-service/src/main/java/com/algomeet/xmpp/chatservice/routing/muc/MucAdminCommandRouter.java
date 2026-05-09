@@ -62,12 +62,72 @@ public class MucAdminCommandRouter {
 		MucRoomDto group = groupCacheService.refreshCachedGroup(XmppUtil.getRoomId(roomJid));
 				
 		if (MucCommandUtil.isKickPayload(xml)) {
+			/**
+			 * Kick or remove member request stanza.
+			 *
+			 * Example:
+			 * <iq from='2fc35cae-e0b7-40a5-b2aa-e86206730e99@algomeet.app'
+			 *     id='kick-request-11121'
+			 *     to='289c5f4d-58a0-4def-bf5b-0fd15c045575@conference.algomeet.app'
+			 *     type='set'>
+			 *   <query xmlns='http://jabber.org/protocol/muc#admin'>
+			 *     <item jid='50748cb4-940e-4a97-b4f2-86125d207a1c@algomeet.app' role='none'>
+			 *       <reason>Please stay on topic.</reason>
+			 *     </item>
+			 *   </query>
+			 * </iq>
+			 */
 			mucKickEventHandler.handleKickMemberRequest(ctx, roomJid, xml, group, sender);
 		} else if (MucCommandUtil.isMutePayload(xml)) {
+			/**
+			 * Mute member request stanza.
+			 *
+			 * Example:
+			 * <iq from='2fc35cae-e0b7-40a5-b2aa-e86206730e99@algomeet.app'
+			 *     id='kick-request-11120'
+			 *     to='289c5f4d-58a0-4def-bf5b-0fd15c045575@conference.algomeet.app'
+			 *     type='set'>
+			 *   <query xmlns='http://jabber.org/protocol/muc#admin'>
+			 *     <item jid='xxxx-xxxx@algomeet.app' role='visitor'>
+			 *       <reason>Please stay on mute during the demo.</reason>
+			 *     </item>
+			 *   </query>
+			 * </iq>
+			 */
 			mucMuteEventHandler.handleMuteRequest(ctx, roomJid, xml, group, sender);
 		} else if (MucCommandUtil.isUnMutePayload(xml)) {
+			/**
+			 * Unmute member request stanza.
+			 *
+			 * Example:
+			 * <iq from='2fc35cae-e0b7-40a5-b2aa-e86206730e99@algomeet.app'
+			 *     id='unmute_01'
+			 *     to='289c5f4d-58a0-4def-bf5b-0fd15c045575@conference.algomeet.app'
+			 *     type='set'>
+			 *   <query xmlns='http://jabber.org/protocol/muc#admin'>
+			 *     <item jid='xxxx-xxxx@algomeet.app' role='participant'>
+			 *       <reason>Issue resolved, restoring voice.</reason>
+			 *     </item>
+			 *   </query>
+			 * </iq>
+			 */
 			mucUnMuteEventHandler.handleUnMuteRequest(ctx, roomJid, xml, group, sender);
 		} else if (MucCommandUtil.isAddMemberStanza(xml)) {
+			/**
+			 * Add member request stanza.
+			 *
+			 * Example:
+			 * <iq from='2fc35cae-e0b7-40a5-b2aa-e86206730e99@algomeet.app'
+			 *     id='add_user_01'
+			 *     to='289c5f4d-58a0-4def-bf5b-0fd15c045575@conference.algomeet.app'
+			 *     type='set'>
+			 *   <query xmlns='http://jabber.org/protocol/muc#admin'>
+			 *     <item affiliation='member' jid='xxxx-xxxx@algomeet.app'>
+			 *       <reason>Onboarding to the Backend Team</reason>
+			 *     </item>
+			 *   </query>
+			 * </iq>
+			 */
 			mucAddMemberEventHandler.handleAddMemberRequest(ctx, roomJid, xml, group, sender);
 		}
 	}	
