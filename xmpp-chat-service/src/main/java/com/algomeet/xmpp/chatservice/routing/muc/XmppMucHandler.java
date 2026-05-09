@@ -98,7 +98,7 @@ public class XmppMucHandler {
 				&& !(XmppStanzaUtil.isPresenceStanza(originalXml) && PresenceType.UNAVAILABLE.getValue().equals(type))) {
 
 			xmppUtil.sendError(ctx, id, fromJid, domainProperties.getGroupChatDomain(), XmppErrorType.CANCEL, 
-					XmppErrorConditions.INTERNAL_SERVER_ERROR, "You are not allowed to send messages to this room");
+					XmppErrorConditions.FORBIDDEN, "You are not allowed to send messages to this room");
 			
 			log.error("Access Denied: User {} in room {}. (Member: {}, Muted: {})", 
 					principal.getUserKey(), toRoomId, senderMucMember.isPresent(), senderMucMember.map(MucMember::isMuted).orElse(false));
