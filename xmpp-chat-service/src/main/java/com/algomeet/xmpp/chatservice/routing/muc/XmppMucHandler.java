@@ -12,6 +12,7 @@ import com.algomeet.xmpp.chatservice.constant.XmppErrorConditions;
 import com.algomeet.xmpp.chatservice.dto.MucMember;
 import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
 import com.algomeet.xmpp.chatservice.dto.StanzaInfo;
+import com.algomeet.xmpp.chatservice.enums.PresenceType;
 import com.algomeet.xmpp.chatservice.enums.XmppErrorType;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
 import com.algomeet.xmpp.chatservice.parser.GroupChatParser;
@@ -90,13 +91,17 @@ public class XmppMucHandler {
 		// Verify if the sender is an authorized member and is not muted
 		Optional<MucMember> senderMucMember = group.getMembers().stream()
 				.filter(m -> m.getUserKey().equals(principal.getUserKey())).findFirst();
-
-		if(senderMucMember.isEmpty() || senderMucMember.get().isMuted()) {
-			log.error("Access Denied: User {} in room {}. (Member: {}, Muted: {})", 
-					principal.getUserKey(), toRoomId, senderMucMember.isPresent(), senderMucMember.map(MucMember::isMuted).orElse(false));
+		
+		
+		if((senderMucMember.isEmpty() || senderMucMember.get().isMuted())
+				// Ignore unavailable presence stanzas used for member-leave broadcasts
+				&& !(XmppStanzaUtil.isPresenceStanza(originalXml) && PresenceType.UNAVAILABLE.getValue().equals(type))) {
 
 			xmppUtil.sendError(ctx, id, fromJid, domainProperties.getGroupChatDomain(), XmppErrorType.CANCEL, 
 					XmppErrorConditions.INTERNAL_SERVER_ERROR, "You are not allowed to send messages to this room");
+			
+			log.error("Access Denied: User {} in room {}. (Member: {}, Muted: {})", 
+					principal.getUserKey(), toRoomId, senderMucMember.isPresent(), senderMucMember.map(MucMember::isMuted).orElse(false));
 			return;
 		}
 
@@ -104,7 +109,7 @@ public class XmppMucHandler {
 			// MUC Admin actions (kick, ban, mute)
 			mucAdminCommandRouter.handleCommandStanza(ctx, toRoomJid, originalXml, senderMucMember.get(), principal);
 		} else if(isUserCommandStanza(originalXml, toRoomJid)) {
-			// MUC User actions (nickname changes, room entry)
+			// MUC User actions (nickname changes, room entry, member-leave broadcasts)
 			mucUserCommandRouter.handleCommandStanza(ctx, type, toRoomJid,  principal.getBareJid(), originalXml, principal);	
 		
 		} else if(XmppStanzaUtil.isRetractStanza(originalXml)) {
@@ -205,7 +210,7 @@ public class XmppMucHandler {
 			try {			
 
 				// Standard message propagation to members
-				mucMessageRouter.broadcastToOccupants(ctx, id, toRoomJid, fromJid, msgType, group, senderMucMember.get(), 
+				mucMessageRouter.broadcastToOccupants(ctx, id, toRoomJid, fromJid, msgType, group, 
 						pmRecipientMucMember, (isArchivable ? forArchiveXml : originalXml));
 
 			} catch (NumberFormatException e) {

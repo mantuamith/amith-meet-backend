@@ -120,7 +120,6 @@ public class MucKickEventHandler {
 				senderJid,
 				XmppMessageType.GROUPCHAT,
 				group,
-				sender,
 				null,
 				forArchiveXmlLog);
 

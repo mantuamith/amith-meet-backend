@@ -4,11 +4,12 @@ import java.util.UUID;
 
 import org.springframework.stereotype.Component;
 
+import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
-import com.algomeet.xmpp.chatservice.dto.MucMember;
 import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
 import com.algomeet.xmpp.chatservice.dto.StanzaInfo;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
+import com.algomeet.xmpp.chatservice.enums.MucAffiliation;
 import com.algomeet.xmpp.chatservice.enums.MucRole;
 import com.algomeet.xmpp.chatservice.enums.PresenceStatusCode;
 import com.algomeet.xmpp.chatservice.enums.PresenceType;
@@ -44,26 +45,26 @@ public class MucMemberLeftEventHandler {
      * @param roomJid   The full JID of the room.
      * @param xml       The original incoming XML presence stanza.
      * @param group     The Data Transfer Object representing the current room state.
-     * @param sender    The MUC member profile of the person leaving.
+     * @param principal 
      */
-    public void handleMemberLeftRoomRequest(ChannelHandlerContext ctx, String roomJid, String xml, MucRoomDto group, MucMember sender) { 	        
+    public void handleMemberLeftRoom(ChannelHandlerContext ctx, String roomJid, String xml, MucRoomDto group, XmppPrincipal principal) { 	        
         String roomBareJid = XmppUtil.getRoomBareJid(roomJid);
         
         // 1. Send "Self-Presence" back to the leaving user.
         // XMPP clients require status code 110 to recognize their own nickname in the room.        
         String selfPresenceXml = MucUserPresenceBuilder
         		.create()
-        		.from(roomJid, sender.getUserKey()) // Resource-part is the member's room identity
+        		.from(roomJid, principal.getUserKey()) // Resource-part is the member's room identity
         		.type(PresenceType.UNAVAILABLE.getValue())
-				.affiliation(sender.getRole())
+				.affiliation(MucAffiliation.NONE.getValue())
 				.statusCode(PresenceStatusCode.OWN_PRESENCE.getCode())
 				.role(MucRole.NONE.getValue())
         		.build();
         
         clusterMessagePublisher.convertAndSendToUser(
             UUID.randomUUID().toString(), 
-            sender.getUserKey(), 
-            sender.getUserKey(), 
+            principal.getUserKey(), 
+            principal.getUserKey(), 
             ChatType.GROUPCHAT, 
             selfPresenceXml
         );
@@ -73,12 +74,12 @@ public class MucMemberLeftEventHandler {
         String presenceXml = MucUserPresenceBuilder
 				.create()
 				.type(PresenceType.UNAVAILABLE.getValue())
-				.from(roomJid, sender.getUserKey()) // Resource-part is the member's room identity
-				.affiliation(sender.getRole())
+				.from(roomJid, principal.getUserKey()) // Resource-part is the member's room identity
+				.affiliation(MucAffiliation.NONE.getValue())
 				.role(MucRole.NONE.getValue())
 				.build();
         
-        mucMessageRouter.broadcastToOccupants(UUID.randomUUID().toString(), sender.getUserKey(), group, presenceXml, false);
+        mucMessageRouter.broadcastToOccupants(UUID.randomUUID().toString(), principal.getUserKey(), group, presenceXml, false);
         
         /**
 		 * ----------------------------------------------------------
@@ -88,9 +89,9 @@ public class MucMemberLeftEventHandler {
 		 */
 		String messageId = UUID.randomUUID().toString();
 
-		String body = sender.getUsername() + " left";
+		String body = principal.getUsername() + " left";
 	
-		String senderJid = jidUtil.getBareJid(sender.getUserKey());
+		String senderJid = jidUtil.getBareJid(principal.getUserKey());
         String xmlLogStanza = buildMemberLeftLogStanza(
         		messageId,
         		senderJid,
@@ -108,7 +109,7 @@ public class MucMemberLeftEventHandler {
 		// Insert stanza ID
 		String forArchiveXmlLog = XmppStanzaUtil.insertStanzaId(xmlLogStanza, ulidString, domainProperties.getDomain());
 		
-		saveToDatabase(messageId, roomBareJid, senderJid, group, sender, ulidString, forArchiveXmlLog);
+		saveToDatabase(messageId, roomBareJid, senderJid, group, principal, ulidString, forArchiveXmlLog);
 
 		/**
 		 * ----------------------------------------------------------
@@ -123,11 +124,10 @@ public class MucMemberLeftEventHandler {
 				senderJid,
 				XmppMessageType.GROUPCHAT,
 				group,
-				sender,
 				null,
 				forArchiveXmlLog);
         
-        log.debug("User left the room presence synchronization complete for user {} in room {}", sender.getUserKey(), roomBareJid);
+        log.debug("User left the room presence synchronization is completed for user {} in room {}", principal.getUserKey(), roomBareJid);
     }
     
     private String buildMemberLeftLogStanza(
@@ -156,7 +156,7 @@ public class MucMemberLeftEventHandler {
 			String roomBareJid,
 			String senderJid,
 			MucRoomDto group,
-			MucMember sender,
+			XmppPrincipal principal,
 			String ulidString,
 			String xml) {
 
@@ -170,7 +170,7 @@ public class MucMemberLeftEventHandler {
 				info,
 				XmppUtil.getRoomId(roomBareJid),
 				null,
-				sender.getUserKey(),
+				principal.getUserKey(),
 				ulidString);
 	}
 }

@@ -254,7 +254,6 @@ public class MucAddMemberEventHandler {
 				senderJid,
 				XmppMessageType.GROUPCHAT,
 				group,
-				sender,
 				null,
 				forArchiveXmlLog);
 

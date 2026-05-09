@@ -88,7 +88,7 @@ public class MucUserCommandRouter {
 				mucMemberJoinEventHandler.handleMemberJoinRequest(ctx, roomJid, xml, group, senderMucMember.get());	
 				
 			} else if (PresenceType.UNAVAILABLE.getValue().equals(type)) {
-				mucMemberLeftEventHandler.handleMemberLeftRoomRequest(ctx, roomJid, xml, group, senderMucMember.get());
+				mucMemberLeftEventHandler.handleMemberLeftRoom(ctx, roomJid, xml, group, principal);
 				
 			} else if (resoure != null && resoure.trim().equalsIgnoreCase(senderMucMember.get().getUserKey())) {
 				mucMemberPresenceEventHandler.handleMemberPresenceRequest(ctx, roomJid, xml, group, senderMucMember.get());
