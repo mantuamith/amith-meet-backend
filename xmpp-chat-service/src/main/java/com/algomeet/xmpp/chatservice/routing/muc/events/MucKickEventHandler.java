@@ -1,20 +1,26 @@
 package com.algomeet.xmpp.chatservice.routing.muc.events;
 
 import java.util.Optional;
+import java.util.UUID;
 
 import org.springframework.stereotype.Component;
 
 import com.algomeet.xmpp.chatservice.constant.XmppErrorConditions;
 import com.algomeet.xmpp.chatservice.dto.MucMember;
 import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
+import com.algomeet.xmpp.chatservice.dto.StanzaInfo;
+import com.algomeet.xmpp.chatservice.enums.PresenceStatusCode;
 import com.algomeet.xmpp.chatservice.enums.XmppErrorType;
+import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.routing.dispacher.LocalStanzaDispatcher;
 import com.algomeet.xmpp.chatservice.routing.muc.MucMessageRouter;
+import com.algomeet.xmpp.chatservice.service.XmppArchiveService;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.algomeet.xmpp.chatservice.util.MucCommandUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
+import com.github.f4b6a3.ulid.UlidCreator;
 
 import io.netty.channel.ChannelHandlerContext;
 import lombok.RequiredArgsConstructor;
@@ -29,6 +35,8 @@ public class MucKickEventHandler {
 	private final MucMessageRouter mucMessageRouter;
 	private final LocalStanzaDispatcher localStanzaDispatcher;
 	private final XmppUtil xmppUtil;
+	private final MucMessageRouter xmppBroadCastHandler;
+	private final XmppArchiveService xmppArchiveService;
 	
 	/**
 	 * Processes a request to forcibly remove (kick) an occupant from the room.
@@ -44,7 +52,7 @@ public class MucKickEventHandler {
 	 * @param group     The room DTO.
 	 * @param sender    The moderator's profile.
 	 */
-	public void handleKickRequest(ChannelHandlerContext ctx, String roomJid, String xml, MucRoomDto group, MucMember sender) {
+	public void handleKickMemberRequest(ChannelHandlerContext ctx, String roomJid, String xml, MucRoomDto group, MucMember sender) {
 		String id = XmppStanzaUtil.getAttribute(xml, "id");
 		String victimJid = XmppStanzaUtil.getAttribute(xml, "item", "jid");
 		String reason = extractReason(xml);
@@ -69,6 +77,52 @@ public class MucKickEventHandler {
 
 		mucMessageRouter.broadcastToOccupants(id, sender.getUserKey(), group, kickPresence, true);
 		sendSuccessResponse(ctx, senderJid, roomJid, id);
+		
+		 /**
+		 * ----------------------------------------------------------
+		 * Build system log message
+		 * ----------------------------------------------------------
+		 * Human-readable audit trail message.
+		 */
+		String messageId = UUID.randomUUID().toString();
+
+		String body = sender.getUsername() + " removed";
+	
+        String xmlLogStanza = buildMemberRemovedLogStanza(
+        		messageId,
+        		senderJid,
+				roomBareJid,
+				body,
+				senderJid);
+
+		/**
+		 * ----------------------------------------------------------
+		 * Persist event (Message Archive Management)
+		 * ----------------------------------------------------------
+		 * Ensures historical traceability of room changes.
+		 */
+		String ulidString = UlidCreator.getMonotonicUlid().toLowerCase();
+		// Insert stanza ID
+		String forArchiveXmlLog = XmppStanzaUtil.insertStanzaId(xmlLogStanza, ulidString, domainProperties.getDomain());
+		
+		saveToDatabase(messageId, roomBareJid, senderJid, group, sender, ulidString, forArchiveXmlLog);
+
+		/**
+		 * ----------------------------------------------------------
+		 * 7. Broadcast system message to room
+		 * ----------------------------------------------------------
+		 * This is visible chat history event.
+		 */
+		xmppBroadCastHandler.broadcastToOccupants(
+				ctx,
+				messageId,
+				roomJid,
+				senderJid,
+				XmppMessageType.GROUPCHAT,
+				group,
+				sender,
+				null,
+				forArchiveXmlLog);
 
 		log.info("Kick successful: {} removed from {}", victimJid, roomJid);
 	}
@@ -92,10 +146,10 @@ public class MucKickEventHandler {
 						"      <actor jid='%s'/>" +
 						"      <reason>%s</reason>" +
 						"    </item>" +
-						"    <status code='307'/>" + 
+						"    <status code='%d'/>" + 
 						"  </x>" +
 						"</presence>",
-						roomJid, victimUserKey, targetJid, actorJid, reason
+						roomJid, victimUserKey, targetJid, actorJid, reason, PresenceStatusCode.KICKED.getCode()
 				);
 	}
 	
@@ -108,5 +162,49 @@ public class MucKickEventHandler {
 		if (!xml.contains("<reason>")) return "No reason provided";
 		return xml.substring(xml.indexOf("<reason>") + 8, xml.indexOf("</reason>"));
 	}
+	
+	  private String buildMemberRemovedLogStanza(
+				String id,
+				String fromJid,
+				String roomJid,
+				String body,
+				String removedUserJid) {
+
+			return String.format(
+					"<message id='%s' from='%s' to='%s' type='groupchat'>" +
+							"  <body>%s</body>" +
+							"  <x xmlns='http://algomeet.app/protocol/system'>" +
+							"    <event type='member_removed' jid='%s'/>" +
+							"  </x>" +
+							"</message>",
+							id,
+							fromJid,
+							roomJid,
+							body,
+							removedUserJid);
+		}
+	    
+	    private void saveToDatabase(
+				String id,
+				String roomBareJid,
+				String senderJid,
+				MucRoomDto group,
+				MucMember sender,
+				String ulidString,
+				String xml) {
+
+			StanzaInfo info = StanzaInfo.builder()
+					.messageId(id)
+					.stanzaType(XmppMessageType.GROUPCHAT.getXmlValue())
+					.build();
+
+			xmppArchiveService.archiveEvent(
+					xml,
+					info,
+					XmppUtil.getRoomId(roomBareJid),
+					null,
+					sender.getUserKey(),
+					ulidString);
+		}
 	
 }
