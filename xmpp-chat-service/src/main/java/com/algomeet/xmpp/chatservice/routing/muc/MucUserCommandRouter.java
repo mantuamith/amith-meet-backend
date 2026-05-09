@@ -78,7 +78,6 @@ public class MucUserCommandRouter {
 			 *   </x>
 			 * </presence>
 			 */
-
 			mucAcceptInviteEventHandler.handleAcceptedInvite(ctx,  roomJid, xml, group, senderMucMember.get());
 			
 		} else {
