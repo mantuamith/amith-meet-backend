@@ -10,16 +10,12 @@ import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
 import com.algomeet.xmpp.chatservice.dto.StanzaInfo;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.enums.MucRole;
+import com.algomeet.xmpp.chatservice.enums.PresenceStatusCode;
 import com.algomeet.xmpp.chatservice.enums.PresenceType;
-import com.algomeet.xmpp.chatservice.enums.UserState;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
-import com.algomeet.xmpp.chatservice.parser.StateStanzaParser;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
-import com.algomeet.xmpp.chatservice.routing.dispacher.LocalStanzaDispatcher;
 import com.algomeet.xmpp.chatservice.routing.muc.MucMessageRouter;
-import com.algomeet.xmpp.chatservice.service.MucPresenceService;
 import com.algomeet.xmpp.chatservice.service.XmppArchiveService;
-import com.algomeet.xmpp.chatservice.session.UserSessionRegistry;
 import com.algomeet.xmpp.chatservice.stanza.presence.MucUserPresenceBuilder;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
@@ -39,41 +35,29 @@ public class MucMemberLeftEventHandler {
     private final MucMessageRouter mucMessageRouter;
     private final JidUtil jidUtil;
     private final DomainProperties domainProperties;
-	/**
-	 * Handles MUC message fanout to all occupants.
-	 */
 	private final MucMessageRouter xmppBroadCastHandler;
-
-	/**
-	 * Archives messages for Message Archive Management (MAM).
-	 */
 	private final XmppArchiveService xmppArchiveService;
     
     /**
-     * Handles the successful entry of a member into a room by broadcasting presence.
-     * * @param ctx       The Netty channel context for the current session.
+     * Handles the left event of a member from a room by broadcasting presence and generate logs.
+     * @param ctx       The Netty channel context for the current session.
      * @param roomJid   The full JID of the room.
      * @param xml       The original incoming XML presence stanza.
      * @param group     The Data Transfer Object representing the current room state.
-     * @param sender    The MUC member profile of the person joining.
+     * @param sender    The MUC member profile of the person leaving.
      */
-    public void handleMemberLeftRoom(ChannelHandlerContext ctx, String roomJid, String xml, MucRoomDto group, MucMember sender) { 	 
-     	UserState newState = determineState(xml);    	
-        if (newState == null) {return;}
-         
+    public void handleMemberLeftRoomRequest(ChannelHandlerContext ctx, String roomJid, String xml, MucRoomDto group, MucMember sender) { 	        
         String roomBareJid = XmppUtil.getRoomBareJid(roomJid);
-        String status = parseStatus(xml);
         
-        // 1. Send "Self-Presence" back to the joiner.
+        // 1. Send "Self-Presence" back to the leaving user.
         // XMPP clients require status code 110 to recognize their own nickname in the room.        
         String selfPresenceXml = MucUserPresenceBuilder
         		.create()
         		.from(roomJid, sender.getUserKey()) // Resource-part is the member's room identity
         		.type(PresenceType.UNAVAILABLE.getValue())
 				.affiliation(sender.getRole())
+				.statusCode(PresenceStatusCode.OWN_PRESENCE.getCode())
 				.role(MucRole.NONE.getValue())
-				.status(status)
-				.statusCode(110)
         		.build();
         
         clusterMessagePublisher.convertAndSendToUser(
@@ -92,7 +76,6 @@ public class MucMemberLeftEventHandler {
 				.from(roomJid, sender.getUserKey()) // Resource-part is the member's room identity
 				.affiliation(sender.getRole())
 				.role(MucRole.NONE.getValue())
-				.status(status)
 				.build();
         
         mucMessageRouter.broadcastToOccupants(UUID.randomUUID().toString(), sender.getUserKey(), group, presenceXml, false);
@@ -105,9 +88,7 @@ public class MucMemberLeftEventHandler {
 		 */
 		String messageId = UUID.randomUUID().toString();
 
-		String body =
-				sender.getUsername()
-				+ " left ";
+		String body = sender.getUsername() + " left";
 	
 		String senderJid = jidUtil.getBareJid(sender.getUserKey());
         String xmlLogStanza = buildMemberLeftLogStanza(
@@ -115,8 +96,7 @@ public class MucMemberLeftEventHandler {
         		senderJid,
 				roomBareJid,
 				body,
-				senderJid
-				);
+				senderJid);
 
 		/**
 		 * ----------------------------------------------------------
@@ -128,7 +108,7 @@ public class MucMemberLeftEventHandler {
 		// Insert stanza ID
 		String forArchiveXmlLog = XmppStanzaUtil.insertStanzaId(xmlLogStanza, ulidString, domainProperties.getDomain());
 		
-		saveToDatabase(messageId, roomBareJid, senderJid, group,	sender,	ulidString, forArchiveXmlLog);
+		saveToDatabase(messageId, roomBareJid, senderJid, group, sender, ulidString, forArchiveXmlLog);
 
 		/**
 		 * ----------------------------------------------------------
@@ -145,8 +125,7 @@ public class MucMemberLeftEventHandler {
 				group,
 				sender,
 				null,
-				forArchiveXmlLog
-				);
+				forArchiveXmlLog);
         
         log.debug("User left the room presence synchronization complete for user {} in room {}", sender.getUserKey(), roomBareJid);
     }
@@ -156,7 +135,7 @@ public class MucMemberLeftEventHandler {
 			String fromJid,
 			String roomJid,
 			String body,
-			String newlyAddedUserJid) {
+			String leftUserJid) {
 
 		return String.format(
 				"<message id='%s' from='%s' to='%s' type='groupchat'>" +
@@ -169,8 +148,7 @@ public class MucMemberLeftEventHandler {
 						fromJid,
 						roomJid,
 						body,
-						newlyAddedUserJid
-				);
+						leftUserJid);
 	}
     
     private void saveToDatabase(
@@ -184,9 +162,7 @@ public class MucMemberLeftEventHandler {
 
 		StanzaInfo info = StanzaInfo.builder()
 				.messageId(id)
-				.stanzaType(
-						XmppMessageType.GROUPCHAT.getXmlValue()
-						)
+				.stanzaType(XmppMessageType.GROUPCHAT.getXmlValue())
 				.build();
 
 		xmppArchiveService.archiveEvent(
@@ -195,40 +171,6 @@ public class MucMemberLeftEventHandler {
 				XmppUtil.getRoomId(roomBareJid),
 				null,
 				sender.getUserKey(),
-				ulidString
-				);
+				ulidString);
 	}
-            
-    private UserState determineState(String xml) {
-    	// Guard clause: ignore stanzas that are not Presence or Chat State notifications
-    	try {    		
-    		if (XmppStanzaUtil.isPresenceStanza(xml)) {
-    			return StateStanzaParser.determineState(xml);
-    		}
-    	} catch(Exception ex) {
-    		// Silent error
-    	}
-    	
-    	return null;
-    }
-    
-    /**
-    * Extract the value between <status> tags using fast string indexing.
-    * This avoids the overhead of a full XML parser for simple presence payloads.
-    *
-    * @param xml The raw presence stanza.
-    * @return The status text, or null if not found.
-    */
-   public static String parseStatus(String xml) {
-       if (xml == null) return null;
-
-       int startTag = xml.indexOf("<status>");
-       if (startTag == -1) return null;
-
-       int endTag = xml.indexOf("</status>", startTag);
-       if (endTag == -1) return null;
-
-       // Offset by 8 to skip past the length of "<status>"
-       return xml.substring(startTag + 8, endTag).trim();
-   }
 }

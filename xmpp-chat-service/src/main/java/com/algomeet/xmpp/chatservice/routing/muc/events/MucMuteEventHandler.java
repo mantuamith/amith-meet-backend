@@ -8,6 +8,7 @@ import com.algomeet.xmpp.chatservice.constant.XmppErrorConditions;
 import com.algomeet.xmpp.chatservice.dto.MucMember;
 import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
 import com.algomeet.xmpp.chatservice.enums.MucAffiliation;
+import com.algomeet.xmpp.chatservice.enums.PresenceStatusCode;
 import com.algomeet.xmpp.chatservice.enums.XmppErrorType;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.routing.dispacher.LocalStanzaDispatcher;
@@ -112,10 +113,10 @@ public class MucMuteEventHandler {
 	            "      <actor jid='%s'/>" + // Inform who performed the action
 	            "      <reason>%s</reason>" +
 	            "    </item>" +
-	            "    <status code='104'/>" + // 104: Inform occupant that voice has been revoked
+	            "    <status code='%d'/>" + // 104: Inform occupant that voice has been revoked
 	            "  </x>" +
 	            "</presence>",
-	            roomJid, victimUserKey, affiliation, targetJid, actorJid, reason
+	            roomJid, victimUserKey, affiliation, targetJid, actorJid, reason, PresenceStatusCode.ROOM_CONFIG_CHANGED.getCode()
 	    );
 	}
 	

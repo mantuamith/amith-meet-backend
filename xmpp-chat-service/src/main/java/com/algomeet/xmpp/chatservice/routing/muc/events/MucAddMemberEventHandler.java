@@ -75,41 +75,12 @@ import lombok.extern.slf4j.Slf4j;
 public class MucAddMemberEventHandler {
 
 	private final DomainProperties domainProperties;
-
-	/**
-	 * Tracks active user sessions across devices.
-	 * Used to determine presence state (online/away/offline).
-	 */
 	private final UserSessionRegistry userSessionRegistry;
-
-	/**
-	 * Handles MUC message fanout to all occupants.
-	 */
 	private final MucMessageRouter xmppBroadCastHandler;
-
-	/**
-	 * Archives messages for Message Archive Management (MAM).
-	 */
 	private final XmppArchiveService xmppArchiveService;
-
-	/**
-	 * Dedicated router for MUC events (presence, system updates).
-	 */
 	private final MucMessageRouter mucMessageRouter;
-
-	/**
-	 * Utility for JID parsing (bare/full JID handling).
-	 */
 	private final JidUtil jidUtil;
-
-	/**
-	 * Service responsible for pushing presence updates to users.
-	 */
 	private final MucPresenceService mucPresenceService;
-
-	/**
-	 * Local dispatcher for direct IQ responses.
-	 */
 	private final LocalStanzaDispatcher localStanzaDispatcher;
 
 	/**
@@ -121,7 +92,7 @@ public class MucAddMemberEventHandler {
 	 * @param group current room state snapshot
 	 * @param sender admin user performing the action
 	 */
-	public void handleAddMember(
+	public void handleAddMemberRequest(
 			ChannelHandlerContext ctx,
 			String roomJid,
 			String xml,
@@ -145,17 +116,13 @@ public class MucAddMemberEventHandler {
 				senderJid,
 				newMemberJid,
 				roomJid,
-				affiliation
-				);
+				affiliation);
 
 		/**
 		 * Convert affiliation string into enum-safe value.
 		 */
-		String newMemberMucAffiliation =
-				MucAffiliation.fromString(affiliation).getValue();
-
-		String roomBareJid =
-				XmppUtil.getRoomBareJid(roomJid);
+		String newMemberMucAffiliation = MucAffiliation.fromString(affiliation).getValue();
+		String roomBareJid = XmppUtil.getRoomBareJid(roomJid);
 
 		/**
 		 * ----------------------------------------------------------
@@ -240,8 +207,7 @@ public class MucAddMemberEventHandler {
 				sender.getUserKey(),
 				group,
 				presenceXml,
-				true
-				);
+				true);
 
 		/**
 		 * ----------------------------------------------------------
@@ -261,8 +227,7 @@ public class MucAddMemberEventHandler {
 				senderJid,
 				roomBareJid,
 				body,
-				newMemberJid
-				);
+				newMemberJid);
 
 		/**
 		 * ----------------------------------------------------------
@@ -291,8 +256,7 @@ public class MucAddMemberEventHandler {
 				group,
 				sender,
 				null,
-				forArchiveXmlLog
-				);
+				forArchiveXmlLog);
 
 		/**
 		 * ----------------------------------------------------------
@@ -312,14 +276,12 @@ public class MucAddMemberEventHandler {
 			mucPresenceService.pushGroupParticipantsPresenceToUser(
 					ctx,
 					group,
-					newMemberUserKey
-					);
+					newMemberUserKey);
 		}
 
 		log.info("Successfully promoted {} in room {}",
 				newMemberJid,
-				roomJid
-				);
+				roomJid);
 	}
 
 	/**
@@ -347,8 +309,7 @@ public class MucAddMemberEventHandler {
 				XmppUtil.getRoomId(roomBareJid),
 				null,
 				sender.getUserKey(),
-				ulidString
-				);
+				ulidString);
 	}
 
 	/**
@@ -387,10 +348,7 @@ public class MucAddMemberEventHandler {
 
 		String resp =
 				String.format("<iq from='%s' to='%s' id='%s' type='result'/>",
-						from,
-						to,
-						id
-						);
+						from, to, id);
 
 		localStanzaDispatcher.dispatchLocally(to, from, resp);
 	}
@@ -403,7 +361,6 @@ public class MucAddMemberEventHandler {
 			return "No reason provided";
 
 		return xml.substring(xml.indexOf("<reason>") + 8,
-				xml.indexOf("</reason>")
-				);
+				xml.indexOf("</reason>"));
 	}
 }

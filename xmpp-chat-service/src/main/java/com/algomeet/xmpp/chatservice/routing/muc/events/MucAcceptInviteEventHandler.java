@@ -78,11 +78,11 @@ public class MucAcceptInviteEventHandler {
         // 3. Prepare a system message to log the join event in the chat stream.
         String stanzaId = UUID.randomUUID().toString();
         String body = sender.getUsername() + " has joined the group";
-        String logXml = buildAcceptInviteLog(roomBareJid, body, sender.getUserKey(), senderJid);
+        String acceptedInvitationLogXml = buildAcceptInviteLog(roomBareJid, body, sender.getUserKey(), senderJid);
         
         String ulidString = UlidCreator.getMonotonicUlid().toLowerCase();
 		// Insert stanza ID
-		String forArchiveLogXml = XmppStanzaUtil.insertStanzaId(xml, ulidString, domainProperties.getDomain());
+		String forArchiveLogXml = XmppStanzaUtil.insertStanzaId(acceptedInvitationLogXml, ulidString, domainProperties.getDomain());
         
         // 4. Persistence: Archive the join event to the database for future Message Archive Management (MAM) queries.
         saveToDatabase(stanzaId, roomJid, senderJid, group, sender, ulidString, forArchiveLogXml);

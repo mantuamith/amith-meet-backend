@@ -62,13 +62,13 @@ public class MucAdminCommandRouter {
 		MucRoomDto group = groupCacheService.refreshCachedGroup(XmppUtil.getRoomId(roomJid));
 				
 		if (MucCommandUtil.isKickPayload(xml)) {
-			mucKickEventHandler.handleKickRequest(ctx, roomJid, xml, group, sender);
+			mucKickEventHandler.handleKickMemberRequest(ctx, roomJid, xml, group, sender);
 		} else if (MucCommandUtil.isMutePayload(xml)) {
 			mucMuteEventHandler.handleMuteRequest(ctx, roomJid, xml, group, sender);
 		} else if (MucCommandUtil.isUnMutePayload(xml)) {
 			mucUnMuteEventHandler.handleUnMuteRequest(ctx, roomJid, xml, group, sender);
 		} else if (MucCommandUtil.isAddMemberStanza(xml)) {
-			mucAddMemberEventHandler.handleAddMember(ctx, roomJid, xml, group, sender);
+			mucAddMemberEventHandler.handleAddMemberRequest(ctx, roomJid, xml, group, sender);
 		}
 	}	
 }

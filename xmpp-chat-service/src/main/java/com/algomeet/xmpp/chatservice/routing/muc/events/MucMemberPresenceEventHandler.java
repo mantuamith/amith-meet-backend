@@ -37,7 +37,7 @@ public class MucMemberPresenceEventHandler {
      * @param group     The Data Transfer Object representing the current room state.
      * @param sender    The MUC member profile of the person joining.
      */
-    public void handleMemberPresence(ChannelHandlerContext ctx, String roomJid, String xml, MucRoomDto group, MucMember sender) { 	 
+    public void handleMemberPresenceRequest(ChannelHandlerContext ctx, String roomJid, String xml, MucRoomDto group, MucMember sender) { 	 
      	UserState newState = determineState(xml);    	
         if (newState == null) {return;}
          

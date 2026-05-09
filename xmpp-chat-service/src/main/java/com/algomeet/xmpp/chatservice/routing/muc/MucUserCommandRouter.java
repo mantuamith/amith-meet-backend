@@ -85,13 +85,13 @@ public class MucUserCommandRouter {
 			}
 
 			if (isPublishPresenceRequest(xml)) {
-				mucMemberJoinEventHandler.handleMemberJoin(ctx, roomJid, xml, group, senderMucMember.get());	
+				mucMemberJoinEventHandler.handleMemberJoinRequest(ctx, roomJid, xml, group, senderMucMember.get());	
 				
 			} else if (PresenceType.UNAVAILABLE.getValue().equals(type)) {
-				mucMemberLeftEventHandler.handleMemberLeftRoom(ctx, roomJid, xml, group, senderMucMember.get());
+				mucMemberLeftEventHandler.handleMemberLeftRoomRequest(ctx, roomJid, xml, group, senderMucMember.get());
 				
 			} else if (resoure != null && resoure.trim().equalsIgnoreCase(senderMucMember.get().getUserKey())) {
-				mucMemberPresenceEventHandler.handleMemberPresence(ctx, roomJid, xml, group, senderMucMember.get());
+				mucMemberPresenceEventHandler.handleMemberPresenceRequest(ctx, roomJid, xml, group, senderMucMember.get());
 			
 			} else {
 				mucChangeNickNameEventHandler.handleChangeNicknameRequest(ctx, roomJid, xml, group, senderMucMember.get());
