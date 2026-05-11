@@ -93,7 +93,7 @@ public class MucKickEventHandler {
         		senderJid,
 				roomBareJid,
 				body,
-				senderJid);
+				victimJid);
 
 		/**
 		 * ----------------------------------------------------------
