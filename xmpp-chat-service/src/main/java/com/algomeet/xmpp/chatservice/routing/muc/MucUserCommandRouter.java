@@ -15,7 +15,7 @@ import com.algomeet.xmpp.chatservice.routing.muc.events.MucAcceptInviteEventHand
 import com.algomeet.xmpp.chatservice.routing.muc.events.MucChangeNickNameEventHandler;
 import com.algomeet.xmpp.chatservice.routing.muc.events.MucMemberJoinEventHandler;
 import com.algomeet.xmpp.chatservice.routing.muc.events.MucMemberLeftEventHandler;
-import com.algomeet.xmpp.chatservice.routing.muc.events.MucMemberPresenceEventHandler;
+import com.algomeet.xmpp.chatservice.routing.muc.events.MucMemberPresenceUpdateEventHandler;
 import com.algomeet.xmpp.chatservice.service.GroupCacheService;
 import com.algomeet.xmpp.chatservice.util.MucMetaActionParser;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
@@ -42,7 +42,7 @@ public class MucUserCommandRouter {
 	private final MucAcceptInviteEventHandler mucAcceptInviteEventHandler;
 	private final MucChangeNickNameEventHandler mucChangeNickNameEventHandler;
 	private final MucMemberJoinEventHandler mucMemberJoinEventHandler;
-	private final MucMemberPresenceEventHandler mucMemberPresenceEventHandler;
+	private final MucMemberPresenceUpdateEventHandler mucMemberPresenceEventHandler;
 	private final MucMemberLeftEventHandler mucMemberLeftEventHandler;
 	/**
 	 * Top-level handler for incoming command stanzas targeting a specific room.
@@ -53,30 +53,34 @@ public class MucUserCommandRouter {
 	 * @param group     The room DTO containing current occupant information.
 	 * @param sender    The MUC member profile of the initiator.
 	 */
-	public void handleCommandStanza(ChannelHandlerContext ctx, String type, String roomJid, String senderJid, String xml, XmppPrincipal principal) {
+	public void handleCommandStanza(ChannelHandlerContext ctx, String type, String roomJid, String xml, XmppPrincipal principal) {
 		// Set tenant Id to support multi-tenancy 
 		TenantContext.setCurrentTenant(principal.getTenantId());
-
+		
 		Optional<String> actionOpt = MucMetaActionParser.extractAction(xml);
 		String action = actionOpt.orElse(null);
+		
+		// Force refresh group cache
+		MucRoomDto group = groupCacheService.refreshCachedGroup(XmppUtil.getRoomId(roomJid));
+		Optional<MucMember> senderMucMember = group.getMembers().stream()
+				.filter(m -> m.getUserKey().equals(principal.getUserKey()))
+				.findFirst();
 
 		if (PresenceMetaAction.INVITE_ACCEPT == PresenceMetaAction.fromString(action)) {
-			// Force refresh group cache
-			MucRoomDto group = groupCacheService.refreshCachedGroup(XmppUtil.getRoomId(roomJid));
-			Optional<MucMember> senderMucMember = group.getMembers().stream()
-					.filter(m -> m.getUserKey().equals(principal.getUserKey()))
-					.findFirst();
-
+			/**
+			 * Accepted invite request stanza.
+			 *
+			 * Example:
+			 * <presence to='room@conference.example.com/nick'>
+			 *   <x xmlns='http://jabber.org/protocol/muc'/>
+			 *   <x xmlns='http://algomeet.app/protocol/muc#meta'>
+			 *     <action>invite_accept</action>
+			 *   </x>
+			 * </presence>
+			 */
 			mucAcceptInviteEventHandler.handleAcceptedInvite(ctx,  roomJid, xml, group, senderMucMember.get());
 			
 		} else {
-
-			// Get group from cache
-			MucRoomDto group = groupCacheService.getCachedGroup(XmppUtil.getRoomId(roomJid));
-			Optional<MucMember> senderMucMember = group.getMembers().stream()
-					.filter(m -> m.getUserKey().equals(principal.getUserKey()))
-					.findFirst();
-
 			String[] roomJidArr = roomJid.split("/");
 			String resoure = null;
 
@@ -85,22 +89,64 @@ public class MucUserCommandRouter {
 			}
 
 			if (isPublishPresenceRequest(xml)) {
-				mucMemberJoinEventHandler.handleMemberJoin(ctx, roomJid, xml, group, senderMucMember.get());	
+				/**
+				 * Join room request stanza.
+				 *
+				 * Example:
+				 * <presence to='room@conference.example.com/nick'>
+				 *   <x xmlns='http://jabber.org/protocol/muc'/>
+				 * </presence>
+				 */
+				mucMemberJoinEventHandler.handleMemberJoinRequest(ctx, roomJid, xml, group, senderMucMember.get());	
 				
 			} else if (PresenceType.UNAVAILABLE.getValue().equals(type)) {
-				mucMemberLeftEventHandler.handleMemberLeftRoom(ctx, roomJid, xml, group, senderMucMember.get());
+				/**
+				 * Left room request stanza.
+				 *
+				 * Example:
+				 * <presence
+				 *   to='room@conference.example.com/nick'
+				 *   type='unavailable'/>
+				 */
+				mucMemberLeftEventHandler.handleMemberLeftRoom(ctx, roomJid, xml, group, principal);
 				
 			} else if (resoure != null && resoure.trim().equalsIgnoreCase(senderMucMember.get().getUserKey())) {
-				mucMemberPresenceEventHandler.handleMemberPresence(ctx, roomJid, xml, group, senderMucMember.get());
+				/**
+				 * Member room presence update request stanza.
+				 *
+				 * Example:
+				 * <presence to='room@conference.example.com/nick'>
+				 *   <show>away</show>
+				 *   <status>AFK</status>
+				 * </presence>
+				 */
+				mucMemberPresenceEventHandler.handleMemberPresenceRequest(ctx, roomJid, xml, group, senderMucMember.get());
 			
 			} else {
+				/**
+				 * Change group member nickname request stanza.
+				 *
+				 * Example:
+				 * <presence 
+				 *     to='289c5f4d-58a0-4def-bf5b-0fd15c045575@conference.algomeet.app/James'/>
+				 */
 				mucChangeNickNameEventHandler.handleChangeNicknameRequest(ctx, roomJid, xml, group, senderMucMember.get());
 			}
 		}
 	}
 
+	/**
+	 * Checks if the stanza is a MUC presence publish/join request.
+	 *
+	 * This is used to detect when a user is joining or publishing presence to a room,
+	 * identified by the presence of the MUC namespace.
+	 *
+	 * Example detected pattern:
+	 * <presence>
+	 *   <x xmlns='http://jabber.org/protocol/muc'/>
+	 * </presence>
+	 */
 	private boolean isPublishPresenceRequest(String xml) {
-		return (xml.contains("http://jabber.org/protocol/muc"));
-	}     
-
+	    return (xml.contains("http://jabber.org/protocol/muc"));
+	}
 }

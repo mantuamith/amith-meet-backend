@@ -12,6 +12,7 @@ import com.algomeet.xmpp.chatservice.constant.XmppErrorConditions;
 import com.algomeet.xmpp.chatservice.dto.MucMember;
 import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
 import com.algomeet.xmpp.chatservice.dto.StanzaInfo;
+import com.algomeet.xmpp.chatservice.enums.PresenceType;
 import com.algomeet.xmpp.chatservice.enums.XmppErrorType;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
 import com.algomeet.xmpp.chatservice.parser.GroupChatParser;
@@ -23,7 +24,6 @@ import com.algomeet.xmpp.chatservice.service.XmppArchiveService;
 import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.algomeet.xmpp.chatservice.util.XmppReadUtil;
-import com.algomeet.xmpp.chatservice.util.XmppRetractUtil;
 import com.algomeet.xmpp.chatservice.util.XmppServerAckUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
@@ -91,13 +91,17 @@ public class XmppMucHandler {
 		// Verify if the sender is an authorized member and is not muted
 		Optional<MucMember> senderMucMember = group.getMembers().stream()
 				.filter(m -> m.getUserKey().equals(principal.getUserKey())).findFirst();
-
-		if(senderMucMember.isEmpty() || senderMucMember.get().isMuted()) {
-			log.error("Access Denied: User {} in room {}. (Member: {}, Muted: {})", 
-					principal.getUserKey(), toRoomId, senderMucMember.isPresent(), senderMucMember.map(MucMember::isMuted).orElse(false));
+		
+		
+		if((senderMucMember.isEmpty() || senderMucMember.get().isMuted())
+				// Ignore unavailable presence stanzas used for member-leave broadcasts
+				&& !(XmppStanzaUtil.isPresenceStanza(originalXml) && PresenceType.UNAVAILABLE.getValue().equals(type))) {
 
 			xmppUtil.sendError(ctx, id, fromJid, domainProperties.getGroupChatDomain(), XmppErrorType.CANCEL, 
-					XmppErrorConditions.INTERNAL_SERVER_ERROR, "You are not allowed to send messages to this room");
+					XmppErrorConditions.FORBIDDEN, "You are not allowed to send messages to this room");
+			
+			log.error("Access Denied: User {} in room {}. (Member: {}, Muted: {})", 
+					principal.getUserKey(), toRoomId, senderMucMember.isPresent(), senderMucMember.map(MucMember::isMuted).orElse(false));
 			return;
 		}
 
@@ -105,16 +109,16 @@ public class XmppMucHandler {
 			// MUC Admin actions (kick, ban, mute)
 			mucAdminCommandRouter.handleCommandStanza(ctx, toRoomJid, originalXml, senderMucMember.get(), principal);
 		} else if(isUserCommandStanza(originalXml, toRoomJid)) {
-			// MUC User actions (nickname changes, room entry)
-			mucUserCommandRouter.handleCommandStanza(ctx, type, toRoomJid,  principal.getBareJid(), originalXml, principal);	
+			// MUC User actions (nickname changes, room entry, member-leave broadcasts)
+			mucUserCommandRouter.handleCommandStanza(ctx, type, toRoomJid,  originalXml, principal);	
 		
 		} else if(XmppStanzaUtil.isRetractStanza(originalXml)) {
-				mucRetractionService.retract(ctx, id, toRoomJid, principal.getBareJid(), originalXml, principal);								
+				mucRetractionService.retract(ctx, id, toRoomJid, originalXml, principal);								
 				
 		} else {
 
 			// 2. DIRECT PRIVATE MESSAGE (PM) WITHIN MUC CHECK
-			MucMember pmRecipientMucMember = resolveDirectPmRecipient(ctx, id, fromJid, toRoomJid, group);
+			MucMember pmToMucMember = resolveDirectPmRecipient(ctx, id, fromJid, toRoomJid, group);
 
 			// 3. ARCHIVING (MAM - XEP-0313)
 			// Only archive messages that are storage-eligible (e.g., contain a <body>)
@@ -139,7 +143,7 @@ public class XmppMucHandler {
 				// Insert stanza ID
 				forArchiveXml = XmppStanzaUtil.insertStanzaId(originalXml, ulidString, principal.getDomain());
 
-				xmppArchiveService.archiveEvent(forArchiveXml, info, XmppUtil.getRoomId(toRoomJid), (pmRecipientMucMember != null ? pmRecipientMucMember.getUserKey() : null), 
+				xmppArchiveService.archiveEvent(forArchiveXml, info, XmppUtil.getRoomId(toRoomJid), (pmToMucMember != null ? pmToMucMember.getUserKey() : null), 
 						XmppUtil.getUserKey(fromJid), ulidString)
 				.doOnSuccess(saved -> {
 					boolean isAckMessage = false;
@@ -171,9 +175,9 @@ public class XmppMucHandler {
 
 					// Count MUC private message
 					if(!isAckMessage) {
-						if (pmRecipientMucMember != null) {
+						if (pmToMucMember != null) {
 							// Increment MUC unread messages count 
-							mucUnreadCountService.incrementUnreadCount(pmRecipientMucMember.getUserKey(), 
+							mucUnreadCountService.incrementUnreadCount(pmToMucMember.getUserKey(), 
 									XmppUtil.getRoomId(toRoomJid))
 							.doOnError(e -> {
 								log.error("Storage failure for increment muc messages count {}: {}", id, e.getMessage(), e);
@@ -206,8 +210,8 @@ public class XmppMucHandler {
 			try {			
 
 				// Standard message propagation to members
-				mucMessageRouter.broadcastToOccupants(ctx, id, toRoomJid, fromJid, msgType, group, senderMucMember.get(), 
-						pmRecipientMucMember, (isArchivable ? forArchiveXml : originalXml));
+				mucMessageRouter.broadcastToOccupants(ctx, id, toRoomJid, fromJid, msgType, group, 
+						pmToMucMember, (isArchivable ? forArchiveXml : originalXml));
 
 			} catch (NumberFormatException e) {
 				log.error("Critical: Invalid roomId format in routing: {}", toRoomId);

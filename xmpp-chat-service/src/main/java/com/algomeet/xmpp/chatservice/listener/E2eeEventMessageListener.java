@@ -84,7 +84,7 @@ public class E2eeEventMessageListener {
         sb.append("<bundle xmlns='urn:xmpp:omemo:2'>");
         
         // Add your custom AlgoMeet metadata
-        sb.append("  <metadata xmlns='com.algomeet.e2ee' actionType='").append(event.getActionType()).append("'>");
+        sb.append("  <metadata xmlns='app.algomeet.e2ee' actionType='").append(event.getActionType()).append("'>");
         sb.append("    <deviceId>").append(event.getDeviceId()).append("</deviceId>");
         sb.append("  </metadata>");
  

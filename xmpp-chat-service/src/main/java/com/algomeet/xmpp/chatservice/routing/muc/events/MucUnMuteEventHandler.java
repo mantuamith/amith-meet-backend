@@ -19,7 +19,6 @@ import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
 
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -110,7 +109,6 @@ public class MucUnMuteEventHandler {
 	            "      <actor jid='%s'/>" +
 	            "      <reason>%s</reason>" +
 	            "    </item>" +
-	            "    <status code='110'/>" + 
 	            "  </x>" +
 	            "</presence>",
 	            roomJid, victimUserKey, affiliation, restoredRole, targetJid, actorJid, reason

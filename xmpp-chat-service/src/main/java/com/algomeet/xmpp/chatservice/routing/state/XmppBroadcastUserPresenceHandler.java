@@ -47,7 +47,6 @@ public class XmppBroadcastUserPresenceHandler {
 		Set<UserSession> sessions = userSessionRegistry.getSessions(principal.getUserKey());
 
 		if (sessions != null) {
-			// --- REFINED ARBITRATION LOGIC ---
 
 			// 1. If the user is GONE on this session, but has other live sessions, 
 			// do NOT broadcast 'unavailable' yet.

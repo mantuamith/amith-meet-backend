@@ -13,16 +13,16 @@ import com.algomeet.xmpp.chatservice.enums.ParticipantCallStatus;
 @Data
 @Builder
 @Document(collection = "call_sessions")
-// 1. Existing: For state-machine updates
+// 1. For state-machine updates
 @CompoundIndex(name = "sid_status_idx", def = "{'sid': 1, 'status': 1}")
 
-// 2. NEW: For covered queries on 1-on-1 vs MUC filtering
+// 2. For covered queries on 1-on-1 vs MUC filtering
 @CompoundIndex(name = "sid_roomId_idx", def = "{'sid': 1, 'roomId': 1}")
 
-// 3. NEW: For ESR (Equality, Sort, Range) on the 'findFirst' query
+// 3. For ESR (Equality, Sort, Range) on the 'findFirst' query
 @CompoundIndex(name = "sid_callee_created_idx", def = "{'sid': 1, 'callee': 1, 'createdAt': -1}")
 
-// 4. NEW: High-performance cleanup for WebSocket disconnects
+// 4. High-performance cleanup for WebSocket disconnects
 @CompoundIndex(name = "callerSid_status_idx", def = "{'callerSid': 1, 'status': 1}")
 
 public class CallSession {

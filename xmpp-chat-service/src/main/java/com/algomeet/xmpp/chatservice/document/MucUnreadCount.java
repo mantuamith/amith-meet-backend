@@ -27,14 +27,14 @@ public class MucUnreadCount {
     @Field("unread_count")
     private int unreadCount = 0;
     
-    /** * Timestamp of the last increment (new message received). 
+    /** Timestamp of the last increment (new message received). 
      * Used to determine the 'freshness' of the unread count.
      */
     @Indexed
     @Field("last_increment_at")
     private Long lastIncrementAt;	
 	
-    /** * Timestamp of the last decrement (user read the chat). 
+    /** Timestamp of the last decrement (user read the chat). 
      * Critical for resolving race conditions between multiple devices.
      */
     @Field("last_decrement_at")

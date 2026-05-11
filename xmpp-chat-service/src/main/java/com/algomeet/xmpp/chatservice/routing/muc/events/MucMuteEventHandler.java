@@ -112,7 +112,6 @@ public class MucMuteEventHandler {
 	            "      <actor jid='%s'/>" + // Inform who performed the action
 	            "      <reason>%s</reason>" +
 	            "    </item>" +
-	            "    <status code='104'/>" + // 104: Inform occupant that voice has been revoked
 	            "  </x>" +
 	            "</presence>",
 	            roomJid, victimUserKey, affiliation, targetJid, actorJid, reason
