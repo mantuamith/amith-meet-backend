@@ -56,14 +56,14 @@ class MessageServiceTest {
         unreadFromOther.setSender("bob");
         unreadFromOther.setGroupId("51");
         unreadFromOther.setContent("hello");
-        unreadFromOther.setTimestamp(Instant.parse("2026-04-09T09:00:00Z"));
+        unreadFromOther.setTimestamp(Instant.parse("2026-04-09T09:00:00Z").toEpochMilli());
 
         MessageDocument ownMessage = new MessageDocument();
         ownMessage.setId("g2");
         ownMessage.setSender("alice");
         ownMessage.setGroupId("51");
         ownMessage.setContent("mine");
-        ownMessage.setTimestamp(Instant.parse("2026-04-09T09:01:00Z"));
+        ownMessage.setTimestamp(Instant.parse("2026-04-09T09:01:00Z").toEpochMilli());
         ownMessage.markReadBy("alice", Instant.parse("2026-04-09T09:01:00Z").toEpochMilli());
 
         MessageDocument alreadyRead = new MessageDocument();
@@ -71,7 +71,7 @@ class MessageServiceTest {
         alreadyRead.setSender("carol");
         alreadyRead.setGroupId("51");
         alreadyRead.setContent("seen");
-        alreadyRead.setTimestamp(Instant.parse("2026-04-09T08:59:00Z"));
+        alreadyRead.setTimestamp(Instant.parse("2026-04-09T08:59:00Z").toEpochMilli());
         alreadyRead.markReadBy("alice", Instant.parse("2026-04-09T09:01:00Z").toEpochMilli());
 
         when(messageRepository.findBySenderOrReceiver("alice", "alice")).thenReturn(List.of());
@@ -96,7 +96,7 @@ class MessageServiceTest {
         groupMessage.setSender("bob");
         groupMessage.setGroupId("51");
         groupMessage.setContent("hello");
-        groupMessage.setTimestamp(Instant.parse("2026-04-09T09:00:00Z"));
+        groupMessage.setTimestamp(Instant.parse("2026-04-09T09:00:00Z").toEpochMilli());
 
         MessageStatusUpdate update = new MessageStatusUpdate();
         update.setMessageIds(List.of("g1"));
@@ -125,7 +125,7 @@ class MessageServiceTest {
         groupMessage.setGroupId("51");
         groupMessage.setStatus(MessageStatus.SENT);
         groupMessage.setContent("hello");
-        groupMessage.setTimestamp(Instant.parse("2026-04-09T09:00:00Z"));
+        groupMessage.setTimestamp(Instant.parse("2026-04-09T09:00:00Z").toEpochMilli());
 
         MessageStatusUpdate update = new MessageStatusUpdate();
         update.setMessageIds(List.of("g1"));

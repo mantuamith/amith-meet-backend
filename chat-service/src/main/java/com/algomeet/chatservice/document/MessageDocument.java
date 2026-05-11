@@ -75,7 +75,7 @@ public class MessageDocument {
     private MessageMediaType messageMediaType; // image, video, etc.
     private MessageStatus status;          // SENT, DELIVERED, etc.
 
-    private Instant timestamp = Instant.now();
+    private Long timestamp = System.currentTimeMillis();
 
     private List<MediaItem> mediaGroup;    // optional media items
     private MessageMetaData metaData;      // reply, reactions, etc.

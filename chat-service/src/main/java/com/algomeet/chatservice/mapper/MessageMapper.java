@@ -9,13 +9,15 @@ import com.algomeet.chatservice.document.MessageResponse;
 public class MessageMapper {
 
     public MessageResponse toResponse(MessageDocument document) {
+
+
         return MessageResponse.builder()
                 .id(document.getId())
                 .from(document.getSender())
                 .to(document.isGroupMessage() ? document.getGroupId() : document.getReceiver())
                 .fromKey(document.getSenderKey())          // NEW
                 .toKey(document.getReceiverKey())          // NEW
-                .timestamp(document.getTimestamp() != null ? document.getTimestamp().toEpochMilli()/1000 : null)
+                .timestamp(document.getTimestamp() != null ? document.getTimestamp(): System.currentTimeMillis())
                 .type(document.getType())
                 .clientMessageId(document.getClientMessageId())
                 .status(document.getStatus())

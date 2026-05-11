@@ -65,7 +65,7 @@ class MessageTextSearchDaoTest {
         d.setContent(content);
         d.setDeletedForAll(deletedForAll);
         if (deletedForUsers != null) d.setDeletedForUsers(deletedForUsers);
-        d.setTimestamp(ts);
+        d.setTimestamp(ts.toEpochMilli());
         d.setGroupMessage(false);
         d.setGroupId(groupId);
         return d;
