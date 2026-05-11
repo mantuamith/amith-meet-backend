@@ -3,6 +3,7 @@ package com.algomeet.xmpp.chatservice.service;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import org.springframework.data.domain.PageRequest;
@@ -50,6 +51,10 @@ import org.springframework.data.domain.Pageable;
 @Service
 @RequiredArgsConstructor
 public class XmppArchiveService {    
+	// Pre-compile patterns outside the method to save CPU
+	private static final Pattern TO_ATTR_PATTERN = Pattern.compile("\\s+to='[^']*'");
+	private static final Pattern FROM_ATTR_PATTERN = Pattern.compile("from='[^']*'");
+	
 	private final MucMessageRepository repository;
 	private final LocalStanzaDispatcher localStanzaDispatcher;
 	private final GroupCacheService groupCacheService;
@@ -100,7 +105,7 @@ public class XmppArchiveService {
 
 		// Get room details
 		MucRoomDto room = groupCacheService.getCachedGroup(roomId);
-	
+
 		if (room == null || !(room.getMembers().stream()
 				.anyMatch(m -> principal.getUserKey().equalsIgnoreCase(m.getUserKey())))) {
 			log.error("Unauthorized access to room {}", roomId);
@@ -108,13 +113,13 @@ public class XmppArchiveService {
 					XmppErrorConditions.INTERNAL_SERVER_ERROR, "Unauthorized access");
 			return;
 		}
-		
+
 		// Strategy: If 'after' is present, we move forward in time.
 		// Otherwise (or if 'before' is present), we move backward into history.
 		if (StringUtils.hasText(afterId)) {
 			// Sync recent updates
 			syncRecentRoomUpdates(roomId, afterId, principal);
-			
+
 			loadAfterWithRetry(roomId, afterId, principal, queryId, maxResults);
 		} else {
 			loadBeforeIdWithRetry(ctx, roomId, beforeId, maxResults, queryId, principal);
@@ -126,39 +131,39 @@ public class XmppArchiveService {
 	 * Uses ASC order to stream messages from the oldest in the set to the newest.
 	 */
 	private void loadAfterWithRetry(String roomId, String currentAfterId, XmppPrincipal principal, String queryId, int maxResults) {
-	    Pageable pageRequest = PageRequest.of(0, maxResults);
-	    
-	    repository.findByRoomIdAndIdGreaterThanAndToIsNullOrEqualtoUserkeyOrderByIdAsc(
-	            roomId, currentAfterId, principal.getUserKey(), pageRequest)
-	        .collectList()
-	        // Explicitly define the generic type <Void> for flatMap
-	        .<Void>flatMap(list -> {
+		Pageable pageRequest = PageRequest.of(0, maxResults);
 
-	            List<MucMessage> authorizedMessages = list.stream()
-	                .filter(msg -> isAuthorized(msg, principal))
-	                .collect(Collectors.toList());
+		repository.findByRoomIdAndIdGreaterThanAndToIsNullOrEqualtoUserkeyOrderByIdAsc(
+				roomId, currentAfterId, principal.getUserKey(), pageRequest)
+		.collectList()
+		// Explicitly define the generic type <Void> for flatMap
+		.<Void>flatMap(list -> {
 
-	            // 1. RE-QUERY LOGIC: Empty authorized list but DB had data
-	            if (authorizedMessages.isEmpty() && !list.isEmpty()) {
-	                String newAfterId = list.get(list.size() - 1).getId();
-	                log.debug("No authorized messages in batch. Re-querying from {}", newAfterId);
-	                
-	                // Use fromRunnable to return Mono<Void> and trigger the next hop
-	                return Mono.fromRunnable(() -> 
-	                    loadAfterWithRetry(roomId, newAfterId, principal, queryId, maxResults)
-	                );
-	            }
+			List<MucMessage> authorizedMessages = list.stream()
+					.filter(msg -> isAuthorized(msg, principal))
+					.collect(Collectors.toList());
 
-	            // 2. DISPATCH LOGIC: Process authorized messages or handle end of stream
-	            return Flux.fromIterable(authorizedMessages)
-	                .concatMap(msg -> dispatchMamResult(msg, queryId, principal))
-	                // .then() ensures the result is Mono<Void>
-	                .then(Mono.fromRunnable(() -> sendFin(queryId, principal)));
-	        })
-	        .subscribe(
-	            null,
-	            err -> log.error("MAM Sync failed for room {} at cursor {}", roomId, currentAfterId, err)
-	        );
+			// 1. RE-QUERY LOGIC: Empty authorized list but DB had data
+			if (authorizedMessages.isEmpty() && !list.isEmpty()) {
+				String newAfterId = list.get(list.size() - 1).getId();
+				log.debug("No authorized messages in batch. Re-querying from {}", newAfterId);
+
+				// Use fromRunnable to return Mono<Void> and trigger the next hop
+				return Mono.fromRunnable(() -> 
+				loadAfterWithRetry(roomId, newAfterId, principal, queryId, maxResults)
+						);
+			}
+
+			// 2. DISPATCH LOGIC: Process authorized messages or handle end of stream
+			return Flux.fromIterable(authorizedMessages)
+					.concatMap(msg -> dispatchMamResult(msg, queryId, principal))
+					// .then() ensures the result is Mono<Void>
+					.then(Mono.fromRunnable(() -> sendFin(queryId, principal)));
+		})
+		.subscribe(
+				null,
+				err -> log.error("MAM Sync failed for room {} at cursor {}", roomId, currentAfterId, err)
+				);
 	}
 
 	/**
@@ -166,53 +171,53 @@ public class XmppArchiveService {
 	 * Uses DESC order to find the N messages immediately preceding the 'beforeId'.
 	 */
 	private void loadBeforeIdWithRetry(ChannelHandlerContext ctx, String roomId, String beforeId, int maxResults, String queryId, XmppPrincipal principal) {
-	    log.debug("MAM Request for Room {}: beforeId={}, max={}", roomId, beforeId, maxResults);
+		log.debug("MAM Request for Room {}: beforeId={}, max={}", roomId, beforeId, maxResults);
 
-	    PageRequest pageRequest = PageRequest.of(0, maxResults);
+		PageRequest pageRequest = PageRequest.of(0, maxResults);
 
-	    // 1. Define the source Flux
-	    Flux<MucMessage> messageFlux = (beforeId == null || beforeId.trim().isEmpty()) 
-	            ? repository.findByRoomIdOrderByIdDesc(roomId, principal.getUserKey(), pageRequest)
-	            : repository.findHistoricalMessages(roomId, beforeId, principal.getUserKey(), pageRequest);
+		// 1. Define the source Flux
+		Flux<MucMessage> messageFlux = (beforeId == null || beforeId.trim().isEmpty()) 
+				? repository.findByRoomIdOrderByIdDesc(roomId, principal.getUserKey(), pageRequest)
+						: repository.findHistoricalMessages(roomId, beforeId, principal.getUserKey(), pageRequest);
 
-	    messageFlux
-	        .collectList()
-	        .<Void>flatMap(list -> {
-	            // 2. Secondary Java-side authorization filter
-	            List<MucMessage> authorizedMessages = list.stream()
-	                .filter(msg -> isAuthorized(msg, principal))
-	                .toList();
+		messageFlux
+		.collectList()
+		.<Void>flatMap(list -> {
+			// 2. Secondary Java-side authorization filter
+			List<MucMessage> authorizedMessages = list.stream()
+					.filter(msg -> isAuthorized(msg, principal))
+					.toList();
 
-	            // 3. RECURSION LOGIC: 
-	            // If we found nothing authorized, but the DB still had data, 
-	            // we must "walk" further back using the oldest ID in the current batch.
-	            if (authorizedMessages.isEmpty() && !list.isEmpty()) {
-	                String oldestIdInBatch = list.get(list.size() - 1).getId();
-	                log.debug("No authorized messages in batch for room {}. Walking back from {}", roomId, oldestIdInBatch);
-	                
-	                return Mono.fromRunnable(() -> 
-	                    loadBeforeIdWithRetry(ctx, roomId, oldestIdInBatch, maxResults, queryId, principal)
-	                );
-	            }
+			// 3. RECURSION LOGIC: 
+			// If we found nothing authorized, but the DB still had data, 
+			// we must "walk" further back using the oldest ID in the current batch.
+			if (authorizedMessages.isEmpty() && !list.isEmpty()) {
+				String oldestIdInBatch = list.get(list.size() - 1).getId();
+				log.debug("No authorized messages in batch for room {}. Walking back from {}", roomId, oldestIdInBatch);
 
-	            // 4. DISPATCH LOGIC: 
-	            // Process the authorized batch (or handle the end of history if list was empty).
-	            return Flux.fromIterable(authorizedMessages)
-	                .concatMap(msg -> dispatchMamResult(msg, queryId, principal))
-	                .then(Mono.fromRunnable(() -> sendFin(queryId, principal)));
-	        })
-	        .doOnError(e -> log.error("MAM failure for room {} at beforeId {}", roomId, beforeId, e))
-	        .subscribe();
+				return Mono.fromRunnable(() -> 
+				loadBeforeIdWithRetry(ctx, roomId, oldestIdInBatch, maxResults, queryId, principal)
+						);
+			}
+
+			// 4. DISPATCH LOGIC: 
+			// Process the authorized batch (or handle the end of history if list was empty).
+			return Flux.fromIterable(authorizedMessages)
+					.concatMap(msg -> dispatchMamResult(msg, queryId, principal))
+					.then(Mono.fromRunnable(() -> sendFin(queryId, principal)));
+		})
+		.doOnError(e -> log.error("MAM failure for room {} at beforeId {}", roomId, beforeId, e))
+		.subscribe();
 	}
-	
+
 	/**
 	 * Filters messages to ensure Private Messages within a MUC are only visible to the recipient.
 	 */
 	private boolean isAuthorized(MucMessage msg, XmppPrincipal principal) {
 		return !(msg.getHiddenFromUserKeys() != null && msg.getHiddenFromUserKeys().contains(principal.getUserKey()));
 	}
-	
-	
+
+
 	private boolean isPrincipalRecipient(MucMessage msg, XmppPrincipal principal) {
 		return (msg.getTo() == null || msg.getTo().equalsIgnoreCase(principal.getUserKey()));
 	}
@@ -237,12 +242,52 @@ public class XmppArchiveService {
 						(queryId != null ? "queryid='" + queryId + "'" : ""),
 						msg.getId(),
 						timestamp,
-						msg.getStanzaXml()
+						convertToMamFormat(msg.getFrom(), msg.getRoomId(), msg.getStanzaXml()) 
 				);        
 		return Mono.<Void>create(sink -> {
 			localStanzaDispatcher.dispatchLocally(principal.getUserKey(), principal.getUserKey(), mamResult);
 			sink.success();
 		});
+	}
+
+	private String convertToMamFormat(String fromUserKey, String toRoomId, String msg) {
+		/**
+		 * Example raw group chat message stanza:
+		 *
+		 * <message from='2fc35cae-e0b7-40a5-b2aa-e86206730e99@algomeet.app'
+		 *          to='289c5f4d-58a0-4def-bf5b-0fd15c045575@conference.algomeet.app'
+		 *          type='groupchat'
+		 *          id='msg-algomeet-1321199'>
+		 *     <body>
+		 *         Team, the Netty server is now handling Jingle stanzas correctly!
+		 *     </body>
+		 *     <stanza-id xmlns='urn:xmpp:sid:0'
+		 *                by='algomeet.app'
+		 *                id='01kqf1ty089crppav99f5nr50v'/>
+		 * </message>
+		 */
+
+		int headerEnd = msg.indexOf('>') + 1;
+		if (headerEnd <= 0) return msg;
+
+		String header = msg.substring(0, headerEnd);
+
+		if (header.indexOf("\"") != -1) {
+			header = header.replaceAll("\"", "'");
+		}
+
+		// 1. Remove 'to'
+		header = TO_ATTR_PATTERN.matcher(header).replaceAll("");
+
+		// 2. Replace 'from'
+		String newFrom = "from='" + jidUtil.getGroupBareJid(toRoomId) + "/" + fromUserKey + "'";
+		header = FROM_ATTR_PATTERN.matcher(header).replaceAll(newFrom);
+
+		// 3. Rebuild using StringBuilder to minimize object copies
+		return new StringBuilder(header.length() + msg.length() - headerEnd)
+				.append(header)
+				.append(msg, headerEnd, msg.length())
+				.toString();
 	}
 
 	/**
@@ -260,29 +305,29 @@ public class XmppArchiveService {
 				);
 		localStanzaDispatcher.dispatchLocally(principal.getUserKey(), principal.getUserKey(), fin);
 	}
-	
+
 	public Mono<MucMessage> findByMessageId(String id) {
 		return repository.findByMessageId(id);
 	}
-	
+
 	public Mono<MucMessage> save(MucMessage message) {
 		return repository.save(message);
 	}
-	
+
 	public Mono<Void> hideMessageForUser(String messageId, String userKey) {
-	    // 1. Locate the document by ID
-	    Query query = new Query(Criteria.where("messageId").is(messageId));
+		// 1. Locate the document by ID
+		Query query = new Query(Criteria.where("messageId").is(messageId));
 
-	    // 2. Define the specific update (Atomic $addToSet)
-	    Update update = new Update()
-	    		.addToSet("hiddenFromUserKeys", userKey)
-	    		.set("updateCursorId", UlidCreator.getMonotonicUlid().toLowerCase());
+		// 2. Define the specific update (Atomic $addToSet)
+		Update update = new Update()
+				.addToSet("hiddenFromUserKeys", userKey)
+				.set("updateCursorId", UlidCreator.getMonotonicUlid().toLowerCase());
 
-	    // 3. Execute 'updateFirst' to modify ONLY that field
-	    return reactiveMongoTemplate.updateFirst(query, update, MucMessage.class)
-	            .then();
+		// 3. Execute 'updateFirst' to modify ONLY that field
+		return reactiveMongoTemplate.updateFirst(query, update, MucMessage.class)
+				.then();
 	}
-		
+
 	/**
 	 * Fetches and dispatches message updates (like retractions or view changes) that occurred 
 	 * in a specific room after a given cursor point.
@@ -292,30 +337,30 @@ public class XmppArchiveService {
 	 * @param principal The session context of the user requesting the updates.
 	 */
 	private void syncRecentRoomUpdates(String roomId, String afterId, XmppPrincipal principal) {
-	    log.info("Syncing updates for Room {}: starting from cursor {}", roomId, afterId);
+		log.info("Syncing updates for Room {}: starting from cursor {}", roomId, afterId);
 
-	    // 1. Query the repository for all message changes in this room newer than the provided ULID.
-	    // OrderByIdAsc ensures we process and dispatch updates in the exact order they occurred.
-	    repository.findByRoomIdAndUpdateCursorIdGreaterThanAndIdLessThanEqualOrderByIdAsc(roomId, afterId, afterId)
-	        
-	        // 2. Filter: Ensure the update is relevant to the requesting principal.
-	        // This prevents leaking "Delete for Me" events or private stanzas to the wrong users.
-	        .filter(msg -> isPrincipalRecipient(msg, principal))
+		// 1. Query the repository for all message changes in this room newer than the provided ULID.
+		// OrderByIdAsc ensures we process and dispatch updates in the exact order they occurred.
+		repository.findByRoomIdAndUpdateCursorIdGreaterThanAndIdLessThanEqualOrderByIdAsc(roomId, afterId, afterId)
 
-	        // 3. Sequential Dispatch: Use concatMap to ensure stanzas are sent to the local 
-	        // dispatcher in order. This maintains protocol consistency for the client.
-	        .concatMap(msg -> dispatchRecentUpdatesResult(msg, afterId, principal))
+		// 2. Filter: Ensure the update is relevant to the requesting principal.
+		// This prevents leaking "Delete for Me" events or private stanzas to the wrong users.
+		.filter(msg -> isPrincipalRecipient(msg, principal))
 
-	        // 4. Subscription: Since this is a void-returning fire-and-forget background task,
-	        // we subscribe to trigger the reactive pipeline. 
-	        // NOTE: In a production environment, consider adding error logging inside .subscribe().
-	        .subscribe(
-	            null, 
-	            error -> log.error("Failed to sync updates for user {} in room {}: {}", 
-	                                principal.getUserKey(), roomId, error.getMessage())
-	        );
+		// 3. Sequential Dispatch: Use concatMap to ensure stanzas are sent to the local 
+		// dispatcher in order. This maintains protocol consistency for the client.
+		.concatMap(msg -> dispatchRecentUpdatesResult(msg, afterId, principal))
+
+		// 4. Subscription: Since this is a void-returning fire-and-forget background task,
+		// we subscribe to trigger the reactive pipeline. 
+		// NOTE: In a production environment, consider adding error logging inside .subscribe().
+		.subscribe(
+				null, 
+				error -> log.error("Failed to sync updates for user {} in room {}: {}", 
+						principal.getUserKey(), roomId, error.getMessage())
+				);
 	}
-	
+
 	/**
 	 * Processes a single message update and dispatches the appropriate XMPP stanza 
 	 * if the update occurs after the client's current sync cursor (afterId).
@@ -327,15 +372,15 @@ public class XmppArchiveService {
 	 */
 	private Mono<Void> dispatchRecentUpdatesResult(MucMessage msg, String afterId, XmppPrincipal principal) {
 
-	    // Wrap XML generation in Mono.fromCallable to keep the logic within the reactive pipeline.
-	    return Mono.fromCallable(() -> buildUpdateXml(msg, principal))
-	            .flatMap(optionalXml -> optionalXml
-	                .map(xml -> Mono.fromRunnable(() -> 
-	                    // 3. Side-effect: Dispatch the generated stanza to the user's local connection.
-	                    localStanzaDispatcher.dispatchLocally(principal.getUserKey(), principal.getUserKey(), xml)
-	                ).then()) // Convert Runnable to Mono<Void>
-	                .orElse(Mono.empty())
-	            );
+		// Wrap XML generation in Mono.fromCallable to keep the logic within the reactive pipeline.
+		return Mono.fromCallable(() -> buildUpdateXml(msg, principal))
+				.flatMap(optionalXml -> optionalXml
+						.map(xml -> Mono.fromRunnable(() -> 
+						// 3. Side-effect: Dispatch the generated stanza to the user's local connection.
+						localStanzaDispatcher.dispatchLocally(principal.getUserKey(), principal.getUserKey(), xml)
+								).then()) // Convert Runnable to Mono<Void>
+						.orElse(Mono.empty())
+						);
 	}
 
 	/**
@@ -343,39 +388,38 @@ public class XmppArchiveService {
 	 * Returns an Optional.empty() if no update (retraction or hide) is required for this user.
 	 */
 	private Optional<String> buildUpdateXml(MucMessage msg, XmppPrincipal principal) {
-	    // Priority 1: Global Retraction (XEP-0424). If deletedAt is set, everyone needs a retraction.
-	    if (msg.getDeletedAt() != null) {
-	        return Optional.of(buildRetractionXml(msg, principal));
-	    } 
-	    
-	    // Priority 2: "Delete for Me" (View Management). Only notify if this specific user hidden the message.
-	    if (msg.getHiddenFromUserKeys() != null && msg.getHiddenFromUserKeys().contains(principal.getUserKey())) {
-	        return Optional.of(buildHideEventXml(msg, principal));
-	    }
+		// Priority 1: Global Retraction (XEP-0424). If deletedAt is set, everyone needs a retraction.
+		if (msg.getDeletedAt() != null) {
+			return Optional.of(buildRetractionXml(msg, principal));
+		} 
 
-	    return Optional.empty();
+		// Priority 2: "Delete for Me" (View Management). Only notify if this specific user hidden the message.
+		if (msg.getHiddenFromUserKeys() != null && msg.getHiddenFromUserKeys().contains(principal.getUserKey())) {
+			return Optional.of(buildHideEventXml(msg, principal));
+		}
+
+		return Optional.empty();
 	}
 
 	/**
 	 * Builds a XEP-0424 Message Retraction stanza for MUC groupchat.
 	 */
 	private String buildRetractionXml(MucMessage msg, XmppPrincipal principal) {
-	    String timestamp = XmppStanzaUtil.formatTimestamp(msg.getDeletedAt());
-	    // Construct the Occupant JID (room@service/nick)
-	    String groupJid = jidUtil.getGroupBareJid(msg.getRoomId()) + "/" + msg.getFrom();
+		String timestamp = XmppStanzaUtil.formatTimestamp(msg.getDeletedAt());
+		// Construct the Occupant JID (room@service/nick)
+		String groupJid = jidUtil.getGroupBareJid(msg.getRoomId()) + "/" + msg.getFrom();
 
-	    MessageRetractStanza retractStanza = MessageRetractStanza.builder()
-	            .id(UUID.randomUUID().toString()) // Unique ID for this specific retraction stanza
-	            .to(principal.getBareJid())       // Targeted at the user's bare JID
-	            .from(groupJid)                  // Originating from the room occupant address
-	            .by(groupJid)                    // The entity that performed the retraction
-	            .retractedId(msg.getMessageId()) // The original 'id' of the message to be removed
-	            .type(XmppMessageType.GROUPCHAT.getXmlValue())
-	            .stamp(timestamp)
-	            .build();
+		MessageRetractStanza retractStanza = MessageRetractStanza.builder()
+				.id(UUID.randomUUID().toString()) // Unique ID for this specific retraction stanza
+				.from(groupJid)                  // Originating from the room occupant address
+				.by(groupJid)                    // The entity that performed the retraction
+				.retractedId(msg.getMessageId()) // The original 'id' of the message to be removed
+				.type(XmppMessageType.GROUPCHAT.getXmlValue())
+				.stamp(timestamp)
+				.build();
 
-	    // Injects the server's tracking ID (cursor) into the <stanza-id/> element for MAM/Syncing.
-	    return XmppStanzaUtil.insertStanzaId(retractStanza.toXml(), msg.getUpdateCursorId(), principal.getDomain());
+		// Injects the server's tracking ID (cursor) into the <stanza-id/> element for MAM/Syncing.
+		return XmppStanzaUtil.insertStanzaId(retractStanza.toXml(), msg.getUpdateCursorId(), principal.getDomain());
 	}
 
 	/**
@@ -389,7 +433,8 @@ public class XmppArchiveService {
 					.targetId(msg.getMessageId()) // The message ID that should be hidden from view
 					.from(principal.getBareJid()) // Sent from the user's bare JID
 					.room(jidUtil.getGroupBareJid(msg.getRoomId()))
-					.to(principal.getBareJid())   // Sent to self to ensure all connected resources (phone, web) sync
+					// Removed to attribute to shorten the message
+					//.to(principal.getBareJid())   // Sent to self to ensure all connected resources (phone, web) sync
 					.build();
 			// Generate a fresh monotonic ULID for the view management event itself.
 			String ulidString = UlidCreator.getMonotonicUlid().toLowerCase();

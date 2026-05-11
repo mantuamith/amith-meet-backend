@@ -9,10 +9,9 @@ public class XmppStanzaMucUtil {
 	 * Ensures the 'from' JID is the anonymous Occupant JID and 'to' is the recipient's real JID.
 	 */
 	public static String rewriteMucStanzaForRecipient(String xml, String roomJid, String fromJid, 
-	                                            String recipientUserKey, String domain) {
-	    
+	                                            String recipientUserKey, String domain) {	
+		
 	    String occupantFromJid = buildOccupantJid(roomJid, XmppUtil.getUserKey(fromJid));
-	    String recipientRealJid = recipientUserKey + "@" + domain;
 
 	    // Define patterns to match both single and double quotes for 'from' and 'to'
 	    String fromPattern = "from=['\"]" + Pattern.quote(fromJid) + "['\"]";
@@ -21,10 +20,10 @@ public class XmppStanzaMucUtil {
 	    /*
 		 * JID REWRITING:
 		 * 1. Change 'from' from UserJID to OccupantJID (Room anonymity).
-		 * 2. Change 'to' from RoomJID to the specific Recipient's JID for routing.
+		 * 2. Remove "to" attribute to shorten the message
 		 */
 	    return xml.replaceAll(fromPattern, "from='" + occupantFromJid + "'")
-	              .replaceAll(toPattern, "to='" + recipientRealJid + "'");
+	              .replaceAll(toPattern, "");
 	}
 
 	/**

@@ -469,4 +469,20 @@ public class XmppStanzaUtil {
 		// Not a message stanza or does not contain the retraction trigger
 		return false;
 	}
+	
+	/**
+	 * Safely injects the 'from' attribute into the first XML tag.
+	 */
+	public static String injectFromAttribute(String xml, String jid) {
+		String replacement = String.format(" from='%s'", jid);
+		// Find the end of the first tag name (either a space or the end of the tag '>')
+		int firstSpace = xml.indexOf(' ');
+		int firstTagEnd = xml.indexOf('>');
+
+		int insertAt = (firstSpace != -1 && firstSpace < firstTagEnd) ? firstSpace : firstTagEnd;
+
+		return new StringBuilder(xml)
+				.insert(insertAt, replacement)
+				.toString();
+	}    
 }
