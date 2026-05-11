@@ -116,7 +116,7 @@ public class MucKickEventHandler {
 		xmppBroadCastHandler.broadcastToOccupants(
 				ctx,
 				messageId,
-				roomJid,
+				roomBareJid,
 				senderJid,
 				XmppMessageType.GROUPCHAT,
 				group,

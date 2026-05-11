@@ -17,6 +17,11 @@ public class MucCommandUtil {
 	private static final XMLInputFactory XML_FACTORY = XMLInputFactory.newInstance();
 
 	public static boolean isAuthorized(MucMember sender, MucMember victim) {
+		// Sender is doing the action to itself
+		if(sender.getUserKey().equals(victim.getUserKey())) {
+			return true;
+		}
+		
 		// Permission Check (Pseudo-logic: check your Room Manager/DB)        
 		if (!(MucAffiliation.ADMIN == MucAffiliation.fromString(sender.getRole())
 				|| MucAffiliation.OWNER == MucAffiliation.fromString(sender.getRole()))) {

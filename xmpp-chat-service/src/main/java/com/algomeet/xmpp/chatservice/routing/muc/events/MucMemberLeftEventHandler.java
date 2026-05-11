@@ -120,7 +120,7 @@ public class MucMemberLeftEventHandler {
 		xmppBroadCastHandler.broadcastToOccupants(
 				ctx,
 				messageId,
-				roomJid,
+				roomBareJid,
 				senderJid,
 				XmppMessageType.GROUPCHAT,
 				group,
