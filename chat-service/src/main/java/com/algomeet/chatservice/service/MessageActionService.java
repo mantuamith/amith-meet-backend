@@ -100,8 +100,8 @@ public class MessageActionService {
         if (!msg.isVisibleTo(requester)) return null;
 
         // 6. Time check
-        Instant now = Instant.now();
-        if (msg.getTimestamp().plusSeconds(300).isBefore(Instant.now())) {
+        Instant now = Instant.ofEpochSecond(msg.getTimestamp());
+        if (now.plusMillis(300).isBefore(Instant.now())) {
             throw new MessageEditException("Edit time expired", HttpStatus.CONFLICT);
         }
 
@@ -155,7 +155,7 @@ public class MessageActionService {
         reply.setContent(req.getContent());
         reply.setStatus(MessageStatus.SENT);
         reply.setClientMessageId(req.getClientMessageId());
-        reply.setTimestamp(Instant.ofEpochSecond(req.getMsgReplyTimeStamp()));
+        reply.setTimestamp(req.getMsgReplyTimeStamp());
         if (req.getGroupId() != null && !req.getGroupId().isBlank()) {
             reply.setGroupId(req.getGroupId());
             reply.setGroupMessage(true);
@@ -364,11 +364,7 @@ public class MessageActionService {
         // ===============================
         MessageDocument fwd = new MessageDocument();
 
-        fwd.setTimestamp(
-                req.getMsgForwardTimeStamp() != null
-                        ? Instant.ofEpochMilli(req.getMsgForwardTimeStamp())
-                        : Instant.now()
-        );
+        fwd.setTimestamp(req.getMsgForwardTimeStamp());
 
         fwd.setClientMessageId(req.getClientMessageId());
         fwd.setSender(sender);

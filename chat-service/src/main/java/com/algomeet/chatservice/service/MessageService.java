@@ -113,7 +113,7 @@ public class MessageService {
             message.setStatus(MessageStatus.SENT);
         }
         if (message.getTimestamp() == null) {
-            message.setTimestamp(Instant.now());
+            message.setTimestamp(System.currentTimeMillis());
         }
         initializeReadTracking(message);
         log.info("[Save] id?(pre) sender={} receiver={} status={} ts={}",
@@ -195,7 +195,7 @@ public class MessageService {
 
             if (latest == null) continue;
 
-            long ts = latest.getTimestamp().toEpochMilli();
+            long ts = latest.getTimestamp();
 
             // 🔥 unread ONLY from visible messages
             int unread = (int) thread.stream()
