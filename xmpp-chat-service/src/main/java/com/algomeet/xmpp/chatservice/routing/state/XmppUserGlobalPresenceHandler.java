@@ -132,7 +132,7 @@ public class XmppUserGlobalPresenceHandler {
 		if (firstTag == -1) return false;
 
 		// Check if the root element is <presence
-		if (xml.regionMatches(true, firstTag, "<presence", 0, 9)) {
+		if (XmppStanzaUtil.isPresenceStanza(xml)) {
 			// A self-broadcast MUST NOT have a 'to' destination.
 			// Presence with a 'to' attribute is a directed presence (XEP-0045) or subscription request.
 			return !xml.contains(" to=") && !xml.contains(" to='");
