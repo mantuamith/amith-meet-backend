@@ -104,4 +104,11 @@ public class MucMessage {
 
 	@Builder.Default
 	private Instant createdAt = Instant.now();
+	
+    /**
+     * Optional: MongoDB TTL (Time To Live) index.
+     * Automatically deletes messages after 12 months if never delivered.
+     */
+    @Indexed(expireAfterSeconds = 12 * 2592000) 
+    private Instant expireAt;
 }
