@@ -108,7 +108,7 @@ public class MessageActionService {
         // 7. Read check (DM + GROUP SAFE)
         if (msg.isGroupMessage()) {
             if (msg.getReadByUsers() != null &&
-                    msg.getReadByUsers().stream().anyMatch(u -> !u.equals(msg.getSender()))) {
+                    msg.getReadByUsers().stream().anyMatch(u -> !u.getUsername().equals(msg.getSender()))) {
                 return null;
             }
         } else {
