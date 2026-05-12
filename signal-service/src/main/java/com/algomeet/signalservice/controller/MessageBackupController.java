@@ -85,6 +85,7 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 	 * Supports cursor-based pagination using the optional "after" parameter.
 	 *
 	 * @param peerKey the unique identifier of the conversation peer (recipient or sender)
+	 * @param before optional cursor (stanzaId) to fetch messages that come before a specific message
 	 * @param after optional cursor (stanzaId) to fetch messages that come after a specific message
 	 * @param page zero-based page index (default: 0)
 	 * @param size number of messages per page (default: 50)
@@ -93,6 +94,7 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 	@GetMapping("/{peerKey}/conversation")
 	public ResponseEntity<CommonResponse<Page<MessageBackupResponse>>> getConversationMessages(
 			@PathVariable String peerKey,
+			@RequestParam("before") Optional<String> before,
 			@RequestParam("after") Optional<String> after,
 			@RequestParam(defaultValue = "0") int page,
 			@RequestParam(defaultValue = "50") int size) {
@@ -102,13 +104,17 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 		Page<MessageBackupDocument> backupsPage = null;
 		if (after.isPresent() && StringUtils.hasText(after.get())) {
 			backupsPage =
-					messageBackupService.getConversationMessages(
+					messageBackupService.getConversationMessagesAfter(
 							SecurityUtil.getUserKey(), peerKey, after.get(), page, size);    		
 
-		} else {    		
+		} else {    
+			if (before.isEmpty()) {
+				before = Optional.ofNullable(UlidCreator.getMonotonicUlid().toLowerCase());
+			}
+			
 			backupsPage =
-					messageBackupService.getConversationMessages(
-							SecurityUtil.getUserKey(), peerKey, page, size);
+					messageBackupService.getConversationMessagesBefore(
+							SecurityUtil.getUserKey(), peerKey, before.get(), page, size);
 		}
 
 		// Transform database documents into API response DTOs.
@@ -329,6 +335,16 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 			@PathVariable String messageId,
 			@Validated @RequestBody MessageStatusUpdateRequest request) {
 		return processStatusUpdate(messageId, FIELD_DELETED_AT, request);
+	}
+	
+	/**
+	 * Performs a soft delete (tombstone) on a message.
+	 */
+	@PatchMapping("/{messageId}/mark-as-retracted")
+	public ResponseEntity<CommonResponse<?>> markAsRetracted(
+			@PathVariable String messageId,
+			@Validated @RequestBody MessageStatusUpdateRequest request) {
+		return processStatusUpdate(messageId, FIELD_RETRACTED_AT, request);
 	}
 
 	/**

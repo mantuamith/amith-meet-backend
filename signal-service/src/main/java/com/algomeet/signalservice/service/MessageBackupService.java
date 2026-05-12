@@ -17,9 +17,12 @@ import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_TI
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_UPDATE_CURSOR_ID;
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_USER_KEY;
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_VERSION;
+import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_RETRACTED_AT;
 
 import java.nio.charset.Charset;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -160,15 +163,15 @@ public class MessageBackupService {
 		return repository.save(backup);
 	}
 
-	public Page<MessageBackupDocument> getConversationMessages(String userKey, String peerKey, int page, int size) {
+	public Page<MessageBackupDocument> getConversationMessagesBefore(String userKey, String peerKey,String stanzaId, int page, int size) {
 		Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, FIELD_STANZA_ID));
 
 		// Get converation ID
 		String converationId = ConversationUtil.getConversationId(userKey, peerKey);		
-		return repository.findByConversationId(converationId, pageable);
+		return repository.findByConversationIdAndStanzaIdLessThan(converationId, stanzaId, pageable);
 	}
 
-	public Page<MessageBackupDocument> getConversationMessages(String userKey, String peerKey, String stanzaId, int page, int size) {
+	public Page<MessageBackupDocument> getConversationMessagesAfter(String userKey, String peerKey, String stanzaId, int page, int size) {
 		Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.ASC, FIELD_STANZA_ID));
 
 		// Get converation ID
@@ -216,15 +219,30 @@ public class MessageBackupService {
 	    // Limit (VERY IMPORTANT to avoid unbounded fetch)
 	    query.limit(maxResults);
 
+	    List<MessageBackupDocument> modifiedRecords = new LinkedList<>();
 	    // Execute
-	    return mongoTemplate.find(query, MessageBackupDocument.class);
+	    modifiedRecords.addAll(mongoTemplate.find(query, MessageBackupDocument.class));
+
+	    // Get the latest first message in the conversation
+	    String converationId = ConversationUtil.getConversationId(userKey, peerKey);
+	    Optional<MessageBackupDocument> optCurrentFirstMessage = repository.findFirstByUserKeyAndConversationIdOrderByStanzaIdAsc(userKey, converationId);
+
+	    if (optCurrentFirstMessage.isPresent()) {
+	    	// Mark the first available message as the conversation starting point.
+	    	// This serves as the synchronization reference for deleted messages across local devices.
+	    	MessageBackupDocument message = optCurrentFirstMessage.get();
+	    	message.setIsStartOfConversation(true);
+	    	modifiedRecords.add(0, message);
+	    }
+
+	    return modifiedRecords;
 	}
 	
-	public Page<MessageBackupDocument> getSyncConversationMessages(String userKey, String participantKey, String stanzaId, int page, int size) {
+	public Page<MessageBackupDocument> getSyncConversationMessages(String userKey, String peerKey, String stanzaId, int page, int size) {
 		Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.ASC, FIELD_STANZA_ID));
 
 		// Get converation ID
-		String converationId = ConversationUtil.getConversationId(userKey, participantKey);		
+		String converationId = ConversationUtil.getConversationId(userKey, peerKey);		
 		return repository.findByConversationIdAndStanzaIdGreaterThan(converationId, stanzaId, pageable);
 	}
 
@@ -405,9 +423,10 @@ public class MessageBackupService {
 
 	@Transactional
 	public void deleteConversation(String userKey, String peerKey) {
-
+		String converationId = ConversationUtil.getConversationId(userKey, peerKey);
+		
 		ConversationStorageStats stats =
-				repository.getConversationStorageStats(userKey, peerKey)
+				repository.getConversationStorageStats(userKey, converationId)
 				.stream()
 				.findFirst()
 				.orElse(new ConversationStorageStats(0L, 0L)); // Or handle empty
@@ -421,9 +440,8 @@ public class MessageBackupService {
 		req.setChatMessageCountDelta(-messageCount);
 		req.setChatStorageBytesDelta(-totalSize);
 		mediaService.adjustStorageUsage(userKey, req);
-
-
-		repository.deleteConversation(userKey, peerKey);				
+		
+		repository.deleteByUserKeyAndConversationId(userKey, converationId);				
 	}	
 
 	public void deleteByUserKey(String userKey ){
@@ -470,7 +488,7 @@ public class MessageBackupService {
 				.set(FIELD_UPDATE_CURSOR_ID, stanzaId);
 
 		// Clean up message
-		if (FIELD_DELETED_AT.equals(timestampField)) {
+		if (FIELD_DELETED_AT.equals(timestampField) || FIELD_RETRACTED_AT.equals(timestampField)) {
 			update.set(FIELD_ENCRYPTED_MSG, null);
 		}
 

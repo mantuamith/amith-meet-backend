@@ -67,6 +67,7 @@ public interface MessageBackupControllerDoc {
     )
     ResponseEntity<CommonResponse<Page<MessageBackupResponse>>> getConversationMessages(
         @Parameter(description = "Peer user key", example = "user_123") String peerKey,
+        @Parameter(description = "Cursor (stanzaId). Fetch messages BEFORE this ID", example = "01HXYZ...") Optional<String> before,
         @Parameter(description = "Cursor (stanzaId). Fetch messages AFTER this ID", example = "01HXYZ...") Optional<String> after,
         @Parameter(description = "Page index", example = "0") int page,
         @Parameter(description = "Page size", example = "50") int size
@@ -133,4 +134,7 @@ public interface MessageBackupControllerDoc {
 
     @Operation(summary = "Mark message as deleted (soft delete)")
     ResponseEntity<CommonResponse<?>> markAsDeleted(String messageId, MessageStatusUpdateRequest request);
+    
+    @Operation(summary = "Mark message as retracted (soft delete by sender)")
+    ResponseEntity<CommonResponse<?>> markAsRetracted(String messageId, MessageStatusUpdateRequest request);
 }
