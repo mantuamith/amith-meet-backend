@@ -1,7 +1,6 @@
 package com.algomeet.signalservice.controller.swagger;
 
 import java.util.List;
-import java.util.UUID;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -17,7 +16,6 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
-import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 @Tag(name = "Group Sender Keys API", description = "Sender key distribution for secure group messaging")
@@ -26,6 +24,7 @@ public interface GroupSenderKeyControllerDoc {
 	/**
 	 * Sender device uploads SKDM
 	 */
+
 	@Operation(
 			summary = "Upload Sender Key Distribution Message (SKDM)",
 			description = "Sender device uploads a SKDM for a specific group."
@@ -40,6 +39,7 @@ public interface GroupSenderKeyControllerDoc {
 			description = "Sender device not found",
 			content = @Content(schema = @Schema(implementation = CommonResponse.class))
 			)
+	@Deprecated
 	public ResponseEntity<CommonResponse<GroupSenderKeyResponse>> create(
 			@Parameter(description = "Sender device ID", required = true)
 			@PathVariable Integer senderDeviceId,
@@ -53,7 +53,6 @@ public interface GroupSenderKeyControllerDoc {
 	/**
 	 * Fetch SKDMs for a device + group
 	 */
-
 	@Operation(
 			summary = "Fetch Sender Keys",
 			description = "Retrieve SKDM records uploaded by a sender device for a specific group."
@@ -68,6 +67,7 @@ public interface GroupSenderKeyControllerDoc {
 			description = "Sender device not found",
 			content = @Content(schema = @Schema(implementation = CommonResponse.class))
 			)
+	@Deprecated
 	public ResponseEntity<CommonResponse<List<GroupSenderKeyResponse>>> get(
 			@Parameter(description = "Sender device ID", required = true)
 			@PathVariable Integer senderDeviceId,
@@ -78,7 +78,7 @@ public interface GroupSenderKeyControllerDoc {
 	/**
 	 * Receiver device polls for SKDM (long polling)
 	 */
-	@Deprecated
+
 	@Operation(
 			summary = "Long-poll for new Sender Keys (SKDM)",
 			description = """
@@ -102,6 +102,7 @@ public interface GroupSenderKeyControllerDoc {
 			description = "No sender key records found for this user/device and group",
 			content = @Content(schema = @Schema(implementation = CommonResponse.class))
 			)
+	@Deprecated
 	public ResponseEntity<CommonResponse<List<GroupSenderKeyResponse>>> poll(
 
 			@Parameter(
@@ -165,6 +166,7 @@ public interface GroupSenderKeyControllerDoc {
 					schema = @Schema(implementation = CommonResponse.class)
 					)
 			)
+	@Deprecated
 	public ResponseEntity<CommonResponse<List<GroupSenderKeyResponse>>> getSenderKeys(
 
 			@Parameter(
@@ -181,51 +183,7 @@ public interface GroupSenderKeyControllerDoc {
 					)
 			@PathVariable String groupId
 			);  
-
-
-	@Operation(
-			summary = "Delete group sender key (by sender)",
-			description = "Deletes a group sender key using the sender's perspective. The authenticated user is treated as the sender."
-			)
-	@ApiResponses(value = {
-			@ApiResponse(responseCode = "200", description = "Sender key deleted successfully",
-					content = @Content(schema = @Schema(implementation = CommonResponse.class))),
-			@ApiResponse(responseCode = "404", description = "Sender key not found",
-			content = @Content(schema = @Schema(implementation = CommonResponse.class)))
-	})
-	public ResponseEntity<CommonResponse<?>> deleteBySender(
-			@Parameter(description = "Sender device ID", example = "1", required = true)
-			@PathVariable Integer senderDeviceId,
-
-			@Parameter(description = "Group ID", example = "group-123", required = true)
-			@PathVariable String groupId,
-
-			@Parameter(description = "Receiver user key (UUID)", example = "2fc35cae-e0b7-40a5-b2aa-e86206730e99", required = true)
-			@RequestParam UUID receiverUserKey,
-
-			@Parameter(description = "Receiver device ID", example = "2", required = true)
-			@RequestParam Integer receiverDeviceId);
-
-	@Operation(
-			summary = "Delete group sender key (by receiver)",
-			description = "Deletes a group sender key using the receiver's perspective. The authenticated user is treated as the receiver."
-			)
-	@ApiResponses(value = {
-			@ApiResponse(responseCode = "200", description = "Sender key deleted successfully",
-					content = @Content(schema = @Schema(implementation = CommonResponse.class))),
-			@ApiResponse(responseCode = "404", description = "Sender key not found",
-			content = @Content(schema = @Schema(implementation = CommonResponse.class)))
-	})
-	public ResponseEntity<CommonResponse<?>> deleteByReceiver(
-			@Parameter(description = "Receiver device ID", example = "2", required = true)
-			@PathVariable Integer receiverDeviceId,
-
-			@Parameter(description = "Group ID", example = "group-123", required = true)
-			@PathVariable String groupId,
-
-			@Parameter(description = "Sender user key (UUID)", example = "2fc35cae-e0b7-40a5-b2aa-e86206730e99", required = true)
-			@RequestParam UUID senderUserKey,
-
-			@Parameter(description = "Sender device ID", example = "1", required = true)
-			@RequestParam Integer senderDeviceId);
 }
+
+
+

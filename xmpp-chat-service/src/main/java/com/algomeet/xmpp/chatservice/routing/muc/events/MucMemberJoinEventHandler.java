@@ -9,6 +9,7 @@ import com.algomeet.xmpp.chatservice.dto.MucMember;
 import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.enums.MucRole;
+import com.algomeet.xmpp.chatservice.enums.PresenceStatusCode;
 import com.algomeet.xmpp.chatservice.enums.UserState;
 import com.algomeet.xmpp.chatservice.parser.StateStanzaParser;
 import com.algomeet.xmpp.chatservice.routing.muc.MucMessageRouter;
@@ -42,7 +43,7 @@ public class MucMemberJoinEventHandler {
      * @param group     The Data Transfer Object representing the current room state.
      * @param sender    The MUC member profile of the person joining.
      */
-    public void handleMemberJoin(ChannelHandlerContext ctx, String roomJid, String xml, MucRoomDto group, MucMember sender) { 	 
+    public void handleMemberJoinRequest(ChannelHandlerContext ctx, String roomJid, String xml, MucRoomDto group, MucMember sender) { 	 
      	UserState newState = determineState(xml);    	
         if (newState == null) {return;}
          
@@ -58,7 +59,7 @@ public class MucMemberJoinEventHandler {
 				.affiliation(sender.getRole())
 				.role(MucRole.fromString(sender.getRole()).getValue())
 				.status(status)
-				.statusCode(110)
+				.statusCode(PresenceStatusCode.OWN_PRESENCE.getCode())
         		.build();
         
         clusterMessagePublisher.convertAndSendToUser(

@@ -17,11 +17,11 @@ import lombok.Data;
 		indexes = {
 				@Index(
 						name = "idx_receiver_user_device_group",
-						columnList = "receiver_user_key, receiver_device_id, group_id"
+						columnList = "receiver_user_key, receiver_device_id, group_id, deleted_at"
 						),
 				@Index(
 						name = "idx_sender_user_device_group",
-						columnList = "sender_user_key, sender_device_id, group_id"
+						columnList = "sender_user_key, sender_device_id, group_id, deleted_at"
 						),
 				@Index(
 						name = "idx_receiver_user_device",
@@ -30,6 +30,10 @@ import lombok.Data;
 				@Index(
 						name = "idx_sender_user_group",
 						columnList = "sender_user_key, group_id"
+						),
+				@Index(
+						name = "idx_group",
+						columnList = "group_id"
 						)
 		})
 public class GroupSenderKey {
@@ -37,7 +41,7 @@ public class GroupSenderKey {
 	private GroupSenderKeyId id;
 
 	/** Sender key distribution message */
-	@Column(nullable = false, length = 3000)
+	@Column(nullable = true, length = 3000)
 	private String skdmCipher;
 
 	private Instant createdAt;

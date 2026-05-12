@@ -100,7 +100,7 @@ public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocke
 					String tempFromJid = principal.getBareJid();
 
 					if (fromJid == null) {
-						xml = injectFromAttribute(xml, tempFromJid);
+						xml = XmppStanzaUtil.injectFromAttribute(xml, tempFromJid);
 						fromJid = tempFromJid;
 					} 
 				} else {
@@ -173,21 +173,5 @@ public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocke
 		}
 
 		return false;
-	}   
-
-	/**
-	 * Safely injects the 'from' attribute into the first XML tag.
-	 */
-	private String injectFromAttribute(String xml, String jid) {
-		String replacement = String.format(" from='%s'", jid);
-		// Find the end of the first tag name (either a space or the end of the tag '>')
-		int firstSpace = xml.indexOf(' ');
-		int firstTagEnd = xml.indexOf('>');
-
-		int insertAt = (firstSpace != -1 && firstSpace < firstTagEnd) ? firstSpace : firstTagEnd;
-
-		return new StringBuilder(xml)
-				.insert(insertAt, replacement)
-				.toString();
-	}    
+	}
 }

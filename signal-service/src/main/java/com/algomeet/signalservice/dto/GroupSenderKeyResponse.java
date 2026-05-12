@@ -17,4 +17,6 @@ public class GroupSenderKeyResponse {
     private String skdmCipher;
 
     private Instant createdAt;
+    
+	private Instant deletedAt;
 }
