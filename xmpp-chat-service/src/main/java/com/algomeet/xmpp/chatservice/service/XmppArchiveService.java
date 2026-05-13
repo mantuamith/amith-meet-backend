@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
+import com.algomeet.xmpp.chatservice.constant.Constants;
 import com.algomeet.xmpp.chatservice.constant.XmppErrorConditions;
 import com.algomeet.xmpp.chatservice.document.MucMessage;
 import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
@@ -370,9 +371,10 @@ public class XmppArchiveService {
 		repository.findFirstByRoomIdOrderByIdAsc(roomId)
 	    .switchIfEmpty(Mono.defer(() -> {
 	        log.info("No messages found in room");
+	        // Explicitly instantiate 'MucMessage'
 	        MucMessage msg = new MucMessage();
 	        msg.setRoomId(roomId);
-	        msg.setId("NONE"); // indicator of empty room conversation
+	        msg.setId(Constants.EMPTY_CONVERSATION_STANZA_ID); // indicator of empty room conversation
 	        msg.setStartOfRoomConversation(true);
 	        // pass an empty message
 	        dispatchRecentUpdatesResult(msg, principal).subscribe();
