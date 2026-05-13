@@ -25,6 +25,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -67,6 +68,32 @@ class MessageActionsControllerTest {
             .andExpect(status().isNoContent());
 
         Mockito.verify(actions).applyReaction("m1","👍",true,"alice");
+    }
+
+    @Test
+    @WithMockUser(username = "alice")
+    void getGroupMessageReactions_shouldReturn200WithBody() throws Exception {
+        ReactionsResponse response = new ReactionsResponse(
+                "m1",
+                "g1",
+                2,
+                java.util.List.of(
+                        new ReactionEntry("alice", "alice-key", "👍"),
+                        new ReactionEntry("bob", "bob-key", "😀")
+                )
+        );
+
+        when(actions.getGroupMessageReactions("g1", "m1", "alice")).thenReturn(response);
+
+        mockMvc.perform(get("/api/messages/group/g1/messages/m1/reactions"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.messageId").value("m1"))
+                .andExpect(jsonPath("$.groupId").value("g1"))
+                .andExpect(jsonPath("$.totalReactionsCount").value(2))
+                .andExpect(jsonPath("$.reactions[0].username").value("alice"))
+                .andExpect(jsonPath("$.reactions[0].userKey").value("alice-key"))
+                .andExpect(jsonPath("$.reactions[0].reaction").value("👍"));
     }
 
     @Test

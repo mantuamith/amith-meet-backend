@@ -36,6 +36,14 @@ public class MessageActionsController {
 
     }
 
+    @GetMapping("/group/{groupId}/messages/{messageId}/reactions")
+    public ResponseEntity<ReactionsResponse> getGroupMessageReactions(
+            @PathVariable String groupId,
+            @PathVariable String messageId
+    ) {
+        return ResponseEntity.ok(actions.getGroupMessageReactions(groupId, messageId, currentUser()));
+    }
+
     @PostMapping("/pin-message")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void pin(@Valid @RequestBody PinCommand cmd) {
