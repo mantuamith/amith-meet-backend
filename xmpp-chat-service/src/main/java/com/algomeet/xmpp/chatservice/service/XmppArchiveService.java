@@ -372,7 +372,7 @@ public class XmppArchiveService {
 	        log.info("No messages found in room");
 	        MucMessage msg = new MucMessage();
 	        msg.setRoomId(roomId);
-	        msg.setId("NONE"); // indicator for empty room conversation
+	        msg.setId("NONE"); // indicator of empty room conversation
 	        msg.setStartOfRoomConversation(true);
 	        // pass an empty message
 	        dispatchRecentUpdatesResult(msg, principal).subscribe();
