@@ -231,7 +231,7 @@ public class MessageBackupService {
 	    	// Mark the first available message as the conversation starting point.
 	    	// This serves as the synchronization reference for deleted messages across local devices.
 	    	MessageBackupDocument message = optCurrentFirstMessage.get();
-	    	message.setIsStartOfConversation(true);
+	    	message.setStartOfConversation(true);
 	    	modifiedRecords.add(0, message);
 	    }
 

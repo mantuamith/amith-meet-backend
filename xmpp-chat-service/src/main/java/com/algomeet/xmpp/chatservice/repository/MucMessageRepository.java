@@ -1,5 +1,7 @@
 package com.algomeet.xmpp.chatservice.repository;
 
+import java.util.Optional;
+
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.mongodb.repository.Query;
 import org.springframework.data.mongodb.repository.ReactiveMongoRepository;
@@ -75,17 +77,14 @@ public interface MucMessageRepository extends ReactiveMongoRepository<MucMessage
 		       sort = "{ 'id': -1 }")
 	Flux<MucMessage> findByRoomIdOrderByIdDesc(String roomId, String userKey, Pageable pageable);
 
-	/**
-	 * Efficiently counts unread messages using the {roomId: 1, id: 1} compound index.
-	 */
-	Mono<Long> countByRoomIdAndIdGreaterThanAndFromNot(String roomId, String lastReadId, String userJid);
-
-
-	/**
-	 * Fetches messages for a specific room that occurred after the given ULID/ID.
-	 * Sorted Ascending so the client receives them in chronological order.
-	 */
-	Flux<MucMessage> findByRoomIdAndIdGreaterThanOrderByIdAsc(String roomId, String afterId);
-
 	Mono<MucMessage> findByMessageId(String messageId);
+	
+	/**
+	 * Retrieves the current first available group message in the conversation.
+	 * Used as the synchronization reference for local device conversations,
+	 * especially after previous messages have been removed or permanently deleted.
+	 *
+	 * @param roomId
+	 */
+	Mono<MucMessage> findFirstByRoomIdOrderByIdAsc(String roomId);
 }

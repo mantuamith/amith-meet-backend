@@ -1,8 +1,12 @@
 package com.algomeet.xmpp.chatservice.document;
 
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
+
 import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.Transient;
 import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.index.Indexed;
@@ -15,7 +19,8 @@ import java.util.HashSet;
 import java.util.Set;
 
 @Data
-@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 @Document(collection = "muc_messages")
 // 1. COMPOUND INDEX for MAM Queries (Room + Sequential ID)
 @CompoundIndexes({
@@ -84,6 +89,11 @@ public class MucMessage {
 	private Instant deletedAt;
 
 	private Set<String> hiddenFromUserKeys = new HashSet<>();
+		
+	// Indicates whether this record represents the current starting point of the room conversation.
+	// Used to synchronize hard-deleted messages across local devices.
+	@Transient
+    private Boolean startOfRoomConversation = false;
 
 	/**
 	 * Monotonically increasing ULID used as a synchronization cursor for this message record.
@@ -102,7 +112,6 @@ public class MucMessage {
 	@Indexed(unique = true, sparse = true)
 	private String updateCursorId;
 
-	@Builder.Default
 	private Instant createdAt = Instant.now();
 	
     /**

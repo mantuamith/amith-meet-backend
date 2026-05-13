@@ -25,6 +25,7 @@ import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.repository.MucMessageRepository;
 import com.algomeet.xmpp.chatservice.routing.dispacher.LocalStanzaDispatcher;
 import com.algomeet.xmpp.chatservice.stanza.MessageRetractStanza;
+import com.algomeet.xmpp.chatservice.stanza.MessageSyncConversationStanza;
 import com.algomeet.xmpp.chatservice.stanza.ViewManagementSyncStanza;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
@@ -75,17 +76,16 @@ public class XmppArchiveService {
 	 * @return A {@link Mono} containing the saved {@link MucMessage}.
 	 */
 	public Mono<MucMessage> archiveEvent(String xml, StanzaInfo info, String toRoomId, String toMucMember, String from, String internalId) {
-		MucMessage event = MucMessage.builder()
-				.id(internalId)
-				.messageId(info.getMessageId()) 
-				.roomId(toRoomId)
-				.from(from)
-				.to(toMucMember)
-				.stanzaXml(xml)
-				.category(info.getCategory())
-				.refersTo(info.getTargetId()) 
-				.isE2EE(info.isE2EE())
-				.build();
+		MucMessage event = new MucMessage();
+		event.setId(internalId);
+		event.setMessageId(info.getMessageId());
+		event.setRoomId(toRoomId);
+		event.setFrom(from);
+		event.setTo(toMucMember);
+		event.setStanzaXml(xml);
+		event.setCategory(info.getCategory());
+		event.setRefersTo(info.getTargetId());
+		event.setE2EE(info.isE2EE());
 
 		return repository.save(event);
 	}
@@ -117,8 +117,11 @@ public class XmppArchiveService {
 		// Strategy: If 'after' is present, we move forward in time.
 		// Otherwise (or if 'before' is present), we move backward into history.
 		if (StringUtils.hasText(afterId)) {
+			// Synchronize the current conversation starting point across local devices.
+			syncRoomDeletedMessages(roomId, principal);
+			
 			// Sync recent updates
-			syncRecentRoomUpdates(roomId, afterId, principal);
+			syncRoomRecentUpdates(roomId, afterId, principal);
 
 			loadAfterWithRetry(roomId, afterId, principal, queryId, maxResults);
 		} else {
@@ -336,7 +339,7 @@ public class XmppArchiveService {
 	 * @param afterId   The ULID cursor used to resume the update stream.
 	 * @param principal The session context of the user requesting the updates.
 	 */
-	private void syncRecentRoomUpdates(String roomId, String afterId, XmppPrincipal principal) {
+	private void syncRoomRecentUpdates(String roomId, String afterId, XmppPrincipal principal) {
 		log.info("Syncing updates for Room {}: starting from cursor {}", roomId, afterId);
 
 		// 1. Query the repository for all message changes in this room newer than the provided ULID.
@@ -349,7 +352,7 @@ public class XmppArchiveService {
 
 		// 3. Sequential Dispatch: Use concatMap to ensure stanzas are sent to the local 
 		// dispatcher in order. This maintains protocol consistency for the client.
-		.concatMap(msg -> dispatchRecentUpdatesResult(msg, afterId, principal))
+		.concatMap(msg -> dispatchRecentUpdatesResult(msg, principal))
 
 		// 4. Subscription: Since this is a void-returning fire-and-forget background task,
 		// we subscribe to trigger the reactive pipeline. 
@@ -357,8 +360,30 @@ public class XmppArchiveService {
 		.subscribe(
 				null, 
 				error -> log.error("Failed to sync updates for user {} in room {}: {}", 
-						principal.getUserKey(), roomId, error.getMessage())
+						principal.getUserKey(), roomId, error.getMessage(), error)
 				);
+	}
+	
+	private void syncRoomDeletedMessages(String roomId, XmppPrincipal principal) {
+		log.info("Syncing deletes for Room {}", roomId);
+
+		repository.findFirstByRoomIdOrderByIdAsc(roomId)
+	    .switchIfEmpty(Mono.defer(() -> {
+	        log.info("No messages found in room");
+	        MucMessage msg = new MucMessage();
+	        msg.setRoomId(roomId);
+	        msg.setId("NONE"); // indicator for empty room conversation
+	        msg.setStartOfRoomConversation(true);
+	        // pass an empty message
+	        dispatchRecentUpdatesResult(msg, principal).subscribe();
+	        
+	        return Mono.empty();
+	    }))
+	    .flatMap(msg -> { // Explicitly typed 'MucMessage'
+	        msg.setStartOfRoomConversation(true);
+	        return dispatchRecentUpdatesResult(msg, principal);
+	    })
+	    .subscribe();
 	}
 
 	/**
@@ -366,11 +391,10 @@ public class XmppArchiveService {
 	 * if the update occurs after the client's current sync cursor (afterId).
 	 * 
 	 * @param msg       The message metadata containing deletion or visibility status.
-	 * @param afterId   The ULID string representing the client's last synchronized state.
 	 * @param principal The session context of the user receiving the update.
 	 * @return A Mono<Void> that completes after the stanza is dispatched or skipped.
 	 */
-	private Mono<Void> dispatchRecentUpdatesResult(MucMessage msg, String afterId, XmppPrincipal principal) {
+	private Mono<Void> dispatchRecentUpdatesResult(MucMessage msg, XmppPrincipal principal) {
 
 		// Wrap XML generation in Mono.fromCallable to keep the logic within the reactive pipeline.
 		return Mono.fromCallable(() -> buildUpdateXml(msg, principal))
@@ -388,12 +412,19 @@ public class XmppArchiveService {
 	 * Returns an Optional.empty() if no update (retraction or hide) is required for this user.
 	 */
 	private Optional<String> buildUpdateXml(MucMessage msg, XmppPrincipal principal) {
-		// Priority 1: Global Retraction (XEP-0424). If deletedAt is set, everyone needs a retraction.
+		// Priority 1: Synchronize the current conversation starting point across local devices.
+		// This indicates that all messages before the provided stanzaId
+		// have already been permanently deleted.
+		if (msg.getStartOfRoomConversation()) {
+			return Optional.of(buildSyncConversationXml(msg, principal));
+		}
+		
+		// Priority 2: Global Retraction (XEP-0424). If deletedAt is set, everyone needs a retraction.
 		if (msg.getDeletedAt() != null) {
 			return Optional.of(buildRetractionXml(msg, principal));
 		} 
 
-		// Priority 2: "Delete for Me" (View Management). Only notify if this specific user hidden the message.
+		// Priority 3: "Delete for Me" (View Management). Only notify if this specific user hidden the message.
 		if (msg.getHiddenFromUserKeys() != null && msg.getHiddenFromUserKeys().contains(principal.getUserKey())) {
 			return Optional.of(buildHideEventXml(msg, principal));
 		}
@@ -445,5 +476,44 @@ public class XmppArchiveService {
 			log.error("Error composing View management sync stanza ", ex);
 		}
 		return xml;
+	}
+	
+	/**
+	 * Builds an XMPP synchronization stanza used to notify client devices
+	 * about the current start of the group conversation.
+	 *
+	 * <p>
+	 * The provided stanzaId represents the earliest remaining message in the
+	 * conversation. Any messages before this stanzaId should be treated as
+	 * permanently deleted and removed from local device storage.
+	 * </p>
+	 *
+	 * @param msg the current first available group message
+	 * @param principal the authenticated XMPP principal
+	 * @return XML representation of the conversation synchronization stanza
+	 */
+	private String buildSyncConversationXml(MucMessage msg, XmppPrincipal principal) {
+
+	    // Construct the group bare JID (room@service).
+	    String groupJid = jidUtil.getGroupBareJid(msg.getRoomId());
+	    MessageSyncConversationStanza syncConversationStanza = MessageSyncConversationStanza.builder()
+
+	            // Unique ID for this synchronization stanza.
+	            .id(UUID.randomUUID().toString())
+
+	            // The stanza originates from the group room.
+	            .from(groupJid)
+
+	            // Indicates the current starting point of the conversation.
+	            // All messages before this stanzaId are considered hard deleted.
+	            .startOfConversationStanzaId(msg.getId())
+
+	            // Group chat message type.
+	            .type(XmppMessageType.GROUPCHAT.getXmlValue())
+
+	            .build();
+
+	    // Serialize the synchronization stanza into XML format.
+	    return syncConversationStanza.toXml();
 	}
 }

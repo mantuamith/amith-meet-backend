@@ -46,7 +46,7 @@ public class MessageBackupResponse {
                 .deletedAt(doc.getDeletedAt())
                 .refersTo(doc.getRefersTo())
                 .editCount(doc.getEditCount())
-                .isStartOfConversation(doc.getIsStartOfConversation())
+                .isStartOfConversation(doc.getStartOfConversation())
                 // Meta info
                 .algorithm(doc.getAlgorithm())
                 .version(doc.getVersion())

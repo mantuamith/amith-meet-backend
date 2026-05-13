@@ -139,7 +139,7 @@ public class MessageBackupDocument {
     private Integer editCount;
     
     @Transient
-    private Boolean isStartOfConversation = false; // Initialize to avoid null-omission
+    private Boolean startOfConversation = false; // Initialize to avoid null-omission
     
     @Indexed(unique = true, sparse = true)
     @io.swagger.v3.oas.annotations.media.Schema(
