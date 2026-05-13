@@ -4,6 +4,8 @@ import com.algomeet.chatservice.client.GroupClient;
 import com.algomeet.chatservice.document.*;
 import com.algomeet.chatservice.dto.Member;
 import com.algomeet.chatservice.dto.messageactions.ForwardRequest;
+import com.algomeet.chatservice.dto.messageactions.ReactionEntry;
+import com.algomeet.chatservice.dto.messageactions.ReactionsResponse;
 import com.algomeet.chatservice.dto.messageactions.ReplyRequest;
 import com.algomeet.chatservice.mapper.MessageMapper;
 import com.algomeet.chatservice.repository.MessageRepository;
@@ -18,10 +20,13 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.data.mongodb.core.query.UpdateDefinition;
 
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
@@ -130,6 +135,86 @@ class MessageActionServiceTest {
         service.applyReaction("m1", "😀", true, "mallory");
 
         verify(mongo, never()).updateFirst(any(Query.class), any(Update.class), eq(MessageDocument.class));
+        verify(repo, never()).save(any(MessageDocument.class));
+    }
+
+    @Test
+    void applyReaction_add_sameEmoji_togglesReactionOff() {
+        MessageMetaData metaData = new MessageMetaData();
+        metaData.setReactions(new LinkedHashMap<>(Map.of("👍", List.of("alice", "bob"))));
+        existing.setMetaData(metaData);
+
+        service.applyReaction("m1", "👍", true, "alice");
+
+        assertThat(existing.getMetaData().getReactions()).containsEntry("👍", List.of("bob"));
+        verify(repo).save(existing);
+    }
+
+    @Test
+    void applyReaction_add_differentEmoji_replacesPreviousReaction() {
+        MessageMetaData metaData = new MessageMetaData();
+        Map<String, List<String>> reactions = new LinkedHashMap<>();
+        reactions.put("👍", List.of("alice", "bob"));
+        reactions.put("😀", List.of("charlie"));
+        metaData.setReactions(reactions);
+        existing.setMetaData(metaData);
+
+        service.applyReaction("m1", "😀", true, "alice");
+
+        assertThat(existing.getMetaData().getReactions())
+                .containsEntry("👍", List.of("bob"))
+                .containsEntry("😀", List.of("charlie", "alice"));
+        verify(repo).save(existing);
+    }
+
+    @Test
+    void applyReaction_remove_false_removesRequestedReaction() {
+        MessageMetaData metaData = new MessageMetaData();
+        metaData.setReactions(new LinkedHashMap<>(Map.of("👍", List.of("alice", "bob"))));
+        existing.setMetaData(metaData);
+
+        service.applyReaction("m1", "👍", false, "alice");
+
+        assertThat(existing.getMetaData().getReactions()).containsEntry("👍", List.of("bob"));
+        verify(repo).save(existing);
+    }
+
+    @Test
+    void getGroupMessageReactions_returnsFlattenedEntriesWithUserKeys() {
+        existing.setGroupMessage(true);
+        existing.setGroupId("51");
+        MessageMetaData metaData = new MessageMetaData();
+        Map<String, List<String>> reactions = new LinkedHashMap<>();
+        reactions.put("👍", List.of("alice", "bob"));
+        reactions.put("😀", List.of("charlie"));
+        metaData.setReactions(reactions);
+        existing.setMetaData(metaData);
+
+        when(groupClient.getGroupById("51")).thenReturn(group("51", "alice", "bob", "charlie"));
+
+        ReactionsResponse response = service.getGroupMessageReactions("51", "m1", "alice");
+
+        assertThat(response.getMessageId()).isEqualTo("m1");
+        assertThat(response.getGroupId()).isEqualTo("51");
+        assertThat(response.getTotalReactionsCount()).isEqualTo(3);
+        assertThat(response.getReactions())
+                .extracting(ReactionEntry::getUsername, ReactionEntry::getUserKey, ReactionEntry::getReaction)
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple("charlie", "charlie-key", "😀"),
+                        org.assertj.core.groups.Tuple.tuple("alice", "alice-key", "👍"),
+                        org.assertj.core.groups.Tuple.tuple("bob", "bob-key", "👍")
+                );
+    }
+
+    @Test
+    void getGroupMessageReactions_nonMember_forbidden() {
+        existing.setGroupMessage(true);
+        existing.setGroupId("51");
+        when(groupClient.getGroupById("51")).thenReturn(group("51", "alice", "bob"));
+
+        assertThatThrownBy(() -> service.getGroupMessageReactions("51", "m1", "mallory"))
+                .isInstanceOf(org.springframework.web.server.ResponseStatusException.class)
+                .hasMessageContaining("403 FORBIDDEN");
     }
 
     @Test

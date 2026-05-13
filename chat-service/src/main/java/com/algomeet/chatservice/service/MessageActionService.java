@@ -3,6 +3,8 @@ package com.algomeet.chatservice.service;
 import com.algomeet.chatservice.client.GroupClient;
 import com.algomeet.chatservice.document.*;
 import com.algomeet.chatservice.dto.messageactions.ForwardRequest;
+import com.algomeet.chatservice.dto.messageactions.ReactionEntry;
+import com.algomeet.chatservice.dto.messageactions.ReactionsResponse;
 import com.algomeet.chatservice.dto.messageactions.ReplyRequest;
 import com.algomeet.chatservice.exception.MessageEditException;
 import com.algomeet.chatservice.mapper.MessageMapper;
@@ -22,11 +24,14 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 @Service
@@ -48,12 +53,35 @@ public class MessageActionService {
         MessageDocument msg = messageRepository.findById(messageId).orElse(null);
         if (msg == null || !isParticipant(msg, username)) return;
 
-        String key = "metaData.reactions." + emoji;
-        Query q = Query.query(Criteria.where("_id").is(messageId));
-        Update u = new Update();
-        if (add) u.addToSet(key, username);
-        else     u.pull(key, username);
-        mongoTemplate.updateFirst(q, u, MessageDocument.class);
+        if (msg.getMetaData() == null) {
+            msg.setMetaData(new MessageMetaData());
+        }
+
+        Map<String, List<String>> reactions = copyReactions(msg.getMetaData().getReactions());
+
+        if (add) {
+            boolean hadSameReaction = reactions.getOrDefault(emoji, List.of()).contains(username);
+            removeUserFromAllReactions(reactions, username);
+            pruneEmptyReactions(reactions);
+
+            if (!hadSameReaction) {
+                List<String> users = reactions.computeIfAbsent(emoji, ignored -> new ArrayList<>());
+                if (!users.contains(username)) {
+                    users.add(username);
+                }
+            }
+        } else {
+            List<String> users = reactions.get(emoji);
+            if (users != null) {
+                users.removeIf(username::equals);
+                if (users.isEmpty()) {
+                    reactions.remove(emoji);
+                }
+            }
+        }
+
+        msg.getMetaData().setReactions(reactions.isEmpty() ? null : reactions);
+        messageRepository.save(msg);
 
         pushMessageUpdated(messageId);
     }
@@ -69,6 +97,68 @@ public class MessageActionService {
         mongoTemplate.updateFirst(q, u, MessageDocument.class);
 
         pushMessageUpdated(messageId);
+    }
+
+    public ReactionsResponse getGroupMessageReactions(String groupId, String messageId, String requester) {
+        MessageDocument message = messageRepository.findById(messageId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Message not found"));
+
+        if (!message.isGroupMessage() || !Objects.equals(groupId, message.getGroupId())) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Group message not found");
+        }
+
+        GroupDto group = groupClient.getGroupById(groupId);
+        if (group == null || group.getMembers() == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Group not found");
+        }
+
+        boolean isMember = group.getMembers().stream()
+                .map(Member::getUsername)
+                .anyMatch(requester::equals);
+        if (!isMember) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Not a member of the group");
+        }
+
+        Map<String, Member> membersByUsername = new LinkedHashMap<>();
+        for (Member member : group.getMembers()) {
+            if (member != null && member.getUsername() != null) {
+                membersByUsername.put(member.getUsername(), member);
+            }
+        }
+
+        List<ReactionEntry> entries = new ArrayList<>();
+        MessageMetaData metaData = message.getMetaData();
+        if (metaData != null && metaData.getReactions() != null) {
+            for (Map.Entry<String, List<String>> reactionEntry : metaData.getReactions().entrySet()) {
+                String reaction = reactionEntry.getKey();
+                List<String> usernames = reactionEntry.getValue();
+                if (reaction == null || usernames == null) {
+                    continue;
+                }
+                for (String username : usernames) {
+                    if (username == null || username.isBlank()) {
+                        continue;
+                    }
+                    Member member = membersByUsername.get(username);
+                    entries.add(new ReactionEntry(
+                            username,
+                            member != null ? member.getUserKey() : null,
+                            reaction
+                    ));
+                }
+            }
+        }
+
+        entries.sort(Comparator
+                .comparing(ReactionEntry::getReaction, Comparator.nullsLast(String::compareTo))
+                .thenComparing(ReactionEntry::getUsername, Comparator.nullsLast(String::compareTo)));
+
+        return new ReactionsResponse(
+                messageId,
+                groupId,
+                entries.size(),
+                entries
+        );
     }
 
     public MessageDocument editMessage(String messageId, String newContent, String requester) {
@@ -636,5 +726,29 @@ public class MessageActionService {
             }
         }
         return username.equals(message.getSender()) || username.equals(message.getReceiver());
+    }
+
+    private Map<String, List<String>> copyReactions(Map<String, List<String>> source) {
+        Map<String, List<String>> copy = new LinkedHashMap<>();
+        if (source == null) {
+            return copy;
+        }
+        for (Map.Entry<String, List<String>> entry : source.entrySet()) {
+            if (entry.getKey() == null || entry.getValue() == null) {
+                continue;
+            }
+            copy.put(entry.getKey(), new ArrayList<>(entry.getValue()));
+        }
+        return copy;
+    }
+
+    private void removeUserFromAllReactions(Map<String, List<String>> reactions, String username) {
+        for (List<String> users : reactions.values()) {
+            users.removeIf(username::equals);
+        }
+    }
+
+    private void pruneEmptyReactions(Map<String, List<String>> reactions) {
+        reactions.entrySet().removeIf(entry -> entry.getValue() == null || entry.getValue().isEmpty());
     }
 }
