@@ -16,43 +16,52 @@ import com.algomeet.signalservice.repository.projection.ConversationStorageStats
 import jakarta.transaction.Transactional;
 
 public interface MessageBackupRepository extends MongoRepository<MessageBackupDocument, String> {	
-	Page<MessageBackupDocument> findByConversationId(
-			String conversationId, Pageable pageable);
-	
+	Page<MessageBackupDocument> findByConversationIdAndStanzaIdLessThan(
+			String conversationId, String stanzaId, Pageable pageable);
+
 	Page<MessageBackupDocument> findByConversationIdAndStanzaIdGreaterThan(
-	        String conversationId, String stanzaId, Pageable pageable);
+			String conversationId, String stanzaId, Pageable pageable);
 
-    // Custom delete query for both sides of conversation
-    @Modifying
-    @Query(value = "{ '$or': [ " +
-            "{ 'userKey': ?0, 'senderKey': ?0, 'receiverKey': ?1 }, " +
-            "{ 'userKey': ?0, 'senderKey': ?1, 'receiverKey': ?0 } " +
-            "] }",
-           delete = true)
-    @Transactional
-    void deleteConversation(String userA, String userB);
-    
-    @Modifying
-    @Transactional
-    void deleteByUserKey(String userKey);
+	// Custom delete query for both sides of conversation
+	@Modifying
+	@Query(value = "{ 'userKey': ?0, 'conversationId': ?1 }", delete = true)
+	@Transactional
+	void deleteByUserKeyAndConversationId(String userKey, String conversationId);
 
-    @Aggregation(pipeline = {
-    		"{ $match: { $or: [ " +
-    				"{ userKey: ?0, senderKey: ?0, receiverKey: ?1 }, " +
-    				"{ userKey: ?0, senderKey: ?1, receiverKey: ?0 } " +
-    				"] } }",
+	@Modifying
+	@Transactional
+	void deleteByUserKey(String userKey);
 
-    				"{ $group: { " +
-    						"_id: null, " +
-    						"totalSize: { $sum: { $ifNull: ['$size', 0] } }, " +
-    						"messageCount: { $sum: 1 } " +
-    						"} }"
-    })
-    List<ConversationStorageStats> getConversationStorageStats(String userA, String userB);
-    
-    /**
-     * Retrieves a message backup only if it belongs to the specified user.
-     * Use this instead of findById for better security and index locality.
-     */
-    Optional<MessageBackupDocument> findByMessageIdAndUserKey(String messageId, String userKey);
+	@Aggregation(pipeline = {
+			// 1. Filter by the record owner and the specific conversation
+			"{ $match: { 'userKey': ?0, 'conversationId': ?1 } }",
+
+			// 2. Aggregate the metrics
+			"{ $group: { " +
+			"_id: null, " +
+			"totalSize: { $sum: { $ifNull: ['$size', 0] } }, " +
+			"messageCount: { $sum: 1 } " +
+			"} }"
+	})
+	List<ConversationStorageStats> getConversationStorageStats(String userKey, String conversationId);
+
+	/**
+	 * Retrieves a message backup only if it belongs to the specified user.
+	 * Use this instead of findById for better security and index locality.
+	 */
+	Optional<MessageBackupDocument> findByMessageIdAndUserKey(String messageId, String userKey);
+
+
+	/**
+	 * Retrieves the absolute oldest message (smallest stanzaId) within a specific 
+	 * conversation for a given user.
+	 * 
+	 * @param userKey        The record owner.
+	 * @param conversationId The specific 1:1 or group chat ID.
+	 * @return The first message ever sent/received in this chat, or empty.
+	 */
+	Optional<MessageBackupDocument> findFirstByUserKeyAndConversationIdOrderByStanzaIdAsc(
+	    String userKey, 
+	    String conversationId
+	);
 }

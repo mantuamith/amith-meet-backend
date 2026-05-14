@@ -3,6 +3,7 @@ package com.algomeet.signalservice.document;
 import java.time.Instant;
 
 import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.Transient;
 import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.index.Indexed;
@@ -38,7 +39,11 @@ import lombok.NoArgsConstructor;
     @CompoundIndex(
          name = "idx_cid_sid_ucid", 
          def = "{'conversationId': 1, 'stanzaId': 1, 'updateCursorId': 1}"
-    )
+    ),
+    @CompoundIndex(
+    		name = "idx_user_stanza_sync", 
+    		def = "{'userKey': 1, 'stanzaId': 1}"
+    		)
 })
 public class MessageBackupDocument {
 	// These constants match the @Field names or the variable names
@@ -57,6 +62,7 @@ public class MessageBackupDocument {
     public static final String FIELD_DELIVERED_AT = "deliveredAt";
     public static final String FIELD_READ_AT = "readAt";
     public static final String FIELD_DELETED_AT = "deletedAt";
+    public static final String FIELD_RETRACTED_AT = "retractedAt";
     public static final String FIELD_EDIT_COUNT = "editCount";
     public static final String FIELD_TIMESTAMP = "timestamp";
     
@@ -124,11 +130,16 @@ public class MessageBackupDocument {
 	// Soft delete / tombstone (for retention/compaction)
 	private Long deletedAt;
 	
+	private Long retractedAt;
+	
     // Useful for finding all reactions, replies and etc to a specific message
     @Indexed
     private String refersTo;      
   
     private Integer editCount;
+    
+    @Transient
+    private Boolean startOfConversation = false; // Initialize to avoid null-omission
     
     @Indexed(unique = true, sparse = true)
     @io.swagger.v3.oas.annotations.media.Schema(

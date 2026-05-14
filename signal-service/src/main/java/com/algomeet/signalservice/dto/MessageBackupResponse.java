@@ -20,6 +20,7 @@ public class MessageBackupResponse {
     private Long deletedAt;
     private String refersTo;      
     private Integer editCount;
+    private Boolean isStartOfConversation;
     private Instant timestamp;
     private String algorithm;
     private String version;
@@ -45,7 +46,7 @@ public class MessageBackupResponse {
                 .deletedAt(doc.getDeletedAt())
                 .refersTo(doc.getRefersTo())
                 .editCount(doc.getEditCount())
-                
+                .isStartOfConversation(doc.getStartOfConversation())
                 // Meta info
                 .algorithm(doc.getAlgorithm())
                 .version(doc.getVersion())

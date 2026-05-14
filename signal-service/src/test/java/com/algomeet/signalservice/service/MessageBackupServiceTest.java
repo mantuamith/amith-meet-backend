@@ -215,12 +215,12 @@ class MessageBackupServiceTest {
 	@Test
 	void deleteConversation_success() {
 		doNothing().when(repository)
-		.deleteConversation("user-1", "peer-1");
+		.deleteByUserKeyAndConversationId("user-1", "peer-1");
 
 		service.deleteConversation("user-1", "peer-1");
 
 		verify(repository)
-		.deleteConversation("user-1", "peer-1");
+		.deleteByUserKeyAndConversationId("user-1", "peer-1");
 	}
 
 	/* -------------------------------------------------

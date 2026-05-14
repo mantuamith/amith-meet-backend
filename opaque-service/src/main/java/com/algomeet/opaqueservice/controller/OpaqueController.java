@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.algomeet.opaqueservice.controller.swagger.OpaqueControllerDoc;
 import com.algomeet.opaqueservice.dto.CommonResponse;
 import com.algomeet.opaqueservice.dto.RegistrationRequest;
 import com.algomeet.opaqueservice.dto.RegistrationResponse;
@@ -28,7 +29,6 @@ import com.algomeet.opaqueservice.dto.UserMasterSecretRequest;
 import com.algomeet.opaqueservice.dto.UserMasterSecretResponse;
 import com.algomeet.opaqueservice.entity.UserSecureStore;
 import com.algomeet.opaqueservice.enums.ResponseCode;
-import com.algomeet.opaqueservice.exceptions.AccountTemporarilyLockedException;
 import com.algomeet.opaqueservice.jni.Opaque;
 import com.algomeet.opaqueservice.jni.dto.OpaqueCredResp;
 import com.algomeet.opaqueservice.jni.dto.OpaqueIds;
@@ -58,7 +58,7 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequestMapping("/opaque")
 @RequiredArgsConstructor
-class OpaqueController {
+public class OpaqueController implements OpaqueControllerDoc{
 	private final UserSecureStoreService userSecureStoreService;
 
 	private final RedisTemplate<String, String> redisTemplate;

@@ -14,114 +14,230 @@ import com.algomeet.opaqueservice.dto.UserMasterSecretRequest;
 import com.algomeet.opaqueservice.dto.UserMasterSecretResponse;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
-@Tag(name = "OPAQUE Authentication", 
-description = "Endpoints implementing OPAQUE secure registration and authentication protocol for storing and retrieving user master secrets.")
+/**
+ * Swagger/OpenAPI documentation for OPAQUE authentication and
+ * encrypted master secret management APIs.
+ *
+ * <p>
+ * This API implements the OPAQUE (Oblivious Password Authentication and Key Exchange)
+ * protocol flow for securely protecting user master secrets without exposing
+ * raw passwords to the server.
+ * </p>
+ *
+ * <p>
+ * Features:
+ * </p>
+ * <ul>
+ *     <li>OPAQUE registration</li>
+ *     <li>Encrypted master secret storage</li>
+ *     <li>Credential exchange</li>
+ *     <li>Secure master secret retrieval</li>
+ *     <li>Authentication attempt limiting</li>
+ * </ul>
+ */
+@Tag(
+        name = "OPAQUE Authentication",
+        description = """
+                OPAQUE authentication and encrypted master secret management APIs.
+                
+                This controller provides:
+                - OPAQUE registration
+                - OPAQUE credential exchange
+                - encrypted master secret storage
+                - encrypted master secret retrieval
+                
+                All endpoints require authenticated user access.
+                """
+)
+@SecurityRequirement(name = "bearerAuth")
 public interface OpaqueControllerDoc {
-	// -------------------------------------------------------------------
-	// Registration Phase
-	// -------------------------------------------------------------------
 
-	@Operation(
-		summary = "Register user master secret record",
-		description = """
-			Client sends OPAQUE registration message (derived from PIN or device secret).
-			Server returns:
-			- `pub`: Server's registration response to client
-			- `serverId`: Server identifier
-			
-			Server also stores the temporary session secret (server side registration secret) in Redis.
-		""",
-		responses = {
-			@ApiResponse(responseCode = "200", description = "Registration response created successfully",
-				content = @Content(schema = @Schema(implementation = RegistrationResponse.class)))
-		}
-	)
-	public ResponseEntity<CommonResponse<RegistrationResponse>> register(
-			@RequestBody RegistrationRequest req);
+    @Operation(
+            summary = "OPAQUE Registration",
+            description = """
+                    Performs OPAQUE registration step 1.
+                    
+                    The client sends a locally-generated OPAQUE registration message
+                    derived from a password, PIN, or device secret.
+                    
+                    The server responds with:
+                    - server registration public response
+                    - server identifier
+                    
+                    The server temporarily stores the generated OPAQUE SEC
+                    in Redis for later record generation.
+                    """
+    )
+    @ApiResponses(value = {
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Registration response successfully generated",
+                    content = @Content(
+                            schema = @Schema(implementation = RegistrationResponse.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "code": "SUCCESS",
+                                      "message": "Success",
+                                      "data": {
+                                        "serverPublicRegistrationResponse": "BASE64_SERVER_PUBLIC_RESPONSE",
+                                        "serverId": "opaque.algomeet.app"
+                                      }
+                                    }
+                                    """)
+                    )
+            ),
+            @ApiResponse(responseCode = "401", description = "Unauthorized"),
+            @ApiResponse(responseCode = "500", description = "Internal server error")
+    })
+    ResponseEntity<CommonResponse<RegistrationResponse>> register(
+            @Parameter(description = "OPAQUE registration request", required = true)
+            @RequestBody RegistrationRequest req
+    );
 
-	// -------------------------------------------------------------------
-	// Master Secret Store
-	// -------------------------------------------------------------------
+    @Operation(
+            summary = "Store Master Secret",
+            description = """
+                    Stores a user's encrypted master secret and OPAQUE record.
+                    
+                    The client sends:
+                    - encrypted OPAQUE record (REC)
+                    - encrypted master secret
+                    - metadata
+                    
+                    The server reconstructs the final OPAQUE record using
+                    the temporarily stored registration SEC.
+                    
+                    Used for:
+                    - E2EE backup encryption
+                    - Signal session encryption
+                    - sender key protection
+                    - encrypted metadata storage
+                    """
+    )
+    @ApiResponses(value = {
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Master secret successfully stored",
+                    content = @Content(
+                            schema = @Schema(implementation = UserMasterSecretResponse.class)
+                    )
+            ),
+            @ApiResponse(responseCode = "409", description = "Master secret already exists"),
+            @ApiResponse(responseCode = "401", description = "Unauthorized"),
+            @ApiResponse(responseCode = "500", description = "Internal server error")
+    })
+    ResponseEntity<CommonResponse<UserMasterSecretResponse>> saveMasterSecret(
+            @Parameter(description = "Encrypted master secret request", required = true)
+            @RequestBody UserMasterSecretRequest req
+    );
 
-	@Operation(
-		summary = "Store master secret",
-		description = """
-			Stores the user's encrypted master secret record after successful OPAQUE registration flow.
-			
-			- Validates that a master secret for the same `type` does not already exist.
-			- Uses OPAQUE `storeRec` to finalize the server-side record.
-		""",
-		responses = {
-			@ApiResponse(responseCode = "200", description = "Master secret stored",
-				content = @Content(schema = @Schema(implementation = UserMasterSecretResponse.class))),
-			@ApiResponse(responseCode = "409", description = "Master secret already exists for this type")
-		}
-	)
-	public ResponseEntity<CommonResponse<UserMasterSecretResponse>> saveMasterSecret(
-			@RequestBody UserMasterSecretRequest req);
+    @Operation(
+            summary = "Update Master Secret",
+            description = """
+                    Updates an existing encrypted master secret and OPAQUE record.
+                    
+                    This endpoint replaces:
+                    - encrypted master secret
+                    - OPAQUE REC
+                    - encryption metadata
+                    
+                    Typically used during:
+                    - password/PIN changes
+                    - encryption rotation
+                    - master key upgrades
+                    """
+    )
+    @ApiResponses(value = {
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Master secret successfully updated",
+                    content = @Content(
+                            schema = @Schema(implementation = UserMasterSecretResponse.class)
+                    )
+            ),
+            @ApiResponse(responseCode = "401", description = "Unauthorized"),
+            @ApiResponse(responseCode = "500", description = "Internal server error")
+    })
+    ResponseEntity<CommonResponse<UserMasterSecretResponse>> updateMasterSecret(
+            @Parameter(description = "Updated master secret request", required = true)
+            @RequestBody UserMasterSecretRequest req
+    );
 
-	@Operation(
-		summary = "Update master secret",
-		description = """
-			Updates an existing master secret for the given type.
-			This performs the OPAQUE record storage using the updated record from client.
-		"""
-	)
-	public ResponseEntity<CommonResponse<UserMasterSecretResponse>> updateMasterSecret(
-			@RequestBody UserMasterSecretRequest req);
+    @Operation(
+            summary = "OPAQUE Credential Exchange",
+            description = """
+                    Performs the OPAQUE credential exchange step.
+                    
+                    The client sends:
+                    - ephemeral public credential key
+                    
+                    The server responds with:
+                    - server credential public response
+                    - server identifier
+                    
+                    The generated server SEC is temporarily stored in Redis
+                    for later authentication verification.
+                    """
+    )
+    @ApiResponses(value = {
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Credential response successfully generated",
+                    content = @Content(
+                            schema = @Schema(implementation = UserCredentialResponse.class)
+                    )
+            ),
+            @ApiResponse(responseCode = "404", description = "Master secret not found"),
+            @ApiResponse(responseCode = "401", description = "Unauthorized"),
+            @ApiResponse(responseCode = "500", description = "Internal server error")
+    })
+    ResponseEntity<CommonResponse<UserCredentialResponse>> exchangeMasterSecCredential(
+            @Parameter(description = "OPAQUE credential request", required = true)
+            @RequestBody UserCredentialRequest req
+    );
 
-	// -------------------------------------------------------------------
-	// Credential Exchange
-	// -------------------------------------------------------------------
-
-	@Operation(
-		summary = "Exchange OPAQUE credential response",
-		description = """
-			Part of the OPAQUE authentication flow.
-
-			Client sends:
-			- `clientPublicKey` (base64)
-			- master secret `type`
-
-		Server returns:
-			- `pub`: server credential response (public)
-			- `serverId`
-
-		Also stores temporary OPAQUE server authentication secret in Redis.
-		"""
-	)
-	public ResponseEntity<CommonResponse<UserCredentialResponse>> credentialResponse(
-			@RequestBody UserCredentialRequest req);
-
-	// -------------------------------------------------------------------
-	// Retrieve Master Secret
-	// -------------------------------------------------------------------
-
-	@Operation(
-		summary = "Retrieve master secret",
-		description = """
-			Final step in OPAQUE authentication.
-
-			Client sends:
-			- `clientAuth` (base64)
-			- `type`
-
-		Server:
-			- Validates OPAQUE user auth using temporary server secret stored in Redis.
-			- Returns decrypted master secret metadata (still encrypted on server).
-		""",
-		responses = {
-			@ApiResponse(responseCode = "200", description = "Master secret retrieved",
-				content = @Content(schema = @Schema(implementation = RetrieveUserMasterSecretResponse.class))),
-			@ApiResponse(responseCode = "404", description = "Master secret not found"),
-			@ApiResponse(responseCode = "403", description = "Forbidden – failed OPAQUE authentication")
-		}
-	)
-	public ResponseEntity<CommonResponse<RetrieveUserMasterSecretResponse>> retrieveSecret(
-			@RequestBody RetrieveUserMasterSecretRequest req);
+    @Operation(
+            summary = "Retrieve Master Secret",
+            description = """
+                    Authenticates the user using OPAQUE and retrieves
+                    the encrypted master secret.
+                    
+                    The client sends:
+                    - final OPAQUE ClientAuth message
+                    
+                    If authentication succeeds:
+                    - encrypted master secret is returned
+                    - metadata is returned
+                    
+                    Brute-force protection:
+                    - failed attempts are tracked
+                    - temporary lockout is enforced after exceeding limits
+                    """
+    )
+    @ApiResponses(value = {
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Master secret successfully retrieved",
+                    content = @Content(
+                            schema = @Schema(implementation = RetrieveUserMasterSecretResponse.class)
+                    )
+            ),
+            @ApiResponse(responseCode = "403", description = "Forbidden or temporarily locked"),
+            @ApiResponse(responseCode = "404", description = "Master secret not found"),
+            @ApiResponse(responseCode = "401", description = "Unauthorized"),
+            @ApiResponse(responseCode = "500", description = "Internal server error")
+    })
+    ResponseEntity<CommonResponse<RetrieveUserMasterSecretResponse>> retrieveSecret(
+            @Parameter(description = "OPAQUE client authentication request", required = true)
+            @RequestBody RetrieveUserMasterSecretRequest req
+    );
 }
