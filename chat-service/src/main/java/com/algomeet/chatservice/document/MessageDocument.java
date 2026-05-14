@@ -142,7 +142,7 @@ public class MessageDocument {
             return true;
         }
         if (isGroupMessage()) {
-            Optional<UserStatus> existing = getReadByUsers()
+            Optional<UserStatus> existing = getDeliveredByUsers()
                     .stream()
                     .filter(u -> u.getUsername().equals(userId))
                     .findFirst();
