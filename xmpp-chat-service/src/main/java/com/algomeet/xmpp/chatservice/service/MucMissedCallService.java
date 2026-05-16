@@ -71,7 +71,6 @@ public class MucMissedCallService {
 	private final RedissonReactiveClient redissonReactiveClient;
 	private final ReactiveRedisTemplate<String, String> reactiveRedisTemplate;
 	private final MucCallTrackerService mucCallTrackerService;
-	private final MucUnreadCountService mucUnreadCountService;
 	private final DomainProperties domainProperties;
 
 	/**
@@ -330,11 +329,6 @@ public class MucMissedCallService {
 		.doOnSuccess(success -> {
 			// Publish 
 			clusterMessagePublisher.convertAndSendToUser(id, toUserKey, fromUserKey, ChatType.GROUPCHAT, forArchiveXml);
-
-			// Increment MUC unread messages count 
-			mucUnreadCountService.incrementForRoomMembers(groupId,
-					List.of(toUserKey), 
-					fromUserKey);
 
 		})
 		.doOnError(e -> log.error("MUC Archive failed: {}", e.getMessage()))

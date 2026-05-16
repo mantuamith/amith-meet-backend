@@ -28,6 +28,7 @@ import lombok.extern.slf4j.Slf4j;
 public class XmppStanzaUtil {
 	private static final String CHATSTATE = "chatstates";
 	private static final String BODY = "<body";
+	private static final String CHAT_MARKER_NS = "urn:xmpp:chat-markers:0";
 	
 	private static final XMLInputFactory XML_FACTORY = XMLInputFactory.newInstance();
 
@@ -200,6 +201,15 @@ public class XmppStanzaUtil {
 	
 	public static boolean isJingleStanza(XmppMessageType msgType, String xml) {
 		return XmppMessageType.SET == msgType && xml.contains("urn:xmpp:jingle:1");
+	}
+	
+	public static boolean isMessageAckStanza(String xml) {
+		if (isMessageStanza(xml)) {			
+			return xml.indexOf(BODY) == -1 
+					&& xml.indexOf(CHAT_MARKER_NS) != -1;
+		}
+		
+		return false;
 	}
 		
 	/**

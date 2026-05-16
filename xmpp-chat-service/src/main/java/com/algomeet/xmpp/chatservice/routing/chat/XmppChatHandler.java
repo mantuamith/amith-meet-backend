@@ -128,11 +128,14 @@ public class XmppChatHandler {
 					    if (originalXml.contains(XmppReceiptUtil.NS_RECEIPTS)) {
 					    	isAckMessage = true;
 					        String ackMessageId = xmppReceiptUtil.getAckMessageId(originalXml);
-
 					        if (StringUtils.hasText(ackMessageId)) {
-					            // Once delivery is confirmed, the message is no longer "offline" 
-					            // and can be safely removed from the temporary offline storage.
-					            offlineMessageService.deleteById(ackMessageId).subscribe();
+					        	// Once delivery is confirmed via an XEP-0198 Stream Management acknowledgment (<a h='...'/>), 
+					        	// the batch of messages is no longer considered "offline" and can be safely purged.
+					        	// Utilizing time-sorted IDs (ULID/UUIDv7) enables an optimized $lte range deletion.
+					        	offlineMessageService.purgeOfflineQueueUpTo(principal.getUserKey(), ackMessageId)
+					        	.doOnSuccess(unused -> log.debug("Successfully purged offline queue for user: {} up to ID: {}", principal.getUserKey(), ackMessageId))
+					        	.doOnError(error -> log.error("Failed to clear offline message database buffer for user: {}", principal.getUserKey(), error))
+					        	.subscribe();
 					        }
 					    }
 					    

@@ -15,8 +15,8 @@ import lombok.Data;
 @Data
 @Builder
 @Document(collection = "offline_messages")
-@CompoundIndex(name = "to_createdAt_idx",
-	    def = "{'to': 1, 'createdAt': 1}"
+@CompoundIndex(name = "to_id_idx",
+	    def = "{'to': 1, 'id': 1}"
 	)
 public class OfflineMessage {
 	@Id

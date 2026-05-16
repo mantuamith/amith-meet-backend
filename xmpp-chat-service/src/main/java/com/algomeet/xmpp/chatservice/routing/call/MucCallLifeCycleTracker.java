@@ -555,10 +555,10 @@ public class MucCallLifeCycleTracker {
 				)
 		.doOnSuccess(success -> {
 			// Increment MUC unread messages count 
-			mucUnreadCountService.incrementForRoomMembers(roomId,
-					List.of(toUserKey), 
-					fromUserKey)
-			.subscribe();
+//			mucUnreadCountService.incrementForRoomMembers(roomId,
+//					List.of(toUserKey), 
+//					fromUserKey)
+//			.subscribe();
 		})
 		.subscribe();
 

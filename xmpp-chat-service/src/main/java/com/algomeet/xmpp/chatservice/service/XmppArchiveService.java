@@ -7,23 +7,25 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.mongodb.core.ReactiveMongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
 
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.constant.Constants;
 import com.algomeet.xmpp.chatservice.constant.XmppErrorConditions;
 import com.algomeet.xmpp.chatservice.document.MucMessage;
+import com.algomeet.xmpp.chatservice.document.MucRoomReadCursor;
 import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
 import com.algomeet.xmpp.chatservice.dto.StanzaInfo;
 import com.algomeet.xmpp.chatservice.enums.XmppErrorType;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.repository.MucMessageRepository;
+import com.algomeet.xmpp.chatservice.repository.MucRoomReadCursorRepository;
 import com.algomeet.xmpp.chatservice.routing.dispacher.LocalStanzaDispatcher;
 import com.algomeet.xmpp.chatservice.stanza.MessageRetractStanza;
 import com.algomeet.xmpp.chatservice.stanza.MessageSyncConversationStanza;
@@ -38,7 +40,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import org.springframework.data.domain.Pageable;
 
 /**
  * Service for managing XMPP Message Archive Management (MAM) as per XEP-0313.
@@ -64,6 +65,7 @@ public class XmppArchiveService {
 	private final DomainProperties domainProperties;
 	private final ReactiveMongoTemplate reactiveMongoTemplate;
 	private final JidUtil jidUtil;
+	private final MucRoomReadCursorRepository mucRoomReadCursorRepository;
 
 	/**
 	 * Persists a room event (message or signaling) to the archive.
@@ -117,7 +119,7 @@ public class XmppArchiveService {
 
 		// Strategy: If 'after' is present, we move forward in time.
 		// Otherwise (or if 'before' is present), we move backward into history.
-		if (StringUtils.hasText(afterId)) {
+		if (afterId != null) {
 			// Synchronize the current conversation starting point across local devices.
 			syncRoomDeletedMessages(roomId, principal);
 			
@@ -230,30 +232,76 @@ public class XmppArchiveService {
 	 * Wraps a database record into a XEP-0313 <result/> stanza and dispatches it.
 	 */
 	private Mono<Void> dispatchMamResult(MucMessage msg, String queryId, XmppPrincipal principal) {
-		// Determine the timestamp (assuming your msg object has a getTimestamp or similar)
-		// Format must be ISO-8601: 2026-04-27T10:16:25Z
-		String timestamp = XmppStanzaUtil.formatTimestamp(msg.getCreatedAt()); 
-		String mamResult = String.format(
-				"<message to='%s'>" +
-						"<result xmlns='urn:xmpp:mam:2' %s id='%s'>" +
-						"<forwarded xmlns='urn:xmpp:forward:0'>" +
-						"<delay xmlns='urn:xmpp:delay' stamp='%s'/>" + // <--- Added delay tag
-						"%s" + // The original archived XML
-						"</forwarded>" +
-						"</result>" +
-						"</message>",
-						principal.getBareJid(),
-						(queryId != null ? "queryid='" + queryId + "'" : ""),
-						msg.getId(),
-						timestamp,
-						convertToMamFormat(msg.getFrom(), msg.getRoomId(), msg.getStanzaXml()) 
-				);        
-		return Mono.<Void>create(sink -> {
-			localStanzaDispatcher.dispatchLocally(principal.getUserKey(), principal.getUserKey(), mamResult);
-			sink.success();
-		});
-	}
+	    // Determine the timestamp (Format: 2026-05-16T19:45:43Z)
+	    String timestamp = XmppStanzaUtil.formatTimestamp(msg.getCreatedAt()); 
 
+	    // 1. Fetch all participants in this room who have read past this message's ID threshold
+	    return mucRoomReadCursorRepository.findByRoomIdAndLastReadMidGreaterThan(msg.getRoomId(), msg.getId())
+	            .map(MucRoomReadCursor::getUserKey) // Extract user keys
+	            .collectList()                      // Accumulate reactive items into a List<String>
+	            .flatMap(userKeys -> {              // Shift into the template string construction logic
+	                
+	                // 2. Generate the dynamic XML reader tags block from your collected list
+	                String readersXmlBlock = buildReadersBlock(userKeys);
+
+	                // 3. Construct the comprehensive MAM result stanza package
+	                String queryIdAttr = (queryId != null && !queryId.isBlank()) ? "queryid='" + queryId + "' " : "";
+	                
+	                String mamResult = String.format(
+	                        "<message to='%s'>" +
+	                            "<result xmlns='urn:xmpp:mam:2' %sid='%s'>" +
+	                                "<forwarded xmlns='urn:xmpp:forward:0'>" +
+	                                    "<delay xmlns='urn:xmpp:delay' stamp='%s'/>" +
+	                                    "%s" + 
+	                                "</forwarded>" +
+	                                "<read-receipts xmlns='urn:algomeet:xmpp:read:0'>" +
+	                                    "%s" + 
+	                                "</read-receipts>" +
+	                            "</result>" +
+	                        "</message>",
+	                        principal.getBareJid(),
+	                        queryIdAttr,
+	                        msg.getId(),
+	                        timestamp,
+	                        convertToMamFormat(msg.getFrom(), msg.getRoomId(), msg.getStanzaXml()),
+	                        readersXmlBlock
+	                );        
+
+	                // 4. Dispatch the stanza asynchronously within the reactive execution flow
+	                return Mono.<Void>fromRunnable(() -> 
+	                    localStanzaDispatcher.dispatchLocally(principal.getUserKey(), principal.getUserKey(), mamResult)
+	                );
+	            });
+	}
+	
+	/**
+	 * Constructs a highly optimized XML string block containing multiple reader entries 
+	 * from a list of user keys.
+	 *
+	 * @param userKeys A list of unique participant user keys who have read the message.
+	 * @return A joined XML string fragment of empty elements, or an empty string if the list is empty.
+	 */
+	public static String buildReadersBlock(List<String> userKeys) {
+	    if (userKeys == null || userKeys.isEmpty()) {
+	        return "";
+	    }
+
+	    
+	    // Pre-allocate buffer capacity to avoid mid-stream array copies 
+	    // (Estimate ~65 characters per reader tag block)
+	    StringBuilder xmlBuilder = new StringBuilder(userKeys.size() * 65);
+	    
+	    for (String userKey : userKeys) {
+	        if (userKey != null && !userKey.isBlank()) {
+	            xmlBuilder.append("<reader user-key='")
+	                      .append(userKey)
+	                      .append("'/>");
+	        }
+	    }
+	    
+	    return xmlBuilder.toString();
+	}
+	
 	private String convertToMamFormat(String fromUserKey, String toRoomId, String msg) {
 		/**
 		 * Example raw group chat message stanza:
@@ -331,7 +379,7 @@ public class XmppArchiveService {
 		return reactiveMongoTemplate.updateFirst(query, update, MucMessage.class)
 				.then();
 	}
-
+	
 	/**
 	 * Fetches and dispatches message updates (like retractions or view changes) that occurred 
 	 * in a specific room after a given cursor point.
@@ -517,5 +565,40 @@ public class XmppArchiveService {
 
 	    // Serialize the synchronization stanza into XML format.
 	    return syncConversationStanza.toXml();
+	}
+		
+	/**
+	 * Advances the message synchronization cursor to indicate that the message has
+	 * been acknowledged via a Read Receipt (Read ACK).
+	 *
+	 * <p>This method is used as a lightweight state marker for read tracking in
+	 * distributed chat synchronization flows. When a client sends a Read ACK for
+	 * a message, this operation updates the {@code updateCursorId} field with a
+	 * new monotonic ULID to reflect that the message has been processed and read
+	 * by the recipient.</p>
+	 *
+	 * <p>This cursor is primarily used for:
+	 * <ul>
+	 *   <li>Cross-device read state synchronization</li>
+	 *   <li>Incremental MAM / delta polling</li>
+	 *   <li>Efficient batch read acknowledgment tracking</li>
+	 * </ul>
+	 * </p>
+	 *
+	 * @param messageId The unique identifier of the message that has been read.
+	 * @return A {@link Mono<Void>} signaling asynchronous completion of the update operation.
+	 */
+	public Mono<Void> advanceMessageSyncCursor(String messageId) {
+
+	    // 1. Locate the document by message ID
+	    Query query = new Query(Criteria.where("messageId").is(messageId));
+
+	    // 2. Update cursor to a new monotonic ULID to mark Read ACK progression
+	    Update update = new Update()
+	            .set("updateCursorId", UlidCreator.getMonotonicUlid().toLowerCase());
+
+	    // 3. Apply atomic update to ensure consistency in concurrent environments
+	    return reactiveMongoTemplate.updateFirst(query, update, MucMessage.class)
+	            .then();
 	}
 }

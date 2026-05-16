@@ -37,7 +37,6 @@ import lombok.extern.slf4j.Slf4j;
 @Component
 @RequiredArgsConstructor
 public class OfflineMessageHandler {
-
     private final OfflineMessageService offlineMessageService;
     private final DomainProperties domainProperties;
     private final LocalStanzaDispatcher localStanzaDispatcher;

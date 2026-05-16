@@ -1,7 +1,5 @@
 package com.algomeet.xmpp.chatservice.repository;
 
-import java.util.Optional;
-
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.mongodb.repository.Query;
 import org.springframework.data.mongodb.repository.ReactiveMongoRepository;
@@ -87,4 +85,25 @@ public interface MucMessageRepository extends ReactiveMongoRepository<MucMessage
 	 * @param roomId
 	 */
 	Mono<MucMessage> findFirstByRoomIdOrderByIdAsc(String roomId);
+	
+	/**
+     * Counts unread messages by isolating the room and checking the ID timeline first,
+     * before filtering private stanzas using the user key.
+     * 
+     * <p>At scale, this structure allows MongoDB to slice the timeline window first, 
+     * avoiding scanning private messages outside of the unread range.</p>
+     *
+     * @param roomId            The unique identifier of the MUC room.
+     * @param lastReadMessageId The chronological anchor (ULID) where the user left off.
+     * @param userKey           The target user key used to filter private messages.
+     * @return A {@link Mono} emitting the count of unread messages.
+     */
+    @Query(value = "{" +
+                   "  '$and': [" +
+                   "    { 'roomId': ?0 }," +
+                   "    { 'messageId': { '$gt': ?1 } }," +
+                   "    { '$or': [ { 'to': null }, { 'to': ?2 } ] }" +
+                   "  ]" +
+                   "}", count = true)
+    Mono<Long> countUnreadMessages(String roomId, String lastReadMessageId, String userKey);
 }

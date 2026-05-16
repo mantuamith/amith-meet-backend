@@ -1,131 +1,123 @@
 package com.algomeet.xmpp.chatservice.service;
 
-import java.time.Instant;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
-import org.springframework.data.mongodb.core.ReactiveMongoTemplate;
-import org.springframework.data.mongodb.core.query.Criteria;
-import org.springframework.data.mongodb.core.query.Query;
-import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
-import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
-import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
-import com.algomeet.xmpp.chatservice.document.MucUnreadCount;
-import com.algomeet.xmpp.chatservice.enums.ChatType;
-import com.algomeet.xmpp.chatservice.properties.DomainProperties;
-import com.algomeet.xmpp.chatservice.session.UserSessionRegistry;
-import com.algomeet.xmpp.chatservice.util.JidUtil;
-import com.algomeet.xmpp.chatservice.util.MucCountUtil;
+import com.algomeet.xmpp.chatservice.client.GroupClient;
+import com.algomeet.xmpp.chatservice.document.MucRoomReadCursor;
+import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
+import com.algomeet.xmpp.chatservice.dto.MucUnreadCount;
+import com.algomeet.xmpp.chatservice.repository.MucMessageRepository;
+import com.algomeet.xmpp.chatservice.repository.MucRoomReadCursorRepository;
 
 import lombok.AllArgsConstructor;
-import reactor.core.publisher.Flux;
+import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Mono;
 
+@Slf4j
 @Service
 @AllArgsConstructor
 public class MucUnreadCountService {
-	private final ReactiveMongoTemplate reactiveMongoTemplate;
-	private final DomainProperties domainProperties;
-	private final JidUtil jidUtil;
-	private final UserSessionRegistry userSessionRegistry;
-	private final ClusterMessagePublisher clusterMessagePublisher;
+	private final GroupClient groupClient;
+	private final MucRoomReadCursorRepository mucRoomReadCursorRepository;
+	private final MucMessageRepository mucMessageRepository;
 
 	/**
-	 * Increments the unread count for a specific user in a specific room.
-	 * Uses upsert to ensure the document exists.
+	 * Aggregates and returns the active unread counts across all rooms for a specific user as a standard list.
+	 * 
+	 * <p>This version explicitly blocks the underlying asynchronous stream at the termination edge, 
+	 * collecting all parallel index counts into a synchronous {@link List}.</p>
+	 *
+	 * @param userKey The unique identifier of the user requesting badge counts.
+	 * @return A {@link List} containing {@link MucUnreadCount} payloads for each group.
 	 */
-	public Mono<Void> incrementUnreadCount(String userKey, String roomId) {
-		String id = String.format("%s_%s", userKey, roomId);
-
-		Query query = new Query(Criteria.where("_id").is(id));
-		Update update = new Update()
-				.inc("unread_count", 1)
-				.set("user_key", userKey)
-				.set("room_id", roomId)
-				.set("last_increment_at", Instant.now().toEpochMilli());
-
-		return reactiveMongoTemplate.upsert(query, update, MucUnreadCount.class).then();
-	}
-
-	public Mono<Void> incrementForRoomMembers(String roomId, List<String> memberKeys, String senderKey) {
-		return Flux.fromIterable(memberKeys)
-				.filter(memberKey -> !memberKey.equals(senderKey)) // Don't notify the sender
-				.flatMap(memberKey -> incrementUnreadCount(memberKey, roomId))
-				.then();
-	}
-
-	/**
-	 * Non-blocking decrement of the unread count for a specific MUC room.
-	 * Ensures the count does not drop below zero using an atomic operation.
-	 */
-	public Mono<MucUnreadCount> decrementUnreadCount(String userKey, String roomId, String lastReadMid, XmppPrincipal principal) {
-		String id = String.format("%s_%d", userKey, roomId);
-
-		// Atomic decrement: only execute if the current count is greater than 0
-		Query query = new Query(Criteria.where("_id").is(id).and("unread_count").gt(0));
-		Update update = new Update()
-				.inc("unread_count", -1)
-				.set("last_decrement_at", Instant.now().toEpochMilli())
-				.set("last_read_mid", lastReadMid);
-
-		return reactiveMongoTemplate.updateFirst(query, update, MucUnreadCount.class)
-				.then(reactiveMongoTemplate.findById(id, MucUnreadCount.class))
-				.flatMap(mucUnreadCount -> {
-					return Mono.just(mucUnreadCount);
-				});
-	}
-
-	/**
-	 * Resets the unread count to zero when the user views the room.
-	 */
-	public Mono<Void> resetUnreadCount(String userKey, String roomId) {
-		String id = String.format("%s_%d", userKey, roomId);
-
-		Query query = new Query(Criteria.where("_id").is(id));
-		Update update = new Update()
-				.set("unread_count", 0)
-				.set("last_decrement_at", Instant.now().toEpochMilli());
-
-		// Publish message to other devices to sync the unread message counts
-		/*
-        <message from='algomeet.com' to='user@algomeet.com' type='headline'>
-        <sync xmlns='urn:xmpp:algomeet:sync:unread'>
-          <muc room_id='101' unread_count='0' />
-        </sync>
-      </message> */
-		if(userSessionRegistry.getSessions(userKey).size() > 1) {
-			// Send it user has more that one session for synchronization
-			String payload = MucCountUtil.composeMucCountSync(domainProperties.getDomain(), jidUtil.getBareJid(userKey), roomId, 0);
-			clusterMessagePublisher.convertAndSendToUser(id, userKey, userKey, ChatType.CHAT, payload);
+	public List<MucUnreadCount> getUnreadCountsByUser(String userKey) {
+		// Step 1: Fetch the user's groups from your external client service
+		List<MucRoomDto> rooms = groupClient.getGroupsForUserKey(userKey);
+		if (rooms == null || rooms.isEmpty()) {
+			return Collections.emptyList();
 		}
 
-		return reactiveMongoTemplate.updateFirst(query, update, MucUnreadCount.class).then();
+		// Step 2: Assemble the reactive data pipeline
+		return mucRoomReadCursorRepository.findByUserKey(userKey)
+				.collectList()
+				.flatMapIterable(cursorList -> {
+					// Convert the cursor list into an optimized O(1) lookup Map
+					Map<String, MucRoomReadCursor> cursorMap = cursorList.stream()
+							.collect(Collectors.toMap(
+									MucRoomReadCursor::getRoomId,
+									cursor -> cursor,
+									(existing, replacement) -> existing
+									));
+
+					// Pair each room with its respective read cursor context
+					return rooms.stream()
+							.map(room -> new RoomWithCursorContext(room, cursorMap.get(room.getId())))
+							.collect(Collectors.toList());
+				})
+				// Step 3: Concurrently execute the covered index scans across the room batch
+				.flatMap(context -> {
+					String roomId = context.room.getId();
+					String lastReadMid = context.cursor != null ? context.cursor.getLastReadMid() : "";
+
+					return mucMessageRepository.countUnreadMessages(roomId, lastReadMid, userKey)
+							.map(count -> {
+								MucUnreadCount unreadCountDto = new MucUnreadCount();
+								unreadCountDto.setId(String.format("%s_%s", userKey, roomId));
+								unreadCountDto.setUserKey(userKey);
+								unreadCountDto.setRoomId(roomId);
+								unreadCountDto.setUnreadCount(count.intValue());
+								unreadCountDto.setLastReadMid(lastReadMid);
+								return unreadCountDto;
+							});
+				})
+				// Step 4: Collect all the items emitted by the Flux back into a Mono<List<MucUnreadCount>>
+				.collectList()
+				// Step 5: Safely block and extract the concrete List value out of the reactive thread layer
+				.block();
 	}
 
 	/**
-	 * Returns a list of all MUC rooms with unread messages for a specific user.
+	 * Private internal wrapper class used to cleanly pass room and cursor state 
+	 * across the reactive functional boundaries.
 	 */
-	public Flux<MucUnreadCount> getUnreadCountsByUser(String userKey) {
-		Query query = new Query(Criteria.where("user_key").is(userKey)
-				.and("unread_count").gt(0));
-		return reactiveMongoTemplate.find(query, MucUnreadCount.class);
+	private static class RoomWithCursorContext {
+		final MucRoomDto room;
+		final MucRoomReadCursor cursor;
+
+		RoomWithCursorContext(MucRoomDto room, MucRoomReadCursor cursor) {
+			this.room = room;
+			this.cursor = cursor;
+		}
 	}
 
 	/**
-	 * Aggregates the total unread count across all MUCs for a user.
+	 * Computes the unread message count for a single specified room reactively.
+	 * 
+	 * <p>This method maintains a non-blocking pipeline throughout, shifting from a 
+	 * cursor lookup to an index-covered count query, and safely falling back to 
+	 * counting from the beginning of time if no cursor exists yet.</p>
+	 *
+	 * @param userKey The unique identifier of the user checking their badge.
+	 * @param roomId  The target group chat room identifier.
+	 * @return A {@link Mono} emitting the total unread integer count.
 	 */
-	public Mono<Integer> getTotalUnreadCount(String userKey) {
-		Query query = new Query(Criteria.where("user_key").is(userKey));
-		return reactiveMongoTemplate.find(query, MucUnreadCount.class)
-				.map(MucUnreadCount::getUnreadCount)
-				.reduce(0, Integer::sum);
-	}
+	public Integer getUnreadCount(String userKey, String roomId) {
 
-	public Mono<Integer> getUnreadCount(String userKey, String roomId) {
-		String id = String.format("%s_%d", userKey, roomId);
-		return reactiveMongoTemplate.findById(id, MucUnreadCount.class)
-				.map(MucUnreadCount::getUnreadCount)
-				.defaultIfEmpty(0);
-	}     
+		// Step 1: Look up the single cursor document for this specific user and room
+		return mucRoomReadCursorRepository.findByUserKeyAndRoomId(userKey, roomId)
+				// Step 2: Extract the last read message ID if the cursor exists
+				.map(MucRoomReadCursor::getLastReadMid)
+				// Step 3: Fall back to an empty string (beginning of time) if no cursor is found
+				.defaultIfEmpty("")
+				// Step 4: Switch to the asynchronous index-covered count query
+				.flatMap(lastReadMid -> mucMessageRepository.countUnreadMessages(roomId, lastReadMid, userKey))
+				// Step 5: Downcast the Long count from MongoDB cleanly to an Integer
+				.map(Long::intValue)
+				.block();
+	}
 }

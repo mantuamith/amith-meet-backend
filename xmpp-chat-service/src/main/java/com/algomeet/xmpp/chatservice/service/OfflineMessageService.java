@@ -65,20 +65,25 @@ public class OfflineMessageService {
      * @return A list of {@link OfflineMessage} objects in the order they were originally sent.
      */
     public Flux<OfflineMessage> getOfflineMessages(String to) {
-        return offlineMessageRepository.findByToOrderByCreatedAtAsc(to);
+        return offlineMessageRepository.findByToOrderByIdAsc(to);
     }
     
     /**
-     * Deletes a message from the persistent store after successful delivery.
+     * Purges a batch of pending offline messages up to a specific tracking boundary
+     * after verification of successful client delivery.
      * 
-     * <p>This is typically called when an {@code <a h='...'/>} acknowledgment 
-     * is processed by the {@code XmppStreamManagementStanzaHandler}.</p>
+     * <p>This is typically triggered sequentially when an {@code <a h='...'/>} 
+     * stream management acknowledgment is processed by the {@code XmppStreamManagementStanzaHandler},
+     * allowing the server to safely clear out historical queue records that the client 
+     * has confirmed receiving.</p>
      * 
-     * @param messageId The unique Stanza ID to be removed.
-     * @return A {@link Mono<Void>} signaling completion of the deletion.
+     * @param to        The target recipient's routing key or JID whose offline queue is being cleared.
+     * @param messageId The highest monotonic message identifier (ULID/UUIDv7) up to which 
+     *                  records will be permanently purged (inclusive).
+     * @return A {@link Mono<Void>} signaling asynchronous completion of the batch range deletion.
      */
-    public Mono<Void> deleteById(String messageId) {
-        return offlineMessageRepository.deleteById(messageId);
+    public Mono<Void> purgeOfflineQueueUpTo(String to, String messageId) {
+        return offlineMessageRepository.deleteByToAndIdLessThan(to, messageId);
     }
     
     /**
