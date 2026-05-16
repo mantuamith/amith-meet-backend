@@ -480,8 +480,16 @@ public class MessageBackupService {
 		}
 
 		// Atomic update for high-concurrency environments
-		Query query = new Query(Criteria.where(FIELD_MESSAGE_ID).is(messageId)
+		Query query = null;		
+		if(FIELD_READ_AT.equals(timestampField) || FIELD_DELIVERED_AT.equals(timestampField)) {
+			// Uses .lte() to ensure the message ID is less than or equal to the threshold
+			query = new Query(Criteria.where(FIELD_MESSAGE_ID).lte(messageId)
+			        .and(FIELD_USER_KEY).is(SecurityUtil.getUserKey()));
+			
+		} else {			
+		    query = new Query(Criteria.where(FIELD_MESSAGE_ID).is(messageId)
 				.and(FIELD_USER_KEY).is(SecurityUtil.getUserKey()));
+		}
 
 		Update update = new Update()
 				.set(timestampField, timestamp)
@@ -492,7 +500,7 @@ public class MessageBackupService {
 			update.set(FIELD_ENCRYPTED_MSG, null);
 		}
 
-		UpdateResult result = mongoTemplate.updateFirst(query, update, MessageBackupDocument.class);
+		UpdateResult result = mongoTemplate.updateMulti(query, update, MessageBackupDocument.class);
 
 		if (result.getMatchedCount() == 0) {
 			throw new RecordNotFoundException("Message backup not found: " + messageId);
