@@ -102,7 +102,7 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 		// Fetch paginated message backups for the conversation between the current user and the peer.
 		// NOTE: The "after" cursor is not yet applied in the query and should be integrated at the service level.
 		Page<MessageBackupDocument> backupsPage = null;
-		if (after.isPresent() && StringUtils.hasText(after.get())) {
+		if (after.isPresent()) {			
 			backupsPage =
 					messageBackupService.getConversationMessagesAfter(
 							SecurityUtil.getUserKey(), peerKey, after.get(), page, size);    		
