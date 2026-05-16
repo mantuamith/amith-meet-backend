@@ -43,7 +43,19 @@ import lombok.NoArgsConstructor;
     @CompoundIndex(
     		name = "idx_user_stanza_sync", 
     		def = "{'userKey': 1, 'stanzaId': 1}"
-    		)
+    		),
+    
+    // 4. Optimized for bulk-marking Delivery Statuses backward chronologically
+    @CompoundIndex(
+        name = "idx_user_msg_delivered_state", 
+        def = "{'userKey': 1, '_id': 1, 'deliveredAt': 1}"
+    ),
+    
+    // 5. Optimized for bulk-marking Read Statuses backward chronologically
+    @CompoundIndex(
+        name = "idx_user_msg_read_state", 
+        def = "{'userKey': 1, '_id': 1, 'readAt': 1}"
+    )
 })
 public class MessageBackupDocument {
 	// These constants match the @Field names or the variable names

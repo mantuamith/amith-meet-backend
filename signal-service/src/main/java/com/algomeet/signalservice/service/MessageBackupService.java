@@ -483,8 +483,14 @@ public class MessageBackupService {
 		Query query = null;		
 		if(FIELD_READ_AT.equals(timestampField) || FIELD_DELIVERED_AT.equals(timestampField)) {
 			// Uses .lte() to ensure the message ID is less than or equal to the threshold
-			query = new Query(Criteria.where(FIELD_MESSAGE_ID).lte(messageId)
-			        .and(FIELD_USER_KEY).is(SecurityUtil.getUserKey()));
+			// 1. Filter by User Key (Equality match)
+			// 2. Filter by Message ID threshold (Range match)
+			// 3. Apply the dynamic status timestamp null check last
+			query = new Query(
+			    Criteria.where(FIELD_USER_KEY).is(SecurityUtil.getUserKey())
+			            .and(FIELD_MESSAGE_ID).lte(messageId)
+			            .and(timestampField).isNull()
+			);
 			
 		} else {			
 		    query = new Query(Criteria.where(FIELD_MESSAGE_ID).is(messageId)
