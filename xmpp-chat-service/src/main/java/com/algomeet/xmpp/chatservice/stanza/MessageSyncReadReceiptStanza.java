@@ -6,20 +6,21 @@ import java.util.Objects;
 /**
  * Represents an XMPP Read Receipt stanza.
  */
-public class MessageReadReceiptStanza {
-
+public class MessageSyncReadReceiptStanza {
     private final String from;
     private final String to;
     private final String type;
     private final String id;
+    private final String targetMessageId;
     private final List<String> readerUserKeys;
 
-    private MessageReadReceiptStanza(Builder builder) {
+    private MessageSyncReadReceiptStanza(Builder builder) {
         this.from = builder.from;
         this.to = builder.to;
         this.type = builder.type;
         this.id = builder.id;
         this.readerUserKeys = builder.readerUserKeys;
+        this.targetMessageId = builder.targetMessageId;
     }
 
     public static Builder builder() {
@@ -39,7 +40,10 @@ public class MessageReadReceiptStanza {
 
         sb.append("type='").append(type).append("' ")
           .append("id='").append(id).append("'>")
-          .append("<read-receipts xmlns='urn:algomeet:xmpp:read:0'>");
+          .append("<sync-read-receipts xmlns='urn:algomeet:xmpp:read:0' ")
+          .append(" id='")
+          .append(targetMessageId)
+        .append("' >");
 
         if (readerUserKeys != null) {
             for (String userKey : readerUserKeys) {
@@ -49,7 +53,7 @@ public class MessageReadReceiptStanza {
             }
         }
 
-        sb.append("</read-receipts>")
+        sb.append("</sync-read-receipts>")
           .append("</message>");
 
         return sb.toString();
@@ -62,6 +66,7 @@ public class MessageReadReceiptStanza {
         private String to;
         private String type = "groupchat";
         private String id;
+        private String targetMessageId;
         private List<String> readerUserKeys;
 
         public Builder from(String from) {
@@ -83,17 +88,22 @@ public class MessageReadReceiptStanza {
             this.id = id;
             return this;
         }
+        
+        public Builder targetMessageId(String targetMessageId) {
+            this.targetMessageId = targetMessageId;
+            return this;
+        }
 
         public Builder readerUserKeys(List<String> readerUserKeys) {
             this.readerUserKeys = readerUserKeys;
             return this;
         }
 
-        public MessageReadReceiptStanza build() {
+        public MessageSyncReadReceiptStanza build() {
             Objects.requireNonNull(from, "From JID cannot be null");
             Objects.requireNonNull(readerUserKeys, "Reader userKeys cannot be null");
 
-            return new MessageReadReceiptStanza(this);
+            return new MessageSyncReadReceiptStanza(this);
         }
     }
 }

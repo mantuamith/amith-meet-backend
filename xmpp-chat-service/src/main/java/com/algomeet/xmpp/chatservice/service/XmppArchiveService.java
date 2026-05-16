@@ -29,6 +29,7 @@ import com.algomeet.xmpp.chatservice.repository.MucRoomReadCursorRepository;
 import com.algomeet.xmpp.chatservice.routing.dispacher.LocalStanzaDispatcher;
 import com.algomeet.xmpp.chatservice.stanza.MessageRetractStanza;
 import com.algomeet.xmpp.chatservice.stanza.MessageSyncConversationStanza;
+import com.algomeet.xmpp.chatservice.stanza.MessageSyncReadReceiptStanza;
 import com.algomeet.xmpp.chatservice.stanza.ViewManagementSyncStanza;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
@@ -437,49 +438,72 @@ public class XmppArchiveService {
 	}
 
 	/**
-	 * Processes a single message update and dispatches the appropriate XMPP stanza 
-	 * if the update occurs after the client's current sync cursor (afterId).
+	 * Processes and dispatches recent state mutations for a MUC message to a user's active session.
 	 * 
-	 * @param msg       The message metadata containing deletion or visibility status.
-	 * @param principal The session context of the user receiving the update.
-	 * @return A Mono<Void> that completes after the stanza is dispatched or skipped.
+	 * <p>Asynchronously evaluates message delta priorities (retractions, visibility updates, 
+	 * read-receipt syncs) and pushes the resulting structural XML stanza downstream if a 
+	 * state variance is detected.</p>
+	 *
+	 * @param msg       The mutated MUC message metadata document.
+	 * @param principal The active user context target receiving the synchronization event.
+	 * @return A {@link Mono<Void>} that completes when the state evaluation and physical 
+	 *         delivery dispatch loops finish processing.
 	 */
 	private Mono<Void> dispatchRecentUpdatesResult(MucMessage msg, XmppPrincipal principal) {
+	    // 1. Invoke the updated non-blocking XML generation pipeline directly
+	    return buildUpdateXml(msg, principal)
+	            .flatMap(optionalXml -> {
+	                // 2. Short-circuit immediately if no matching delta update state was found
+	                if (optionalXml.isEmpty()) {
+	                    return Mono.empty();
+	                }
 
-		// Wrap XML generation in Mono.fromCallable to keep the logic within the reactive pipeline.
-		return Mono.fromCallable(() -> buildUpdateXml(msg, principal))
-				.flatMap(optionalXml -> optionalXml
-						.map(xml -> Mono.fromRunnable(() -> 
-						// 3. Side-effect: Dispatch the generated stanza to the user's local connection.
-						localStanzaDispatcher.dispatchLocally(principal.getUserKey(), principal.getUserKey(), xml)
-								).then()) // Convert Runnable to Mono<Void>
-						.orElse(Mono.empty())
-						);
+	                String xmlStanza = optionalXml.get();
+
+	                // 3. Side-effect: Asynchronously route the built structural XML payload to the local session
+	                return Mono.fromRunnable(() -> 
+	                    localStanzaDispatcher.dispatchLocally(
+	                        principal.getUserKey(), 
+	                        principal.getUserKey(), 
+	                        xmlStanza
+	                    )
+	                );
+	            });
 	}
 
 	/**
-	 * Strategy method to determine which type of synchronization stanza to generate.
-	 * Returns an Optional.empty() if no update (retraction or hide) is required for this user.
+	 * Evaluates message delta state priorities to dynamically assemble structural mutation XML.
+	 * 
+	 * <p>Prioritizes fast-path synchronous metadata evaluations (conversational shifts, 
+	 * XEP-0424 retractions, visibility management) before falling back to the 
+	 * asynchronous database-backed read receipt synchronization engine.</p>
+	 *
+	 * @param msg       The target MUC message document containing state flags.
+	 * @param principal The active user session executing or receiving this update synchronization.
+	 * @return A {@link Mono} emitting an {@link Optional} containing the serialized XML payload,
+	 *         or completing empty if no payload matches the state evaluation.
 	 */
-	private Optional<String> buildUpdateXml(MucMessage msg, XmppPrincipal principal) {
-		// Priority 1: Synchronize the current conversation starting point across local devices.
-		// This indicates that all messages before the provided stanzaId
-		// have already been permanently deleted.
-		if (msg.getStartOfRoomConversation()) {
-			return Optional.of(buildSyncConversationXml(msg, principal));
-		}
-		
-		// Priority 2: Global Retraction (XEP-0424). If deletedAt is set, everyone needs a retraction.
-		if (msg.getDeletedAt() != null) {
-			return Optional.of(buildRetractionXml(msg, principal));
-		} 
+	private Mono<Optional<String>> buildUpdateXml(MucMessage msg, XmppPrincipal principal) {
+	    
+	    // Priority 1: Clear tracking boundary adjustments (Conversational resets across devices)
+	    if (Boolean.TRUE.equals(msg.getStartOfRoomConversation())) {
+	        return Mono.just(Optional.of(buildSyncConversationXml(msg, principal)));
+	    }
+	    
+	    // Priority 2: Global Message Retractions (XEP-0424 structural execution)
+	    if (msg.getDeletedAt() != null) {
+	        return Mono.just(Optional.of(buildRetractionXml(msg, principal)));
+	    } 
 
-		// Priority 3: "Delete for Me" (View Management). Only notify if this specific user hidden the message.
-		if (msg.getHiddenFromUserKeys() != null && msg.getHiddenFromUserKeys().contains(principal.getUserKey())) {
-			return Optional.of(buildHideEventXml(msg, principal));
-		}
+	    // Priority 3: Localized "Delete for Me" / Visibility toggles
+	    if (msg.getHiddenFromUserKeys() != null && msg.getHiddenFromUserKeys().contains(principal.getUserKey())) {
+	        return Mono.just(Optional.of(buildHideEventXml(msg, principal)));
+	    }			
 
-		return Optional.empty();
+	    // Priority 4: Fallback to async read receipt synchronization (Asynchronous collection engine)
+	    return buildSyncReadReceiptsXml(msg, principal)
+	            .map(Optional::of)
+	            .defaultIfEmpty(Optional.empty());
 	}
 
 	/**
@@ -565,6 +589,40 @@ public class XmppArchiveService {
 
 	    // Serialize the synchronization stanza into XML format.
 	    return syncConversationStanza.toXml();
+	}
+	
+	private Mono<String> buildSyncReadReceiptsXml(MucMessage msg, XmppPrincipal principal) {
+	    // 1. Fetch all participants in this room who have read past this message's ID threshold
+	    return mucRoomReadCursorRepository.findByRoomIdAndLastReadMidGreaterThan(msg.getRoomId(), msg.getId())
+	            .map(MucRoomReadCursor::getUserKey) // Extract user keys
+	            .collectList()                      // Accumulate reactive items into a List<String>
+	            .map(userKeys -> {                  // Use .map() since we return a synchronous String from this block
+	                
+	                // Construct the group bare JID (room@service).
+	                String groupJid = jidUtil.getGroupBareJid(msg.getRoomId());
+	                
+	                // 2. Build the synchronization stanza using the collected user keys
+	                MessageSyncReadReceiptStanza syncConversationStanza = MessageSyncReadReceiptStanza.builder()
+	                        // Unique ID for this synchronization stanza.
+	                        .id(UUID.randomUUID().toString())
+
+	                        // The stanza originates from the group room.
+	                        .from(groupJid)
+
+	                        // Contains the collection of readers who have acknowledged this message.
+	                        .readerUserKeys(userKeys)
+	                        
+	                        // The explicit target message ID threshold anchoring this status sync.
+	                        .targetMessageId(msg.getId())
+
+	                        // Group chat message type.
+	                        .type(XmppMessageType.GROUPCHAT.getXmlValue())
+
+	                        .build();
+
+	                // 3. Serialize the synchronization stanza into XML format.
+	                return syncConversationStanza.toXml();
+	            });
 	}
 		
 	/**
