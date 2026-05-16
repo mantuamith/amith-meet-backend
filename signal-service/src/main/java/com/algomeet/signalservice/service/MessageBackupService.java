@@ -58,7 +58,9 @@ import com.mongodb.client.result.UpdateResult;
 
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @RequiredArgsConstructor
 @Service
 @Data
@@ -509,7 +511,7 @@ public class MessageBackupService {
 		UpdateResult result = mongoTemplate.updateMulti(query, update, MessageBackupDocument.class);
 
 		if (result.getMatchedCount() == 0) {
-			throw new RecordNotFoundException("Message backup not found: " + messageId);
+			log.warn("Message backup not found: " + messageId);
 		}
 	}
 }
