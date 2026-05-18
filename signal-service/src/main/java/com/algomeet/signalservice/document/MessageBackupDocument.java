@@ -84,12 +84,10 @@ public class MessageBackupDocument {
 
 	/**
 	 * Globally unique and lexicographically sortable server-generated message identifier.
-	 * Typically derived from ULID and used for stable message references, efficient
 	 * chronological sorting, pagination cursors, and cross-device synchronization.
 	 */
 	@Indexed
-	@Size(max = 45)
-	private String stanzaId;
+	private UUID stanzaId;
 
 	/** 
 	 * Deterministic conversation identifier for this message record.
@@ -161,7 +159,7 @@ public class MessageBackupDocument {
                       "This field is monotonic and used for cursor-based lookup.",
         example = "01kqs6j68dqtejmb653qhp35sz"
     )
-    private String updateCursorId;
+    private UUID updateCursorId;
 
 	@Field("size")
 	private Long size;

@@ -33,7 +33,7 @@ public class MessageBackupResponse {
 
         return MessageBackupResponse.builder()        		
                 .messageId(doc.getMessageId().toString())  
-                .stanzaId(doc.getStanzaId())
+                .stanzaId(doc.getStanzaId().toString())
                 .userKey(doc.getUserKey())
                 .senderKey(doc.getSenderKey())
                 .receiverKey(doc.getReceiverKey())

@@ -1,5 +1,11 @@
 package com.algomeet.signalservice.controller;
 
+import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_DELETED_AT;
+import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_DELIVERED_AT;
+import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_READ_AT;
+import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_RETRACTED_AT;
+import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_SENT_AT;
+
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.List;
@@ -36,8 +42,7 @@ import com.algomeet.signalservice.exceptions.MessageUpdateStatusInProgressExcept
 import com.algomeet.signalservice.exceptions.RecordNotFoundException;
 import com.algomeet.signalservice.service.MessageBackupService;
 import com.algomeet.signalservice.util.SecurityUtil;
-import com.github.f4b6a3.ulid.UlidCreator;
-import static com.algomeet.signalservice.document.MessageBackupDocument.*;
+import com.github.f4b6a3.uuid.UuidCreator;
 
 import lombok.RequiredArgsConstructor;
 /**
@@ -110,7 +115,7 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 
 		} else {    
 			if (before.isEmpty()) {
-				before = Optional.ofNullable(UlidCreator.getMonotonicUlid().toLowerCase());
+				before = Optional.ofNullable(UuidCreator.getTimeOrderedEpoch().toString());
 			}
 			
 			backupsPage =
@@ -366,11 +371,11 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 				timestamp = System.currentTimeMillis();
 			}
 
-			String stanzaId;
+			UUID stanzaId;
 			if (StringUtils.hasText(request.getStanzaId())) {
-				stanzaId = request.getStanzaId();            	
+				stanzaId = UUID.fromString(request.getStanzaId());            	
 			} else {
-				stanzaId = UlidCreator.getMonotonicUlid().toLowerCase();
+				stanzaId = UuidCreator.getTimeOrderedEpoch();
 			}
 
 			messageBackupService.updateStatus(

@@ -9,6 +9,7 @@ import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_EN
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_MESSAGE_ID;
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_READ_AT;
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_RECEIVER_KEY;
+import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_RETRACTED_AT;
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_SALT;
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_SENDER_KEY;
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_SENT_AT;
@@ -17,11 +18,9 @@ import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_TI
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_UPDATE_CURSOR_ID;
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_USER_KEY;
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_VERSION;
-import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_RETRACTED_AT;
 
 import java.nio.charset.Charset;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
@@ -53,7 +52,7 @@ import com.algomeet.signalservice.repository.MessageBackupRepository;
 import com.algomeet.signalservice.repository.projection.ConversationStorageStats;
 import com.algomeet.signalservice.util.ConversationUtil;
 import com.algomeet.signalservice.util.SecurityUtil;
-import com.github.f4b6a3.ulid.UlidCreator;
+import com.github.f4b6a3.uuid.UuidCreator;
 import com.mongodb.client.result.UpdateResult;
 
 import lombok.Data;
@@ -101,8 +100,8 @@ public class MessageBackupService {
 		backup.setConversationId(conversationId);
 
 		// Set stanza ID if empty
-		if (!StringUtils.hasText(backup.getStanzaId())) {
-			backup.setStanzaId(UlidCreator.getMonotonicUlid().toLowerCase());
+		if (backup.getStanzaId() == null) {
+			backup.setStanzaId(UuidCreator.getTimeOrderedEpoch());
 		}
 
 		/**
@@ -377,12 +376,12 @@ public class MessageBackupService {
 		req.setChatStorageBytesDelta(backup.getSize() - updateOpt.get().getSize());
 		mediaService.adjustStorageUsage(backup.getUserKey(), req);
 
-		String updateStanzaId;		
+		UUID updateStanzaId;		
 		
-		if(StringUtils.hasText(backup.getUpdateCursorId())) {
+		if(backup.getUpdateCursorId() != null) {
 			updateStanzaId = backup.getUpdateCursorId();
 		} else {
-			updateStanzaId = UlidCreator.getMonotonicUlid().toLowerCase();
+			updateStanzaId = UuidCreator.getTimeOrderedEpoch();
 		}
 
 		return repository.save(updateOpt.map(b -> {
@@ -453,7 +452,7 @@ public class MessageBackupService {
 		mediaService.deleteStorage(userKey);
 	}	
 
-	public void updateStatus(UUID messageId, String timestampField, String stanzaId, Long timestamp) {
+	public void updateStatus(UUID messageId, String timestampField, UUID stanzaId, Long timestamp) {
 		/**
 		 * Redis distributed lock key to prevent concurrent duplicate inserts
 		 * for the same messageId (idempotency + race-condition protection).
