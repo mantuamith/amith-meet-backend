@@ -1,6 +1,7 @@
 package com.algomeet.xmpp.chatservice.document;
 
 import java.time.Instant;
+import java.util.UUID;
 
 import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.Indexed;
@@ -20,7 +21,7 @@ import lombok.Data;
 	)
 public class OfflineMessage {
 	@Id
-    private String id;          // The stanza ID from the <message id='...'> attribute
+    private UUID id;          // The stanza ID from the <message id='...'> attribute
 
     private String from;        // Sender user key / ID
 

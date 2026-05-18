@@ -1,6 +1,7 @@
 package com.algomeet.xmpp.chatservice.routing.muc;
 
 import java.util.Optional;
+import java.util.UUID;
 
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Component;
@@ -145,13 +146,14 @@ public class XmppMucHandler {
 				// the user has actively viewed the conversation.
 				if (originalXml.contains(XmppReadUtil.NS_DISPLAYS)) {
 					String ackMessageId = xmppReadUtil.getAckMessageId(originalXml);
-					if (StringUtils.hasText(ackMessageId)) {												
+					if (StringUtils.hasText(ackMessageId)) {	
+						UUID messageId = UUID.fromString(ackMessageId);
 						// Save read MUC message ACK
-						mucMessageReadService.advanceReadCursor(principal.getUserKey(), group.getId(), ackMessageId)
+						mucMessageReadService.advanceReadCursor(principal.getUserKey(), group.getId(), messageId)
 						.subscribe();
 						
 						// Read message
-						xmppArchiveService.advanceMessageSyncCursor(ackMessageId).subscribe();
+						xmppArchiveService.advanceMessageSyncCursor(messageId).subscribe();
 					}					
 				}
 			} else if ((msgType.supportsOfflineStorage() && isArchivable)) {

@@ -1,6 +1,7 @@
 package com.algomeet.xmpp.chatservice.service;
 
 import java.util.List;
+import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 
@@ -46,7 +47,7 @@ public class OfflineMessageService {
      * @param originalXml The raw XML payload to be stored.
      * @return A {@link Mono} emitting the saved {@link OfflineMessage}.
      */
-    public Mono<OfflineMessage> save(String id, String to, String from, String type, String originalXml) {
+    public Mono<OfflineMessage> save(UUID id, String to, String from, String type, String originalXml) {
         OfflineMessage offlineMessage = OfflineMessage.builder()
                 .id(id)
                 .to(to)

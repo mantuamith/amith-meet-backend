@@ -3,6 +3,7 @@ package com.algomeet.xmpp.chatservice.document;
 import java.time.Instant;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.UUID;
 
 import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.Transient;
@@ -61,7 +62,7 @@ public class MucMessage {
 	// 2. UNIQUE INDEX for Message ID
 	// Prevents duplicate messages if a client retries a send
 	@Indexed(unique = true, sparse = true)
-	private String messageId; 
+	private UUID messageId; 
 
 	// Indexed via the Compound Index above, but good for simple lookups
 	private String roomId;

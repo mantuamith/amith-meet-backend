@@ -37,6 +37,7 @@ import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
 import com.github.f4b6a3.ulid.UlidCreator;
+import com.github.f4b6a3.uuid.UuidCreator;
 
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -318,7 +319,7 @@ public class MucMissedCallService {
 						fromRoomJid, toJid, id, type, type, type, Instant.now().toString(), sid
 				);	
 
-		StanzaInfo info = StanzaInfo.builder().messageId(UUID.randomUUID().toString().toLowerCase()).build();
+		StanzaInfo info = StanzaInfo.builder().messageId(UuidCreator.getTimeOrderedEpoch().toString()).build();
 
 		String ulidString = UlidCreator.getMonotonicUlid().toLowerCase();
 		// Insert stanza ID

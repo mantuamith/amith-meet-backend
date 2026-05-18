@@ -1,5 +1,6 @@
 package com.algomeet.xmpp.chatservice.service;
 
+import com.algomeet.xmpp.chatservice.constant.Constants;
 import com.algomeet.xmpp.chatservice.document.MucRoomReadCursor;
 import com.algomeet.xmpp.chatservice.repository.MucMessageRepository;
 import lombok.RequiredArgsConstructor;
@@ -13,6 +14,7 @@ import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 
 import java.time.Instant;
+import java.util.UUID;
 
 @Slf4j
 @Service
@@ -44,7 +46,7 @@ public class MucMessageReadCursorService {
                 ))
                 // Cold fallback: If the user has never read a single message in this room before,
                 // we calculate unread messages starting from the absolute beginning ("") of time.
-                .switchIfEmpty(Mono.defer(() -> mucMessageRepository.countUnreadMessages(roomId, "", userKey)))
+                .switchIfEmpty(Mono.defer(() -> mucMessageRepository.countUnreadMessages(roomId, Constants.SMALLEST_UUID_V7, userKey)))
                 .doOnError(e -> log.error("Failed to compute on-demand unread count for user {} in room {}", userKey, roomId, e));
     }
 
@@ -59,7 +61,7 @@ public class MucMessageReadCursorService {
      * @param lastReadMid The message ID (ULID) up to which the user has read.
      * @return A {@link Mono} emitting the updated {@link MucRoomReadCursor} state.
      */
-    public Mono<MucRoomReadCursor> advanceReadCursor(final String userKey, final String roomId, final String lastReadMid) {
+    public Mono<MucRoomReadCursor> advanceReadCursor(final String userKey, final String roomId, final UUID lastReadMid) {
         final String cursorId = String.format("%s_%s", userKey, roomId);
         final long nowMs = Instant.now().toEpochMilli();
 

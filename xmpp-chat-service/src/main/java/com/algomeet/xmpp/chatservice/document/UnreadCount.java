@@ -1,5 +1,7 @@
 package com.algomeet.xmpp.chatservice.document;
 
+import java.util.UUID;
+
 import org.springframework.data.annotation.Id; // Corrected Import
 import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.Indexed;
@@ -44,5 +46,5 @@ public class UnreadCount {
      * Prevents "double-decrement" logic errors.
      */
     @Field("last_read_mid")
-    private String lastReadMid;
+    private UUID lastReadMid;
 }

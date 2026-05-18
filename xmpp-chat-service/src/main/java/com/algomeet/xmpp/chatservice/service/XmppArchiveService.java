@@ -82,7 +82,7 @@ public class XmppArchiveService {
 	public Mono<MucMessage> archiveEvent(String xml, StanzaInfo info, String toRoomId, String toMucMember, String from, String internalId) {
 		MucMessage event = new MucMessage();
 		event.setId(internalId);
-		event.setMessageId(info.getMessageId());
+		event.setMessageId(UUID.fromString(info.getMessageId()));
 		event.setRoomId(toRoomId);
 		event.setFrom(from);
 		event.setTo(toMucMember);
@@ -366,7 +366,7 @@ public class XmppArchiveService {
 		return repository.save(message);
 	}
 
-	public Mono<Void> hideMessageForUser(String messageId, String userKey) {
+	public Mono<Void> hideMessageForUser(UUID messageId, String userKey) {
 		// 1. Locate the document by ID
 		Query query = new Query(Criteria.where("messageId").is(messageId));
 
@@ -517,7 +517,7 @@ public class XmppArchiveService {
 				.id(UUID.randomUUID().toString()) // Unique ID for this specific retraction stanza
 				.from(groupJid)                  // Originating from the room occupant address
 				.by(groupJid)                    // The entity that performed the retraction
-				.retractedId(msg.getMessageId()) // The original 'id' of the message to be removed
+				.retractedId(msg.getMessageId().toString()) // The original 'id' of the message to be removed
 				.type(XmppMessageType.GROUPCHAT.getXmlValue())
 				.stamp(timestamp)
 				.build();
@@ -534,7 +534,7 @@ public class XmppArchiveService {
 		try {
 			ViewManagementSyncStanza vmSync = ViewManagementSyncStanza.builder()
 					.id(UUID.randomUUID().toString())
-					.targetId(msg.getMessageId()) // The message ID that should be hidden from view
+					.targetId(msg.getMessageId().toString()) // The message ID that should be hidden from view
 					.from(principal.getBareJid()) // Sent from the user's bare JID
 					.room(jidUtil.getGroupBareJid(msg.getRoomId()))
 					// Removed to attribute to shorten the message
@@ -645,7 +645,7 @@ public class XmppArchiveService {
 	 * @param messageId The unique identifier of the message that has been read.
 	 * @return A {@link Mono<Void>} signaling asynchronous completion of the update operation.
 	 */
-	public Mono<Void> advanceMessageSyncCursor(String messageId) {
+	public Mono<Void> advanceMessageSyncCursor(UUID messageId) {
 
 	    // 1. Locate the document by message ID
 	    Query query = new Query(Criteria.where("messageId").is(messageId));

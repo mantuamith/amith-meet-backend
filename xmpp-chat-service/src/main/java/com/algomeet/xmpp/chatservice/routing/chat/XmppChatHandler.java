@@ -2,6 +2,7 @@ package com.algomeet.xmpp.chatservice.routing.chat;
 
 import java.time.Instant;
 import java.util.Set;
+import java.util.UUID;
 
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Component;
@@ -91,7 +92,7 @@ public class XmppChatHandler {
 			// Insert stanza ID
 			forArchiveXml = XmppStanzaUtil.insertStanzaId(originalXml, ulidString, principal.getDomain());
 					    
-			offlineMessageService.save(id, toUserKey, fromUserKey, type, forArchiveXml)
+			offlineMessageService.save(UUID.fromString(id), toUserKey, fromUserKey, type, forArchiveXml)
 		            .doOnSuccess(saved -> {
 		            	boolean isAckMessage = false;
 		            	boolean isRetractStanza = false;

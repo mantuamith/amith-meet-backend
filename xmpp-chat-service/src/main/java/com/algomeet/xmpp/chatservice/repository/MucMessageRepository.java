@@ -1,5 +1,7 @@
 package com.algomeet.xmpp.chatservice.repository;
 
+import java.util.UUID;
+
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.mongodb.repository.Query;
 import org.springframework.data.mongodb.repository.ReactiveMongoRepository;
@@ -105,5 +107,5 @@ public interface MucMessageRepository extends ReactiveMongoRepository<MucMessage
                    "    { '$or': [ { 'to': null }, { 'to': ?2 } ] }" +
                    "  ]" +
                    "}", count = true)
-    Mono<Long> countUnreadMessages(String roomId, String lastReadMessageId, String userKey);
+    Mono<Long> countUnreadMessages(String roomId, UUID lastReadMessageId, String userKey);
 }

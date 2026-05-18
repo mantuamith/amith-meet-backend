@@ -3,11 +3,13 @@ package com.algomeet.xmpp.chatservice.service;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 
 import com.algomeet.xmpp.chatservice.client.GroupClient;
+import com.algomeet.xmpp.chatservice.constant.Constants;
 import com.algomeet.xmpp.chatservice.document.MucRoomReadCursor;
 import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
 import com.algomeet.xmpp.chatservice.dto.MucUnreadCount;
@@ -62,7 +64,7 @@ public class MucUnreadCountService {
 				// Step 3: Concurrently execute the covered index scans across the room batch
 				.flatMap(context -> {
 					String roomId = context.room.getId();
-					String lastReadMid = context.cursor != null ? context.cursor.getLastReadMid() : "";
+					UUID lastReadMid = context.cursor != null ? context.cursor.getLastReadMid() : Constants.SMALLEST_UUID_V7;
 
 					return mucMessageRepository.countUnreadMessages(roomId, lastReadMid, userKey)
 							.map(count -> {
@@ -71,7 +73,7 @@ public class MucUnreadCountService {
 								unreadCountDto.setUserKey(userKey);
 								unreadCountDto.setRoomId(roomId);
 								unreadCountDto.setUnreadCount(count.intValue());
-								unreadCountDto.setLastReadMid(lastReadMid);
+								unreadCountDto.setLastReadMid(lastReadMid.toString());
 								return unreadCountDto;
 							});
 				})
@@ -113,7 +115,7 @@ public class MucUnreadCountService {
 				// Step 2: Extract the last read message ID if the cursor exists
 				.map(MucRoomReadCursor::getLastReadMid)
 				// Step 3: Fall back to an empty string (beginning of time) if no cursor is found
-				.defaultIfEmpty("")
+				.defaultIfEmpty(Constants.SMALLEST_UUID_V7)
 				// Step 4: Switch to the asynchronous index-covered count query
 				.flatMap(lastReadMid -> mucMessageRepository.countUnreadMessages(roomId, lastReadMid, userKey))
 				// Step 5: Downcast the Long count from MongoDB cleanly to an Integer

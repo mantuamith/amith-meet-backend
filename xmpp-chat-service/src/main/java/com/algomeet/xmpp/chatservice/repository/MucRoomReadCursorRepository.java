@@ -5,6 +5,8 @@ import com.algomeet.xmpp.chatservice.document.MucRoomReadCursor;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.util.UUID;
+
 import org.springframework.data.mongodb.repository.ReactiveMongoRepository;
 import org.springframework.stereotype.Repository;
 
@@ -48,5 +50,5 @@ public interface MucRoomReadCursorRepository extends ReactiveMongoRepository<Muc
      * @param messageId the reference message ID threshold
      * @return a reactive stream of matching room read cursors
      */
-    Flux<MucRoomReadCursor> findByRoomIdAndLastReadMidGreaterThanEqual(String roomId, String lastReadMid);
+    Flux<MucRoomReadCursor> findByRoomIdAndLastReadMidGreaterThanEqual(String roomId, UUID lastReadMid);
 }
