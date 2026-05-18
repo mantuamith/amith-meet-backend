@@ -35,5 +35,18 @@ public interface MucRoomReadCursorRepository extends ReactiveMongoRepository<Muc
      */
     Mono<MucRoomReadCursor> findByUserKeyAndRoomId(String userKey, String roomId);
     
-    Flux<MucRoomReadCursor> findByRoomIdAndLastReadMidGreaterThan(String roomId, String messageId);
+    /**
+     * Finds all room read cursors in the specified room where the
+     * last read message ID is greater than equal the provided message ID.
+     *
+     * <p>
+     * UUIDv7 message IDs are lexicographically sortable, allowing
+     * chronological range queries directly on the message ID field.
+     * </p>
+     *
+     * @param roomId the room identifier
+     * @param messageId the reference message ID threshold
+     * @return a reactive stream of matching room read cursors
+     */
+    Flux<MucRoomReadCursor> findByRoomIdAndLastReadMidGreaterThanEqual(String roomId, String lastReadMid);
 }

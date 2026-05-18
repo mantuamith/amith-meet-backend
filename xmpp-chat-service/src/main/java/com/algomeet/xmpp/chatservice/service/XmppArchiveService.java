@@ -235,13 +235,12 @@ public class XmppArchiveService {
 	private Mono<Void> dispatchMamResult(MucMessage msg, String queryId, XmppPrincipal principal) {
 	    // Determine the timestamp (Format: 2026-05-16T19:45:43Z)
 	    String timestamp = XmppStanzaUtil.formatTimestamp(msg.getCreatedAt()); 
-
+	    
 	    // 1. Fetch all participants in this room who have read past this message's ID threshold
-	    return mucRoomReadCursorRepository.findByRoomIdAndLastReadMidGreaterThan(msg.getRoomId(), msg.getId())
+	    return mucRoomReadCursorRepository.findByRoomIdAndLastReadMidGreaterThanEqual(msg.getRoomId(), msg.getMessageId())
 	            .map(MucRoomReadCursor::getUserKey) // Extract user keys
 	            .collectList()                      // Accumulate reactive items into a List<String>
 	            .flatMap(userKeys -> {              // Shift into the template string construction logic
-	                
 	                // 2. Generate the dynamic XML reader tags block from your collected list
 	                String readersXmlBlock = buildReadersBlock(userKeys);
 
@@ -593,7 +592,7 @@ public class XmppArchiveService {
 	
 	private Mono<String> buildSyncReadReceiptsXml(MucMessage msg, XmppPrincipal principal) {
 	    // 1. Fetch all participants in this room who have read past this message's ID threshold
-	    return mucRoomReadCursorRepository.findByRoomIdAndLastReadMidGreaterThan(msg.getRoomId(), msg.getId())
+	    return mucRoomReadCursorRepository.findByRoomIdAndLastReadMidGreaterThanEqual(msg.getRoomId(), msg.getMessageId())
 	            .map(MucRoomReadCursor::getUserKey) // Extract user keys
 	            .collectList()                      // Accumulate reactive items into a List<String>
 	            .map(userKeys -> {                  // Use .map() since we return a synchronous String from this block

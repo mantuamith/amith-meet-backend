@@ -13,6 +13,10 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @Document(collection = "muc_room_read_cursors")
 @CompoundIndex(name = "idx_cursors_user_room", def = "{'userKey': 1, 'roomId': 1}")
+@CompoundIndex(
+	    name = "idx_room_last_read_mid", 
+	    def = "{'roomId': 1, 'lastReadMid': 1}"
+	)
 public class MucRoomReadCursor {
     @Id
     private String id; // Structural compound key: String.format("%s_%s", userKey, roomId)

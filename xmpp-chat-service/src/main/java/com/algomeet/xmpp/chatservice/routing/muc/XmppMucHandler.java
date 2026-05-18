@@ -145,13 +145,13 @@ public class XmppMucHandler {
 				// the user has actively viewed the conversation.
 				if (originalXml.contains(XmppReadUtil.NS_DISPLAYS)) {
 					String ackMessageId = xmppReadUtil.getAckMessageId(originalXml);
-
 					if (StringUtils.hasText(ackMessageId)) {												
 						// Save read MUC message ACK
-						mucMessageReadService.advanceReadCursor(group.getId(), principal.getUserKey(), ackMessageId);
+						mucMessageReadService.advanceReadCursor(principal.getUserKey(), group.getId(), ackMessageId)
+						.subscribe();
 						
 						// Read message
-						xmppArchiveService.advanceMessageSyncCursor(ackMessageId);
+						xmppArchiveService.advanceMessageSyncCursor(ackMessageId).subscribe();
 					}					
 				}
 			} else if ((msgType.supportsOfflineStorage() && isArchivable)) {

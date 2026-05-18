@@ -65,10 +65,10 @@ public class MucMessageReadCursorService {
 
         final Query query = new Query(Criteria.where("_id").is(cursorId));
         final Update update = new Update()
-                .set("user_key", userKey)
-                .set("room_id", roomId)
-                .set("last_read_mid", lastReadMid)
-                .set("last_read_at", nowMs);
+                .set("userKey", userKey)
+                .set("roomId", roomId)
+                .set("lastReadMid", lastReadMid)
+                .set("lastReadAt", nowMs);
 
         final FindAndModifyOptions options = FindAndModifyOptions.options().returnNew(true).upsert(true);
 
