@@ -1,11 +1,13 @@
 package com.algomeet.xmpp.chatservice.repository;
 
+import java.util.UUID;
+
 import org.springframework.data.mongodb.repository.ReactiveMongoRepository;
 import com.algomeet.xmpp.chatservice.document.OfflineMessage;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-public interface OfflineMessageRepository extends ReactiveMongoRepository<OfflineMessage, String> {
+public interface OfflineMessageRepository extends ReactiveMongoRepository<OfflineMessage, UUID> {
     
     // Use Flux for a stream of reactive results
     Flux<OfflineMessage> findByToOrderByIdAsc(String to);
@@ -20,8 +22,8 @@ public interface OfflineMessageRepository extends ReactiveMongoRepository<Offlin
      * up to and including the specified message ID checkpoint.
      *
      * @param to        The receiver user key/ID whose offline queue is being cleared
-     * @param messageId The highest stanza ID/ULID that was successfully delivered (inclusive)
+     * @param messageId The highest stanza ID/UUIDv7 that was successfully delivered (inclusive)
      * @return A Mono signaling completion when the database purge finishes
      */
-    Mono<Void> deleteByToAndIdLessThan(String to, String messageId);
+    Mono<Void> deleteByToAndIdLessThan(String to, UUID messageId);
 }

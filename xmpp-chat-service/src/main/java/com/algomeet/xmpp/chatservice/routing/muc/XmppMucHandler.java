@@ -28,7 +28,7 @@ import com.algomeet.xmpp.chatservice.util.XmppReadUtil;
 import com.algomeet.xmpp.chatservice.util.XmppServerAckUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
-import com.github.f4b6a3.ulid.UlidCreator;
+import com.github.f4b6a3.uuid.UuidCreator;
 
 import io.netty.channel.ChannelHandlerContext;
 import lombok.RequiredArgsConstructor;
@@ -129,16 +129,20 @@ public class XmppMucHandler {
 			boolean isMessageAck = XmppStanzaUtil.isMessageAckStanza(originalXml);
 
 			/**
-			 * Generate a monotonic ULID used as the stanza-id value.
+			 * Generate a monotonic UUIDv7 used as the stable stanza-id value.
 			 *
-			 * Why ULID:
-			 * - time-sortable (better than UUID for message ordering)
-			 * - globally unique under distributed systems
-			 * - suitable for MAM storage and pagination cursors
+			 * Why UUIDv7:
+			 * - Time-ordered and sortable based on a 48-bit Unix epoch timestamp.
+			 * - Highly performant for database primary indexing and chronological message ordering.
+			 * - Standard 128-bit structure that stores natively as an optimized 16-byte binary 
+			 *   payload (BinData Subtype 4) in MongoDB.
+			 * - Acts as an unforgeable server-side sequence identifier for reliable MAM 
+			 *   (XEP-0313) history retrieval and RSM pagination cursors.
 			 *
-			 * Note: Lowercasing ensures consistency across storage/query layers.
+			 * Note: Standard UUID text representations are inherently lowercase, ensuring string
+			 * consistency if serialized outside of native binary storage layers.
 			 */
-			String ulidString = UlidCreator.getMonotonicUlid().toLowerCase();
+			UUID stanzaId = UuidCreator.getTimeOrderedEpoch();
 
 			if (isMessageAck) {
 				// --- XEP-0333: Chat Markers (Read Receipts) ---
@@ -160,10 +164,10 @@ public class XmppMucHandler {
 				StanzaInfo info = GroupChatParser.parse(originalXml);
 
 				// Insert stanza ID
-				forArchiveXml = XmppStanzaUtil.insertStanzaId(originalXml, ulidString, principal.getDomain());
+				forArchiveXml = XmppStanzaUtil.insertStanzaId(originalXml, stanzaId.toString(), principal.getDomain());
 
 				xmppArchiveService.archiveEvent(forArchiveXml, info, XmppUtil.getRoomId(toRoomJid), (pmToMucMember != null ? pmToMucMember.getUserKey() : null), 
-						XmppUtil.getUserKey(fromJid), ulidString)
+						XmppUtil.getUserKey(fromJid), stanzaId)
 				.doOnSuccess(saved -> {
 
 					// Send an immediate server-level acknowledgment to the sender.
@@ -177,7 +181,7 @@ public class XmppMucHandler {
 					// used to provide early delivery assurance back to the sender.
 					XmppServerAckUtil.send(ctx, id, domainProperties.getDomain(), fromJid);
 
-					log.debug("MAM Archive Success: ID={} Room={}", ulidString, toRoomId);
+					log.debug("MAM Archive Success: ID={} Room={}", stanzaId, toRoomId);
 				})
 				.doOnError(e -> {
 					log.error("MAM Archive Failure: {}", e.getMessage(), e);

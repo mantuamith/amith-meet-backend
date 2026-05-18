@@ -353,7 +353,7 @@ public class XmppStanzaUtil {
      * - Offline sync and deduplication
      * - Reliable message tracking in distributed systems
      *
-     * The generated stanza-id is based on a monotonic ULID to ensure:
+     * The generated stanza-id is based on a monotonic UUIDv7 to ensure:
      * - Lexicographically sortable identifiers
      * - High uniqueness under concurrent load
      * - Time-ordered message indexing support
@@ -362,14 +362,14 @@ public class XmppStanzaUtil {
      * @param domain XMPP domain used as the 'by' attribute in stanza-id (server identity)
      * @return XML message enriched with <stanza-id/> extension
      */
-    public static String insertStanzaId(String xml, String ulidString, String domain) {
+    public static String insertStanzaId(String xml, String stanzaId, String domain) {
         /**
          * Construct XEP-0359 stanza-id extension element.
          *
          * Format:
          * <stanza-id xmlns='urn:xmpp:sid:0'
          *            by='domain.com'
-         *            id='ulid'/>
+         *            id='UUIDv7'/>
          *
          * 'by'  → identifies the entity that generated the ID (server/domain)
          * 'id'  → globally unique message identifier
@@ -378,7 +378,7 @@ public class XmppStanzaUtil {
                 "<stanza-id xmlns='urn:xmpp:sid:0' by='" +
                 domain +
                 "' id='" +
-                ulidString +
+                stanzaId +
                 "'/>";
 
         /**

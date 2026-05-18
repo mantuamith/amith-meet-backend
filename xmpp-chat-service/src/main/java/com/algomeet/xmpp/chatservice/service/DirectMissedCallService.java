@@ -27,7 +27,6 @@ import com.algomeet.xmpp.chatservice.session.model.UserSession;
 import com.algomeet.xmpp.chatservice.stanza.jingle.JingleTerminationIq;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
-import com.github.f4b6a3.ulid.UlidCreator;
 import com.github.f4b6a3.uuid.UuidCreator;
 
 import lombok.AllArgsConstructor;
@@ -184,9 +183,9 @@ public class DirectMissedCallService {
 						fromJid, toJid, id, type, type, type, timestamp, sid
 				);			
 
-		String ulidString = UlidCreator.getMonotonicUlid().toLowerCase();
+		String stanzaId = UuidCreator.getTimeOrderedEpoch().toString();
 		// Insert stanza ID
-		String forArchiveXml = XmppStanzaUtil.insertStanzaId(xml, ulidString, domainProperties.getDomain());	
+		String forArchiveXml = XmppStanzaUtil.insertStanzaId(xml, stanzaId, domainProperties.getDomain());	
 			
 		offlineMessageService.save(id, toUserKey, fromUserKey, XmppMessageType.HEADLINE.getXmlValue(), forArchiveXml)
 		.doOnSuccess(success -> {
@@ -200,7 +199,7 @@ public class DirectMissedCallService {
 		.subscribe();
 		
 		// Send timeout message
-		String timeoutId = java.util.UUID.randomUUID().toString();
+		String timeoutId = UuidCreator.getTimeOrderedEpoch().toString();
 		JingleTerminationIq timeoutStanza = JingleTerminationIq.builder()
 				.id(timeoutId)
 				.from(fromJid)

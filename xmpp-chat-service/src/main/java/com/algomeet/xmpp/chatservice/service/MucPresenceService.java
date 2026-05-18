@@ -25,6 +25,7 @@ import com.algomeet.xmpp.chatservice.stanza.presence.MucUserPresenceBuilder;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.algomeet.xmpp.chatservice.util.MucRoleUtil;
 import com.algomeet.xmpp.chatservice.util.UserStateUtil;
+import com.github.f4b6a3.uuid.UuidCreator;
 
 import io.netty.channel.ChannelHandlerContext;
 import lombok.RequiredArgsConstructor;
@@ -98,7 +99,7 @@ public class MucPresenceService {
 						.build();
 
 				// 4. Distribute via router to all active occupants in the room
-				mucMessageRouter.broadcastToOccupants(UUID.randomUUID().toString(), senderMucMember.get().getUserKey(), group, presenceXml, false);
+				mucMessageRouter.broadcastToOccupants(UuidCreator.getTimeOrderedEpoch().toString(), senderMucMember.get().getUserKey(), group, presenceXml, false);
 			}
 		} catch (Exception ex) {
 			log.error("Error broadcasting MUC presence in group {} for user key: {}", group.getId(), userkey, ex);

@@ -21,7 +21,7 @@ import com.algomeet.xmpp.chatservice.stanza.presence.MucUserPresenceBuilder;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
-import com.github.f4b6a3.ulid.UlidCreator;
+import com.github.f4b6a3.uuid.UuidCreator;
 
 import io.netty.channel.ChannelHandlerContext;
 import lombok.RequiredArgsConstructor;
@@ -62,7 +62,7 @@ public class MucMemberLeftEventHandler {
         		.build();
         
         clusterMessagePublisher.convertAndSendToUser(
-            UUID.randomUUID().toString(), 
+        	UuidCreator.getTimeOrderedEpoch().toString(), 
             principal.getUserKey(), 
             principal.getUserKey(), 
             ChatType.GROUPCHAT, 
@@ -79,7 +79,7 @@ public class MucMemberLeftEventHandler {
 				.role(MucRole.NONE.getValue())
 				.build();
         
-        mucMessageRouter.broadcastToOccupants(UUID.randomUUID().toString(), principal.getUserKey(), group, presenceXml, false);
+        mucMessageRouter.broadcastToOccupants(UuidCreator.getTimeOrderedEpoch().toString(), principal.getUserKey(), group, presenceXml, false);
         
         /**
 		 * ----------------------------------------------------------
@@ -87,7 +87,7 @@ public class MucMemberLeftEventHandler {
 		 * ----------------------------------------------------------
 		 * Human-readable audit trail message.
 		 */
-		String messageId = UUID.randomUUID().toString();
+		String messageId = UuidCreator.getTimeOrderedEpoch().toString();
 
 		String body = principal.getUsername() + " left";
 	
@@ -105,11 +105,11 @@ public class MucMemberLeftEventHandler {
 		 * ----------------------------------------------------------
 		 * Ensures historical traceability of room changes.
 		 */
-		String ulidString = UlidCreator.getMonotonicUlid().toLowerCase();
+		UUID stanzaId = UuidCreator.getTimeOrderedEpoch();
 		// Insert stanza ID
-		String forArchiveXmlLog = XmppStanzaUtil.insertStanzaId(xmlLogStanza, ulidString, domainProperties.getDomain());
+		String forArchiveXmlLog = XmppStanzaUtil.insertStanzaId(xmlLogStanza, stanzaId.toString(), domainProperties.getDomain());
 		
-		saveToDatabase(messageId, roomBareJid, senderJid, group, principal, ulidString, forArchiveXmlLog);
+		saveToDatabase(messageId, roomBareJid, senderJid, group, principal, stanzaId, forArchiveXmlLog);
 
 		/**
 		 * ----------------------------------------------------------
@@ -157,7 +157,7 @@ public class MucMemberLeftEventHandler {
 			String senderJid,
 			MucRoomDto group,
 			XmppPrincipal principal,
-			String ulidString,
+			UUID stanzaId,
 			String xml) {
 
 		StanzaInfo info = StanzaInfo.builder()
@@ -171,6 +171,6 @@ public class MucMemberLeftEventHandler {
 				XmppUtil.getRoomId(roomBareJid),
 				null,
 				principal.getUserKey(),
-				ulidString);
+				stanzaId);
 	}
 }

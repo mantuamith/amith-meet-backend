@@ -8,6 +8,7 @@ import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.connection.registry.LocalChannelRegistry;
 import com.algomeet.xmpp.chatservice.service.XmppSmBufferService;
 import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
+import com.github.f4b6a3.uuid.UuidCreator;
 
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
@@ -71,7 +72,7 @@ public class LocalStanzaDispatcher {
 	 * @param payload      raw XML stanza
 	 */
 	public void dispatchLocally(
-			String id,
+			UUID id,
 			String to,
 			Boolean isAllowEcho,
 			String sessionId,
@@ -119,7 +120,7 @@ public class LocalStanzaDispatcher {
 			return;
 		}
 
-		writeAndFlush(targetChannel, UUID.randomUUID().toString(), to, payload);
+		writeAndFlush(targetChannel, UuidCreator.getTimeOrderedEpoch(), to, payload);
 	}
 
 	/**
@@ -131,7 +132,7 @@ public class LocalStanzaDispatcher {
 	 * - Handle async success/failure callbacks
 	 * - Trigger SM buffer fallback on failure (if enabled)
 	 */
-	private void writeAndFlush(Channel targetChannel, String id, String to, String payload) {
+	private void writeAndFlush(Channel targetChannel, UUID id, String to, String payload) {
 		targetChannel
 		.writeAndFlush(new TextWebSocketFrame(payload))
 		.addListener((ChannelFuture future) -> {

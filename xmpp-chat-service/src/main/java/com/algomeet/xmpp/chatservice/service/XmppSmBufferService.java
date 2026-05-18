@@ -16,7 +16,7 @@ import com.algomeet.xmpp.chatservice.util.XmppSmSessionRedisUtil;
 import com.algomeet.xmpp.chatservice.util.XmppSmSessionsRedisUtil;
 import com.algomeet.xmpp.chatservice.util.XmppSmUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
-import com.github.f4b6a3.ulid.UlidCreator;
+import com.github.f4b6a3.uuid.UuidCreator;
 
 import io.netty.channel.ChannelHandlerContext;
 import lombok.RequiredArgsConstructor;
@@ -199,7 +199,7 @@ public class XmppSmBufferService {
      * @return completion signal
      */
     public Mono<Void> saveStanzaSynchronized(
-            String id,
+            UUID id,
             String receiverUserKey,
             String xml) {
 
@@ -314,20 +314,19 @@ public class XmppSmBufferService {
      * @return completion signal
      */
     private Mono<Void> saveStanza(
-            String id,
+            UUID id,
             String receiverUserKey,
             String xml) {
 
         /**
-         * Ordered monotonic ULID.
+         * Ordered monotonic UUIDv7.
          *
          * Benefits:
          * - sortable by creation time
          * - globally unique
          * - preserves replay ordering
          */
-        String seq = UlidCreator.getMonotonicUlid().toLowerCase();
-
+        UUID seq = UuidCreator.getTimeOrderedEpoch();
         return getUserSmSessionIds(receiverUserKey)
 
                 .flatMap(smSessionId -> {
@@ -356,8 +355,8 @@ public class XmppSmBufferService {
                                 /**
                                  * Generate fallback id if sender omitted stanza id.
                                  */
-                                StringUtils.isEmpty(id)
-                                        ? UUID.randomUUID().toString()
+                                id == null
+                                        ? UuidCreator.getTimeOrderedEpoch()
                                         : id,
 
                                 seq,
@@ -401,7 +400,7 @@ public class XmppSmBufferService {
      * @return completion signal
      */
     public Mono<Void> saveStanza(
-            String id,
+            UUID id,
             String receiverUserKey,
             String xml,
             String localSmSid) {
@@ -409,14 +408,14 @@ public class XmppSmBufferService {
         /**
          * Generate ordered replay sequence.
          */
-        String seq = UlidCreator.getMonotonicUlid().toLowerCase();
+        UUID seq = UuidCreator.getTimeOrderedEpoch();
 
         /**
          * Guarantee stanza id exists.
          */
-        String stanzaId =
-                StringUtils.isEmpty(id)
-                        ? UUID.randomUUID().toString()
+        UUID stanzaId =
+                id == null
+                        ? UuidCreator.getTimeOrderedEpoch()
                         : id;
 
         /**

@@ -16,6 +16,7 @@ import com.algomeet.xmpp.chatservice.session.UserSessionRegistry;
 import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
 import com.algomeet.xmpp.chatservice.session.model.UserSession;
 import com.algomeet.xmpp.chatservice.stanza.BindResult;
+import com.github.f4b6a3.uuid.UuidCreator;
 
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
@@ -75,7 +76,8 @@ public class ConnectionLifecycleHandler {
 			// 3. Send Bind Result (Confirmation of session establishment)
 			// This informs the client of their full JID and the assigned Session ID
 			ctx.channel().writeAndFlush(new TextWebSocketFrame(
-					new BindResult(principal.getFullJid(), sessionId, domainProperties.getDomain(), domainProperties.getGroupChatDomain()).toXml()
+					new BindResult(UuidCreator.getTimeOrderedEpoch().toString(), principal.getFullJid(), sessionId, 
+							domainProperties.getDomain(), domainProperties.getGroupChatDomain()).toXml()
 					));
 
 			log.info("WebSocket Handshake Complete. User {} is now ACTIVE with Session ID: {}.", userKey, sessionId);

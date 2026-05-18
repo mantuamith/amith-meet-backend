@@ -21,7 +21,6 @@ import com.algomeet.xmpp.chatservice.service.OfflineMessageService;
 import com.algomeet.xmpp.chatservice.service.UnreadCountService;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
-import com.github.f4b6a3.ulid.UlidCreator;
 import com.github.f4b6a3.uuid.UuidCreator;
 
 import io.netty.channel.ChannelHandlerContext;
@@ -261,9 +260,9 @@ public class CallLifeCycleTracker {
 		String toUserKey = XmppUtil.getUserKey(toJid);
 		String fromUserKey = XmppUtil.getUserKey(fromJid);
 
-        String ulidString = UlidCreator.getMonotonicUlid().toLowerCase();
+        String stanzaId = UuidCreator.getTimeOrderedEpoch().toString();
 		// Insert stanza ID
-		String forArchiveXml = XmppStanzaUtil.insertStanzaId(xml.toString(), ulidString, domainProperties.getDomain());
+		String forArchiveXml = XmppStanzaUtil.insertStanzaId(xml.toString(), stanzaId, domainProperties.getDomain());
 		
 		// Persist to MongoDB for offline retrieval
 		offlineMessageService.save(messageId, toUserKey, fromUserKey, XmppMessageType.CHAT.getXmlValue(), forArchiveXml)

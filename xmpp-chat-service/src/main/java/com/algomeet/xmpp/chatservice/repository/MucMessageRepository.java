@@ -11,7 +11,7 @@ import com.algomeet.xmpp.chatservice.document.MucMessage;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-public interface MucMessageRepository extends ReactiveMongoRepository<MucMessage, String> {
+public interface MucMessageRepository extends ReactiveMongoRepository<MucMessage, UUID> {
 
 	/**
 	 * Retrieve a page of messages for a room starting AFTER a specific sequential ID.
@@ -21,7 +21,7 @@ public interface MucMessageRepository extends ReactiveMongoRepository<MucMessage
 	 */
 	@Query("{ 'roomId': ?0, 'id': { $gt: ?1 }, $or: [ { 'to': null }, { 'to': ?2 } ] }")
 	Flux<MucMessage> findByRoomIdAndIdGreaterThanAndToIsNullOrEqualtoUserkeyOrderByIdAsc(
-			String roomId, String afterId, String userKey, Pageable pageable
+			String roomId, UUID afterId, String userKey, Pageable pageable
 			);
 
 	/**
@@ -53,8 +53,8 @@ public interface MucMessageRepository extends ReactiveMongoRepository<MucMessage
      */
     Flux<MucMessage> findByRoomIdAndUpdateCursorIdGreaterThanAndIdLessThanEqualOrderByIdAsc(
             String roomId, 
-            String afterUpdateCursorId, 
-            String limitId
+            UUID afterUpdateCursorId, 
+            UUID limitId
     );
 
 	/**
@@ -67,7 +67,7 @@ public interface MucMessageRepository extends ReactiveMongoRepository<MucMessage
 			sort = "{ 'id': -1 }")
 	Flux<MucMessage> findHistoricalMessages(
 			String roomId, 
-			String beforeId, 
+			UUID beforeId, 
 			String userKey, 
 			Pageable pageable
 			);
@@ -77,7 +77,7 @@ public interface MucMessageRepository extends ReactiveMongoRepository<MucMessage
 		       sort = "{ 'id': -1 }")
 	Flux<MucMessage> findByRoomIdOrderByIdDesc(String roomId, String userKey, Pageable pageable);
 
-	Mono<MucMessage> findByMessageId(String messageId);
+	Mono<MucMessage> findByMessageId(UUID messageId);
 	
 	/**
 	 * Retrieves the current first available group message in the conversation.
@@ -96,7 +96,7 @@ public interface MucMessageRepository extends ReactiveMongoRepository<MucMessage
      * avoiding scanning private messages outside of the unread range.</p>
      *
      * @param roomId            The unique identifier of the MUC room.
-     * @param lastReadMessageId The chronological anchor (ULID) where the user left off.
+     * @param lastReadMessageId The chronological anchor (UUIDv7) where the user left off.
      * @param userKey           The target user key used to filter private messages.
      * @return A {@link Mono} emitting the count of unread messages.
      */

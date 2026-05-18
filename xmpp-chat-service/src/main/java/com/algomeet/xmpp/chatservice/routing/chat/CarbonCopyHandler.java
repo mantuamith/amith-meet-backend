@@ -7,6 +7,7 @@ import org.springframework.util.StringUtils;
 
 import com.algomeet.xmpp.chatservice.routing.dispacher.LocalStanzaDispatcher;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
+import com.github.f4b6a3.uuid.UuidCreator;
 
 import lombok.RequiredArgsConstructor;
 
@@ -115,7 +116,7 @@ public class CarbonCopyHandler {
          * 5. generated carbon stanza
          */
         localStanzaDispatcher.dispatchLocally(
-                UUID.randomUUID().toString(),
+        		UuidCreator.getTimeOrderedEpoch(),
                 fromUserKey,
                 false,
                 userSessionId,

@@ -58,7 +58,7 @@ public class MucMessageReadCursorService {
      *
      * @param userKey     The user advancing their read timeline.
      * @param roomId      The target chat room identifier.
-     * @param lastReadMid The message ID (ULID) up to which the user has read.
+     * @param lastReadMid The message ID (UUIDv7) up to which the user has read.
      * @return A {@link Mono} emitting the updated {@link MucRoomReadCursor} state.
      */
     public Mono<MucRoomReadCursor> advanceReadCursor(final String userKey, final String roomId, final UUID lastReadMid) {

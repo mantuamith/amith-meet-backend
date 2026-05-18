@@ -57,7 +57,7 @@ import lombok.NoArgsConstructor;
 })
 public class MucMessage {    
 	@Id
-	private String id;           // ULID or Sequential String
+	private UUID id;           // UUIDv7 or Sequential String
 
 	// 2. UNIQUE INDEX for Message ID
 	// Prevents duplicate messages if a client retries a send
@@ -95,21 +95,21 @@ public class MucMessage {
     private Boolean startOfRoomConversation = false;
 
 	/**
-	 * Monotonically increasing ULID used as a synchronization cursor for this message record.
+	 * Monotonically increasing UUIDv7 used as a synchronization cursor for this message record.
 	 *
 	 * Updated whenever the message state changes (e.g. hide, delete, edit, reaction).
 	 *
 	 * Enables efficient incremental sync queries such as:
 	 * find records where updateCursorId > client's last known cursor.
 	 *
-	 * ULID is used so values remain lexicographically sortable by creation time.
+	 * UUIDv7 is used so values remain lexicographically sortable by creation time.
 	 *
 	 * This is a server-side update marker and is different from:
 	 * - id        : MongoDB document identifier
 	 * - messageId : Original client/XMPP message identifier
 	 */
 	@Indexed(unique = true, sparse = true)
-	private String updateCursorId;
+	private UUID updateCursorId;
 
 	private Instant createdAt = Instant.now();
 	

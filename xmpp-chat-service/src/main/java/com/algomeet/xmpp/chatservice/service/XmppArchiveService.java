@@ -13,6 +13,7 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.constant.Constants;
@@ -34,7 +35,7 @@ import com.algomeet.xmpp.chatservice.stanza.ViewManagementSyncStanza;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
-import com.github.f4b6a3.ulid.UlidCreator;
+import com.github.f4b6a3.uuid.UuidCreator;
 
 import io.netty.channel.ChannelHandlerContext;
 import lombok.RequiredArgsConstructor;
@@ -76,12 +77,12 @@ public class XmppArchiveService {
 	 * @param toRoomId   The internal ID of the room destination.
 	 * @param toMucMember The specific recipient (for private MUC messages) User Key.
 	 * @param from       The sender's User Key.
-	 * @param internalId The unique internal ID (ULID/Snowflake) for database indexing.
+	 * @param stanzaId The unique internal ID (UUIDv7) for database indexing.
 	 * @return A {@link Mono} containing the saved {@link MucMessage}.
 	 */
-	public Mono<MucMessage> archiveEvent(String xml, StanzaInfo info, String toRoomId, String toMucMember, String from, String internalId) {
+	public Mono<MucMessage> archiveEvent(String xml, StanzaInfo info, String toRoomId, String toMucMember, String from, UUID stanzaId) {
 		MucMessage event = new MucMessage();
-		event.setId(internalId);
+		event.setId(stanzaId);
 		event.setMessageId(UUID.fromString(info.getMessageId()));
 		event.setRoomId(toRoomId);
 		event.setFrom(from);
@@ -121,15 +122,22 @@ public class XmppArchiveService {
 		// Strategy: If 'after' is present, we move forward in time.
 		// Otherwise (or if 'before' is present), we move backward into history.
 		if (afterId != null) {
+			if (!StringUtils.hasText(afterId)) {
+				afterId = Constants.SMALLEST_UUID_V7.toString();
+			}
 			// Synchronize the current conversation starting point across local devices.
 			syncRoomDeletedMessages(roomId, principal);
 			
 			// Sync recent updates
-			syncRoomRecentUpdates(roomId, afterId, principal);
+			syncRoomRecentUpdates(roomId, UUID.fromString(afterId), principal);
 
-			loadAfterWithRetry(roomId, afterId, principal, queryId, maxResults);
+			loadAfterWithRetry(roomId, UUID.fromString(afterId), principal, queryId, maxResults);
 		} else {
-			loadBeforeIdWithRetry(ctx, roomId, beforeId, maxResults, queryId, principal);
+			if (!StringUtils.hasText(beforeId)) {
+				beforeId = UuidCreator.getTimeOrderedEpoch().toString();
+			}
+			
+			loadBeforeIdWithRetry(ctx, roomId, UUID.fromString(beforeId), maxResults, queryId, principal);
 		}
 	}
 
@@ -137,7 +145,7 @@ public class XmppArchiveService {
 	 * Handles "Load Newer" or "Sync from last disconnect" logic.
 	 * Uses ASC order to stream messages from the oldest in the set to the newest.
 	 */
-	private void loadAfterWithRetry(String roomId, String currentAfterId, XmppPrincipal principal, String queryId, int maxResults) {
+	private void loadAfterWithRetry(String roomId, UUID currentAfterId, XmppPrincipal principal, String queryId, int maxResults) {
 		Pageable pageRequest = PageRequest.of(0, maxResults);
 
 		repository.findByRoomIdAndIdGreaterThanAndToIsNullOrEqualtoUserkeyOrderByIdAsc(
@@ -152,7 +160,7 @@ public class XmppArchiveService {
 
 			// 1. RE-QUERY LOGIC: Empty authorized list but DB had data
 			if (authorizedMessages.isEmpty() && !list.isEmpty()) {
-				String newAfterId = list.get(list.size() - 1).getId();
+				UUID newAfterId = list.get(list.size() - 1).getId();
 				log.debug("No authorized messages in batch. Re-querying from {}", newAfterId);
 
 				// Use fromRunnable to return Mono<Void> and trigger the next hop
@@ -177,15 +185,13 @@ public class XmppArchiveService {
 	 * Handles "Infinite Scroll" logic (loading older messages).
 	 * Uses DESC order to find the N messages immediately preceding the 'beforeId'.
 	 */
-	private void loadBeforeIdWithRetry(ChannelHandlerContext ctx, String roomId, String beforeId, int maxResults, String queryId, XmppPrincipal principal) {
+	private void loadBeforeIdWithRetry(ChannelHandlerContext ctx, String roomId, UUID beforeId, int maxResults, String queryId, XmppPrincipal principal) {
 		log.debug("MAM Request for Room {}: beforeId={}, max={}", roomId, beforeId, maxResults);
 
 		PageRequest pageRequest = PageRequest.of(0, maxResults);
 
 		// 1. Define the source Flux
-		Flux<MucMessage> messageFlux = (beforeId == null || beforeId.trim().isEmpty()) 
-				? repository.findByRoomIdOrderByIdDesc(roomId, principal.getUserKey(), pageRequest)
-						: repository.findHistoricalMessages(roomId, beforeId, principal.getUserKey(), pageRequest);
+		Flux<MucMessage> messageFlux = repository.findHistoricalMessages(roomId, beforeId, principal.getUserKey(), pageRequest);
 
 		messageFlux
 		.collectList()
@@ -199,7 +205,7 @@ public class XmppArchiveService {
 			// If we found nothing authorized, but the DB still had data, 
 			// we must "walk" further back using the oldest ID in the current batch.
 			if (authorizedMessages.isEmpty() && !list.isEmpty()) {
-				String oldestIdInBatch = list.get(list.size() - 1).getId();
+				UUID oldestIdInBatch = list.get(list.size() - 1).getId();
 				log.debug("No authorized messages in batch for room {}. Walking back from {}", roomId, oldestIdInBatch);
 
 				return Mono.fromRunnable(() -> 
@@ -358,7 +364,7 @@ public class XmppArchiveService {
 		localStanzaDispatcher.dispatchLocally(principal.getUserKey(), principal.getUserKey(), fin);
 	}
 
-	public Mono<MucMessage> findByMessageId(String id) {
+	public Mono<MucMessage> findByMessageId(UUID id) {
 		return repository.findByMessageId(id);
 	}
 
@@ -373,7 +379,7 @@ public class XmppArchiveService {
 		// 2. Define the specific update (Atomic $addToSet)
 		Update update = new Update()
 				.addToSet("hiddenFromUserKeys", userKey)
-				.set("updateCursorId", UlidCreator.getMonotonicUlid().toLowerCase());
+				.set("updateCursorId", UuidCreator.getTimeOrderedEpoch());
 
 		// 3. Execute 'updateFirst' to modify ONLY that field
 		return reactiveMongoTemplate.updateFirst(query, update, MucMessage.class)
@@ -385,13 +391,13 @@ public class XmppArchiveService {
 	 * in a specific room after a given cursor point.
 	 * 
 	 * @param roomId    The unique identifier of the MUC room.
-	 * @param afterId   The ULID cursor used to resume the update stream.
+	 * @param afterId   The UUIDv7 cursor used to resume the update stream.
 	 * @param principal The session context of the user requesting the updates.
 	 */
-	private void syncRoomRecentUpdates(String roomId, String afterId, XmppPrincipal principal) {
+	private void syncRoomRecentUpdates(String roomId, UUID afterId, XmppPrincipal principal) {
 		log.info("Syncing updates for Room {}: starting from cursor {}", roomId, afterId);
 
-		// 1. Query the repository for all message changes in this room newer than the provided ULID.
+		// 1. Query the repository for all message changes in this room newer than the provided ULUUIDv7ID.
 		// OrderByIdAsc ensures we process and dispatch updates in the exact order they occurred.
 		repository.findByRoomIdAndUpdateCursorIdGreaterThanAndIdLessThanEqualOrderByIdAsc(roomId, afterId, afterId)
 
@@ -422,7 +428,7 @@ public class XmppArchiveService {
 	        // Explicitly instantiate 'MucMessage'
 	        MucMessage msg = new MucMessage();
 	        msg.setRoomId(roomId);
-	        msg.setId(Constants.EMPTY_CONVERSATION_STANZA_ID); // indicator of empty room conversation
+	        msg.setId(Constants.SMALLEST_UUID_V7); // indicator of empty room conversation
 	        msg.setStartOfRoomConversation(true);
 	        // pass an empty message
 	        dispatchRecentUpdatesResult(msg, principal).subscribe();
@@ -514,7 +520,7 @@ public class XmppArchiveService {
 		String groupJid = jidUtil.getGroupBareJid(msg.getRoomId()) + "/" + msg.getFrom();
 
 		MessageRetractStanza retractStanza = MessageRetractStanza.builder()
-				.id(UUID.randomUUID().toString()) // Unique ID for this specific retraction stanza
+				.id(UuidCreator.getTimeOrderedEpoch().toString()) // Unique ID for this specific retraction stanza
 				.from(groupJid)                  // Originating from the room occupant address
 				.by(groupJid)                    // The entity that performed the retraction
 				.retractedId(msg.getMessageId().toString()) // The original 'id' of the message to be removed
@@ -523,7 +529,7 @@ public class XmppArchiveService {
 				.build();
 
 		// Injects the server's tracking ID (cursor) into the <stanza-id/> element for MAM/Syncing.
-		return XmppStanzaUtil.insertStanzaId(retractStanza.toXml(), msg.getUpdateCursorId(), principal.getDomain());
+		return XmppStanzaUtil.insertStanzaId(retractStanza.toXml(), msg.getUpdateCursorId().toString(), principal.getDomain());
 	}
 
 	/**
@@ -533,18 +539,18 @@ public class XmppArchiveService {
 		String xml = null;
 		try {
 			ViewManagementSyncStanza vmSync = ViewManagementSyncStanza.builder()
-					.id(UUID.randomUUID().toString())
+					.id(UuidCreator.getTimeOrderedEpoch().toString())
 					.targetId(msg.getMessageId().toString()) // The message ID that should be hidden from view
 					.from(principal.getBareJid()) // Sent from the user's bare JID
 					.room(jidUtil.getGroupBareJid(msg.getRoomId()))
 					// Removed to attribute to shorten the message
 					//.to(principal.getBareJid())   // Sent to self to ensure all connected resources (phone, web) sync
 					.build();
-			// Generate a fresh monotonic ULID for the view management event itself.
-			String ulidString = UlidCreator.getMonotonicUlid().toLowerCase();
+			// Generate a fresh monotonic UUIDv7 for the view management event itself.
+			String stanzaId = UuidCreator.getTimeOrderedEpoch().toString();
 
-			// Inject the new ULID as the stanza-id so the client can update its sync cursor.
-			xml = XmppStanzaUtil.insertStanzaId(vmSync.toXml(), ulidString, principal.getDomain());
+			// Inject the new UUIDv7 as the stanza-id so the client can update its sync cursor.
+			xml = XmppStanzaUtil.insertStanzaId(vmSync.toXml(), stanzaId, principal.getDomain());
 		} catch(Exception ex) {
 			log.error("Error composing View management sync stanza ", ex);
 		}
@@ -572,14 +578,16 @@ public class XmppArchiveService {
 	    MessageSyncConversationStanza syncConversationStanza = MessageSyncConversationStanza.builder()
 
 	            // Unique ID for this synchronization stanza.
-	            .id(UUID.randomUUID().toString())
+	            .id(UuidCreator.getTimeOrderedEpoch().toString())
 
 	            // The stanza originates from the group room.
 	            .from(groupJid)
 
 	            // Indicates the current starting point of the conversation.
 	            // All messages before this stanzaId are considered hard deleted.
-	            .startOfConversationStanzaId(msg.getId())
+	            .startOfConversationStanzaId((msg.getId() == Constants.SMALLEST_UUID_V7)
+	            ? Constants.EMPTY_CONVERSATION_STANZA_ID 
+	            		: msg.getId().toString())
 
 	            // Group chat message type.
 	            .type(XmppMessageType.GROUPCHAT.getXmlValue())
@@ -603,7 +611,7 @@ public class XmppArchiveService {
 	                // 2. Build the synchronization stanza using the collected user keys
 	                MessageSyncReadReceiptStanza syncConversationStanza = MessageSyncReadReceiptStanza.builder()
 	                        // Unique ID for this synchronization stanza.
-	                        .id(UUID.randomUUID().toString())
+	                        .id(UuidCreator.getTimeOrderedEpoch().toString())
 
 	                        // The stanza originates from the group room.
 	                        .from(groupJid)
@@ -612,7 +620,7 @@ public class XmppArchiveService {
 	                        .readerUserKeys(userKeys)
 	                        
 	                        // The explicit target message ID threshold anchoring this status sync.
-	                        .targetMessageId(msg.getId())
+	                        .targetMessageId(msg.getId().toString())
 
 	                        // Group chat message type.
 	                        .type(XmppMessageType.GROUPCHAT.getXmlValue())
@@ -631,7 +639,7 @@ public class XmppArchiveService {
 	 * <p>This method is used as a lightweight state marker for read tracking in
 	 * distributed chat synchronization flows. When a client sends a Read ACK for
 	 * a message, this operation updates the {@code updateCursorId} field with a
-	 * new monotonic ULID to reflect that the message has been processed and read
+	 * new monotonic UUIDv7 to reflect that the message has been processed and read
 	 * by the recipient.</p>
 	 *
 	 * <p>This cursor is primarily used for:
@@ -650,9 +658,9 @@ public class XmppArchiveService {
 	    // 1. Locate the document by message ID
 	    Query query = new Query(Criteria.where("messageId").is(messageId));
 
-	    // 2. Update cursor to a new monotonic ULID to mark Read ACK progression
+	    // 2. Update cursor to a new monotonic UUIDv7 to mark Read ACK progression
 	    Update update = new Update()
-	            .set("updateCursorId", UlidCreator.getMonotonicUlid().toLowerCase());
+	            .set("updateCursorId", UuidCreator.getTimeOrderedEpoch());
 
 	    // 3. Apply atomic update to ensure consistency in concurrent environments
 	    return reactiveMongoTemplate.updateFirst(query, update, MucMessage.class)

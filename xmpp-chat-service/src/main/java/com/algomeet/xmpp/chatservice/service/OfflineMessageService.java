@@ -79,11 +79,11 @@ public class OfflineMessageService {
      * has confirmed receiving.</p>
      * 
      * @param to        The target recipient's routing key or JID whose offline queue is being cleared.
-     * @param messageId The highest monotonic message identifier (ULID/UUIDv7) up to which 
+     * @param messageId The highest monotonic message identifier (UUIDv7) up to which 
      *                  records will be permanently purged (inclusive).
      * @return A {@link Mono<Void>} signaling asynchronous completion of the batch range deletion.
      */
-    public Mono<Void> purgeOfflineQueueUpTo(String to, String messageId) {
+    public Mono<Void> purgeOfflineQueueUpTo(String to, UUID messageId) {
         return offlineMessageRepository.deleteByToAndIdLessThan(to, messageId);
     }
     
@@ -96,7 +96,7 @@ public class OfflineMessageService {
      * @param messageIds The list of unique Stanza ID to be removed.
      * @return A {@link Mono<Void>} signaling completion of the deletion.
      */
-    public Mono<Void> deleteAllByIds(List<String> messageIds) {
+    public Mono<Void> deleteAllByIds(List<UUID> messageIds) {
         return offlineMessageRepository.deleteAllById(messageIds);
     }
         

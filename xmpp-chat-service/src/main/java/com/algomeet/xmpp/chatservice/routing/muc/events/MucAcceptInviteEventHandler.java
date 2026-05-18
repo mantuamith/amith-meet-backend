@@ -19,7 +19,7 @@ import com.algomeet.xmpp.chatservice.stanza.presence.MucUserPresenceBuilder;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
-import com.github.f4b6a3.ulid.UlidCreator;
+import com.github.f4b6a3.uuid.UuidCreator;
 
 import io.netty.channel.ChannelHandlerContext;
 import lombok.RequiredArgsConstructor;
@@ -63,7 +63,7 @@ public class MucAcceptInviteEventHandler {
 				.statusCode(110)
         		.build();
         
-        clusterMessagePublisher.convertAndSendToUser(UUID.randomUUID().toString(), sender.getUserKey(), sender.getUserKey(), ChatType.GROUPCHAT, selfPresenceXml);
+        clusterMessagePublisher.convertAndSendToUser(UuidCreator.getTimeOrderedEpoch().toString(), sender.getUserKey(), sender.getUserKey(), ChatType.GROUPCHAT, selfPresenceXml);
         
         // 2. Notify all existing members of the new occupant and sync occupant list for the joiner.        
         String presenceXml = MucUserPresenceBuilder
@@ -73,22 +73,22 @@ public class MucAcceptInviteEventHandler {
 				.role(MucRole.fromString(sender.getRole()).getValue())
 				.build();
         
-        mucMessageRouter.broadcastToOccupants(UUID.randomUUID().toString(), sender.getUserKey(), group, presenceXml, false);
+        mucMessageRouter.broadcastToOccupants(UuidCreator.getTimeOrderedEpoch().toString(), sender.getUserKey(), group, presenceXml, false);
                       
         // 3. Prepare a system message to log the join event in the chat stream.
-        String stanzaId = UUID.randomUUID().toString();
+        String messageId = UuidCreator.getTimeOrderedEpoch().toString();
         String body = sender.getUsername() + " joined";
         String acceptedInvitationLogXml = buildAcceptInviteLog(roomBareJid, body, sender.getUserKey(), senderJid);
         
-        String ulidString = UlidCreator.getMonotonicUlid().toLowerCase();
+        UUID stanzaId = UuidCreator.getTimeOrderedEpoch();
 		// Insert stanza ID
-		String forArchiveLogXml = XmppStanzaUtil.insertStanzaId(acceptedInvitationLogXml, ulidString, domainProperties.getDomain());
+		String forArchiveLogXml = XmppStanzaUtil.insertStanzaId(acceptedInvitationLogXml, stanzaId.toString(), domainProperties.getDomain());
         
         // 4. Persistence: Archive the join event to the database for future Message Archive Management (MAM) queries.
-        saveToDatabase(stanzaId, roomJid, senderJid, group, sender, ulidString, forArchiveLogXml);
+        saveToDatabase(messageId, roomJid, senderJid, group, sender, stanzaId, forArchiveLogXml);
         
         // 5. Broadcast: Real-time notification to all online occupants via the MessageRouter.
-        xmppBroadCastHandler.broadcastToOccupants(ctx, stanzaId, roomJid, senderJid, XmppMessageType.GROUPCHAT, group, null, forArchiveLogXml);
+        xmppBroadCastHandler.broadcastToOccupants(ctx, messageId, roomJid, senderJid, XmppMessageType.GROUPCHAT, group, null, forArchiveLogXml);
                 
         // Push group members presence to user
         mucPresenceService.pushGroupParticipantsPresenceToUser(ctx, group, sender.getUserKey());
@@ -98,9 +98,9 @@ public class MucAcceptInviteEventHandler {
     
     /**
      * Persists the join event to the archive. 
-     * Injects a unique Stanza-ID (XEP-0359) using a monotonic ULID for stable ordering.
+     * Injects a unique Stanza-ID (XEP-0359) using a monotonic UUIDv7 for stable ordering.
      */
-    private void saveToDatabase(String id, String roomBareJid, String senderJid, MucRoomDto group, MucMember sender, String ulidString, String xml) {
+    private void saveToDatabase(String id, String roomBareJid, String senderJid, MucRoomDto group, MucMember sender, UUID stanzaId, String xml) {
         StanzaInfo info = StanzaInfo.builder()
                 .messageId(id)
                 .stanzaType(XmppMessageType.GROUPCHAT.getXmlValue())
@@ -108,7 +108,7 @@ public class MucAcceptInviteEventHandler {
         
 
         xmppArchiveService.archiveEvent(xml, info, XmppUtil.getRoomId(roomBareJid), null, 
-        		sender.getUserKey(), ulidString)
+        		sender.getUserKey(), stanzaId)
         .doOnError(error -> {
             log.error("Failed to archive join event for {} in room {}", senderJid, roomBareJid, error);
         })
