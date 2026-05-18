@@ -248,12 +248,12 @@ public class MessageBackupService {
 		return repository.findByConversationIdAndStanzaIdGreaterThan(converationId, stanzaId, pageable);
 	}
 
-	public MessageBackupDocument getMessage(String userKey, String messageId) {
+	public MessageBackupDocument getMessage(String userKey, UUID messageId) {
 		Optional<MessageBackupDocument> backupOpt = repository.findByMessageIdAndUserKey(messageId, userKey);	
 		return backupOpt.orElseThrow(() -> new RecordNotFoundException("Message ID not found"));
 	}
 
-	public List<MessageBackupDocument> getMessages(List<String> messageIds) {
+	public List<MessageBackupDocument> getMessages(List<UUID> messageIds) {
 		List<MessageBackupDocument> messageList = repository.findAllById(messageIds);		
 		return messageList;
 	}
@@ -306,7 +306,7 @@ public class MessageBackupService {
 		private String contactKey;
 	}
 
-	public MessageBackupDocument update(String userKey,  String messageId, MessageBackupDocument backup) {	
+	public MessageBackupDocument update(String userKey,  UUID messageId, MessageBackupDocument backup) {	
 		backup.setMessageId(messageId);
 		Optional<MessageBackupDocument> updateOpt = repository.findByMessageIdAndUserKey(messageId, userKey);
 
@@ -358,7 +358,7 @@ public class MessageBackupService {
 		}).get());
 	}
 
-	public MessageBackupDocument edit(String userKey, String messageId, MessageBackupDocument backup) {	
+	public MessageBackupDocument edit(String userKey, UUID messageId, MessageBackupDocument backup) {	
 		backup.setMessageId(messageId);
 		Optional<MessageBackupDocument> updateOpt = repository.findByMessageIdAndUserKey(messageId, userKey);
 
@@ -408,7 +408,7 @@ public class MessageBackupService {
 		}).get());
 	}
 
-	public void delete(String userKey, String messageId) {
+	public void delete(String userKey, UUID messageId) {
 		Optional<MessageBackupDocument> updateOpt = repository.findByMessageIdAndUserKey(messageId, userKey);	
 		if (updateOpt.isEmpty()) {
 			throw new RecordNotFoundException("Message ID not found");
@@ -453,7 +453,7 @@ public class MessageBackupService {
 		mediaService.deleteStorage(userKey);
 	}	
 
-	public void updateStatus(String messageId, String timestampField, String stanzaId, Long timestamp) {
+	public void updateStatus(UUID messageId, String timestampField, String stanzaId, Long timestamp) {
 		/**
 		 * Redis distributed lock key to prevent concurrent duplicate inserts
 		 * for the same messageId (idempotency + race-condition protection).

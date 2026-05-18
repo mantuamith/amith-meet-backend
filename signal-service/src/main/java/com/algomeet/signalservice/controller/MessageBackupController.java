@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
@@ -155,7 +156,7 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 	 * @return list of {@link MessageBackupResponse} wrapped in a {@link CommonResponse}
 	 */
 	@GetMapping
-	public ResponseEntity<CommonResponse<List<MessageBackupResponse>>> getMessages(@RequestParam List<String> messageIds) {
+	public ResponseEntity<CommonResponse<List<MessageBackupResponse>>> getMessages(@RequestParam List<UUID> messageIds) {
 		List<MessageBackupDocument> messageList = messageBackupService.getMessages(messageIds);     
 		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, 
 				messageList.stream().map(mb -> MessageBackupResponse.from(mb)).toList()));
@@ -207,7 +208,7 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 	 * @return {@link MessageBackupResponse} if found, otherwise HTTP 404
 	 */
 	@GetMapping("/{messageId}")
-	public ResponseEntity<CommonResponse<MessageBackupResponse>> getMessage(@PathVariable String messageId) {
+	public ResponseEntity<CommonResponse<MessageBackupResponse>> getMessage(@PathVariable UUID messageId) {
 		try {
 			MessageBackupDocument saved = messageBackupService.getMessage(SecurityUtil.getUserKey(), messageId);     
 			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, MessageBackupResponse.from(saved)));
@@ -225,7 +226,7 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 	 * @return updated {@link MessageBackupResponse} if found, otherwise HTTP 404
 	 */
 	@PutMapping("/{messageId}")
-	public ResponseEntity<CommonResponse<MessageBackupResponse>> updateMessage(@PathVariable String messageId, 
+	public ResponseEntity<CommonResponse<MessageBackupResponse>> updateMessage(@PathVariable UUID messageId, 
 			@RequestBody MessageBackupDocument request) {
 		try {
 			MessageBackupDocument saved = messageBackupService.update(SecurityUtil.getUserKey(), messageId, request);
@@ -248,7 +249,7 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 	 * @throws RecordNotFoundException if the message with the given ID does not exist
 	 */
 	@PutMapping("/{messageId}/edit")
-	public ResponseEntity<CommonResponse<MessageBackupResponse>> editMessage(@PathVariable String messageId, 
+	public ResponseEntity<CommonResponse<MessageBackupResponse>> editMessage(@PathVariable UUID messageId, 
 			@RequestBody MessageBackupDocument request) {
 		try {
 			MessageBackupDocument saved = messageBackupService.edit(SecurityUtil.getUserKey(), messageId, request);
@@ -265,7 +266,7 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 	 * @return success response or HTTP 404 if not found
 	 */
 	@DeleteMapping("/{messageId}")
-	public ResponseEntity<CommonResponse<?>> deleteMessage(@PathVariable String messageId) {
+	public ResponseEntity<CommonResponse<?>> deleteMessage(@PathVariable UUID messageId) {
 		try {
 			messageBackupService.delete(SecurityUtil.getUserKey(), messageId);        
 			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
@@ -302,7 +303,7 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 	 */
 	@PatchMapping("/{messageId}/mark-as-sent")
 	public ResponseEntity<CommonResponse<?>> markAsSent(
-			@PathVariable String messageId,
+			@PathVariable UUID messageId,
 			@Validated @RequestBody MessageStatusUpdateRequest request) {
 		return processStatusUpdate(messageId, FIELD_SENT_AT, request);
 	}
@@ -312,7 +313,7 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 	 */
 	@PatchMapping("/{messageId}/mark-as-delivered")
 	public ResponseEntity<CommonResponse<?>> markAsDelivered(
-			@PathVariable String messageId,
+			@PathVariable UUID messageId,
 			@Validated @RequestBody MessageStatusUpdateRequest request) {
 		return processStatusUpdate(messageId, FIELD_DELIVERED_AT, request);
 	}
@@ -322,7 +323,7 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 	 */
 	@PatchMapping("/{messageId}/mark-as-read")
 	public ResponseEntity<CommonResponse<?>> markAsRead(
-			@PathVariable String messageId,
+			@PathVariable UUID messageId,
 			@Validated @RequestBody MessageStatusUpdateRequest request) {
 		return processStatusUpdate(messageId, FIELD_READ_AT, request);
 	}
@@ -332,7 +333,7 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 	 */
 	@PatchMapping("/{messageId}/mark-as-deleted")
 	public ResponseEntity<CommonResponse<?>> markAsDeleted(
-			@PathVariable String messageId,
+			@PathVariable UUID messageId,
 			@Validated @RequestBody MessageStatusUpdateRequest request) {
 		return processStatusUpdate(messageId, FIELD_DELETED_AT, request);
 	}
@@ -342,7 +343,7 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 	 */
 	@PatchMapping("/{messageId}/mark-as-retracted")
 	public ResponseEntity<CommonResponse<?>> markAsRetracted(
-			@PathVariable String messageId,
+			@PathVariable UUID messageId,
 			@Validated @RequestBody MessageStatusUpdateRequest request) {
 		return processStatusUpdate(messageId, FIELD_RETRACTED_AT, request);
 	}
@@ -351,7 +352,7 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 	 * Private helper to DRY up the status update logic and handle parsing.
 	 */
 	private ResponseEntity<CommonResponse<?>> processStatusUpdate(
-			String messageId, 
+			UUID messageId, 
 			String fieldName, 
 			MessageStatusUpdateRequest request) {
 

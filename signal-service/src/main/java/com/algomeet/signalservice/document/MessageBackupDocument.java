@@ -1,6 +1,7 @@
 package com.algomeet.signalservice.document;
 
 import java.time.Instant;
+import java.util.UUID;
 
 import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.Transient;
@@ -79,8 +80,7 @@ public class MessageBackupDocument {
     public static final String FIELD_TIMESTAMP = "timestamp";
     
 	@Id
-	@Size(max = 56)
-	private String messageId;
+	private UUID messageId;
 
 	/**
 	 * Globally unique and lexicographically sortable server-generated message identifier.
