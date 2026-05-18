@@ -5,7 +5,6 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -36,7 +35,7 @@ import com.algomeet.xmpp.chatservice.stanza.jingle.JingleTerminationIq;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
-import com.github.f4b6a3.ulid.UlidCreator;
+import com.github.f4b6a3.uuid.UuidCreator;
 
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -71,7 +70,6 @@ public class MucMissedCallService {
 	private final RedissonReactiveClient redissonReactiveClient;
 	private final ReactiveRedisTemplate<String, String> reactiveRedisTemplate;
 	private final MucCallTrackerService mucCallTrackerService;
-	private final MucUnreadCountService mucUnreadCountService;
 	private final DomainProperties domainProperties;
 
 	/**
@@ -299,7 +297,7 @@ public class MucMissedCallService {
 	 * Archives events using {@code xmppArchiveService} to ensure visibility in group history.
 	 */
 	private void sendGroupChatMissedCallStanza(String fromJid, String toJid, String sid, String type, String groupId) {
-		String id = java.util.UUID.randomUUID().toString();
+		String id = UuidCreator.getTimeOrderedEpoch().toString();
 		String fromUserKey = XmppUtil.getUserKey(fromJid);
 		String toUserKey = XmppUtil.getUserKey(toJid);	
 
@@ -319,29 +317,24 @@ public class MucMissedCallService {
 						fromRoomJid, toJid, id, type, type, type, Instant.now().toString(), sid
 				);	
 
-		StanzaInfo info = StanzaInfo.builder().messageId(UUID.randomUUID().toString().toLowerCase()).build();
+		StanzaInfo info = StanzaInfo.builder().messageId(UuidCreator.getTimeOrderedEpoch().toString()).build();
 
-		String ulidString = UlidCreator.getMonotonicUlid().toLowerCase();
+		String stanzaId = UuidCreator.getTimeOrderedEpoch().toString();
 		// Insert stanza ID
-		String forArchiveXml = XmppStanzaUtil.insertStanzaId(xml, ulidString, domainProperties.getDomain());
+		String forArchiveXml = XmppStanzaUtil.insertStanzaId(xml, stanzaId, domainProperties.getDomain());
 		
 		xmppArchiveService.archiveEvent(forArchiveXml, info, groupId, toUserKey, 
-				fromUserKey, UlidCreator.getMonotonicUlid().toLowerCase())
+				fromUserKey, UuidCreator.getTimeOrderedEpoch())
 		.doOnSuccess(success -> {
 			// Publish 
 			clusterMessagePublisher.convertAndSendToUser(id, toUserKey, fromUserKey, ChatType.GROUPCHAT, forArchiveXml);
-
-			// Increment MUC unread messages count 
-			mucUnreadCountService.incrementForRoomMembers(groupId,
-					List.of(toUserKey), 
-					fromUserKey);
 
 		})
 		.doOnError(e -> log.error("MUC Archive failed: {}", e.getMessage()))
 		.subscribe();	
 
 		// Send timeout message
-		String timeoutId = java.util.UUID.randomUUID().toString();
+		String timeoutId = UuidCreator.getTimeOrderedEpoch().toString();
 		JingleTerminationIq timeoutStanza = JingleTerminationIq.builder()
 				.id(timeoutId)
 				.from(fromRoomJid)

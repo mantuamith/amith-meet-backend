@@ -19,7 +19,7 @@ import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.repository.CallTrackerRepository;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
-import com.github.f4b6a3.ulid.UlidCreator;
+import com.github.f4b6a3.uuid.UuidCreator;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -354,12 +354,12 @@ public class CallTrackerService {
 		String callerJid = jidUtil.getBareJid(session.getCaller());
 		String calleeJid = jidUtil.getBareJid(session.getCallee());
 
-		String callerMsgId = UUID.randomUUID().toString();
-		String calleeMsgId = UUID.randomUUID().toString();
+		UUID callerMsgId = UuidCreator.getTimeOrderedEpoch();
+		UUID calleeMsgId = UuidCreator.getTimeOrderedEpoch();
 
 		// Send compose and send call logs to caller
 		String callerMsg = composeCallLogStanza(
-				callerMsgId,
+				callerMsgId.toString(),
 				callerJid,
 				calleeJid,
 				sid,
@@ -368,15 +368,15 @@ public class CallTrackerService {
 				status,
 				ts);
 
-        String ulidString = UlidCreator.getMonotonicUlid().toLowerCase();
+        String stanzaId = UuidCreator.getTimeOrderedEpoch().toString();
 		// Insert stanza ID
-		String forArchiveCallerMsg = XmppStanzaUtil.insertStanzaId(callerMsg, ulidString, domainProperties.getDomain());
+		String forArchiveCallerMsg = XmppStanzaUtil.insertStanzaId(callerMsg, stanzaId, domainProperties.getDomain());
 		
 		publish(callerMsgId, session.getCaller(), session.getCallee(), ChatType.CHAT, forArchiveCallerMsg);
 
 		// Send compose and send call logs to responder/callee
 		String calleeMsg = composeCallLogStanza(
-				calleeMsgId,
+				calleeMsgId.toString(),
 				calleeJid,
 				callerJid,
 				sid,
@@ -385,9 +385,9 @@ public class CallTrackerService {
 				status,
 				ts);
 		
-        String ulidStringCallee = UlidCreator.getMonotonicUlid().toLowerCase();
+        String stanzaIdCallee = UuidCreator.getTimeOrderedEpoch().toString();
 		// Insert stanza ID
-		String forArchiveCalleeMsg = XmppStanzaUtil.insertStanzaId(calleeMsg, ulidStringCallee, domainProperties.getDomain());
+		String forArchiveCalleeMsg = XmppStanzaUtil.insertStanzaId(calleeMsg, stanzaIdCallee, domainProperties.getDomain());
 
 		publish(calleeMsgId, session.getCallee(), session.getCaller(), ChatType.CHAT, forArchiveCalleeMsg);
 	}
@@ -401,7 +401,7 @@ public class CallTrackerService {
 	 * This guarantees both persistence and live delivery.
 	 */
 	private void publish(
-			String id,
+			UUID id,
 			String to,
 			String from,
 			ChatType chatType,
@@ -421,7 +421,7 @@ public class CallTrackerService {
 		/**
 		 * Push immediately to connected nodes/users.
 		 */
-		clusterMessagePublisher.convertAndSendToUser(id, to, from, chatType, payload);
+		clusterMessagePublisher.convertAndSendToUser(id.toString(), to, from, chatType, payload);
 	}
 
 	/**

@@ -2,17 +2,17 @@ package com.algomeet.xmpp.chatservice.controller.doc;
 
 import java.util.List;
 
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PathVariable;
 
-import com.algomeet.xmpp.chatservice.document.MucUnreadCount;
 import com.algomeet.xmpp.chatservice.dto.CommonResponse;
+import com.algomeet.xmpp.chatservice.dto.MucUnreadCount;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import reactor.core.publisher.Mono;
 
 @Tag(name = "MUC Unread Counts", description = "APIs for managing unread message counts in multi-user chat rooms")
 public interface MucUnreadCountControllerDoc {
@@ -25,7 +25,7 @@ public interface MucUnreadCountControllerDoc {
         @ApiResponse(responseCode = "200", description = "Successfully retrieved unread rooms"),
         @ApiResponse(responseCode = "401", description = "Unauthorized")
     })
-    public Mono<CommonResponse<List<MucUnreadCount>>> getUnreadRooms();
+    public ResponseEntity<CommonResponse<List<MucUnreadCount>>> getUnreadRooms();
 
     @Operation(
         summary = "Get total unread count",
@@ -35,7 +35,7 @@ public interface MucUnreadCountControllerDoc {
         @ApiResponse(responseCode = "200", description = "Successfully retrieved total unread count"),
         @ApiResponse(responseCode = "401", description = "Unauthorized")
     })
-    public Mono<CommonResponse<Integer>> getTotalUnread();
+    public ResponseEntity<CommonResponse<Integer>> getTotalUnread();
 
     @Operation(
         summary = "Get unread count per room",
@@ -46,20 +46,7 @@ public interface MucUnreadCountControllerDoc {
         @ApiResponse(responseCode = "404", description = "Room not found"),
         @ApiResponse(responseCode = "401", description = "Unauthorized")
     })
-    public Mono<CommonResponse<Integer>> getRoomUnread(
-            @Parameter(description = "ID of the chat room", example = "1001")
-            @PathVariable String roomId);
-
-    @Operation(
-        summary = "Reset unread count",
-        description = "Reset unread message count to zero for a specific chat room"
-    )
-    @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "Successfully reset unread count"),
-        @ApiResponse(responseCode = "404", description = "Room not found"),
-        @ApiResponse(responseCode = "401", description = "Unauthorized")
-    })
-    public Mono<CommonResponse<Void>> resetRoomCount(
+    public ResponseEntity<CommonResponse<Integer>> getRoomUnread(
             @Parameter(description = "ID of the chat room", example = "1001")
             @PathVariable String roomId);
 }

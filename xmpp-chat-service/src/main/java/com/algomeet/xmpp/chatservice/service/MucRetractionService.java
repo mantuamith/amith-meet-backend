@@ -1,6 +1,7 @@
 package com.algomeet.xmpp.chatservice.service;
 
 import java.time.Instant;
+import java.util.UUID;
 
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -19,7 +20,7 @@ import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.algomeet.xmpp.chatservice.util.XmppRetractUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
-import com.github.f4b6a3.ulid.UlidCreator;
+import com.github.f4b6a3.uuid.UuidCreator;
 
 import io.netty.channel.ChannelHandlerContext;
 import lombok.RequiredArgsConstructor;
@@ -73,7 +74,7 @@ public class MucRetractionService {
         // Extract the target message ID (the 'retracted-id') from the XML payload
         String retractMessageId = xmppRetractUtil.getRetractMessageId(xml);
         if (StringUtils.hasText(retractMessageId)) {
-            xmppArchiveService.findByMessageId(retractMessageId.trim())
+            xmppArchiveService.findByMessageId(UUID.fromString(retractMessageId))
             .<Void>flatMap(message -> { 
             	
                 // Authorization: Validate that the initiator is the one who sent the original message
@@ -84,17 +85,17 @@ public class MucRetractionService {
 
                     String newString = "<body>This message was deleted</body>";
                     
-                    String ulidString = UlidCreator.getMonotonicUlid().toLowerCase();
+                    UUID updateCursorId = UuidCreator.getTimeOrderedEpoch();
                     
                     // Soft delete from MAM archive so the message is not returned in future history fetches
                     message.setDeletedAt(Instant.now());
-                    message.setUpdateCursorId(ulidString);
+                    message.setUpdateCursorId(updateCursorId);
                     message.setStanzaXml(XmppStanzaUtil.markAsRetractedStanza(message.getStanzaXml(), newString));
 
                     return xmppArchiveService.save(message)
                             .doOnSuccess(success -> {
                                 // Inform all online occupants via a broadcasted retraction stanza
-                                composeAndSendRetractStanza(ctx, id, ulidString, roomJid, group, retractMessageId, principal);                                
+                                composeAndSendRetractStanza(ctx, id, updateCursorId.toString(), roomJid, group, retractMessageId, principal);                                
                                 // TODO: Implementation required for decrementing unread message counters
                             })
                             .then();

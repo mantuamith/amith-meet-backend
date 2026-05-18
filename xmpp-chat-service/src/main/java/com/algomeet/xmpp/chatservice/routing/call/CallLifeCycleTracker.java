@@ -2,6 +2,7 @@ package com.algomeet.xmpp.chatservice.routing.call;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -20,7 +21,7 @@ import com.algomeet.xmpp.chatservice.service.OfflineMessageService;
 import com.algomeet.xmpp.chatservice.service.UnreadCountService;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
-import com.github.f4b6a3.ulid.UlidCreator;
+import com.github.f4b6a3.uuid.UuidCreator;
 
 import io.netty.channel.ChannelHandlerContext;
 import lombok.RequiredArgsConstructor;
@@ -238,7 +239,7 @@ public class CallLifeCycleTracker {
 	private void sendCallLog(ChannelHandlerContext ctx, String fromJid, String toJid, 
 			String sid, String status, String bodyText, String callType ) {
 
-		String messageId = java.util.UUID.randomUUID().toString();
+		UUID messageId = UuidCreator.getTimeOrderedEpoch();
 		String timestamp = java.time.Instant.now().toString();
 
 		// Building XEP-compliant message with custom AlgoMeet call-log namespace
@@ -259,9 +260,9 @@ public class CallLifeCycleTracker {
 		String toUserKey = XmppUtil.getUserKey(toJid);
 		String fromUserKey = XmppUtil.getUserKey(fromJid);
 
-        String ulidString = UlidCreator.getMonotonicUlid().toLowerCase();
+        String stanzaId = UuidCreator.getTimeOrderedEpoch().toString();
 		// Insert stanza ID
-		String forArchiveXml = XmppStanzaUtil.insertStanzaId(xml.toString(), ulidString, domainProperties.getDomain());
+		String forArchiveXml = XmppStanzaUtil.insertStanzaId(xml.toString(), stanzaId, domainProperties.getDomain());
 		
 		// Persist to MongoDB for offline retrieval
 		offlineMessageService.save(messageId, toUserKey, fromUserKey, XmppMessageType.CHAT.getXmlValue(), forArchiveXml)
@@ -273,7 +274,7 @@ public class CallLifeCycleTracker {
 		.subscribe();
 
 		// Broadcast to cluster to ensure all logged-in devices of the user receive the log
-		clusterMessagePublisher.convertAndSendToUser(messageId, toUserKey, fromUserKey, ChatType.CHAT, forArchiveXml);
+		clusterMessagePublisher.convertAndSendToUser(messageId.toString(), toUserKey, fromUserKey, ChatType.CHAT, forArchiveXml);
 
 		log.debug("Published {} call log for SID: {}", status, sid);
 	}	

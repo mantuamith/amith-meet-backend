@@ -28,6 +28,7 @@ import lombok.extern.slf4j.Slf4j;
 public class XmppStanzaUtil {
 	private static final String CHATSTATE = "chatstates";
 	private static final String BODY = "<body";
+	private static final String CHAT_MARKER_NS = "urn:xmpp:chat-markers:0";
 	
 	private static final XMLInputFactory XML_FACTORY = XMLInputFactory.newInstance();
 
@@ -201,6 +202,15 @@ public class XmppStanzaUtil {
 	public static boolean isJingleStanza(XmppMessageType msgType, String xml) {
 		return XmppMessageType.SET == msgType && xml.contains("urn:xmpp:jingle:1");
 	}
+	
+	public static boolean isMessageAckStanza(String xml) {
+		if (isMessageStanza(xml)) {			
+			return xml.indexOf(BODY) == -1 
+					&& xml.indexOf(CHAT_MARKER_NS) != -1;
+		}
+		
+		return false;
+	}
 		
 	/**
      * Extracts an attribute value from a specific tag.
@@ -347,7 +357,7 @@ public class XmppStanzaUtil {
      * - Offline sync and deduplication
      * - Reliable message tracking in distributed systems
      *
-     * The generated stanza-id is based on a monotonic ULID to ensure:
+     * The generated stanza-id is based on a monotonic UUIDv7 to ensure:
      * - Lexicographically sortable identifiers
      * - High uniqueness under concurrent load
      * - Time-ordered message indexing support
@@ -356,14 +366,14 @@ public class XmppStanzaUtil {
      * @param domain XMPP domain used as the 'by' attribute in stanza-id (server identity)
      * @return XML message enriched with <stanza-id/> extension
      */
-    public static String insertStanzaId(String xml, String ulidString, String domain) {
+    public static String insertStanzaId(String xml, String stanzaId, String domain) {
         /**
          * Construct XEP-0359 stanza-id extension element.
          *
          * Format:
          * <stanza-id xmlns='urn:xmpp:sid:0'
          *            by='domain.com'
-         *            id='ulid'/>
+         *            id='UUIDv7'/>
          *
          * 'by'  → identifies the entity that generated the ID (server/domain)
          * 'id'  → globally unique message identifier
@@ -372,7 +382,7 @@ public class XmppStanzaUtil {
                 "<stanza-id xmlns='urn:xmpp:sid:0' by='" +
                 domain +
                 "' id='" +
-                ulidString +
+                stanzaId +
                 "'/>";
 
         /**

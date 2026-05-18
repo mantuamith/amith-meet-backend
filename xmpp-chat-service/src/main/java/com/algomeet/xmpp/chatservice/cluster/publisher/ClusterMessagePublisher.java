@@ -12,6 +12,7 @@ import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.exceptions.ClusterMessageException;
 import com.algomeet.xmpp.chatservice.properties.RedisTopicProperties;
 import com.algomeet.xmpp.chatservice.util.ClusterSyncProtocolUtil;
+import com.github.f4b6a3.uuid.UuidCreator;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -241,7 +242,7 @@ public class ClusterMessagePublisher {
 			 * - debugging
 			 */
 			if (!(StringUtils.hasText(id))) {
-				id = UUID.randomUUID().toString();
+				id = UuidCreator.getTimeOrderedEpoch().toString();
 			}
 
 			/**

@@ -1,5 +1,6 @@
 package com.algomeet.xmpp.chatservice.cluster.listener;
 
+import java.util.UUID;
 import java.util.regex.Pattern;
 
 import org.springframework.stereotype.Component;
@@ -93,7 +94,7 @@ public class ClusterMessageListener {
         if (message != null 
         		&& message.length == ClusterSyncProtocolUtil.V1_FIELD_COUNT) {
 
-        	String id = message[1];
+        	UUID id = UUID.fromString(message[1]);
         	String to = message[2];
         	String from = message[3];
         	String chatType = message[4];

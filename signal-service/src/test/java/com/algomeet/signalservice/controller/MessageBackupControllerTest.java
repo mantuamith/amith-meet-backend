@@ -46,6 +46,7 @@ import com.algomeet.signalservice.exceptions.RecordNotFoundException;
 import com.algomeet.signalservice.service.MessageBackupService;
 import com.algomeet.signalservice.util.SecurityUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.f4b6a3.uuid.UuidCreator;
 
 @WebMvcTest(
         controllers = MessageBackupController.class,
@@ -94,7 +95,7 @@ class MessageBackupControllerTest {
     public static MessageBackupDocument sampleMessageBackupDocument() {
         MessageBackupDocument doc = new MessageBackupDocument();
 
-        doc.setMessageId("msg-1234567890abcdef"); // max 56 chars
+        doc.setMessageId(UuidCreator.getTimeOrderedEpoch()); // max 56 chars
         doc.setUserKey("11111111-1111-1111-1111-111111111111"); // deprecated, still must be <= 45 chars
         doc.setSenderKey("sender-uuid-1234"); // <= 45 chars, not empty
         doc.setReceiverKey("receiver-uuid-5678"); // <= 45 chars, not empty
@@ -136,11 +137,11 @@ class MessageBackupControllerTest {
     @Test
     void getMessages_success() throws Exception {
         MessageBackupDocument doc = sampleMessageBackupDocument();
-
-        when(messageBackupService.getMessages(List.of("msg-1"))).thenReturn(List.of(doc));
+        UUID messageId = UuidCreator.getTimeOrderedEpoch();
+        when(messageBackupService.getMessages(List.of(messageId))).thenReturn(List.of(doc));
 
         mockMvc.perform(get("/signal/backup/chat-messages")
-                .param("messageIds", "msg-1"))
+                .param("messageIds", messageId.toString()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(ResponseCode.SUCCESS.name()))
                 .andExpect(jsonPath("$.data.length()").value(1));
@@ -150,7 +151,8 @@ class MessageBackupControllerTest {
     void getMessage_success() throws Exception {
         MessageBackupDocument doc = sampleMessageBackupDocument();
 
-        when(messageBackupService.getMessage(doc.getUserKey(), "msg-1")).thenReturn(doc);
+        UUID messageId = UuidCreator.getTimeOrderedEpoch();
+        when(messageBackupService.getMessage(doc.getUserKey(), messageId)).thenReturn(doc);
 
         mockMvc.perform(get("/signal/backup/chat-messages/msg-1"))
                 .andExpect(status().isOk())
@@ -160,7 +162,8 @@ class MessageBackupControllerTest {
 
     @Test
     void getMessage_notFound() throws Exception {
-        when(messageBackupService.getMessage(anyString(), anyString())).thenThrow(new RecordNotFoundException("not found"));
+    	UUID messageId = UuidCreator.getTimeOrderedEpoch();
+        when(messageBackupService.getMessage(anyString(), eq(messageId))).thenThrow(new RecordNotFoundException("not found"));
 
         mockMvc.perform(get("/signal/backup/chat-messages/msg-1"))
                 .andExpect(status().isNotFound())
@@ -173,10 +176,10 @@ class MessageBackupControllerTest {
     @Test
     void updateMessage_success() throws Exception {
         MessageBackupDocument request = sampleMessageBackupDocument();
-
+        UUID messageId = UuidCreator.getTimeOrderedEpoch();
         MessageBackupDocument saved = sampleMessageBackupDocument();
 
-        when(messageBackupService.update(anyString(), eq("msg-1"), any())).thenReturn(saved);
+        when(messageBackupService.update(anyString(), eq(messageId), any())).thenReturn(saved);
 
         mockMvc.perform(put("/signal/backup/chat-messages/msg-1")
                 .with(csrf())
@@ -190,8 +193,8 @@ class MessageBackupControllerTest {
     @Test
     void updateMessage_notFound() throws Exception {
         MessageBackupDocument request = sampleMessageBackupDocument();
-
-        when(messageBackupService.update(anyString(), eq("msg-1"), any())).thenThrow(new RecordNotFoundException("not found"));
+        UUID messageId = UuidCreator.getTimeOrderedEpoch();
+        when(messageBackupService.update(anyString(), eq(messageId), any())).thenThrow(new RecordNotFoundException("not found"));
 
         mockMvc.perform(put("/signal/backup/chat-messages/msg-1")
                 .with(csrf())
@@ -206,7 +209,8 @@ class MessageBackupControllerTest {
      * ------------------------------------------------- */
     @Test
     void deleteMessage_success() throws Exception {
-        doNothing().when(messageBackupService).delete(anyString(), anyString());
+    	UUID messageId = UuidCreator.getTimeOrderedEpoch();
+        doNothing().when(messageBackupService).delete(anyString(), eq(messageId));
 
         mockMvc.perform(delete("/signal/backup/chat-messages/msg-1")
                 .with(csrf()))
@@ -216,8 +220,9 @@ class MessageBackupControllerTest {
 
     @Test
     void deleteMessage_notFound() throws Exception {
+    	UUID messageId = UuidCreator.getTimeOrderedEpoch();
         doThrow(new RecordNotFoundException("not found"))
-                .when(messageBackupService).delete(anyString(), anyString());
+                .when(messageBackupService).delete(anyString(), eq(messageId));
 
         mockMvc.perform(delete("/signal/backup/chat-messages/msg-1")
                 .with(csrf()))

@@ -2,6 +2,7 @@ package com.algomeet.signalservice.controller.swagger;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
@@ -85,7 +86,7 @@ public interface MessageBackupControllerDoc {
 
     @Operation(summary = "Get messages by IDs")
     ResponseEntity<CommonResponse<List<MessageBackupResponse>>> getMessages(
-        @Parameter(description = "List of message IDs") List<String> messageIds
+        @Parameter(description = "List of message IDs") List<UUID> messageIds
     );
 
     @Operation(summary = "Get conversation contacts")
@@ -99,23 +100,23 @@ public interface MessageBackupControllerDoc {
         }
     )
     ResponseEntity<CommonResponse<MessageBackupResponse>> getMessage(
-        @Parameter(description = "Message ID", example = "msg_123") String messageId
+        @Parameter(description = "Message ID", example = "msg_123") UUID messageId
     );
 
     @Operation(summary = "Update message (full replace)")
     ResponseEntity<CommonResponse<MessageBackupResponse>> updateMessage(
-        String messageId,
+    	UUID messageId,
         @RequestBody MessageBackupDocument request
     );
 
     @Operation(summary = "Edit message (partial update), do not use this if you need the history of the original message or previous message updates.")
     ResponseEntity<CommonResponse<MessageBackupResponse>> editMessage(
-        String messageId,
+    	UUID messageId,
         @RequestBody MessageBackupDocument request
     );
 
     @Operation(summary = "Delete message")
-    ResponseEntity<CommonResponse<?>> deleteMessage(String messageId);
+    ResponseEntity<CommonResponse<?>> deleteMessage(UUID messageId);
 
     @Operation(summary = "Delete entire conversation")
     ResponseEntity<CommonResponse<?>> deleteByConversation(String peerKey);
@@ -124,17 +125,17 @@ public interface MessageBackupControllerDoc {
     ResponseEntity<CommonResponse<?>> deleteByUserKey();
 
     @Operation(summary = "Mark message as sent")
-    ResponseEntity<CommonResponse<?>> markAsSent(String messageId, MessageStatusUpdateRequest request);
+    ResponseEntity<CommonResponse<?>> markAsSent(UUID messageId, MessageStatusUpdateRequest request);
 
     @Operation(summary = "Mark message as delivered")
-    ResponseEntity<CommonResponse<?>> markAsDelivered(String messageId, MessageStatusUpdateRequest request);
+    ResponseEntity<CommonResponse<?>> markAsDelivered(UUID messageId, MessageStatusUpdateRequest request);
 
     @Operation(summary = "Mark message as read")
-    ResponseEntity<CommonResponse<?>> markAsRead(String messageId, MessageStatusUpdateRequest request);
+    ResponseEntity<CommonResponse<?>> markAsRead(UUID messageId, MessageStatusUpdateRequest request);
 
     @Operation(summary = "Mark message as deleted (soft delete)")
-    ResponseEntity<CommonResponse<?>> markAsDeleted(String messageId, MessageStatusUpdateRequest request);
+    ResponseEntity<CommonResponse<?>> markAsDeleted(UUID messageId, MessageStatusUpdateRequest request);
     
     @Operation(summary = "Mark message as retracted (soft delete by sender)")
-    ResponseEntity<CommonResponse<?>> markAsRetracted(String messageId, MessageStatusUpdateRequest request);
+    ResponseEntity<CommonResponse<?>> markAsRetracted(UUID messageId, MessageStatusUpdateRequest request);
 }

@@ -8,6 +8,7 @@ import com.algomeet.xmpp.chatservice.dto.E2eeEvent;
 import com.algomeet.xmpp.chatservice.routing.dispacher.LocalStanzaDispatcher;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.f4b6a3.uuid.UuidCreator;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -54,7 +55,7 @@ public class E2eeEventMessageListener {
             for (String subscriberKey : event.getSubscribers()) {
                 // 2. Wrap in the full IQ Result structure
                 // Note: Use a unique ID or the one from the original request if available
-                String stanzaId = UUID.randomUUID().toString();
+                String messageId = UuidCreator.getTimeOrderedEpoch().toString();
                 
                 String fullIq = String.format(
                     "<iq from='%s' to='%s' type='result' id='%s'>" +
@@ -66,7 +67,7 @@ public class E2eeEventMessageListener {
                     "</iq>",
                     jidUtil.getBareJid(event.getSourceUserKey()), // Assuming this is the 'from' JID
                     jidUtil.getBareJid(subscriberKey),            // The recipient
-                    stanzaId,
+                    messageId,
                     event.getDeviceId(),      // Ensure your E2eeEvent DTO has deviceId
                     bundlePayload
                 );

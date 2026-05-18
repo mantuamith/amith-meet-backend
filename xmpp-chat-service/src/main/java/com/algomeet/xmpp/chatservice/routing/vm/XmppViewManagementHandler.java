@@ -17,7 +17,7 @@ import com.algomeet.xmpp.chatservice.stanza.ViewManagementSyncStanza;
 import com.algomeet.xmpp.chatservice.stanza.parser.ViewManagementStaxParser;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
-import com.github.f4b6a3.ulid.UlidCreator;
+import com.github.f4b6a3.uuid.UuidCreator;
 
 import io.netty.channel.ChannelHandlerContext;
 import lombok.RequiredArgsConstructor;
@@ -74,7 +74,7 @@ public class XmppViewManagementHandler {
 	private void handleHide(ChannelHandlerContext ctx, String id, XmppPrincipal principal, ViewManagementStaxParser.ViewItem item){
 		if (StringUtils.hasText(item.room)) {
 			// GROUP CHAT FLOW
-			xmppArchiveService.findByMessageId(item.id.trim())
+			xmppArchiveService.findByMessageId(UUID.fromString(item.id))
 			.<Void>flatMap(message -> {             	
 
 				log.info("Executing hide: Message {} in room {} by user {}", 
@@ -108,7 +108,7 @@ public class XmppViewManagementHandler {
 	 * Syncs the 'hide' state for 1-on-1 messages to other resources of the user.
 	 */
 	private void composeAndSendDirectSync(String targetId, XmppPrincipal principal) {
-		String id = UUID.randomUUID().toString();
+		String id = UuidCreator.getTimeOrderedEpoch().toString();
 
 		ViewManagementSyncStanza vmSync = ViewManagementSyncStanza.builder()
 				.id(id)
@@ -117,8 +117,8 @@ public class XmppViewManagementHandler {
 				.to(principal.getBareJid()) // To self (Bare JID) triggers fan-out
 				.build();
 
-		String ulidString = UlidCreator.getMonotonicUlid().toLowerCase();		
-		String xml = XmppStanzaUtil.insertStanzaId(vmSync.toXml(), ulidString, principal.getDomain());
+		String stanzaId = UuidCreator.getTimeOrderedEpoch().toString();		
+		String xml = XmppStanzaUtil.insertStanzaId(vmSync.toXml(), stanzaId, principal.getDomain());
 
 		// Push to the cluster for delivery to all active sessions for this user
 		clusterMessagePublisher.convertAndSendToUser(id, principal.getUserKey(), principal.getUserKey(), 
@@ -129,7 +129,7 @@ public class XmppViewManagementHandler {
 	 * Syncs the 'hide' state for MUC messages and archives the sync event if needed.
 	 */
 	private void composeAndSendGroupSync(String targetId, String roomJid, XmppPrincipal principal) {
-		String id = UUID.randomUUID().toString();
+		String id = UuidCreator.getTimeOrderedEpoch().toString();
 
 		ViewManagementSyncStanza vmSync = ViewManagementSyncStanza.builder()
 				.id(id)
@@ -139,9 +139,9 @@ public class XmppViewManagementHandler {
 				.to(roomJid + "/" + principal.getUserKey()) // MUC targeted to the specific user resource
 				.build();
 
-		String ulidString = UlidCreator.getMonotonicUlid().toLowerCase();
+		String stanzaId = UuidCreator.getTimeOrderedEpoch().toString();
 
-		String xml = XmppStanzaUtil.insertStanzaId(vmSync.toXml(), ulidString, principal.getDomain());
+		String xml = XmppStanzaUtil.insertStanzaId(vmSync.toXml(), stanzaId, principal.getDomain());
 
 		// Publish to other active sessions
 		clusterMessagePublisher.convertAndSendToUser(id, principal.getUserKey(), principal.getUserKey(), 

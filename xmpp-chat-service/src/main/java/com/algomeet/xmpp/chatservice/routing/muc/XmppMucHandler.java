@@ -1,6 +1,7 @@
 package com.algomeet.xmpp.chatservice.routing.muc;
 
 import java.util.Optional;
+import java.util.UUID;
 
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Component;
@@ -18,8 +19,8 @@ import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
 import com.algomeet.xmpp.chatservice.parser.GroupChatParser;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.service.GroupCacheService;
+import com.algomeet.xmpp.chatservice.service.MucMessageReadCursorService;
 import com.algomeet.xmpp.chatservice.service.MucRetractionService;
-import com.algomeet.xmpp.chatservice.service.MucUnreadCountService;
 import com.algomeet.xmpp.chatservice.service.XmppArchiveService;
 import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
@@ -27,7 +28,7 @@ import com.algomeet.xmpp.chatservice.util.XmppReadUtil;
 import com.algomeet.xmpp.chatservice.util.XmppServerAckUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
-import com.github.f4b6a3.ulid.UlidCreator;
+import com.github.f4b6a3.uuid.UuidCreator;
 
 import io.netty.channel.ChannelHandlerContext;
 import lombok.RequiredArgsConstructor;
@@ -58,10 +59,10 @@ public class XmppMucHandler {
 	private final MucUserCommandRouter mucUserCommandRouter;
 	private final MucMessageRouter mucMessageRouter;
 	private final JidUtil jidUtil;
-	private final MucUnreadCountService mucUnreadCountService;
 	private final XmppReadUtil xmppReadUtil;
 	private final XmppUtil xmppUtil;
 	private final MucRetractionService mucRetractionService;
+	private final MucMessageReadCursorService mucMessageReadService;
 
 	/**
 	 * Main entry point for MUC stanza processing.
@@ -91,15 +92,15 @@ public class XmppMucHandler {
 		// Verify if the sender is an authorized member and is not muted
 		Optional<MucMember> senderMucMember = group.getMembers().stream()
 				.filter(m -> m.getUserKey().equals(principal.getUserKey())).findFirst();
-		
-		
+
+
 		if((senderMucMember.isEmpty() || senderMucMember.get().isMuted())
 				// Ignore unavailable presence stanzas used for member-leave broadcasts
 				&& !(XmppStanzaUtil.isPresenceStanza(originalXml) && PresenceType.UNAVAILABLE.getValue().equals(type))) {
 
 			xmppUtil.sendError(ctx, id, fromJid, domainProperties.getGroupChatDomain(), XmppErrorType.CANCEL, 
 					XmppErrorConditions.FORBIDDEN, "You are not allowed to send messages to this room");
-			
+
 			log.error("Access Denied: User {} in room {}. (Member: {}, Muted: {})", 
 					principal.getUserKey(), toRoomId, senderMucMember.isPresent(), senderMucMember.map(MucMember::isMuted).orElse(false));
 			return;
@@ -111,10 +112,10 @@ public class XmppMucHandler {
 		} else if(isUserCommandStanza(originalXml, toRoomJid)) {
 			// MUC User actions (nickname changes, room entry, member-leave broadcasts)
 			mucUserCommandRouter.handleCommandStanza(ctx, type, toRoomJid,  originalXml, principal);	
-		
+
 		} else if(XmppStanzaUtil.isRetractStanza(originalXml)) {
-				mucRetractionService.retract(ctx, id, toRoomJid, originalXml, principal);								
-				
+			mucRetractionService.retract(ctx, id, toRoomJid, originalXml, principal);								
+
 		} else {
 
 			// 2. DIRECT PRIVATE MESSAGE (PM) WITHIN MUC CHECK
@@ -125,28 +126,49 @@ public class XmppMucHandler {
 			// Check if it's archivable
 			boolean isArchivable = XmppStanzaUtil.isArchivable(originalXml);
 
-			/**
-			 * Generate a monotonic ULID used as the stanza-id value.
-			 *
-			 * Why ULID:
-			 * - time-sortable (better than UUID for message ordering)
-			 * - globally unique under distributed systems
-			 * - suitable for MAM storage and pagination cursors
-			 *
-			 * Note: Lowercasing ensures consistency across storage/query layers.
-			 */
-			String ulidString = UlidCreator.getMonotonicUlid().toLowerCase();
+			boolean isMessageAck = XmppStanzaUtil.isMessageAckStanza(originalXml);
 
-			if (msgType.supportsOfflineStorage() && isArchivable) {
+			/**
+			 * Generate a monotonic UUIDv7 used as the stable stanza-id value.
+			 *
+			 * Why UUIDv7:
+			 * - Time-ordered and sortable based on a 48-bit Unix epoch timestamp.
+			 * - Highly performant for database primary indexing and chronological message ordering.
+			 * - Standard 128-bit structure that stores natively as an optimized 16-byte binary 
+			 *   payload (BinData Subtype 4) in MongoDB.
+			 * - Acts as an unforgeable server-side sequence identifier for reliable MAM 
+			 *   (XEP-0313) history retrieval and RSM pagination cursors.
+			 *
+			 * Note: Standard UUID text representations are inherently lowercase, ensuring string
+			 * consistency if serialized outside of native binary storage layers.
+			 */
+			UUID stanzaId = UuidCreator.getTimeOrderedEpoch();
+
+			if (isMessageAck) {
+				// --- XEP-0333: Chat Markers (Read Receipts) ---
+				// If the stanza contains the 'urn:xmpp:chat-markers:0' namespace (displayed), 
+				// the user has actively viewed the conversation.
+				if (originalXml.contains(XmppReadUtil.NS_DISPLAYS)) {
+					String ackMessageId = xmppReadUtil.getAckMessageId(originalXml);
+					if (StringUtils.hasText(ackMessageId)) {	
+						UUID messageId = UUID.fromString(ackMessageId);
+						// Save read MUC message ACK
+						mucMessageReadService.advanceReadCursor(principal.getUserKey(), group.getId(), messageId)
+						.subscribe();
+						
+						// Read message
+						xmppArchiveService.advanceMessageSyncCursor(messageId).subscribe();
+					}					
+				}
+			} else if ((msgType.supportsOfflineStorage() && isArchivable)) {
 				StanzaInfo info = GroupChatParser.parse(originalXml);
 
 				// Insert stanza ID
-				forArchiveXml = XmppStanzaUtil.insertStanzaId(originalXml, ulidString, principal.getDomain());
+				forArchiveXml = XmppStanzaUtil.insertStanzaId(originalXml, stanzaId.toString(), principal.getDomain());
 
 				xmppArchiveService.archiveEvent(forArchiveXml, info, XmppUtil.getRoomId(toRoomJid), (pmToMucMember != null ? pmToMucMember.getUserKey() : null), 
-						XmppUtil.getUserKey(fromJid), ulidString)
+						XmppUtil.getUserKey(fromJid), stanzaId)
 				.doOnSuccess(saved -> {
-					boolean isAckMessage = false;
 
 					// Send an immediate server-level acknowledgment to the sender.
 					//
@@ -159,45 +181,7 @@ public class XmppMucHandler {
 					// used to provide early delivery assurance back to the sender.
 					XmppServerAckUtil.send(ctx, id, domainProperties.getDomain(), fromJid);
 
-					// --- XEP-0333: Chat Markers (Read Receipts) ---
-					// If the stanza contains the 'urn:xmpp:chat-markers:0' namespace (displayed), 
-					// the user has actively viewed the conversation.
-					if (originalXml.contains(XmppReadUtil.NS_DISPLAYS)) {
-						isAckMessage = true;
-						String ackMessageId = xmppReadUtil.getAckMessageId(originalXml);
-
-						if (StringUtils.hasText(ackMessageId)) {
-							// Decrement the unread counter for this specific sender-recipient pair.
-							// Note: fromUserKey is the person who read it, toUserKey is the original sender.
-							mucUnreadCountService.decrementUnreadCount(senderMucMember.get().getUserKey(), toRoomId, ackMessageId, principal).subscribe();
-						}
-					}
-
-					// Count MUC private message
-					if(!isAckMessage) {
-						if (pmToMucMember != null) {
-							// Increment MUC unread messages count 
-							mucUnreadCountService.incrementUnreadCount(pmToMucMember.getUserKey(), 
-									XmppUtil.getRoomId(toRoomJid))
-							.doOnError(e -> {
-								log.error("Storage failure for increment muc messages count {}: {}", id, e.getMessage(), e);
-							})
-							.subscribe();
-						} else {
-							// Count MUC group message
-
-							// Increment MUC unread messages count 
-							mucUnreadCountService.incrementForRoomMembers(XmppUtil.getRoomId(toRoomJid),
-									group.getMembers().stream().map(m -> m.getUserKey()).toList(), 
-									senderMucMember.get().getUserKey())
-							.doOnError(e -> {
-								log.error("Storage failure for increment muc messages count {}: {}", id, e.getMessage(), e);
-							})
-							.subscribe();
-						}
-					}	
-
-					log.debug("MAM Archive Success: ID={} Room={}", ulidString, toRoomId);
+					log.debug("MAM Archive Success: ID={} Room={}", stanzaId, toRoomId);
 				})
 				.doOnError(e -> {
 					log.error("MAM Archive Failure: {}", e.getMessage(), e);

@@ -1,9 +1,9 @@
 package com.algomeet.xmpp.chatservice.document;
 
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import java.time.Instant;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.UUID;
 
 import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.Transient;
@@ -13,10 +13,9 @@ import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import jakarta.validation.constraints.Size;
-
-import java.time.Instant;
-import java.util.HashSet;
-import java.util.Set;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
 @Data
 @NoArgsConstructor
@@ -58,12 +57,12 @@ import java.util.Set;
 })
 public class MucMessage {    
 	@Id
-	private String id;           // ULID or Sequential String
+	private UUID id;           // UUIDv7 or Sequential String
 
 	// 2. UNIQUE INDEX for Message ID
 	// Prevents duplicate messages if a client retries a send
 	@Indexed(unique = true, sparse = true)
-	private String messageId; 
+	private UUID messageId; 
 
 	// Indexed via the Compound Index above, but good for simple lookups
 	private String roomId;
@@ -96,21 +95,21 @@ public class MucMessage {
     private Boolean startOfRoomConversation = false;
 
 	/**
-	 * Monotonically increasing ULID used as a synchronization cursor for this message record.
+	 * Monotonically increasing UUIDv7 used as a synchronization cursor for this message record.
 	 *
 	 * Updated whenever the message state changes (e.g. hide, delete, edit, reaction).
 	 *
 	 * Enables efficient incremental sync queries such as:
 	 * find records where updateCursorId > client's last known cursor.
 	 *
-	 * ULID is used so values remain lexicographically sortable by creation time.
+	 * UUIDv7 is used so values remain lexicographically sortable by creation time.
 	 *
 	 * This is a server-side update marker and is different from:
 	 * - id        : MongoDB document identifier
 	 * - messageId : Original client/XMPP message identifier
 	 */
 	@Indexed(unique = true, sparse = true)
-	private String updateCursorId;
+	private UUID updateCursorId;
 
 	private Instant createdAt = Instant.now();
 	

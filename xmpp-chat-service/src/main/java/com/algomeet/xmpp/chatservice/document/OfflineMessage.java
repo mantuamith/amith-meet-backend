@@ -1,6 +1,7 @@
 package com.algomeet.xmpp.chatservice.document;
 
 import java.time.Instant;
+import java.util.UUID;
 
 import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.Indexed;
@@ -15,12 +16,12 @@ import lombok.Data;
 @Data
 @Builder
 @Document(collection = "offline_messages")
-@CompoundIndex(name = "to_createdAt_idx",
-	    def = "{'to': 1, 'createdAt': 1}"
+@CompoundIndex(name = "to_id_idx",
+	    def = "{'to': 1, 'id': 1}"
 	)
 public class OfflineMessage {
 	@Id
-    private String id;          // The stanza ID from the <message id='...'> attribute
+    private UUID id;          // The stanza ID from the <message id='...'> attribute
 
     private String from;        // Sender user key / ID
 

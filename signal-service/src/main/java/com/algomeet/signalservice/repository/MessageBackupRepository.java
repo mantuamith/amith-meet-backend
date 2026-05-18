@@ -2,6 +2,7 @@ package com.algomeet.signalservice.repository;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -15,7 +16,7 @@ import com.algomeet.signalservice.repository.projection.ConversationStorageStats
 
 import jakarta.transaction.Transactional;
 
-public interface MessageBackupRepository extends MongoRepository<MessageBackupDocument, String> {	
+public interface MessageBackupRepository extends MongoRepository<MessageBackupDocument, UUID> {	
 	Page<MessageBackupDocument> findByConversationIdAndStanzaIdLessThan(
 			String conversationId, String stanzaId, Pageable pageable);
 
@@ -49,7 +50,7 @@ public interface MessageBackupRepository extends MongoRepository<MessageBackupDo
 	 * Retrieves a message backup only if it belongs to the specified user.
 	 * Use this instead of findById for better security and index locality.
 	 */
-	Optional<MessageBackupDocument> findByMessageIdAndUserKey(String messageId, String userKey);
+	Optional<MessageBackupDocument> findByMessageIdAndUserKey(UUID messageId, String userKey);
 
 
 	/**

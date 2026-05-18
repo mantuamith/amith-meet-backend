@@ -1,6 +1,7 @@
 package com.algomeet.xmpp.chatservice.service;
 
 import java.util.List;
+import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 
@@ -46,7 +47,7 @@ public class OfflineMessageService {
      * @param originalXml The raw XML payload to be stored.
      * @return A {@link Mono} emitting the saved {@link OfflineMessage}.
      */
-    public Mono<OfflineMessage> save(String id, String to, String from, String type, String originalXml) {
+    public Mono<OfflineMessage> save(UUID id, String to, String from, String type, String originalXml) {
         OfflineMessage offlineMessage = OfflineMessage.builder()
                 .id(id)
                 .to(to)
@@ -65,20 +66,25 @@ public class OfflineMessageService {
      * @return A list of {@link OfflineMessage} objects in the order they were originally sent.
      */
     public Flux<OfflineMessage> getOfflineMessages(String to) {
-        return offlineMessageRepository.findByToOrderByCreatedAtAsc(to);
+        return offlineMessageRepository.findByToOrderByIdAsc(to);
     }
     
     /**
-     * Deletes a message from the persistent store after successful delivery.
+     * Purges a batch of pending offline messages up to a specific tracking boundary
+     * after verification of successful client delivery.
      * 
-     * <p>This is typically called when an {@code <a h='...'/>} acknowledgment 
-     * is processed by the {@code XmppStreamManagementStanzaHandler}.</p>
+     * <p>This is typically triggered sequentially when an {@code <a h='...'/>} 
+     * stream management acknowledgment is processed by the {@code XmppStreamManagementStanzaHandler},
+     * allowing the server to safely clear out historical queue records that the client 
+     * has confirmed receiving.</p>
      * 
-     * @param messageId The unique Stanza ID to be removed.
-     * @return A {@link Mono<Void>} signaling completion of the deletion.
+     * @param to        The target recipient's routing key or JID whose offline queue is being cleared.
+     * @param messageId The highest monotonic message identifier (UUIDv7) up to which 
+     *                  records will be permanently purged (inclusive).
+     * @return A {@link Mono<Void>} signaling asynchronous completion of the batch range deletion.
      */
-    public Mono<Void> deleteById(String messageId) {
-        return offlineMessageRepository.deleteById(messageId);
+    public Mono<Void> purgeOfflineQueueUpTo(String to, UUID messageId) {
+        return offlineMessageRepository.deleteByToAndIdLessThan(to, messageId);
     }
     
     /**
@@ -90,7 +96,7 @@ public class OfflineMessageService {
      * @param messageIds The list of unique Stanza ID to be removed.
      * @return A {@link Mono<Void>} signaling completion of the deletion.
      */
-    public Mono<Void> deleteAllByIds(List<String> messageIds) {
+    public Mono<Void> deleteAllByIds(List<UUID> messageIds) {
         return offlineMessageRepository.deleteAllById(messageIds);
     }
         

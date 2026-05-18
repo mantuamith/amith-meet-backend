@@ -9,6 +9,7 @@ import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_EN
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_MESSAGE_ID;
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_READ_AT;
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_RECEIVER_KEY;
+import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_RETRACTED_AT;
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_SALT;
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_SENDER_KEY;
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_SENT_AT;
@@ -17,11 +18,9 @@ import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_TI
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_UPDATE_CURSOR_ID;
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_USER_KEY;
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_VERSION;
-import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_RETRACTED_AT;
 
 import java.nio.charset.Charset;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
@@ -53,12 +52,14 @@ import com.algomeet.signalservice.repository.MessageBackupRepository;
 import com.algomeet.signalservice.repository.projection.ConversationStorageStats;
 import com.algomeet.signalservice.util.ConversationUtil;
 import com.algomeet.signalservice.util.SecurityUtil;
-import com.github.f4b6a3.ulid.UlidCreator;
+import com.github.f4b6a3.uuid.UuidCreator;
 import com.mongodb.client.result.UpdateResult;
 
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @RequiredArgsConstructor
 @Service
 @Data
@@ -99,8 +100,8 @@ public class MessageBackupService {
 		backup.setConversationId(conversationId);
 
 		// Set stanza ID if empty
-		if (!StringUtils.hasText(backup.getStanzaId())) {
-			backup.setStanzaId(UlidCreator.getMonotonicUlid().toLowerCase());
+		if (backup.getStanzaId() == null) {
+			backup.setStanzaId(UuidCreator.getTimeOrderedEpoch());
 		}
 
 		/**
@@ -246,12 +247,12 @@ public class MessageBackupService {
 		return repository.findByConversationIdAndStanzaIdGreaterThan(converationId, stanzaId, pageable);
 	}
 
-	public MessageBackupDocument getMessage(String userKey, String messageId) {
+	public MessageBackupDocument getMessage(String userKey, UUID messageId) {
 		Optional<MessageBackupDocument> backupOpt = repository.findByMessageIdAndUserKey(messageId, userKey);	
 		return backupOpt.orElseThrow(() -> new RecordNotFoundException("Message ID not found"));
 	}
 
-	public List<MessageBackupDocument> getMessages(List<String> messageIds) {
+	public List<MessageBackupDocument> getMessages(List<UUID> messageIds) {
 		List<MessageBackupDocument> messageList = repository.findAllById(messageIds);		
 		return messageList;
 	}
@@ -304,7 +305,7 @@ public class MessageBackupService {
 		private String contactKey;
 	}
 
-	public MessageBackupDocument update(String userKey,  String messageId, MessageBackupDocument backup) {	
+	public MessageBackupDocument update(String userKey,  UUID messageId, MessageBackupDocument backup) {	
 		backup.setMessageId(messageId);
 		Optional<MessageBackupDocument> updateOpt = repository.findByMessageIdAndUserKey(messageId, userKey);
 
@@ -356,7 +357,7 @@ public class MessageBackupService {
 		}).get());
 	}
 
-	public MessageBackupDocument edit(String userKey, String messageId, MessageBackupDocument backup) {	
+	public MessageBackupDocument edit(String userKey, UUID messageId, MessageBackupDocument backup) {	
 		backup.setMessageId(messageId);
 		Optional<MessageBackupDocument> updateOpt = repository.findByMessageIdAndUserKey(messageId, userKey);
 
@@ -375,12 +376,12 @@ public class MessageBackupService {
 		req.setChatStorageBytesDelta(backup.getSize() - updateOpt.get().getSize());
 		mediaService.adjustStorageUsage(backup.getUserKey(), req);
 
-		String updateStanzaId;		
+		UUID updateStanzaId;		
 		
-		if(StringUtils.hasText(backup.getUpdateCursorId())) {
+		if(backup.getUpdateCursorId() != null) {
 			updateStanzaId = backup.getUpdateCursorId();
 		} else {
-			updateStanzaId = UlidCreator.getMonotonicUlid().toLowerCase();
+			updateStanzaId = UuidCreator.getTimeOrderedEpoch();
 		}
 
 		return repository.save(updateOpt.map(b -> {
@@ -406,7 +407,7 @@ public class MessageBackupService {
 		}).get());
 	}
 
-	public void delete(String userKey, String messageId) {
+	public void delete(String userKey, UUID messageId) {
 		Optional<MessageBackupDocument> updateOpt = repository.findByMessageIdAndUserKey(messageId, userKey);	
 		if (updateOpt.isEmpty()) {
 			throw new RecordNotFoundException("Message ID not found");
@@ -451,7 +452,7 @@ public class MessageBackupService {
 		mediaService.deleteStorage(userKey);
 	}	
 
-	public void updateStatus(String messageId, String timestampField, String stanzaId, Long timestamp) {
+	public void updateStatus(UUID messageId, String timestampField, UUID stanzaId, Long timestamp) {
 		/**
 		 * Redis distributed lock key to prevent concurrent duplicate inserts
 		 * for the same messageId (idempotency + race-condition protection).
@@ -480,8 +481,22 @@ public class MessageBackupService {
 		}
 
 		// Atomic update for high-concurrency environments
-		Query query = new Query(Criteria.where(FIELD_MESSAGE_ID).is(messageId)
+		Query query = null;		
+		if(FIELD_READ_AT.equals(timestampField) || FIELD_DELIVERED_AT.equals(timestampField)) {
+			// Uses .lte() to ensure the message ID is less than or equal to the threshold
+			// 1. Filter by User Key (Equality match)
+			// 2. Filter by Message ID threshold (Range match)
+			// 3. Apply the dynamic status timestamp null check last
+			query = new Query(
+			    Criteria.where(FIELD_USER_KEY).is(SecurityUtil.getUserKey())
+			            .and(FIELD_MESSAGE_ID).lte(messageId)
+			            .and(timestampField).isNull()
+			);
+			
+		} else {			
+		    query = new Query(Criteria.where(FIELD_MESSAGE_ID).is(messageId)
 				.and(FIELD_USER_KEY).is(SecurityUtil.getUserKey()));
+		}
 
 		Update update = new Update()
 				.set(timestampField, timestamp)
@@ -492,10 +507,10 @@ public class MessageBackupService {
 			update.set(FIELD_ENCRYPTED_MSG, null);
 		}
 
-		UpdateResult result = mongoTemplate.updateFirst(query, update, MessageBackupDocument.class);
+		UpdateResult result = mongoTemplate.updateMulti(query, update, MessageBackupDocument.class);
 
 		if (result.getMatchedCount() == 0) {
-			throw new RecordNotFoundException("Message backup not found: " + messageId);
+			log.warn("Message backup not found: " + messageId);
 		}
 	}
 }

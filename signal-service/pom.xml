@@ -136,12 +136,6 @@
     </dependency>
     
     <dependency>
-		<groupId>com.github.f4b6a3</groupId>
-		<artifactId>ulid-creator</artifactId>
-		<version>5.2.3</version>
-    </dependency>
-    
-    <dependency>
 	    <groupId>org.signal</groupId>
 	    <artifactId>libsignal-client</artifactId>
 	    <version>0.86.5</version>
@@ -152,6 +146,11 @@
         <artifactId>kotlin-stdlib</artifactId>
         <version>1.9.0</version>
     </dependency>
+    <dependency>
+		<groupId>com.github.f4b6a3</groupId>
+	    <artifactId>uuid-creator</artifactId>
+	    <version>6.0.0</version> <!-- Use the latest version available -->
+	</dependency>
     
     <!-- Spring Boot Test Starter -->
 	  <dependency>

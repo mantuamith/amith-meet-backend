@@ -1,5 +1,7 @@
 package com.algomeet.xmpp.chatservice.service;
 
+import java.util.UUID;
+
 import org.springframework.stereotype.Service;
 
 import com.algomeet.xmpp.chatservice.document.SmBufferMessage;
@@ -31,7 +33,7 @@ public class SmBufferMessageService {
 	 * @param stanzaXml The raw XML content to be buffered.
 	 * @return A Mono containing the saved SmBufferMessage.
 	 */
-	public Mono<SmBufferMessage> bufferStanza(String smSessionId, String stanzaId, String seq, String stanzaXml) {    	
+	public Mono<SmBufferMessage> bufferStanza(String smSessionId, UUID stanzaId, UUID seq, String stanzaXml) {    	
 		SmBufferMessage message = SmBufferMessage.builder()
 				.id(stanzaId)
 				.smSid(smSessionId)
@@ -71,7 +73,7 @@ public class SmBufferMessageService {
 	 * * @param stanzaId The unique ID of the stanza to remove.
 	 * @return A Mono indicating completion.
 	 */
-	public Mono<Void> acknowledgeStanza(String stanzaId) {
+	public Mono<Void> acknowledgeStanza(UUID stanzaId) {
 		return repository.deleteById(stanzaId)
 				.doOnSuccess(v -> log.trace("Acknowledged and removed stanza [{}] from buffer", stanzaId));
 	}	

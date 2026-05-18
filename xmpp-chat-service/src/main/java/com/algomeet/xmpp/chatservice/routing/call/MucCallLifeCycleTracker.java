@@ -1,8 +1,8 @@
 package com.algomeet.xmpp.chatservice.routing.call;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 import org.redisson.api.RSemaphoreReactive;
@@ -25,7 +25,7 @@ import com.algomeet.xmpp.chatservice.service.OfflineMessageService;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
-import com.github.f4b6a3.ulid.UlidCreator;
+import com.github.f4b6a3.uuid.UuidCreator;
 
 import io.netty.channel.ChannelHandlerContext;
 import lombok.RequiredArgsConstructor;
@@ -518,7 +518,7 @@ public class MucCallLifeCycleTracker {
 			String bodyText,
 			String callType) {
 
-		String messageId = java.util.UUID.randomUUID().toString();
+		UUID messageId = UuidCreator.getTimeOrderedEpoch();
 		String timestamp = java.time.Instant.now().toString();
 
 		StringBuilder xml = new StringBuilder();
@@ -540,9 +540,9 @@ public class MucCallLifeCycleTracker {
 		String roomId = XmppUtil.getRoomId(fromRoomJid);
 		String fromUserKey = XmppUtil.getResourceFromRoomFullJid(fromRoomJid);
 		
-        String ulidString = UlidCreator.getMonotonicUlid().toLowerCase();
+        String stanzaId = UuidCreator.getTimeOrderedEpoch().toString();
 		// Insert stanza ID
-		String forArchiveXml = XmppStanzaUtil.insertStanzaId(xml.toString(), ulidString, domainProperties.getDomain());		
+		String forArchiveXml = XmppStanzaUtil.insertStanzaId(xml.toString(), stanzaId, domainProperties.getDomain());		
 		/**
 		 * Persist for offline retrieval.
 		 */
@@ -555,10 +555,10 @@ public class MucCallLifeCycleTracker {
 				)
 		.doOnSuccess(success -> {
 			// Increment MUC unread messages count 
-			mucUnreadCountService.incrementForRoomMembers(roomId,
-					List.of(toUserKey), 
-					fromUserKey)
-			.subscribe();
+//			mucUnreadCountService.incrementForRoomMembers(roomId,
+//					List.of(toUserKey), 
+//					fromUserKey)
+//			.subscribe();
 		})
 		.subscribe();
 
@@ -566,7 +566,7 @@ public class MucCallLifeCycleTracker {
 		 * Push to cluster for all online devices.
 		 */
 		clusterMessagePublisher.convertAndSendToUser(
-				messageId,
+				messageId.toString(),
 				toUserKey,
 				fromUserKey,
 				ChatType.CHAT,

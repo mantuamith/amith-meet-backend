@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -28,6 +29,7 @@ import com.algomeet.signalservice.document.MessageBackupDocument;
 import com.algomeet.signalservice.exceptions.RecordNotFoundException;
 import com.algomeet.signalservice.repository.MessageBackupRepository;
 import com.algomeet.signalservice.util.SecurityUtil;
+import com.github.f4b6a3.uuid.UuidCreator;
 
 @ExtendWith(MockitoExtension.class)
 class MessageBackupServiceTest {
@@ -52,10 +54,13 @@ class MessageBackupServiceTest {
 	@Mock
 	private ValueOperations<String, String> valueOperations;
 
+	private UUID messageId;
+	
 	@BeforeEach
 	void setup() {
 		document = new MessageBackupDocument();
-		document.setMessageId("msg-1");
+		messageId = UuidCreator.getTimeOrderedEpoch();
+		document.setMessageId(messageId);
 		document.setUserKey("user-1");
 		document.setSenderKey("sender-1");
 		document.setReceiverKey("receiver-1");
@@ -95,11 +100,11 @@ class MessageBackupServiceTest {
 
 	@Test
 	void getMessage_success() {
-		when(repository.findById("msg-1"))
+		when(repository.findById(messageId))
 		.thenReturn(Optional.of(document));
 
 		MessageBackupDocument result =
-				service.getMessage("user-1", "msg-1");
+				service.getMessage("user-1", messageId);
 
 		assertNotNull(result);
 		assertEquals("msg-1", result.getMessageId());
@@ -107,11 +112,11 @@ class MessageBackupServiceTest {
 
 	@Test
 	void getMessage_notFound() {
-		when(repository.findById("missing"))
+		when(repository.findById(UuidCreator.getTimeOrderedEpoch()))
 		.thenReturn(Optional.empty());
 
 		assertThrows(RecordNotFoundException.class,
-				() -> service.getMessage("user-1", "missing"));
+				() -> service.getMessage("user-1", UuidCreator.getTimeOrderedEpoch()));
 	}
 
 	/* -------------------------------------------------
@@ -120,11 +125,11 @@ class MessageBackupServiceTest {
 
 	@Test
 	void getMessages_success() {
-		when(repository.findAllById(List.of("msg-1", "msg-2")))
+		when(repository.findAllById(List.of(messageId, UuidCreator.getTimeOrderedEpoch())))
 		.thenReturn(List.of(document));
 
 		List<MessageBackupDocument> result =
-				service.getMessages(List.of("msg-1", "msg-2"));
+				service.getMessages(List.of(messageId, UuidCreator.getTimeOrderedEpoch()));
 
 		assertEquals(1, result.size());
 		verify(repository).findAllById(any());
@@ -138,10 +143,10 @@ class MessageBackupServiceTest {
 	void update_success() {
 		MessageBackupDocument existingMsg = new MessageBackupDocument();
 		existingMsg.setUserKey("user-2");
-		existingMsg.setMessageId("msg-1");
+		existingMsg.setMessageId(messageId);
 		existingMsg.setSize(50L);
 		
-		when(repository.findById("msg-1"))
+		when(repository.findById(messageId))
 		.thenReturn(Optional.of(existingMsg));
 		
 
@@ -159,7 +164,7 @@ class MessageBackupServiceTest {
 		.thenReturn(update);
 
 		MessageBackupDocument result =
-				service.update("user-1", "msg-1", update);
+				service.update("user-1", messageId, update);
 
 		assertEquals("msg-1", result.getMessageId());
 		verify(repository).save(any(MessageBackupDocument.class));
@@ -167,11 +172,11 @@ class MessageBackupServiceTest {
 
 	@Test
 	void update_notFound() {
-		when(repository.findById("msg-1"))
+		when(repository.findById(messageId))
 		.thenReturn(Optional.empty());
 
 		assertThrows(RecordNotFoundException.class,
-				() -> service.update("user-1", "msg-1", document));
+				() -> service.update("user-1", messageId, document));
 
 		verify(repository, never()).save(any());
 	}
@@ -184,26 +189,26 @@ class MessageBackupServiceTest {
 	void delete_success() {
 		MessageBackupDocument existingMsg = new MessageBackupDocument();
 		existingMsg.setUserKey("user-2");
-		existingMsg.setMessageId("msg-1");
+		existingMsg.setMessageId(messageId);
 		existingMsg.setSize(50L);
 		
-		when(repository.findById("msg-1"))
+		when(repository.findById(messageId))
 		.thenReturn(Optional.of(existingMsg));
 
-		doNothing().when(repository).deleteById("msg-1");
+		doNothing().when(repository).deleteById(messageId);
 
-		service.delete("user-1", "msg-1");
+		service.delete("user-1", messageId);
 
-		verify(repository).deleteById("msg-1");
+		verify(repository).deleteById(messageId);
 	}
 
 	@Test
 	void delete_notFound() {
-		when(repository.findById("msg-1"))
+		when(repository.findById(messageId))
 		.thenReturn(Optional.empty());
 
 		assertThrows(RecordNotFoundException.class,
-				() -> service.delete("user-1", "msg-1"));
+				() -> service.delete("user-1", messageId));
 
 		verify(repository, never()).deleteById(any());
 	}

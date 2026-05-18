@@ -22,6 +22,7 @@ import com.algomeet.xmpp.chatservice.session.model.UserSession;
 import com.algomeet.xmpp.chatservice.stanza.presence.DirectedPresenceBuilder;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.algomeet.xmpp.chatservice.util.UserStateUtil;
+import com.github.f4b6a3.uuid.UuidCreator;
 
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
@@ -143,7 +144,7 @@ public class ContactPresenceService {
 
 					// Distribute via Cluster Message Publisher to handle users on different server nodes
 					clusterMessagePublisher.convertAndSendToUser(
-							UUID.randomUUID().toString(), 
+							UuidCreator.getTimeOrderedEpoch().toString(), 
 							contactUserKey.toString(), 
 							principal.getUserKey(), 
 							ChatType.CHAT, 

@@ -2,6 +2,7 @@ package com.algomeet.xmpp.chatservice.service;
 
 import java.time.Instant;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 import org.redisson.api.RLockReactive;
@@ -26,7 +27,7 @@ import com.algomeet.xmpp.chatservice.session.model.UserSession;
 import com.algomeet.xmpp.chatservice.stanza.jingle.JingleTerminationIq;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
-import com.github.f4b6a3.ulid.UlidCreator;
+import com.github.f4b6a3.uuid.UuidCreator;
 
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -168,7 +169,7 @@ public class DirectMissedCallService {
 	 * Persists to offline storage for MAM/Archive and publishes to the cluster.
 	 */
 	private void sendMissedCallStanza(String fromJid, String toJid, String sid, String type) {
-		String id = java.util.UUID.randomUUID().toString();
+		UUID id = UuidCreator.getTimeOrderedEpoch();
 		String timestamp = Instant.now().toString();
 		String fromUserKey = XmppUtil.getUserKey(fromJid);
 		String toUserKey = XmppUtil.getUserKey(toJid);	
@@ -182,14 +183,14 @@ public class DirectMissedCallService {
 						fromJid, toJid, id, type, type, type, timestamp, sid
 				);			
 
-		String ulidString = UlidCreator.getMonotonicUlid().toLowerCase();
+		String stanzaId = UuidCreator.getTimeOrderedEpoch().toString();
 		// Insert stanza ID
-		String forArchiveXml = XmppStanzaUtil.insertStanzaId(xml, ulidString, domainProperties.getDomain());	
+		String forArchiveXml = XmppStanzaUtil.insertStanzaId(xml, stanzaId, domainProperties.getDomain());	
 			
 		offlineMessageService.save(id, toUserKey, fromUserKey, XmppMessageType.HEADLINE.getXmlValue(), forArchiveXml)
 		.doOnSuccess(success -> {
 			// Publish after successfully saved
-			clusterMessagePublisher.convertAndSendToUser(id, toUserKey, fromUserKey, ChatType.CHAT, forArchiveXml);
+			clusterMessagePublisher.convertAndSendToUser(id.toString(), toUserKey, fromUserKey, ChatType.CHAT, forArchiveXml);
 			
 			// Increment user unread message
 			unreadCountService.incrementUnreadCount(fromUserKey, toUserKey);
@@ -198,7 +199,7 @@ public class DirectMissedCallService {
 		.subscribe();
 		
 		// Send timeout message
-		String timeoutId = java.util.UUID.randomUUID().toString();
+		String timeoutId = UuidCreator.getTimeOrderedEpoch().toString();
 		JingleTerminationIq timeoutStanza = JingleTerminationIq.builder()
 				.id(timeoutId)
 				.from(fromJid)

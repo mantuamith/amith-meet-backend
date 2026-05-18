@@ -2,6 +2,7 @@ package com.algomeet.xmpp.chatservice.routing.chat;
 
 import java.time.Instant;
 import java.util.Set;
+import java.util.UUID;
 
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Component;
@@ -32,7 +33,7 @@ import com.algomeet.xmpp.chatservice.util.XmppRetractUtil;
 import com.algomeet.xmpp.chatservice.util.XmppServerAckUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
-import com.github.f4b6a3.ulid.UlidCreator;
+import com.github.f4b6a3.uuid.UuidCreator;
 
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
@@ -78,20 +79,20 @@ public class XmppChatHandler {
 		boolean isArchivable = XmppStanzaUtil.isArchivable(originalXml);
 		if (msgType.supportsOfflineStorage() && isArchivable) {	
 			 /**
-	         * Generate a monotonic ULID used as the stanza-id value.
+	         * Generate a monotonic UUIDv7 used as the stanza-id value.
 	         *
-	         * Why ULID:
+	         * Why UUIDv7:
 	         * - time-sortable (better than UUID for message ordering)
 	         * - globally unique under distributed systems
 	         * - suitable for MAM storage and pagination cursors
 	         *
 	         * Note: Lowercasing ensures consistency across storage/query layers.
 	         */
-	        String ulidString = UlidCreator.getMonotonicUlid().toLowerCase();
+	        String stanzaId = UuidCreator.getTimeOrderedEpoch().toString();
 			// Insert stanza ID
-			forArchiveXml = XmppStanzaUtil.insertStanzaId(originalXml, ulidString, principal.getDomain());
+			forArchiveXml = XmppStanzaUtil.insertStanzaId(originalXml, stanzaId, principal.getDomain());
 					    
-			offlineMessageService.save(id, toUserKey, fromUserKey, type, forArchiveXml)
+			offlineMessageService.save(UUID.fromString(id), toUserKey, fromUserKey, type, forArchiveXml)
 		            .doOnSuccess(saved -> {
 		            	boolean isAckMessage = false;
 		            	boolean isRetractStanza = false;
@@ -127,12 +128,16 @@ public class XmppChatHandler {
 					    // device has successfully received the message.
 					    if (originalXml.contains(XmppReceiptUtil.NS_RECEIPTS)) {
 					    	isAckMessage = true;
+					    	log.info("---->{}", originalXml);
 					        String ackMessageId = xmppReceiptUtil.getAckMessageId(originalXml);
-
 					        if (StringUtils.hasText(ackMessageId)) {
-					            // Once delivery is confirmed, the message is no longer "offline" 
-					            // and can be safely removed from the temporary offline storage.
-					            offlineMessageService.deleteById(ackMessageId).subscribe();
+					        	// Once delivery is confirmed via an XEP-0198 Stream Management acknowledgment (<a h='...'/>), 
+					        	// the batch of messages is no longer considered "offline" and can be safely purged.
+					        	// Utilizing time-sorted IDs (UUIDv7) enables an optimized $lte range deletion.
+					        	offlineMessageService.purgeOfflineQueueUpTo(principal.getUserKey(), UUID.fromString(ackMessageId))
+					        	.doOnSuccess(unused -> log.debug("Successfully purged offline queue for user: {} up to ID: {}", principal.getUserKey(), ackMessageId))
+					        	.doOnError(error -> log.error("Failed to clear offline message database buffer for user: {}", principal.getUserKey(), error))
+					        	.subscribe();
 					        }
 					    }
 					    

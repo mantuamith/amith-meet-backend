@@ -1,15 +1,16 @@
 package com.algomeet.xmpp.chatservice.controller;
 
 import com.algomeet.xmpp.chatservice.controller.doc.MucUnreadCountControllerDoc;
-import com.algomeet.xmpp.chatservice.document.MucUnreadCount;
 import com.algomeet.xmpp.chatservice.dto.CommonResponse;
+import com.algomeet.xmpp.chatservice.dto.MucUnreadCount;
 import com.algomeet.xmpp.chatservice.enums.ResponseCode;
 import com.algomeet.xmpp.chatservice.service.MucUnreadCountService;
 import com.algomeet.xmpp.chatservice.util.SecurityUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import reactor.core.publisher.Mono;
 
 import java.util.List;
 
@@ -25,40 +26,41 @@ public class MucUnreadCountController implements MucUnreadCountControllerDoc{
      * Gets a list of all rooms with unread messages for the authenticated user.
      */
     @GetMapping
-    public Mono<CommonResponse<List<MucUnreadCount>>> getUnreadRooms() {
+    public ResponseEntity<CommonResponse<List<MucUnreadCount>>> getUnreadRooms() {
         String userKey = SecurityUtil.getUserKey();
-        return mucUnreadCountService.getUnreadCountsByUser(userKey)
-                .collectList()
-                .map(data -> CommonResponse.from(ResponseCode.SUCCESS, data));
+        return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, 
+        		mucUnreadCountService.getUnreadCountsByUser(userKey)));
     }
 
     /**
-     * Gets the total aggregate unread count for all MUCs for a user.
+     * Aggregates and returns the global unread message badge count across all rooms for the authenticated user.
+     * 
+     * @return A {@link CommonResponse} wrapping the total summation integer.
      */
     @GetMapping("/total")
-    public Mono<CommonResponse<Integer>> getTotalUnread() {
+    public ResponseEntity<CommonResponse<Integer>> getTotalUnread() {
+        // Step 1: Securely extract the unique identifier of the requesting user
         String userKey = SecurityUtil.getUserKey();
-        return mucUnreadCountService.getTotalUnreadCount(userKey)
-                .map(count -> CommonResponse.from(ResponseCode.SUCCESS, count));
+        
+        // Step 2: Fetch the active room unread metrics block from the service layer
+        List<MucUnreadCount> unreadCounts = mucUnreadCountService.getUnreadCountsByUser(userKey);
+        
+        // Step 3: Stream and sum up the counts using an inline integer reduction accumulator
+        int totalUnreadBadge = unreadCounts.stream()
+                .mapToInt(MucUnreadCount::getUnreadCount)
+                .sum();
+        
+        // Step 4: Map directly to your corporate envelope schema payload
+        return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, totalUnreadBadge));
     }
 
     /**
      * Gets the unread count for a specific room.
      */
     @GetMapping("/room/{roomId}")
-    public Mono<CommonResponse<Integer>> getRoomUnread(@PathVariable String roomId) {
+    public ResponseEntity<CommonResponse<Integer>> getRoomUnread(@PathVariable String roomId) {
         String userKey = SecurityUtil.getUserKey();
-        return mucUnreadCountService.getUnreadCount(userKey, roomId)
-                .map(count -> CommonResponse.from(ResponseCode.SUCCESS, count));
-    }
-
-    /**
-     * Resets the unread counter for a specific room to zero.
-     */
-    @PostMapping("/room/{roomId}/reset")
-    public Mono<CommonResponse<Void>> resetRoomCount(@PathVariable String roomId) {
-        String userKey = SecurityUtil.getUserKey();
-        return mucUnreadCountService.resetUnreadCount(userKey, roomId)
-                .then(Mono.fromCallable(() -> CommonResponse.from(ResponseCode.SUCCESS)));
+        return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, 
+        		mucUnreadCountService.getUnreadCount(userKey, roomId)));
     }
 }

@@ -17,6 +17,7 @@ import com.algomeet.xmpp.chatservice.service.MucPresenceService;
 import com.algomeet.xmpp.chatservice.stanza.presence.MucUserPresenceBuilder;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
+import com.github.f4b6a3.uuid.UuidCreator;
 
 import io.netty.channel.ChannelHandlerContext;
 import lombok.RequiredArgsConstructor;
@@ -63,7 +64,7 @@ public class MucMemberJoinEventHandler {
         		.build();
         
         clusterMessagePublisher.convertAndSendToUser(
-            UUID.randomUUID().toString(), 
+        	UuidCreator.getTimeOrderedEpoch().toString(), 
             sender.getUserKey(), 
             sender.getUserKey(), 
             ChatType.GROUPCHAT, 
@@ -81,7 +82,7 @@ public class MucMemberJoinEventHandler {
 				.status(status)
 				.build();
         
-        mucMessageRouter.broadcastToOccupants(UUID.randomUUID().toString(), sender.getUserKey(), group, presenceXml, false);
+        mucMessageRouter.broadcastToOccupants(UuidCreator.getTimeOrderedEpoch().toString(), sender.getUserKey(), group, presenceXml, false);
         
         // Push group members presence to user
         mucPresenceService.pushGroupParticipantsPresenceToUser(ctx, group, sender.getUserKey());

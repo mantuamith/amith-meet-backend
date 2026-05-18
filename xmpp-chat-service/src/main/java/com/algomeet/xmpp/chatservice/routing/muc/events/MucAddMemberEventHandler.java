@@ -27,7 +27,7 @@ import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.algomeet.xmpp.chatservice.util.UserStateUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
-import com.github.f4b6a3.ulid.UlidCreator;
+import com.github.f4b6a3.uuid.UuidCreator;
 
 import io.netty.channel.ChannelHandlerContext;
 import lombok.RequiredArgsConstructor;
@@ -215,7 +215,7 @@ public class MucAddMemberEventHandler {
 		 * ----------------------------------------------------------
 		 * Human-readable audit trail message.
 		 */
-		String messageId = UUID.randomUUID().toString();
+		String messageId = UuidCreator.getTimeOrderedEpoch().toString();
 
 		String body =
 				sender.getUsername()
@@ -235,11 +235,11 @@ public class MucAddMemberEventHandler {
 		 * ----------------------------------------------------------
 		 * Ensures historical traceability of room changes.
 		 */
-		String ulidString = UlidCreator.getMonotonicUlid().toLowerCase();
+		UUID stanzaId = UuidCreator.getTimeOrderedEpoch();
 		// Insert stanza ID
-		String forArchiveXmlLog = XmppStanzaUtil.insertStanzaId(xmlLogStanza, ulidString, domainProperties.getDomain());
+		String forArchiveXmlLog = XmppStanzaUtil.insertStanzaId(xmlLogStanza, stanzaId.toString(), domainProperties.getDomain());
 		
-		saveToDatabase(messageId, roomBareJid, senderJid, group,	sender,	ulidString, forArchiveXmlLog);
+		saveToDatabase(messageId, roomBareJid, senderJid, group, sender, stanzaId, forArchiveXmlLog);
 
 		/**
 		 * ----------------------------------------------------------
@@ -292,7 +292,7 @@ public class MucAddMemberEventHandler {
 			String senderJid,
 			MucRoomDto group,
 			MucMember sender,
-			String ulidString,
+			UUID stanzaId,
 			String xml) {
 
 		StanzaInfo info = StanzaInfo.builder()
@@ -308,7 +308,7 @@ public class MucAddMemberEventHandler {
 				XmppUtil.getRoomId(roomBareJid),
 				null,
 				sender.getUserKey(),
-				ulidString);
+				stanzaId);
 	}
 
 	/**

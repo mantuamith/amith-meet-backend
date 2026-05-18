@@ -1,6 +1,7 @@
 package com.algomeet.xmpp.chatservice.document;
 
 import java.time.Instant;
+import java.util.UUID;
 
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.index.CompoundIndex;
@@ -22,7 +23,7 @@ import lombok.Data;
 	)
 public class SmBufferMessage {
     @Id
-    private String id;          
+    private UUID id;          
 
     @Indexed
     private String smSid;    
@@ -34,7 +35,7 @@ public class SmBufferMessage {
      */
     @NotNull
     @Field("seq")
-    private String seq;
+    private UUID seq;
         
     @Size(max = 66560, message = "XML stanza is too large") 
     private String stanzaXml;   

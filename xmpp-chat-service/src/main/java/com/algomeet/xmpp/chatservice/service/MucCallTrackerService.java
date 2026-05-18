@@ -10,22 +10,19 @@ import java.util.concurrent.TimeUnit;
 
 import org.redisson.api.RLockReactive;
 import org.redisson.api.RSemaphoreReactive;
-import org.redisson.api.RedissonClient;
 import org.redisson.api.RedissonReactiveClient;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
 
 import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.document.CallSession;
 import com.algomeet.xmpp.chatservice.dto.StanzaInfo;
 import com.algomeet.xmpp.chatservice.enums.CallStatus;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
-import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.repository.CallTrackerRepository;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
-import com.github.f4b6a3.ulid.UlidCreator;
+import com.github.f4b6a3.uuid.UuidCreator;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -197,7 +194,7 @@ public class MucCallTrackerService {
 												String callerJid = jidUtil.getBareJid(callSession.get().getCaller());
 
 												// Unique message ID for the generated call log stanza.
-												String calleeMsgId = UUID.randomUUID().toString();
+												String calleeMsgId = UuidCreator.getTimeOrderedEpoch().toString();
 
 												// Normalize outbound call result status.
 												String status = "success".equalsIgnoreCase(reason)
@@ -356,7 +353,7 @@ public class MucCallTrackerService {
 					String calleeJid = jidUtil.getBareJid(session.getCallee());
 
 					// Unique message ID for the generated call log stanza.
-					String calleeMsgId = UUID.randomUUID().toString();
+					String calleeMsgId = UuidCreator.getTimeOrderedEpoch().toString();
 
 					// Build final call history / notification stanza.
 					String calleeMsg = composeCallLogStanza(
@@ -416,14 +413,14 @@ public class MucCallTrackerService {
 				.type(payload)
 				.build();
 
-		String ulidString = UlidCreator.getMonotonicUlid().toLowerCase();
+		UUID stanzaId = UuidCreator.getTimeOrderedEpoch();
 		// Insert stanza ID
-		String forArchiveXml = XmppStanzaUtil.insertStanzaId(payload, ulidString, domainProperties.getDomain());
+		String forArchiveXml = XmppStanzaUtil.insertStanzaId(payload, stanzaId.toString(), domainProperties.getDomain());
 
-		xmppArchiveService.archiveEvent(forArchiveXml, info, toRoomId, to, from, ulidString)
+		xmppArchiveService.archiveEvent(forArchiveXml, info, toRoomId, to, from, stanzaId)
 		.doFinally(signal -> {
 			// publish to cluster for synchronization
-			clusterMessagePublisher.convertAndSendToUser(id, to, from, chatType, forArchiveXml);
+			clusterMessagePublisher.convertAndSendToUser(id.toString(), to, from, chatType, forArchiveXml);
 		})
 		.doOnError(e -> {
 			log.error("Storage failure for message {}: {}", id, e.getMessage(), e);

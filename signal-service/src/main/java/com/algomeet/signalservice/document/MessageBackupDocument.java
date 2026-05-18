@@ -1,6 +1,7 @@
 package com.algomeet.signalservice.document;
 
 import java.time.Instant;
+import java.util.UUID;
 
 import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.Transient;
@@ -43,7 +44,19 @@ import lombok.NoArgsConstructor;
     @CompoundIndex(
     		name = "idx_user_stanza_sync", 
     		def = "{'userKey': 1, 'stanzaId': 1}"
-    		)
+    		),
+    
+    // 4. Optimized for bulk-marking Delivery Statuses backward chronologically
+    @CompoundIndex(
+        name = "idx_user_msg_delivered_state", 
+        def = "{'userKey': 1, '_id': 1, 'deliveredAt': 1}"
+    ),
+    
+    // 5. Optimized for bulk-marking Read Statuses backward chronologically
+    @CompoundIndex(
+        name = "idx_user_msg_read_state", 
+        def = "{'userKey': 1, '_id': 1, 'readAt': 1}"
+    )
 })
 public class MessageBackupDocument {
 	// These constants match the @Field names or the variable names
@@ -67,17 +80,14 @@ public class MessageBackupDocument {
     public static final String FIELD_TIMESTAMP = "timestamp";
     
 	@Id
-	@Size(max = 56)
-	private String messageId;
+	private UUID messageId;
 
 	/**
 	 * Globally unique and lexicographically sortable server-generated message identifier.
-	 * Typically derived from ULID and used for stable message references, efficient
 	 * chronological sorting, pagination cursors, and cross-device synchronization.
 	 */
 	@Indexed
-	@Size(max = 45)
-	private String stanzaId;
+	private UUID stanzaId;
 
 	/** 
 	 * Deterministic conversation identifier for this message record.
@@ -149,7 +159,7 @@ public class MessageBackupDocument {
                       "This field is monotonic and used for cursor-based lookup.",
         example = "01kqs6j68dqtejmb653qhp35sz"
     )
-    private String updateCursorId;
+    private UUID updateCursorId;
 
 	@Field("size")
 	private Long size;
