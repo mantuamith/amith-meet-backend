@@ -62,6 +62,7 @@ public class GroupService {
 		group.setOwnerUserKey(userKey);
 		// Use for audit
 		group.setCreatedBy(userKey);
+		group.setDateCreated(Instant.ofEpochMilli(request.getCreatedAt()));
 		return GroupMapper.toResponse(groupRepository.save(group));
 	}
 
