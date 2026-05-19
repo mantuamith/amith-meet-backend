@@ -482,7 +482,7 @@ public class MessageBackupService {
 
 		// Atomic update for high-concurrency environments
 		Query query = null;		
-		if(FIELD_READ_AT.equals(timestampField) || FIELD_DELIVERED_AT.equals(timestampField)) {
+		if(FIELD_READ_AT.equals(timestampField)) {
 			// Uses .lte() to ensure the message ID is less than or equal to the threshold
 			// 1. Filter by User Key (Equality match)
 			// 2. Filter by Message ID threshold (Range match)
