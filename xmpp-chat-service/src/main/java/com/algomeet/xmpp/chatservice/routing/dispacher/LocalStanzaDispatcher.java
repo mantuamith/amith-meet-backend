@@ -146,6 +146,9 @@ public class LocalStanzaDispatcher {
 	            sink.emitValue(true, EmitFailureHandler.FAIL_FAST);
 	            return;
 	        }
+	        
+	        // Emit immediately
+            sink.emitValue(false, EmitFailureHandler.FAIL_FAST);
 
 	        // Failure Path
 	        Channel ch = future.channel();
@@ -161,22 +164,17 @@ public class LocalStanzaDispatcher {
 	            xmppSmBufferService.saveStanza(id, to, payload, smSessionId)
 	                    .doOnSuccess(v -> {
 	                        log.debug("Fallback storage completed for missed stanza: {}", id);
-	                        sink.emitValue(false, EmitFailureHandler.FAIL_FAST);
+
 	                    })
 	                    .doOnError(err -> {
 	                        log.error("Severe: SM Backup failed for user: {}", to, err);
 	                        sink.emitError(err, EmitFailureHandler.FAIL_FAST);
 	                    })
-	                    .subscribe(
-	                        null, 
-	                        // Ensure tracking if the inner reactive chain breaks
-	                        t -> sink.tryEmitError(t) 
-	                    );
+	                    .subscribe();
 	        } catch (Exception ex) {
 	            // Safety net: If reading attributes throws a NullPointerException or similar,
 	            // make sure the sink still fires so downstream threads don't hang!
-	            log.error("Fatal failure executing fallback logic for message: {}", id, ex);
-	            sink.emitError(ex, EmitFailureHandler.FAIL_FAST);
+	            log.error("Fatal failure backing-up stanza for stream management resume: {}", id, ex);
 	        }
 	    });
 
