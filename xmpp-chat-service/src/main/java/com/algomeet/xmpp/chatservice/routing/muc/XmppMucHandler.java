@@ -162,10 +162,10 @@ public class XmppMucHandler {
 				}
 			} else if ((msgType.supportsOfflineStorage() && isArchivable)) {
 				StanzaInfo info = GroupChatParser.parse(originalXml);
-
+								
 				// Insert stanza ID
-				forArchiveXml = XmppStanzaUtil.insertStanzaId(originalXml, stanzaId.toString(), principal.getDomain());
-
+				forArchiveXml = XmppStanzaUtil.insertStanzaId(originalXml, stanzaId.toString(), principal.getDomain());		
+				
 				xmppArchiveService.archiveEvent(forArchiveXml, info, XmppUtil.getRoomId(toRoomJid), (pmToMucMember != null ? pmToMucMember.getUserKey() : null), 
 						XmppUtil.getUserKey(fromJid), stanzaId)
 				.doOnSuccess(saved -> {

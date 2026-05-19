@@ -91,8 +91,12 @@ public class XmppChatHandler {
 	        String stanzaId = UuidCreator.getTimeOrderedEpoch().toString();
 			// Insert stanza ID
 			forArchiveXml = XmppStanzaUtil.insertStanzaId(originalXml, stanzaId, principal.getDomain());
-					    
-			offlineMessageService.save(UUID.fromString(id), toUserKey, fromUserKey, type, forArchiveXml)
+			
+			UUID messageId = StringUtils.hasText(id) 
+				    ? UUID.fromString(id.trim()) 
+				    : UuidCreator.getTimeOrderedEpoch();
+			
+			offlineMessageService.save(messageId, toUserKey, fromUserKey, type, forArchiveXml)
 		            .doOnSuccess(saved -> {
 		            	boolean isAckMessage = false;
 		            	boolean isRetractStanza = false;
@@ -128,14 +132,14 @@ public class XmppChatHandler {
 					    // device has successfully received the message.
 					    if (originalXml.contains(XmppReceiptUtil.NS_RECEIPTS)) {
 					    	isAckMessage = true;
-					    	log.info("---->{}", originalXml);
+
 					        String ackMessageId = xmppReceiptUtil.getAckMessageId(originalXml);
 					        if (StringUtils.hasText(ackMessageId)) {
-					        	// Once delivery is confirmed via an XEP-0198 Stream Management acknowledgment (<a h='...'/>), 
-					        	// the batch of messages is no longer considered "offline" and can be safely purged.
-					        	// Utilizing time-sorted IDs (UUIDv7) enables an optimized $lte range deletion.
-					        	offlineMessageService.purgeOfflineQueueUpTo(principal.getUserKey(), UUID.fromString(ackMessageId))
-					        	.doOnSuccess(unused -> log.debug("Successfully purged offline queue for user: {} up to ID: {}", principal.getUserKey(), ackMessageId))
+					        	
+					        	// Clear the heavy XML payload from the offline buffer now that the client has acknowledged delivery.
+					        	// We trigger this asynchronously and fire-and-forget; it does not block the main Netty/XMPP processing loop.
+					        	offlineMessageService.clearOfflineStanza(principal.getUserKey(), UUID.fromString(ackMessageId))
+					        	.doOnSuccess(unused -> log.debug("Successfully clear offline stanza for user: {} up to ID: {}", principal.getUserKey(), ackMessageId))
 					        	.doOnError(error -> log.error("Failed to clear offline message database buffer for user: {}", principal.getUserKey(), error))
 					        	.subscribe();
 					        }
@@ -151,7 +155,7 @@ public class XmppChatHandler {
 					        if (StringUtils.hasText(ackMessageId)) {
 					            // Decrement the unread counter for this specific sender-recipient pair.
 					            // Note: fromUserKey is the person who read it, toUserKey is the original sender.
-					            unreadCountService.decrementUnreadCount(toUserKey, fromUserKey, principal).subscribe();
+					            unreadCountService.syncUnreadCount(toUserKey, fromUserKey, UUID.fromString(ackMessageId), principal).subscribe();
 					        }
 					    }
 					    
@@ -205,12 +209,12 @@ public class XmppChatHandler {
 	}
 	
 	public Mono<Void> processRetraction(String retractId, String toUserKey, String fromUserKey, XmppPrincipal principal) {
-		return offlineMessageService.findByIdAndSender(retractId, fromUserKey)
+		return offlineMessageService.findByIdAndSender(UUID.fromString(retractId), fromUserKey)
 				.flatMap(message -> {
 
 					// Decrement the unread counter for this specific sender-recipient pair.
 					// Note: fromUserKey is the person who read it, toUserKey is the original sender.
-					unreadCountService.decrementUnreadCount(toUserKey, fromUserKey, principal).subscribe();
+					unreadCountService.decrementUnreadCount(toUserKey, fromUserKey, UUID.fromString(retractId), principal).subscribe();
 
 					// Scenario: Record found, proceed to soft delete
 					log.info("Message found, soft deleting offline record by emptying the body of the message: {}", retractId);

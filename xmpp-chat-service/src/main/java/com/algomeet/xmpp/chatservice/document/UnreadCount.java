@@ -12,6 +12,8 @@ import lombok.Data;
 @Data
 @Document(collection = "unread_counts")
 @CompoundIndex(name = "user_inbox_idx", def = "{'user_key': 1, 'last_increment_at': -1}")
+// Index for UnreadCount class:
+@CompoundIndex(name = "user_sent_idx", def = "{'sender_key': 1, 'last_increment_at': -1}")
 public class UnreadCount {    
 	@Id
 	private String id; // format: <senderKey>_<recipientKey>

@@ -1,5 +1,6 @@
 package com.algomeet.xmpp.chatservice.service;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -11,6 +12,11 @@ import com.algomeet.xmpp.chatservice.repository.OfflineMessageRepository;
 import lombok.AllArgsConstructor;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+
+import org.springframework.data.mongodb.core.ReactiveMongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 
 /**
  * <p>Service responsible for the persistence and retrieval of XMPP stanzas 
@@ -35,7 +41,8 @@ import reactor.core.publisher.Mono;
 @AllArgsConstructor
 public class OfflineMessageService {	
 
-    private final OfflineMessageRepository offlineMessageRepository;
+    private final OfflineMessageRepository offlineMessageRepository;    
+    private final ReactiveMongoTemplate mongoTemplate;
     
     /**
      * Persists a stanza as an offline document.
@@ -66,25 +73,39 @@ public class OfflineMessageService {
      * @return A list of {@link OfflineMessage} objects in the order they were originally sent.
      */
     public Flux<OfflineMessage> getOfflineMessages(String to) {
-        return offlineMessageRepository.findByToOrderByIdAsc(to);
+        return offlineMessageRepository.findByToAndDeletedAtIsNullOrderByIdAsc(to);
     }
     
     /**
-     * Purges a batch of pending offline messages up to a specific tracking boundary
-     * after verification of successful client delivery.
-     * 
-     * <p>This is typically triggered sequentially when an {@code <a h='...'/>} 
-     * stream management acknowledgment is processed by the {@code XmppStreamManagementStanzaHandler},
-     * allowing the server to safely clear out historical queue records that the client 
-     * has confirmed receiving.</p>
-     * 
-     * @param to        The target recipient's routing key or JID whose offline queue is being cleared.
-     * @param messageId The highest monotonic message identifier (UUIDv7) up to which 
-     *                  records will be permanently purged (inclusive).
-     * @return A {@link Mono<Void>} signaling asynchronous completion of the batch range deletion.
+     * Performs a highly efficient, atomic soft-delete on an offline message document.
+     * Instead of dropping the document entirely, this nullifies the heavy XML payload
+     * to optimize database storage while preserving metadata for stream state audit trails.
+     *
+     * @param to        The recipient's user key / JID identifier.
+     * @param messageId The unique UUID of the XMPP stanza.
+     * @return A Mono signals completion (Void) once the database write is acknowledged.
      */
-    public Mono<Void> purgeOfflineQueueUpTo(String to, UUID messageId) {
-        return offlineMessageRepository.deleteByToAndIdLessThan(to, messageId);
+    public Mono<Void> clearOfflineStanza(String to, UUID messageId) {
+        // Leverage your compound index {'to': 1, 'id': 1} for an efficient O(1) look-up
+        Query query = Query.query(
+            Criteria.where("to").is(to)
+                    .and("id").is(messageId)
+        );
+
+        // Atomically nullify the raw XML payload to reclaim space and mark deletion time
+        Update update = new Update()
+                .set("stanzaXml", null)
+                .set("deletedAt", Instant.now());
+
+        return mongoTemplate.updateFirst(query, update, OfflineMessage.class)
+                .flatMap(updateResult -> {
+                    if (updateResult.getMatchedCount() == 0) {
+                        // Optional: Log a warning or handle a missing message case gracefully
+                        return Mono.empty();
+                    }
+                    return Mono.empty();
+                })
+                .then();
     }
     
     /**
@@ -100,9 +121,9 @@ public class OfflineMessageService {
         return offlineMessageRepository.deleteAllById(messageIds);
     }
         
-    public Mono<OfflineMessage> findByIdAndSender(String id, String sender) {
+    public Mono<OfflineMessage> findByIdAndSender(UUID id, String sender) {
         // Ensuring we check both ID and the 'from' JID for security
-        return offlineMessageRepository.findByIdAndFrom(id, sender);
+        return offlineMessageRepository.findByIdAndFromAndDeletedAtIsNull(id, sender);
     }
     
     public Mono<OfflineMessage> save(OfflineMessage message) {
