@@ -13,5 +13,6 @@ public class GroupResponse {
     private String description;
     private String ownerUserKey;
     private Set<MemberResponse> members = new HashSet<>();
+    private Long createdAt;
 
 }

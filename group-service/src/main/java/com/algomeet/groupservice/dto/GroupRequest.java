@@ -41,6 +41,9 @@ public class GroupRequest {
      */
     private boolean emptyGroup;
 
+
+    private Long createdAt;
+
 //    /**
 //     * Optional user key of the group owner.
 //     * <p>
