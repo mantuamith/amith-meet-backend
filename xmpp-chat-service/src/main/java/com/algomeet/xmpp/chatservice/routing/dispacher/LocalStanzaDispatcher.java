@@ -17,6 +17,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Sinks;
+import reactor.core.publisher.Sinks.EmitFailureHandler;
 
 /**
  * Responsible for delivering XMPP stanzas to locally connected sessions
@@ -135,31 +136,48 @@ public class LocalStanzaDispatcher {
 	 * - Trigger SM buffer fallback on failure (if enabled)
 	 */
 	private Mono<Boolean> writeAndFlush(Channel targetChannel, UUID id, String to, String payload) {
-	    // Create a single-emission sink to bridge Netty's listener to the Reactive stream
 	    Sinks.One<Boolean> sink = Sinks.one();
 
 	    targetChannel.writeAndFlush(new TextWebSocketFrame(payload))
 	    .addListener((ChannelFuture future) -> {
 	        if (future.isSuccess()) {
 	            log.debug("Message delivered. channel={}", targetChannel.id());
-	            sink.tryEmitValue(true);
+	            // Use FAIL_FAST to handle highly concurrent edge cases gracefully
+	            sink.emitValue(true, EmitFailureHandler.FAIL_FAST);
 	            return;
 	        }
 
-	        // Execution path for delivery failures
+	        // Failure Path
 	        Channel ch = future.channel();
 	        log.warn("Delivery failed active={}, open={}, cause={}",
-	                ch.isActive(),
-	                ch.isOpen(),
+	                ch.isActive(), ch.isOpen(),
 	                future.cause() != null ? future.cause().toString() : "Unknown");
 
-	        // Stream Management fallback (XEP-0198)
-	        String smSessionId = targetChannel.attr(XmppSessionAttributes.SM_ID_KEY).get();
+	        try {
+	            String smSessionId = targetChannel.attr(XmppSessionAttributes.SM_ID_KEY).get();
 
-	        xmppSmBufferService.saveStanza(id, to, payload, smSessionId)
-	                .doOnSuccess(v -> sink.tryEmitValue(false)) // Emit false once fallback save completes
-	                .doOnError(err -> sink.tryEmitError(err))
-	                .subscribe();
+	            // CRITICAL FIX: Bind the database fallback to the sink context 
+	            // without creating a completely separate unmanaged thread subscription
+	            xmppSmBufferService.saveStanza(id, to, payload, smSessionId)
+	                    .doOnSuccess(v -> {
+	                        log.debug("Fallback storage completed for missed stanza: {}", id);
+	                        sink.emitValue(false, EmitFailureHandler.FAIL_FAST);
+	                    })
+	                    .doOnError(err -> {
+	                        log.error("Severe: SM Backup failed for user: {}", to, err);
+	                        sink.emitError(err, EmitFailureHandler.FAIL_FAST);
+	                    })
+	                    .subscribe(
+	                        null, 
+	                        // Ensure tracking if the inner reactive chain breaks
+	                        t -> sink.tryEmitError(t) 
+	                    );
+	        } catch (Exception ex) {
+	            // Safety net: If reading attributes throws a NullPointerException or similar,
+	            // make sure the sink still fires so downstream threads don't hang!
+	            log.error("Fatal failure executing fallback logic for message: {}", id, ex);
+	            sink.emitError(ex, EmitFailureHandler.FAIL_FAST);
+	        }
 	    });
 
 	    return sink.asMono();

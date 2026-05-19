@@ -115,7 +115,7 @@ public class ClusterMessageListener {
             // Intercept the emitted boolean when it arrives from the Netty/WebSocket pipeline
             .doOnNext(isSuccess -> {
                 if (Boolean.TRUE.equals(isSuccess)) {
-                	// Delete if record is ACK
+                	// Delete if record is ACK stanza
                 	offlineMessageRepository.deleteByIdAndIsAckStanzaTrue(id).subscribe();
                 }
             })

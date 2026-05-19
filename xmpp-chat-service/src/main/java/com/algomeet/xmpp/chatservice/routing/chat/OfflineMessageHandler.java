@@ -83,7 +83,7 @@ public class OfflineMessageHandler {
                             // If dispatchLocally returns a Mono<Boolean>, intercept the result here
                             .doOnNext(isSuccess -> {
                                 if (Boolean.TRUE.equals(isSuccess)) {
-                                	// Delete if record is ACK
+                                	// Delete if record is ACK stanza
                                 	offlineMessageRepository.deleteByIdAndIsAckStanzaTrue(msg.getId()).subscribe();
                                  }
                             });
