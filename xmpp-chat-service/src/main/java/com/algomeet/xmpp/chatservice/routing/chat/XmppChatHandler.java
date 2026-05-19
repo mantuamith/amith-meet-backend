@@ -77,6 +77,7 @@ public class XmppChatHandler {
 
 		// Persistence & XEP-0198 Acknowledgment
 		boolean isArchivable = XmppStanzaUtil.isArchivable(originalXml);
+		boolean isAckStanza = false;
 		if (msgType.supportsOfflineStorage() && isArchivable) {	
 			 /**
 	         * Generate a monotonic UUIDv7 used as the stanza-id value.
@@ -96,7 +97,8 @@ public class XmppChatHandler {
 				    ? UUID.fromString(id.trim()) 
 				    : UuidCreator.getTimeOrderedEpoch();
 			
-			boolean isAckStanza = XmppStanzaUtil.isMessageAckStanza(originalXml);
+			// Determine if message is ACK stanza
+			isAckStanza = XmppStanzaUtil.isMessageAckStanza(originalXml);
 			
 			offlineMessageService.save(messageId, toUserKey, fromUserKey, type, isAckStanza, forArchiveXml)
 		            .doOnSuccess(saved -> {
@@ -209,7 +211,7 @@ public class XmppChatHandler {
 		
 		// Broadast to Redis: Even if they are AWAY/DND, we attempt delivery 
 		// to their active WebSocket channels across the cluster.
-		clusterMessagePublisher.convertAndSendToUser(id, toUserKey, fromUserKey, ChatType.CHAT, false, shouldCarbon, 
+		clusterMessagePublisher.convertAndSendToUser(id, toUserKey, fromUserKey, ChatType.CHAT, false, shouldCarbon, isAckStanza,
 				(isArchivable ? forArchiveXml : originalXml), principal);
 						
 		pushNotification(ctx, id, toUserKey, fromUserKey, type, originalXml, sessions, principal);

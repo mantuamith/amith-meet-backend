@@ -74,7 +74,8 @@ public class ClusterMessageListener {
          *     <li>[5] allowEcho   - "1" = true, "0" = false</li>
          *     <li>[6] sessionId   - Originating client session ID</li>
          *     <li>[7] shouldCarbon - "1" = true, "0" = false</li></li>
-         *     <li>[8] payload     - Raw XMPP XML stanza</li>
+         *     <li>[8] isAckStanza - "1" = true, "0" = false</li></li>
+         *     <li>[9] payload     - Raw XMPP XML stanza</li>
 
          * </ol>
          *
@@ -103,7 +104,8 @@ public class ClusterMessageListener {
         	boolean isAllowEcho = "1".equals(message[5]);
         	String userSessionId = message[6];
         	boolean shouldCarbon = "1".equals(message[7]);
-        	String payload = message[8];
+        	boolean isAckStanza = "1".equals(message[8]);
+        	String payload = message[9];
         	
             localStanzaDispatcher.dispatchLocally(
             		id,
@@ -114,7 +116,7 @@ public class ClusterMessageListener {
             )
             // Intercept the emitted boolean when it arrives from the Netty/WebSocket pipeline
             .doOnNext(isSuccess -> {
-                if (Boolean.TRUE.equals(isSuccess)) {
+                if (Boolean.TRUE.equals(isSuccess) && isAckStanza) {
                 	// Delete if record is ACK stanza
                 	offlineMessageRepository.deleteByIdAndIsAckStanzaTrue(id).subscribe();
                 }
