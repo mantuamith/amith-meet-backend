@@ -96,7 +96,9 @@ public class XmppChatHandler {
 				    ? UUID.fromString(id.trim()) 
 				    : UuidCreator.getTimeOrderedEpoch();
 			
-			offlineMessageService.save(messageId, toUserKey, fromUserKey, type, forArchiveXml)
+			boolean isAckStanza = XmppStanzaUtil.isMessageAckStanza(originalXml);
+			
+			offlineMessageService.save(messageId, toUserKey, fromUserKey, type, isAckStanza, forArchiveXml)
 		            .doOnSuccess(saved -> {
 		            	boolean isAckMessage = false;
 		            	boolean isRetractStanza = false;

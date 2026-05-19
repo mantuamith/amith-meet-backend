@@ -1,7 +1,5 @@
 package com.algomeet.xmpp.chatservice.routing.chat;
 
-import java.util.UUID;
-
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -121,6 +119,6 @@ public class CarbonCopyHandler {
                 false,
                 userSessionId,
                 carbonPayload
-        );
+        ).subscribe();
     }
 }

@@ -24,4 +24,13 @@ public interface OfflineMessageRepository extends ReactiveMongoRepository<Offlin
     
     // Counts unread messages
     Mono<Long> countByToAndFromAndIdGreaterThan(String to, String from, UUID id);
+    
+    /**
+     * Hard-deletes an offline message record matching the given ID 
+     * only if its acknowledgement status (isAck) is set to true.
+     *
+     * @param id The unique message UUID checkpoint
+     * @return A Mono<Void> signaling completion when the operation finishes
+     */
+    Mono<Void> deleteByIdAndIsAckStanzaTrue(UUID id);
 }

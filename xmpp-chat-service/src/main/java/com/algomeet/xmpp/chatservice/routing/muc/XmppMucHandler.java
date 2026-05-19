@@ -126,7 +126,7 @@ public class XmppMucHandler {
 			// Check if it's archivable
 			boolean isArchivable = XmppStanzaUtil.isArchivable(originalXml);
 
-			boolean isMessageAck = XmppStanzaUtil.isMessageAckStanza(originalXml);
+			boolean isAckStanza = XmppStanzaUtil.isMessageAckStanza(originalXml);
 
 			/**
 			 * Generate a monotonic UUIDv7 used as the stable stanza-id value.
@@ -144,7 +144,7 @@ public class XmppMucHandler {
 			 */
 			UUID stanzaId = UuidCreator.getTimeOrderedEpoch();
 
-			if (isMessageAck) {
+			if (isAckStanza) {
 				// --- XEP-0333: Chat Markers (Read Receipts) ---
 				// If the stanza contains the 'urn:xmpp:chat-markers:0' namespace (displayed), 
 				// the user has actively viewed the conversation.

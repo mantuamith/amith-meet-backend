@@ -54,6 +54,29 @@ public class OfflineMessageService {
      * @param originalXml The raw XML payload to be stored.
      * @return A {@link Mono} emitting the saved {@link OfflineMessage}.
      */
+    public Mono<OfflineMessage> save(UUID id, String to, String from, String type, Boolean isAckStanza, String originalXml) {
+        OfflineMessage offlineMessage = OfflineMessage.builder()
+                .id(id)
+                .to(to)
+                .from(from)
+                .messageType(type)
+                .isAckStanza(isAckStanza)
+                .stanzaXml(originalXml)
+                .build();
+        
+        return offlineMessageRepository.save(offlineMessage);
+    }
+    
+    /**
+     * Persists a stanza as an offline document.
+     * 
+     * @param id          The unique Stanza ID.
+     * @param to          The recipient's User Key or JID.
+     * @param from        The sender's User Key or JID.
+     * @param type        The XMPP message type (e.g., chat, groupchat).
+     * @param originalXml The raw XML payload to be stored.
+     * @return A {@link Mono} emitting the saved {@link OfflineMessage}.
+     */
     public Mono<OfflineMessage> save(UUID id, String to, String from, String type, String originalXml) {
         OfflineMessage offlineMessage = OfflineMessage.builder()
                 .id(id)

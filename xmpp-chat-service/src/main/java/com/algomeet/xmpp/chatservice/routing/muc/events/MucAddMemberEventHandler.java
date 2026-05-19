@@ -349,7 +349,7 @@ public class MucAddMemberEventHandler {
 				String.format("<iq from='%s' to='%s' id='%s' type='result'/>",
 						from, to, id);
 
-		localStanzaDispatcher.dispatchLocally(to, from, resp);
+		localStanzaDispatcher.dispatchLocally(to, from, resp).subscribe();
 	}
 
 	/**

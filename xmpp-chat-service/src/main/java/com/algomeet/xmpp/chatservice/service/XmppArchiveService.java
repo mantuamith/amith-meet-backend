@@ -261,7 +261,7 @@ public class XmppArchiveService {
 
 	                // 4. Dispatch the stanza asynchronously within the reactive execution flow
 	                return Mono.<Void>fromRunnable(() -> 
-	                    localStanzaDispatcher.dispatchLocally(principal.getUserKey(), principal.getUserKey(), mamResult)
+	                    localStanzaDispatcher.dispatchLocally(principal.getUserKey(), principal.getUserKey(), mamResult).subscribe()
 	                );
 	            });
 	}
@@ -279,7 +279,8 @@ public class XmppArchiveService {
 						principal.getBareJid(),
 						(queryId != null ? "id='" + queryId + "'" : "")
 				);
-		localStanzaDispatcher.dispatchLocally(principal.getUserKey(), principal.getUserKey(), fin);
+		localStanzaDispatcher.dispatchLocally(principal.getUserKey(), principal.getUserKey(), fin)
+		.subscribe();
 	}
 
 	public Mono<MucMessage> findByMessageId(UUID id) {
@@ -389,7 +390,7 @@ public class XmppArchiveService {
 	                        principal.getUserKey(), 
 	                        principal.getUserKey(), 
 	                        xmlStanza
-	                    )
+	                    ).subscribe()
 	                );
 	            });
 	}

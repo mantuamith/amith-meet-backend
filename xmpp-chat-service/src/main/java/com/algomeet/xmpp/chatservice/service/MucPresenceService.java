@@ -188,7 +188,7 @@ public class MucPresenceService {
 						.build();
 
 				// Write directly to the Netty outbound pipeline for the receiving client
-				localStanzaDispatcher.dispatchLocally(userKey, userKey, presenceXml);
+				localStanzaDispatcher.dispatchLocally(userKey, userKey, presenceXml).subscribe();
 			}		            
 		} catch (Exception ex) {
 			log.error("Failed to sync MUC participant presence for user key: {}", userKey, ex);

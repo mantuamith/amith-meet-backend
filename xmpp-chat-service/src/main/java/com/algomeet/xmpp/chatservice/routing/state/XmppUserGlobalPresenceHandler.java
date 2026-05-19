@@ -101,7 +101,8 @@ public class XmppUserGlobalPresenceHandler {
 				}
 
 				// B. Deliver offline messages accumulated while user was disconnected
-				offlineMessageHandler.deliverOfflineMessages(ctx, principal);
+				offlineMessageHandler.deliverOfflineMessages(principal.getUserKey())
+				.subscribe();
 
 				// C. Deliver buffered SM stanzas if session was successfully resumed
 				if (smResumptionSuccess != null && smResumptionSuccess.get()) {
@@ -194,7 +195,7 @@ public class XmppUserGlobalPresenceHandler {
 					userKey,
 					userKey,
 					msg.getStanzaXml()
-					);
+					).subscribe();
 		})
 		// Called when all buffered stanzas have been successfully replayed
 		.doOnComplete(() -> {

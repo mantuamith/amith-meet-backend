@@ -6,6 +6,7 @@ import java.util.regex.Pattern;
 import org.springframework.stereotype.Component;
 
 import com.algomeet.xmpp.chatservice.enums.ChatType;
+import com.algomeet.xmpp.chatservice.repository.OfflineMessageRepository;
 import com.algomeet.xmpp.chatservice.routing.chat.CarbonCopyHandler;
 import com.algomeet.xmpp.chatservice.routing.dispacher.LocalStanzaDispatcher;
 import com.algomeet.xmpp.chatservice.util.ClusterSyncProtocolUtil;
@@ -39,6 +40,7 @@ public class ClusterMessageListener {
     
     private final LocalStanzaDispatcher localStanzaDispatcher;
     private final CarbonCopyHandler carbonCopyHandler;
+    private final OfflineMessageRepository offlineMessageRepository;
 
     /**
      * Entry point for messages arriving from the cluster infrastructure (e.g., Redis Pub/Sub).
@@ -109,7 +111,17 @@ public class ClusterMessageListener {
             		isAllowEcho,
             		userSessionId,
             		payload
-            );
+            )
+            // Intercept the emitted boolean when it arrives from the Netty/WebSocket pipeline
+            .doOnNext(isSuccess -> {
+                if (Boolean.TRUE.equals(isSuccess)) {
+                	// Delete if record is ACK
+                	offlineMessageRepository.deleteByIdAndIsAckStanzaTrue(id).subscribe();
+                }
+            })
+            // If this is the absolute end-point of an event listener/fire-and-forget handler,
+            // keep ONE .subscribe() here. If it's inside a pipeline, remove .subscribe() and return the Mono.
+            .subscribe();
 
             /**
              * Message Carbons are only applicable to one-to-one chats.

@@ -21,6 +21,11 @@ import lombok.Data;
 @CompoundIndex(name = "active_lookup_by_sender_idx", def = "{'from': 1, 'id': 1}", partialFilter = "{'deletedAt': null}")
 @CompoundIndex(name = "purge_soft_deleted_batch_idx", def = "{'to': 1, 'from': 1, 'deletedAt': 1, 'id': 1}")
 @CompoundIndex(name = "unread_count_idx", def = "{'to': 1, 'from': 1, 'id': 1}")
+@CompoundIndex(
+	    name = "acknowledged_purge_idx", 
+	    def = "{'id': 1}", 
+	    partialFilter = "{'isAck': true}"
+	)
 
 public class OfflineMessage {
 	@Id
@@ -40,6 +45,8 @@ public class OfflineMessage {
 	private Instant createdAt = Instant.now(); // Used for XEP-0203 Delayed Delivery stamp
 
 	private Instant deletedAt;
+	
+	private Boolean isAckStanza;
 
 	/**
 	 * Optional: MongoDB TTL (Time To Live) index.

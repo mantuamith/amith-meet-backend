@@ -161,6 +161,7 @@ public class XmppUtil {
 	 */
 	public void sendError(ChannelHandlerContext ctx, String id, String to, String from, XmppErrorType errorType, String condition, String text) {
 		StanzaError error = new StanzaError(id, to, from, errorType, condition, text);
-		localStanzaDispatcher.dispatchLocally(getUserKey(to), getUserKey(to), error.toXml());
+		localStanzaDispatcher.dispatchLocally(getUserKey(to), getUserKey(to), error.toXml())
+		.subscribe();;
 	}
 }
