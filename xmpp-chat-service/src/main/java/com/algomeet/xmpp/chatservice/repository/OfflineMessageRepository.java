@@ -18,15 +18,10 @@ public interface OfflineMessageRepository extends ReactiveMongoRepository<Offlin
     Mono<OfflineMessage> findByIdAndFromAndDeletedAtIsNull(UUID id, String from);
     
     /**
-     * Deletes all pending offline messages for a specific recipient 
-     * up to and including the specified message ID checkpoint.
-     *
-     * @param to        The receiver user key/ID whose offline queue is being cleared
-     * @param id The highest stanza ID/UUIDv7 that was successfully delivered (inclusive)
-     * @return A Mono signaling completion when the database purge finishes
+     * Deletes all delivered and read messages
      */
-    Mono<Void> deleteByToAndIdLessThan(String to, UUID id);
+    Mono<Void> deleteByToAndFromAndIdLessThanEqualAndDeletedAtIsNotNull(String to, String from, UUID id);
     
-    // Counts pending messages for a user that are newer than a specific message ID checkpoint
-    Mono<Long> countByToAndIdGreaterThanAndDeletedAtIsNull(String to, UUID id);
+    // Counts unread messages
+    Mono<Long> countByToAndFromAndIdGreaterThan(String to, String from, UUID id);
 }

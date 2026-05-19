@@ -155,7 +155,12 @@ public class XmppChatHandler {
 					        if (StringUtils.hasText(ackMessageId)) {
 					            // Decrement the unread counter for this specific sender-recipient pair.
 					            // Note: fromUserKey is the person who read it, toUserKey is the original sender.
-					            unreadCountService.syncUnreadCount(toUserKey, fromUserKey, UUID.fromString(ackMessageId), principal).subscribe();
+					            unreadCountService.syncUnreadCount(toUserKey, fromUserKey, UUID.fromString(ackMessageId), principal)
+					            .doOnSuccess(success -> {
+					            	// Trigger a fire-and-forget background purge of processed/soft-deleted messages.
+					            	offlineMessageService.purgeDeletedMessagesUpToCheckpoint(fromUserKey, toUserKey, messageId).subscribe();
+					            })
+					            .subscribe();
 					        }
 					    }
 					    

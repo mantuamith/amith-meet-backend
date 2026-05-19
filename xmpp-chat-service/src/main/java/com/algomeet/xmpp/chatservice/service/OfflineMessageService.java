@@ -129,4 +129,22 @@ public class OfflineMessageService {
     public Mono<OfflineMessage> save(OfflineMessage message) {
     	return offlineMessageRepository.save(message);
     }
+    
+    /**
+     * Hard-deletes (purges) all previously soft-deleted offline messages for a specific 
+     * recipient up to a designated message checkpoint ID.
+     * <p>
+     * This method acts as a database garbage-collection routine, permanently removing 
+     * records from the collection where {@code deletedAt} is already set (not null) 
+     * and the message ID falls below the client-provided acknowledgment marker.
+     * </p>
+     *
+     * @param to The receiver user key/ID whose processed offline message queue is being cleared.
+     * @param from The Sender user key/ID whose processed offline message queue is being cleared.
+     * @param id The upper bound message checkpoint ID (exclusive boundary; only IDs less than this are purged).
+     * @return A {@code Mono<Void>} that signals completion when the matching records have been permanently deleted from MongoDB.
+     */
+    public Mono<Void> purgeDeletedMessagesUpToCheckpoint(String to, String from, UUID id){
+    	return offlineMessageRepository.deleteByToAndFromAndIdLessThanEqualAndDeletedAtIsNotNull(to, from, id);
+    }
 }

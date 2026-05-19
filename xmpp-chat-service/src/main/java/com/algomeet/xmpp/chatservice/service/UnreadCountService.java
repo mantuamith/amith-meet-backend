@@ -131,7 +131,7 @@ public class UnreadCountService {
 			Long capturedIncrementAt = currentUnread.getLastIncrementAt();
 
 			// 2. Fetch the real-time pending count based on current DB state
-			return offlineMessageRepository.countByToAndIdGreaterThanAndDeletedAtIsNull(id, messageId)
+			return offlineMessageRepository.countByToAndFromAndIdGreaterThan(recipientKey, senderKey, messageId)
 					.flatMap(count -> {
 
 						// 3. Construct the query ensuring lastIncrementAt hasn't changed

@@ -16,22 +16,12 @@ import lombok.Data;
 @Data
 @Builder
 @Document(collection = "offline_messages")
-@CompoundIndex(
-		name = "active_offline_messages_idx",
-		def = "{'to': 1, 'id': 1}",
-		partialFilter = "{'deletedAt': null}" 
-		)
 
-@CompoundIndex(
-		name = "to_id_idx",
-		def = "{'to': 1, 'id': 1}"
-		)
+@CompoundIndex(name = "active_messages_stream_idx", def = "{'to': 1, 'id': 1}", partialFilter = "{'deletedAt': null}")
+@CompoundIndex(name = "active_lookup_by_sender_idx", def = "{'from': 1, 'id': 1}", partialFilter = "{'deletedAt': null}")
+@CompoundIndex(name = "purge_soft_deleted_batch_idx", def = "{'to': 1, 'from': 1, 'deletedAt': 1, 'id': 1}")
+@CompoundIndex(name = "unread_count_idx", def = "{'to': 1, 'from': 1, 'id': 1}")
 
-@CompoundIndex(
-		name = "from_id_partial_idx",
-		def = "{'from': 1, 'id': 1}",
-		partialFilter = "{'deletedAt': null}" 
-		)
 public class OfflineMessage {
 	@Id
 	private UUID id;          // The stanza ID from the <message id='...'> attribute
