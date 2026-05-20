@@ -221,8 +221,8 @@ public class XmppChatHandler {
 
 					// Scenario: Record found, proceed to soft delete
 					log.info("Message found, soft deleting offline record by emptying the body of the message: {}", retractId);
-
-					message.setStanzaXml(XmppStanzaUtil.emptyBodyTag(message.getStanzaXml()));
+					String newString = "<body>This message was deleted</body>";
+					message.setStanzaXml(XmppStanzaUtil.markAsRetractedStanza(message.getStanzaXml(), newString));
 					message.setCountable(false);
 					message.setDeletedAt(Instant.now());
 					return offlineMessageService.save(message)

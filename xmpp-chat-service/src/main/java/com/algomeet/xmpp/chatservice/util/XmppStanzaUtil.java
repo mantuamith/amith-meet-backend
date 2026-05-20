@@ -32,7 +32,14 @@ public class XmppStanzaUtil {
 	private static final String NS_RECEIPTS = "urn:xmpp:receipts";
 	private static final String NS_COUNTABLE = "urn:algomeet:meta:0";
 	private static final String COUNTABLE_TAG = "<countable";
-	
+	private static final String RETRACTED_TAG = "<retracted xmlns='urn:xmpp:message-retract:1'/>";
+
+	// Matches <body>...</body> across multiple lines (?s mode)
+	private static final Pattern BODY_PATTERN = Pattern.compile("(?s)<body>.*?</body>");
+
+	// Matches <encrypted xmlns='urn:xmpp:omemo:2'>...</encrypted> cleanly across multiple lines
+	private static final Pattern OMEMO_PATTERN = Pattern.compile("(?s)<encrypted\\b[^>]*xmlns=['\"]urn:xmpp:omemo:2['\"][^>]*>.*?</encrypted>");
+
 	private static final XMLInputFactory XML_FACTORY = XMLInputFactory.newInstance();
 
 	/**
@@ -91,7 +98,7 @@ public class XmppStanzaUtil {
 		// If it survived the negative filters, it is likely a conversational <message/>
 		return true;
 	}
-	
+
 	/**
 	 * <p><strong>Optimized Message Archive Filter (XEP-0313 Compliance)</strong></p>
 	 * * <p>Determines if a stanza should be persisted to long-term storage (MongoDB).
@@ -190,7 +197,7 @@ public class XmppStanzaUtil {
 		}
 		return false;
 	}
-	
+
 	public static boolean isMessageStanza(String xml) {
 		// 1. Find the first actual XML tag
 		int firstTag = xml.indexOf('<');
@@ -201,268 +208,288 @@ public class XmppStanzaUtil {
 		}
 		return false;
 	}
-	
+
 	public static boolean isJingleStanza(XmppMessageType msgType, String xml) {
 		return XmppMessageType.SET == msgType && xml.contains("urn:xmpp:jingle:1");
 	}
-	
+
 	public static boolean isMessageAckStanza(String xml) {
 		if (isMessageStanza(xml)) {			
 			return xml.indexOf(BODY_TAG) == -1 
 					&& (xml.indexOf(NS_DISPLAYED_MARKER) != -1 || xml.indexOf(NS_RECEIPTS) != -1);
 		}
-		
+
 		return false;
 	}
-		
+
 	/**
-     * Extracts an attribute value from a specific tag.
-     * Example: getAttribute(xml, "item", "nick") returns "pistol"
-     */
-    public static String getAttribute(String xml, String tagName, String attributeName) {
-        if (!StringUtils.hasText(xml)) return null;
+	 * Extracts an attribute value from a specific tag.
+	 * Example: getAttribute(xml, "item", "nick") returns "pistol"
+	 */
+	public static String getAttribute(String xml, String tagName, String attributeName) {
+		if (!StringUtils.hasText(xml)) return null;
 
-        // Regex explanation:
-        // <tagName[^>]* -> Find the start of the tag
-        // attributeName=['\"] -> Find the attribute key followed by ' or "
-        // ([^'\"]+) -> Capture the value until the closing quote
-        String regex = "<" + Pattern.quote(tagName) + "[^>]*\\s" + 
-                       Pattern.quote(attributeName) + "=['\"]([^'\"]+)['\"]";
-        
-        Pattern pattern = Pattern.compile(regex);
-        Matcher matcher = pattern.matcher(xml);
+		// Regex explanation:
+		// <tagName[^>]* -> Find the start of the tag
+		// attributeName=['\"] -> Find the attribute key followed by ' or "
+		// ([^'\"]+) -> Capture the value until the closing quote
+		String regex = "<" + Pattern.quote(tagName) + "[^>]*\\s" + 
+				Pattern.quote(attributeName) + "=['\"]([^'\"]+)['\"]";
 
-        return matcher.find() ? matcher.group(1) : null;
-    }
+		Pattern pattern = Pattern.compile(regex);
+		Matcher matcher = pattern.matcher(xml);
 
-    /**
-     * Extracts the text content of a direct child tag.
-     * Example: getTagContent(xml, "reason") returns "Avaunt, you cullion!"
-     */
-    public static String getTagContent(String xml, String tagName) {
-        if (!StringUtils.hasText(xml)) return null;
+		return matcher.find() ? matcher.group(1) : null;
+	}
 
-        String regex = "<" + Pattern.quote(tagName) + ">([^<]+)</" + Pattern.quote(tagName) + ">";
-        Pattern pattern = Pattern.compile(regex);
-        Matcher matcher = pattern.matcher(xml);
+	/**
+	 * Extracts the text content of a direct child tag.
+	 * Example: getTagContent(xml, "reason") returns "Avaunt, you cullion!"
+	 */
+	public static String getTagContent(String xml, String tagName) {
+		if (!StringUtils.hasText(xml)) return null;
 
-        return matcher.find() ? matcher.group(1) : null;
-    }
-    
-    /**
-     * Determines if the incoming XML string is one of the three core XMPP stanzas:
-     * <message/>, <presence/>, or <iq/>.
-     * * This check is vital for XEP-0198 Stream Management to ensure we only increment
-     * the 'h' (handled) counter for top-level stanzas and not for protocol control 
-     * elements like <r/>, <a/>, or <sm/>.
-     *
-     * @param xml The raw XML string from the WebSocket frame.
-     * @return true if it is a core stanza, false otherwise.
-     */
-    public static boolean isCountableStanza(String xml) {
-        if (xml == null) return false;
+		String regex = "<" + Pattern.quote(tagName) + ">([^<]+)</" + Pattern.quote(tagName) + ">";
+		Pattern pattern = Pattern.compile(regex);
+		Matcher matcher = pattern.matcher(xml);
 
-        // 1. Locate the first actual XML tag.
-        // XMPP over WebSockets usually doesn't have leading whitespace, 
-        // but we look for '<' to be safe.
-        int firstTag = xml.indexOf('<');
+		return matcher.find() ? matcher.group(1) : null;
+	}
 
-        // If no '<' is found, it's not valid XML.
-        if (firstTag == -1) {
-            return false;
-        }
+	/**
+	 * Determines if the incoming XML string is one of the three core XMPP stanzas:
+	 * <message/>, <presence/>, or <iq/>.
+	 * * This check is vital for XEP-0198 Stream Management to ensure we only increment
+	 * the 'h' (handled) counter for top-level stanzas and not for protocol control 
+	 * elements like <r/>, <a/>, or <sm/>.
+	 *
+	 * @param xml The raw XML string from the WebSocket frame.
+	 * @return true if it is a core stanza, false otherwise.
+	 */
+	public static boolean isCountableStanza(String xml) {
+		if (xml == null) return false;
 
-        // 2. Perform Case-Insensitive Zero-Allocation Checks
-        // We check the first few characters after the '<' to identify the stanza type.
-        
-        // Check for <message (8 chars)
-        if (xml.regionMatches(true, firstTag, "<message", 0, 8)) {
-        	return true;
-        }
+		// 1. Locate the first actual XML tag.
+		// XMPP over WebSockets usually doesn't have leading whitespace, 
+		// but we look for '<' to be safe.
+		int firstTag = xml.indexOf('<');
 
-        // Check for <presence (9 chars)
-        if (xml.regionMatches(true, firstTag, "<presence", 0, 9)) {
-        	return true;
-        } 
+		// If no '<' is found, it's not valid XML.
+		if (firstTag == -1) {
+			return false;
+		}
 
-        // Check for <iq (3 chars)
-        if (xml.regionMatches(true, firstTag, "<iq", 0, 3)) {
-            return true;
-        }
+		// 2. Perform Case-Insensitive Zero-Allocation Checks
+		// We check the first few characters after the '<' to identify the stanza type.
 
-        // If it reaches here, it's either a protocol control element (like <r/> or <a/>)
-        // or a stream-level tag (like <stream:features/>).
-        return false;
-    }
-        
-    /**
-     * Determines if the provided XML string represents an XMPP Ping request.
-     * <p>
-     * This method uses low-level string matching to avoid the high overhead of 
-     * full XML DOM parsing. It specifically targets XEP-0199 Ping requests 
-     * which are always wrapped in an {@code <iq/>} stanza.
-     * </p>
-     *
-     * @param xml The raw inbound XMPP string from the WebSocket frame.
-     * @return {@code true} if the stanza is an IQ containing the Ping namespace.
-     */
-    public static boolean isPingStanza(String xml) {
-        // 1. Safety check for null or empty payloads.
-        if (xml == null || xml.isEmpty()) {
-            return false;
-        }
+		// Check for <message (8 chars)
+		if (xml.regionMatches(true, firstTag, "<message", 0, 8)) {
+			return true;
+		}
 
-        // 2. Locate the first actual XML tag.
-        // While XMPP over WebSockets usually lacks leading whitespace, 
-        // we search for '<' to ensure robustness against malformed or padded streams.
-        int firstTag = xml.indexOf('<');
-        if (firstTag == -1) {
-            return false;
-        }
+		// Check for <presence (9 chars)
+		if (xml.regionMatches(true, firstTag, "<presence", 0, 9)) {
+			return true;
+		} 
 
-        /**
-         * 3. Perform a case-insensitive region match for the IQ start tag.
-         * * We use regionMatches instead of startsWith because:
-         * - It handles potential leading whitespace (via firstTag offset).
-         * - It is faster than regex or full XML parsing.
-         * - XEP-0199 specifies pings MUST be sent via <iq/>.
-         */
-        if (xml.regionMatches(true, firstTag, "<iq", 0, 3)) {
-            
-            /**
-             * 4. Verify the Ping Namespace (XEP-0199).
-             * * We look for the "urn:xmpp:ping" string. While a full parser would 
-             * verify the namespace is inside the 'xmlns' attribute, a simple 
-             * contains() check is an acceptable performance trade-off for 
-             * initial routing in the Netty pipeline.
-             */
-            return xml.contains("urn:xmpp:ping");
-        }
+		// Check for <iq (3 chars)
+		if (xml.regionMatches(true, firstTag, "<iq", 0, 3)) {
+			return true;
+		}
 
-        /**
-         * 5. Fallback for non-IQ stanzas.
-         * * If the tag is <message/>, <presence/>, or Stream Management elements 
-         * (like <r/> or <a/>), it cannot be a standard XMPP Ping.
-         */
-        return false;
-    }
-    
-    /**
-     * Injects a server-generated XEP-0359 stanza-id extension into an outgoing XMPP <message> stanza.
-     *
-     * This method is primarily used for:
-     * - Message Archive Management (MAM) correlation
-     * - Stable message identification across devices
-     * - Offline sync and deduplication
-     * - Reliable message tracking in distributed systems
-     *
-     * The generated stanza-id is based on a monotonic UUIDv7 to ensure:
-     * - Lexicographically sortable identifiers
-     * - High uniqueness under concurrent load
-     * - Time-ordered message indexing support
-     *
-     * @param xml    raw XMPP message XML string (must contain </message> closing tag)
-     * @param domain XMPP domain used as the 'by' attribute in stanza-id (server identity)
-     * @return XML message enriched with <stanza-id/> extension
-     */
-    public static String insertStanzaId(String xml, String stanzaId, String domain) {
-        /**
-         * Construct XEP-0359 stanza-id extension element.
-         *
-         * Format:
-         * <stanza-id xmlns='urn:xmpp:sid:0'
-         *            by='domain.com'
-         *            id='UUIDv7'/>
-         *
-         * 'by'  → identifies the entity that generated the ID (server/domain)
-         * 'id'  → globally unique message identifier
-         */
-        String stanzaIdExtension =
-                "<stanza-id xmlns='urn:xmpp:sid:0' by='" +
-                domain +
-                "' id='" +
-                stanzaId +
-                "'/>";
+		// If it reaches here, it's either a protocol control element (like <r/> or <a/>)
+		// or a stream-level tag (like <stream:features/>).
+		return false;
+	}
 
-        /**
-         * Standard XMPP message closing tag.
-         * We inject stanza-id just before this closing tag.
-         */
-        String closingTag = "</message>";
+	/**
+	 * Determines if the provided XML string represents an XMPP Ping request.
+	 * <p>
+	 * This method uses low-level string matching to avoid the high overhead of 
+	 * full XML DOM parsing. It specifically targets XEP-0199 Ping requests 
+	 * which are always wrapped in an {@code <iq/>} stanza.
+	 * </p>
+	 *
+	 * @param xml The raw inbound XMPP string from the WebSocket frame.
+	 * @return {@code true} if the stanza is an IQ containing the Ping namespace.
+	 */
+	public static boolean isPingStanza(String xml) {
+		// 1. Safety check for null or empty payloads.
+		if (xml == null || xml.isEmpty()) {
+			return false;
+		}
 
-        /**
-         * Optimized fast-path:
-         * If XML ends correctly with </message>, safely insert stanza-id
-         * before the closing tag without full XML parsing.
-         */
-        if (xml.endsWith(closingTag)) {
+		// 2. Locate the first actual XML tag.
+		// While XMPP over WebSockets usually lacks leading whitespace, 
+		// we search for '<' to ensure robustness against malformed or padded streams.
+		int firstTag = xml.indexOf('<');
+		if (firstTag == -1) {
+			return false;
+		}
 
-            // Remove closing tag, append stanza-id, then re-attach closing tag
-            return xml.substring(0, xml.length() - closingTag.length())
-                    + stanzaIdExtension
-                    + closingTag;
+		/**
+		 * 3. Perform a case-insensitive region match for the IQ start tag.
+		 * * We use regionMatches instead of startsWith because:
+		 * - It handles potential leading whitespace (via firstTag offset).
+		 * - It is faster than regex or full XML parsing.
+		 * - XEP-0199 specifies pings MUST be sent via <iq/>.
+		 */
+		if (xml.regionMatches(true, firstTag, "<iq", 0, 3)) {
 
-        } else {
+			/**
+			 * 4. Verify the Ping Namespace (XEP-0199).
+			 * * We look for the "urn:xmpp:ping" string. While a full parser would 
+			 * verify the namespace is inside the 'xmlns' attribute, a simple 
+			 * contains() check is an acceptable performance trade-off for 
+			 * initial routing in the Netty pipeline.
+			 */
+			return xml.contains("urn:xmpp:ping");
+		}
 
-            /**
-             * Fallback path:
-             * If XML is malformed, contains whitespace, or unexpected formatting,
-             * attempt a replace-based injection.
-             *
-             * WARNING:
-             * - Less safe than structured XML parsing
-             * - Slightly slower
-             * - Used only as a resilience fallback
-             */
-            return xml.replace(closingTag, stanzaIdExtension + closingTag);
-        }
-    }
+		/**
+		 * 5. Fallback for non-IQ stanzas.
+		 * * If the tag is <message/>, <presence/>, or Stream Management elements 
+		 * (like <r/> or <a/>), it cannot be a standard XMPP Ping.
+		 */
+		return false;
+	}
 
-    /**
-     * Formats an Instant into an XMPP compliant ISO-8601 timestamp string.
-     * Format: CCYY-MM-DDThh:mm:ss[.sss]Z
-     */
-    public static String formatTimestamp(Instant createdAt) {
-        if (createdAt == null) {
-            return null;
-        }
-        
-        return DateTimeFormatter.ISO_INSTANT
-                .withZone(ZoneOffset.UTC)
-                .format(createdAt);
-    }
-    
-    
-    /**
-     * Remove the <body>...</body> tag
-     * @param xml The original XMPP stanza string.
-     * @param new string as body tag replacement.
-     * @return The modified XML string.
+	/**
+	 * Injects a server-generated XEP-0359 stanza-id extension into an outgoing XMPP <message> stanza.
+	 *
+	 * This method is primarily used for:
+	 * - Message Archive Management (MAM) correlation
+	 * - Stable message identification across devices
+	 * - Offline sync and deduplication
+	 * - Reliable message tracking in distributed systems
+	 *
+	 * The generated stanza-id is based on a monotonic UUIDv7 to ensure:
+	 * - Lexicographically sortable identifiers
+	 * - High uniqueness under concurrent load
+	 * - Time-ordered message indexing support
+	 *
+	 * @param xml    raw XMPP message XML string (must contain </message> closing tag)
+	 * @param domain XMPP domain used as the 'by' attribute in stanza-id (server identity)
+	 * @return XML message enriched with <stanza-id/> extension
+	 */
+	public static String insertStanzaId(String xml, String stanzaId, String domain) {
+		/**
+		 * Construct XEP-0359 stanza-id extension element.
+		 *
+		 * Format:
+		 * <stanza-id xmlns='urn:xmpp:sid:0'
+		 *            by='domain.com'
+		 *            id='UUIDv7'/>
+		 *
+		 * 'by'  → identifies the entity that generated the ID (server/domain)
+		 * 'id'  → globally unique message identifier
+		 */
+		String stanzaIdExtension =
+				"<stanza-id xmlns='urn:xmpp:sid:0' by='" +
+						domain +
+						"' id='" +
+						stanzaId +
+						"'/>";
+
+		/**
+		 * Standard XMPP message closing tag.
+		 * We inject stanza-id just before this closing tag.
+		 */
+		String closingTag = "</message>";
+
+		/**
+		 * Optimized fast-path:
+		 * If XML ends correctly with </message>, safely insert stanza-id
+		 * before the closing tag without full XML parsing.
+		 */
+		if (xml.endsWith(closingTag)) {
+
+			// Remove closing tag, append stanza-id, then re-attach closing tag
+			return xml.substring(0, xml.length() - closingTag.length())
+					+ stanzaIdExtension
+					+ closingTag;
+
+		} else {
+
+			/**
+			 * Fallback path:
+			 * If XML is malformed, contains whitespace, or unexpected formatting,
+			 * attempt a replace-based injection.
+			 *
+			 * WARNING:
+			 * - Less safe than structured XML parsing
+			 * - Slightly slower
+			 * - Used only as a resilience fallback
+			 */
+			return xml.replace(closingTag, stanzaIdExtension + closingTag);
+		}
+	}
+
+	/**
+	 * Formats an Instant into an XMPP compliant ISO-8601 timestamp string.
+	 * Format: CCYY-MM-DDThh:mm:ss[.sss]Z
+	 */
+	public static String formatTimestamp(Instant createdAt) {
+		if (createdAt == null) {
+			return null;
+		}
+
+		return DateTimeFormatter.ISO_INSTANT
+				.withZone(ZoneOffset.UTC)
+				.format(createdAt);
+	}
+
+
+	/**
+	 * Remove the <body>...</body> tag
+	 * @param xml The original XMPP stanza string.
+	 * @param new string as body tag replacement.
+	 * @return The modified XML string.
+	 */
+	/**
+     * Marks an XMPP stanza payload as retracted by stripping out sensitive contents 
+     * (Plaintext body or OMEMO v2 encrypted structures), injecting a safe replacement text, 
+     * and appending the formal XEP-0424 retraction tracker node.
      */
     public static String markAsRetractedStanza(String xml, String newBody) {
-    	String retractedTag = "<retracted xmlns='urn:xmpp:message-retract:1'/>";
-        if (xml == null) return null;
-        
-        // Regex looks for <body>...</body> including any characters inside (DOTALL mode)
-        // and replaces it with the blank.
-        return xml.replaceAll("(?s)<body>.*?</body>", newBody)
-        		.replace("</message>", retractedTag + "</message>");        
+        if (xml == null || xml.isEmpty()) {
+            return xml;
+        }
+
+        String updatedXml = xml;
+
+        // Scenario 1: Handle Plaintext Message
+        if (xml.contains("<body>")) {
+            updatedXml = BODY_PATTERN.matcher(updatedXml).replaceAll(newBody);
+        } 
+        // Scenario 2: Handle OMEMO v2 Encrypted Message
+        else if (xml.contains("urn:xmpp:omemo:2")) {
+            // Drop the unparseable crypto payload block entirely and write the safe fallback body instead
+            updatedXml = OMEMO_PATTERN.matcher(updatedXml).replaceAll(newBody);
+        }
+
+        // Finally, inject the XEP-0424 structural marker element right before the message closing tag
+        if (updatedXml.contains("</message>")) {
+            updatedXml = updatedXml.replace("</message>", RETRACTED_TAG + "</message>");
+        }
+
+        return updatedXml;
     }
-    
-    /**
-     * Remove the <body>...</body> tag
-     * @param xml The original XMPP stanza string.
-     * @return The modified XML string.
-     */
-    public static String emptyBodyTag(String xml) {
-        if (xml == null) return null;
-        
-        // Regex looks for <body>...</body> including any characters inside (DOTALL mode)
-        // and replaces it with the blank.
-        return xml.replaceAll("(?s)<body>.*?</body>", "<body></body>");
-    }
-        
-    /**
+
+	/**
+	 * Remove the <body>...</body> tag
+	 * @param xml The original XMPP stanza string.
+	 * @return The modified XML string.
+	 */
+	public static String emptyBodyTag(String xml) {
+		if (xml == null) return null;
+
+		// Regex looks for <body>...</body> including any characters inside (DOTALL mode)
+		// and replaces it with the blank.
+		return xml.replaceAll("(?s)<body>.*?</body>", "<body></body>");
+	}
+
+	/**
 	 * Fast-check to determine if an incoming XML stanza is a Message Retraction request (XEP-0424).
 	 * @param xml The raw XML string of the XMPP stanza.
 	 * @return true if the stanza is a <message/> and contains the retraction namespace.
@@ -482,7 +509,7 @@ public class XmppStanzaUtil {
 		// Not a message stanza or does not contain the retraction trigger
 		return false;
 	}
-	
+
 	/**
 	 * Safely injects the 'from' attribute into the first XML tag.
 	 */
@@ -498,36 +525,36 @@ public class XmppStanzaUtil {
 				.insert(insertAt, replacement)
 				.toString();
 	}   
-	
+
 	public static boolean isCountableMessage(String xml) {
 
-	    // Locate the last occurrence of the <countable tag.
-	    // We use lastIndexOf because in typical XMPP stanzas this extension tag
-	    // appears near the end of the message payload, making backward search
-	    // potentially faster than scanning from the beginning.
-	    int tagIndex = xml.lastIndexOf(COUNTABLE_TAG);
+		// Locate the last occurrence of the <countable tag.
+		// We use lastIndexOf because in typical XMPP stanzas this extension tag
+		// appears near the end of the message payload, making backward search
+		// potentially faster than scanning from the beginning.
+		int tagIndex = xml.lastIndexOf(COUNTABLE_TAG);
 
-	    // If the tag is not present at all, we can safely exit early.
-	    if (tagIndex == -1) {
-	        return false;
-	    }
+		// If the tag is not present at all, we can safely exit early.
+		if (tagIndex == -1) {
+			return false;
+		}
 
-	    // Find the closing '>' of the <countable ...> element starting from the tag position.
-	    // This defines the boundary of the tag we are inspecting.
-	    int end = xml.indexOf('>', tagIndex);
+		// Find the closing '>' of the <countable ...> element starting from the tag position.
+		// This defines the boundary of the tag we are inspecting.
+		int end = xml.indexOf('>', tagIndex);
 
-	    // If no closing bracket is found, the XML is malformed or incomplete,
-	    // so we treat it as non-countable for safety.
-	    if (end == -1) {
-	        return false;
-	    }
+		// If no closing bracket is found, the XML is malformed or incomplete,
+		// so we treat it as non-countable for safety.
+		if (end == -1) {
+			return false;
+		}
 
-	    // Check that the expected namespace appears within the bounds of the tag.
-	    // This ensures we are not matching random occurrences elsewhere in the XML body.
-	    int nsIndex = xml.indexOf(NS_COUNTABLE, tagIndex);
+		// Check that the expected namespace appears within the bounds of the tag.
+		// This ensures we are not matching random occurrences elsewhere in the XML body.
+		int nsIndex = xml.indexOf(NS_COUNTABLE, tagIndex);
 
-	    // Valid only if the namespace exists AND is located inside the <countable ...> tag.
-	    // This prevents false positives from other parts of the stanza.
-	    return nsIndex != -1 && nsIndex < end;
+		// Valid only if the namespace exists AND is located inside the <countable ...> tag.
+		// This prevents false positives from other parts of the stanza.
+		return nsIndex != -1 && nsIndex < end;
 	}
 }
