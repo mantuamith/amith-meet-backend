@@ -22,4 +22,7 @@ public class MessageMetaData {
 
     @Field("isPinned")
     private Boolean isPinned = false;
+
+    @Field("editedAt")
+    private Long editedAt;
 }

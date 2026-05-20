@@ -72,7 +72,7 @@ algomeet:
     key-prefix: "meet:id:seq:"
     ttl-days: 10
   links:
-    base: "https://meet.algoframe.in"
+    base: "https://fat-meet.algomeet.app"
   cleanupScheduler:
     enabled: true
 

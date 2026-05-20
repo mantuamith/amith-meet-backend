@@ -13,6 +13,7 @@ import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Controller;
 
 import java.security.Principal;
+import java.util.List;
 
 @Controller
 @RequiredArgsConstructor
@@ -45,7 +46,7 @@ public class MessageActionsWsController {
     }
 
     @MessageMapping("/actions/forward")
-    public void wsForward(@Payload ForwardRequest req, Principal principal) {
-        actions.forward(req, principal.getName(), ((StompUserPrincipal) principal).userKey());
+    public void wsForward(@Payload List<ForwardRequest> req, Principal principal) {
+        actions.forwardBatch(req, principal.getName(), ((StompUserPrincipal) principal).userKey());
     }
 }

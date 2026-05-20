@@ -16,6 +16,8 @@
     <java.version>17</java.version>
     <maven.compiler.source>${java.version}</maven.compiler.source>
     <maven.compiler.target>${java.version}</maven.compiler.target>
+    <argLine></argLine>
+    <mockito.test.javaagent>-Dnet.bytebuddy.experimental=true -javaagent:${settings.localRepository}/net/bytebuddy/byte-buddy-agent/${byte-buddy.version}/byte-buddy-agent-${byte-buddy.version}.jar</mockito.test.javaagent>
   </properties>
   <repositories>
     <repository>
@@ -175,6 +177,13 @@
                         </goals>
                     </execution>
                 </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <argLine>@{argLine} ${mockito.test.javaagent}</argLine>
+                </configuration>
             </plugin>
         </plugins>
     </build>

@@ -22,6 +22,8 @@
         <jacoco.version>0.8.12</jacoco.version> <!-- or newer if available -->
         <maven.surefire.plugin.version>3.2.5</maven.surefire.plugin.version>
         <skywalking.version>8.12.0</skywalking.version>
+        <argLine></argLine>
+        <mockito.test.javaagent>-Dnet.bytebuddy.experimental=true -javaagent:${settings.localRepository}/net/bytebuddy/byte-buddy-agent/${byte-buddy.version}/byte-buddy-agent-${byte-buddy.version}.jar</mockito.test.javaagent>
     </properties>
     <repositories>
         <repository>
@@ -343,6 +345,9 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>${maven.surefire.plugin.version}</version>
+                <configuration>
+                    <argLine>@{argLine} ${mockito.test.javaagent}</argLine>
+                </configuration>
             </plugin>
         </plugins>
     </build>

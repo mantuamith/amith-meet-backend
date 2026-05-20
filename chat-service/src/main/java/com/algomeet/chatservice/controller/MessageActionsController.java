@@ -36,6 +36,14 @@ public class MessageActionsController {
 
     }
 
+    @GetMapping("/group/{groupId}/messages/{messageId}/reactions")
+    public ResponseEntity<ReactionsResponse> getGroupMessageReactions(
+            @PathVariable String groupId,
+            @PathVariable String messageId
+    ) {
+        return ResponseEntity.ok(actions.getGroupMessageReactions(groupId, messageId, currentUser()));
+    }
+
     @PostMapping("/pin-message")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void pin(@Valid @RequestBody PinCommand cmd) {
@@ -45,8 +53,13 @@ public class MessageActionsController {
 
     @PostMapping("/edit-message")
     public ResponseEntity<MessageResponse> edit(@Valid @RequestBody EditMessageRequest req) {
-        MessageDocument updated = actions.editMessage(req.getMessageId(), req.getNewContent(), currentUser());
-        if (updated == null) return ResponseEntity.status(403).build();
+
+        MessageDocument updated = actions.editMessage(
+                req.getMessageId(),
+                req.getNewContent(),
+                currentUser()
+        );
+
         return ResponseEntity.ok(messageMapper.toResponse(updated));
     }
 

@@ -56,7 +56,7 @@ algomeet:
   jwt:
     app-id: algomeet               # -> aud
     issuer: algomeet               # -> iss
-    sub: meet.algoframe.in         # -> sub (your Algomeet)
+    sub: meet.algomeet.app         # -> sub (your Algomeet)
     secret-base64: ${ALGOMEET_JWT_SECRET_BASE64}
     ttl-seconds: 300
     features:

@@ -22,6 +22,8 @@
         <testcontainers.version>1.20.2</testcontainers.version>
         <surefire.version>3.2.5</surefire.version>
         <failsafe.version>3.2.5</failsafe.version>
+        <argLine></argLine>
+        <mockito.test.javaagent>-Dnet.bytebuddy.experimental=true -javaagent:${settings.localRepository}/net/bytebuddy/byte-buddy-agent/${byte-buddy.version}/byte-buddy-agent-${byte-buddy.version}.jar</mockito.test.javaagent>
 
         <!-- ITs are skipped by default; enable via -Pit or -DskipITs=false -->
         <skipITs>true</skipITs>
@@ -227,6 +229,7 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>${surefire.version}</version>
                 <configuration>
+                    <argLine>@{argLine} ${mockito.test.javaagent}</argLine>
                     <includes>
                         <include>**/*Test.java</include>
                         <include>**/*Tests.java</include>
@@ -251,6 +254,7 @@
                             <goal>verify</goal>
                         </goals>
                         <configuration>
+                            <argLine>@{argLine} ${mockito.test.javaagent}</argLine>
                             <!-- pick ITs from src/test/java, inside .../it/, named *IT.java -->
                             <includes>
                                 <include>**/it/**/*IT.java</include>

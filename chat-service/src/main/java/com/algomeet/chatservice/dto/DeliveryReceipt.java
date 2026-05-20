@@ -9,6 +9,7 @@ import java.util.List;
 @AllArgsConstructor
 public class DeliveryReceipt {
     private String contactId;         // the receiver who confirms delivery
+    private String groupId;
     private List<String> messageIds;  // delivered message IDs
     private long deliveredAt;         // epoch seconds
 }

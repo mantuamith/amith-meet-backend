@@ -1,5 +1,6 @@
 package com.algomeet.authservice.service;
 
+import com.algomeet.authservice.client.SubscriptionClient;
 import com.algomeet.authservice.client.UserClient;
 import com.algomeet.authservice.config.LocalizationConfig;
 import com.algomeet.authservice.dto.UserResponse;
@@ -10,7 +11,8 @@ import com.algomeet.authservice.util.JwtUtil;
 import com.algomeet.authservice.util.MessageUtil;
 import com.algomeet.notificationservice.service.NotificationService;
 import com.fasterxml.jackson.databind.ObjectMapper;
-
+import feign.FeignException;
+import feign.Request;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -46,6 +48,8 @@ class AuthServiceTest {
     ObjectMapper om;
     @Mock
     NotificationService notifications;
+    @Mock
+    SubscriptionClient subscriptionClient;
 
     @InjectMocks AuthService svc;
     
@@ -102,12 +106,32 @@ class AuthServiceTest {
         user.setEmail("a@x.com");
 
         when(userClient.startSession(1L, "dev-1", null)).thenReturn(Map.of("sid", "S1"));
-        when(jwt.generateToken(user, "S1")).thenReturn("acc");
+        when(subscriptionClient.getUserPlan(1L)).thenReturn(Map.of("planCode", "PRO"));
+        when(jwt.generateToken(user, "S1", "PRO")).thenReturn("acc");
         when(jwt.generateRefreshToken(user, "S1")).thenReturn("ref");
 
         var out = svc.issueTokensFor(user, "dev-1", true);
 
         verify(rts).revokeAllForUser("a@x.com");
+        verify(rts).save("ref", "a@x.com");
+        assertThat(out.getAccessToken()).isEqualTo("acc");
+        assertThat(out.getRefreshToken()).isEqualTo("ref");
+    }
+
+    @Test
+    void issueTokensFor_whenSubscriptionLookupFails_defaultsToFreePlan() {
+        var user = new UserResponse();
+        user.setId(1L);
+        user.setEmail("a@x.com");
+
+        when(userClient.startSession(1L, "dev-1", null)).thenReturn(Map.of("sid", "S1"));
+        when(subscriptionClient.getUserPlan(1L)).thenThrow(feignBadGateway());
+        when(jwt.generateToken(user, "S1", "FREE")).thenReturn("acc");
+        when(jwt.generateRefreshToken(user, "S1")).thenReturn("ref");
+
+        var out = svc.issueTokensFor(user, "dev-1", false);
+
+        verify(rts, never()).revokeAllForUser(anyString());
         verify(rts).save("ref", "a@x.com");
         assertThat(out.getAccessToken()).isEqualTo("acc");
         assertThat(out.getRefreshToken()).isEqualTo("ref");
@@ -122,17 +146,43 @@ class AuthServiceTest {
         when(jwt.extractSid("R")).thenReturn("SID1");
 
         var user = new UserResponse();
+        user.setId(1L);
         user.setEmail("a@x.com");
         when(userClient.getUserByEmail("a@x.com")).thenReturn(user);
 
         when(sidCache.getCurrentSid("a@x.com")).thenReturn("SID1");
-        when(jwt.generateToken(user, "SID1")).thenReturn("NEW_ACCESS");
+        when(subscriptionClient.getUserPlan(1L)).thenReturn(Map.of("planCode", "PRO"));
+        when(jwt.generateToken(user, "SID1", "PRO")).thenReturn("NEW_ACCESS");
         when(jwt.generateRefreshToken(user, "SID1")).thenReturn("NEW_REFRESH");
 
         // when
         var out = svc.refreshAccessToken("R");
 
         // then
+        assertThat(out.getCode()).isEqualTo(ResponseCode.AUTH_REFRESH_SUCCESS.getCode());
+        assertThat(out.getAccessToken()).isEqualTo("NEW_ACCESS");
+        assertThat(out.getRefreshToken()).isEqualTo("NEW_REFRESH");
+    }
+
+    @Test
+    void refreshAccessToken_whenSubscriptionLookupFails_defaultsToFreePlan() {
+        when(jwt.isTokenValid("R")).thenReturn(true);
+        when(jwt.isRefreshToken("R")).thenReturn(true);
+        when(jwt.extractEmail("R")).thenReturn("a@x.com");
+        when(jwt.extractSid("R")).thenReturn("SID1");
+
+        var user = new UserResponse();
+        user.setId(1L);
+        user.setEmail("a@x.com");
+        when(userClient.getUserByEmail("a@x.com")).thenReturn(user);
+
+        when(sidCache.getCurrentSid("a@x.com")).thenReturn("SID1");
+        when(subscriptionClient.getUserPlan(1L)).thenThrow(feignBadGateway());
+        when(jwt.generateToken(user, "SID1", "FREE")).thenReturn("NEW_ACCESS");
+        when(jwt.generateRefreshToken(user, "SID1")).thenReturn("NEW_REFRESH");
+
+        var out = svc.refreshAccessToken("R");
+
         assertThat(out.getCode()).isEqualTo(ResponseCode.AUTH_REFRESH_SUCCESS.getCode());
         assertThat(out.getAccessToken()).isEqualTo("NEW_ACCESS");
         assertThat(out.getRefreshToken()).isEqualTo("NEW_REFRESH");
@@ -166,5 +216,17 @@ class AuthServiceTest {
 
         var out = svc.refreshAccessToken("bad");
         assertThat(out.getCode()).isEqualTo(ResponseCode.AUTH_INVALID_REFRESH_TOKEN.getCode());
+    }
+
+    private static FeignException feignBadGateway() {
+        Request req = Request.create(
+                Request.HttpMethod.GET,
+                "/internal/subscriptions/users/1/plan",
+                Map.of(),
+                null,
+                StandardCharsets.UTF_8,
+                null
+        );
+        return new FeignException.BadGateway("bad gateway", req, null, Map.of());
     }
 }

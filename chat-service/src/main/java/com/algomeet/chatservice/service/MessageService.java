@@ -113,7 +113,7 @@ public class MessageService {
             message.setStatus(MessageStatus.SENT);
         }
         if (message.getTimestamp() == null) {
-            message.setTimestamp(Instant.now());
+            message.setTimestamp(System.currentTimeMillis());
         }
         initializeReadTracking(message);
         log.info("[Save] id?(pre) sender={} receiver={} status={} ts={}",
@@ -136,7 +136,12 @@ public class MessageService {
             log.debug("[Recent] empty user id");
             return List.of();
         }
+
         log.debug("[Recent] Computing thread list for user={}", userId);
+
+        // ✅ Fetch valid groups ONCE (IMPORTANT)
+        Set<String> validGroups = fetchGroupIdsForUsername(userId);
+
         List<MessageDocument> all = loadRecentScopeMessages(userId);
         if (all.isEmpty()) {
             log.debug("[Recent] user={} no messages", userId);
@@ -151,38 +156,59 @@ public class MessageService {
         if (visible.isEmpty()) return List.of();
 
         Map<String, List<MessageDocument>> byContact = new HashMap<>();
+
         for (MessageDocument m : visible) {
             String contactId = resolveThreadId(m, userId);
-            if (!hasText(contactId)) {
-                continue;
-            }
+            if (!hasText(contactId)) continue;
+
             byContact.computeIfAbsent(contactId, ignored -> new ArrayList<>()).add(m);
         }
 
         List<RecentReceivedMessageResponse> result = new ArrayList<>();
-        for (Map.Entry<String, List<MessageDocument>> e : byContact.entrySet()) {
-            String contactId = e.getKey();
-            List<MessageDocument> thread = e.getValue();
 
+        for (Map.Entry<String, List<MessageDocument>> e : byContact.entrySet()) {
+
+            String contactId = e.getKey();
+
+            // 🔥 keep ONLY visible messages
+            List<MessageDocument> thread = e.getValue().stream()
+                    .filter(m -> m.isVisibleTo(userId))
+                    .toList();
+
+            // ✅ FULL CLEAR → remove thread completely
+            if (thread.isEmpty()) {
+                log.debug("[Recent] Thread fully cleared contact={} user={}", contactId, userId);
+                continue;
+            }
+
+            boolean isGroup = thread.stream().anyMatch(MessageDocument::isGroupMessage);
+
+            if (isGroup && !validGroups.contains(contactId)) {
+                continue;
+            }
+
+            // ✅ latest ONLY from visible messages
             MessageDocument latest = thread.stream()
                     .filter(m -> m.getTimestamp() != null)
                     .max(Comparator.comparing(MessageDocument::getTimestamp))
                     .orElse(null);
-            if (latest == null) {
-                // entire thread is invisible → drop from recent
-                continue;
-            }
 
-            long ts = latest.getTimestamp().toEpochMilli();
-            String lastText = latest.getContent();
+            if (latest == null) continue;
 
+            long ts = latest.getTimestamp();
+
+            // 🔥 unread ONLY from visible messages
             int unread = (int) thread.stream()
                     .filter(m -> isUnreadForThread(m, userId, contactId))
                     .count();
 
-            result.add(new RecentReceivedMessageResponse(contactId, lastText, ts, unread, latest.getEncryptionMetadata()));
-            log.trace("[Recent] user={} contact={} latestId={} unread={}",
-                    userId, contactId, latest.getId(), unread);
+            result.add(new RecentReceivedMessageResponse(
+                    contactId,
+                    latest.getContent(),
+                    ts,
+                    unread,
+                    latest.getEncryptionMetadata()
+            ));
         }
 
         List<RecentReceivedMessageResponse> out = result.stream()
@@ -201,6 +227,8 @@ public class MessageService {
                 uniqueById.put(message.getId(), message);
             }
         }
+        log.info("UniqueId={}", uniqueById.size());
+        log.info("userId={}", userId);
 
         Set<String> groupIds = fetchGroupIdsForUsername(userId);
         if (!groupIds.isEmpty()) {
@@ -210,7 +238,7 @@ public class MessageService {
                 }
             }
         }
-
+        log.info("UniqueId values ={}", uniqueById.values());
         return new ArrayList<>(uniqueById.values());
     }
 
@@ -231,13 +259,20 @@ public class MessageService {
         if (message == null || !message.isGroupMessage()) {
             return;
         }
-        message.markReadBy(message.getSender());
+        message.markReadBy(message.getSender(), Instant.now().toEpochMilli());
     }
 
     private boolean isUnreadForThread(MessageDocument message, String userId, String threadId) {
+
+        // 🔥 ADD THIS LINE
+        if (!message.isVisibleTo(userId)) {
+            return false;
+        }
+
         if (!isUnreadForUser(message, userId)) {
             return false;
         }
+
         return threadId.equals(resolveThreadId(message, userId));
     }
 
@@ -245,12 +280,19 @@ public class MessageService {
         if (message == null || !hasText(userId)) {
             return false;
         }
+
+        //ignore cleared/deleted messages
+        if (!message.isVisibleTo(userId)) {
+            return false;
+        }
+
         if (message.isGroupMessage()) {
             return hasText(resolveThreadId(message, userId))
                     && !userId.equals(message.getSender())
                     && !message.isReadBy(userId);
         }
-        return userId.equals(message.getReceiver()) && message.getStatus() != MessageStatus.READ;
+        return userId.equals(message.getReceiver())
+                && message.getStatus() != MessageStatus.READ;
     }
 
     private String resolveThreadId(MessageDocument message, String userId) {
@@ -306,8 +348,11 @@ public class MessageService {
                 if (isGroupMember(message.getGroupId(), receiverUsername)
                         && !receiverUsername.equals(message.getSender())
                         && !message.isDeliveredTo(receiverUsername)) {
-                    message.markDeliveredTo(receiverUsername);
-                    message.setStatus(MessageStatus.DELIVERED);
+
+                    message.markDeliveredTo(receiverUsername, deliverStatus.getStatusTimeStamp());
+                    if (message.getStatus() == MessageStatus.SENT) {
+                        message.setStatus(MessageStatus.DELIVERED);
+                    }
                     message.setMsgDeliveredTimeStamp(deliverStatus.getStatusTimeStamp());
                     messages.add(message);
                 }
@@ -334,7 +379,7 @@ public class MessageService {
 
         bySender.forEach((senderId, msgs) -> {
             List<String> ids = msgs.stream().map(MessageDocument::getId).toList();
-            DeliveryReceipt receipt = new DeliveryReceipt(receiverUsername, ids, nowSec);
+            DeliveryReceipt receipt = new DeliveryReceipt(receiverUsername,msgs.get(0).getGroupId(), ids, nowSec);
             log.debug("[Delivered->Notify] toSender={} ids={} at={}", senderId, ids.size(), nowSec);
             messagingSyncTemplate.convertAndSendToUser(senderId, "/queue/delivery-receipts", receipt);
         });
@@ -346,11 +391,14 @@ public class MessageService {
         List<MessageDocument> candidates = messageRepository.findAllById(readUpdate.getMessageIds());
         List<MessageDocument> messages = new ArrayList<>();
         for (MessageDocument message : candidates) {
+            if (!message.isVisibleTo(readerId))
+                continue;
+
             if (message.isGroupMessage()) {
                 if (isGroupMember(message.getGroupId(), readerId)
                         && !readerId.equals(message.getSender())
                         && !message.isReadBy(readerId)) {
-                    message.markReadBy(readerId);
+                    message.markReadBy(readerId,  readUpdate.getStatusTimeStamp());
                     messages.add(message);
                 }
                 continue;
@@ -376,7 +424,7 @@ public class MessageService {
 
         bySender.forEach((senderId, msgs) -> {
             List<String> ids = msgs.stream().map(MessageDocument::getId).toList();
-            ReadReceipt receipt = new ReadReceipt(readerId, ids, nowSec);
+            ReadReceipt receipt = new ReadReceipt(readerId, msgs.get(0).getGroupId(), ids, nowSec);
             log.debug("[Read->Notify] toSender={} ids={} at={}", senderId, ids.size(), nowSec);
             messagingSyncTemplate.convertAndSendToUser(senderId, "/queue/read-receipts", receipt);
         });
@@ -386,36 +434,57 @@ public class MessageService {
     }
 
     public void markMessagesAsRead(String reqSenderId, String contactId) {
+
         log.info("[Read] reader={} thread={}", reqSenderId, contactId);
-        List<MessageDocument> all = messageRepository.findByReceiver(contactId).stream().toList();
-        if (all.isEmpty()) {
-            all = messageRepository.findByGroupIdOrReceiver(contactId, contactId);
+        boolean isGroup = messageRepository.existsByGroupId(contactId);
+        List<MessageDocument> all;
+        if (isGroup) {
+            all = messageRepository.findByGroupId(contactId);
+        } else {
+            all = messageRepository.findBySenderAndReceiver(contactId, reqSenderId);
         }
+
+        log.info("[Read] fetched size={}", all.size());
+
         List<MessageDocument> messages = new ArrayList<>();
+
         for (MessageDocument message : all) {
+
+            // ignore deleted/hidden messages
+            if (!message.isVisibleTo(reqSenderId)) continue;
+
             if (message.isGroupMessage()) {
+
                 if (isGroupMember(message.getGroupId(), reqSenderId)
                         && !reqSenderId.equals(message.getSender())
                         && !message.isReadBy(reqSenderId)) {
-                    message.markReadBy(reqSenderId);
+
+                    message.markReadBy(reqSenderId, Instant.now().toEpochMilli());
                     messages.add(message);
                 }
                 continue;
             }
-            if (reqSenderId.equals(message.getReceiver()) && message.getStatus() != MessageStatus.READ) {
+
+            if (reqSenderId.equals(message.getReceiver())
+                    && message.getStatus() != MessageStatus.READ) {
+
                 message.setStatus(MessageStatus.READ);
-                message.setMsgReadTimeStamp(Instant.now().getEpochSecond());
+                message.setMsgReadTimeStamp(Instant.now().toEpochMilli());
                 messages.add(message);
             }
         }
 
         if (messages.isEmpty()) {
             log.debug("[Read] No eligible messages to mark. reader={} thread={}", reqSenderId, contactId);
+
             sendUnreadCountUpdate(reqSenderId);
+            //pushRecentUpdate(reqSenderId); // IMPORTANT
+
             return;
         }
 
         messageRepository.saveAll(messages);
+
         long nowSec = Instant.now().getEpochSecond();
         log.info("[Read] Updated count={}", messages.size());
 
@@ -423,13 +492,26 @@ public class MessageService {
                 messages.stream().collect(Collectors.groupingBy(MessageDocument::getSender));
 
         bySender.forEach((senderId, msgs) -> {
+
             List<String> ids = msgs.stream().map(MessageDocument::getId).toList();
-            ReadReceipt receipt = new ReadReceipt(contactId, ids, nowSec);
-            log.debug("[Read->Notify] toSender={} ids={} at={}", senderId, ids.size(), nowSec);
-            messagingSyncTemplate.convertAndSendToUser(senderId, "/queue/read-receipts", receipt);
+
+            ReadReceipt receipt = new ReadReceipt(
+                    contactId,
+                    msgs.get(0).getGroupId(),
+                    ids,
+                    nowSec
+            );
+
+            messagingSyncTemplate.convertAndSendToUser(
+                    senderId,
+                    "/queue/read-receipts",
+                    receipt
+            );
         });
-        // keep the reader's unread badges current
+
+        // CRITICAL
         sendUnreadCountUpdate(reqSenderId);
+        //pushRecentUpdate(reqSenderId); // IMPORTANT
     }
 
     public void updateMessageCallMeta(CallMessageMetaUpdate payload, String updaterUsername) {
@@ -498,27 +580,48 @@ public class MessageService {
      * This uses updateMany so it's fast even for big threads.
      */
     public long clearChatForUser(String me, String contact) {
-        Criteria participants = new Criteria().orOperator(
-                new Criteria().andOperator(where("sender").is(me),     where("receiver").is(contact)),
-                new Criteria().andOperator(where("sender").is(contact), where("receiver").is(me))
-        );
 
-        Criteria notDeletedForAll = where("deletedForAll").ne(true);
+        boolean isGroup = messageRepository.existsByGroupId(contact);
 
-        Criteria notAlreadyHiddenForMe = new Criteria().orOperator(
-                where("deletedForUsers").exists(false),
-                where("deletedForUsers").ne(me)
-        );
+        Criteria criteria;
 
+        if (isGroup) {
+            // ✅ GROUP CLEAR
+            criteria = new Criteria().andOperator(
+                    where("groupId").is(contact),
+                    where("deletedForAll").ne(true),
+                    new Criteria().orOperator(
+                            where("deletedForUsers").exists(false),
+                            where("deletedForUsers").ne(me)
+                    )
+            );
+        } else {
+            // ✅ DIRECT CLEAR (FIXED)
 
-        Query q = new Query(new Criteria().andOperator(
-                participants, notDeletedForAll, notAlreadyHiddenForMe
-        ));
+            Criteria participants = new Criteria().orOperator(
+                    where("sender").is(me).and("receiver").is(contact),
+                    where("sender").is(contact).and("receiver").is(me)
+            );
 
+            criteria = new Criteria().andOperator(
+                    participants,
+                    where("groupId").is(null), // 🔥 critical fix
+                    where("deletedForAll").ne(true),
+                    new Criteria().orOperator(
+                            where("deletedForUsers").exists(false),
+                            where("deletedForUsers").ne(me)
+                    )
+            );
+        }
+
+        Query q = new Query(criteria);
         Update u = new Update().addToSet("deletedForUsers", me);
 
-        UpdateResult res = mongoTemplate.updateMulti(q, u, MessageDocument.class);
-        return res.getModifiedCount();
+        long modified = mongoTemplate.updateMulti(q, u, MessageDocument.class).getModifiedCount();
+
+        log.info("[Clear] user={} contact={} modified={}", me, contact, modified);
+
+        return modified;
     }
 
     /** After clear: notify FE + refresh counters and recent summary */
@@ -559,6 +662,65 @@ public class MessageService {
         msUpdate.setMessageIds(ids);
         msUpdate.setStatusTimeStamp(Instant.now().getEpochSecond());
         markMessagesAsDelivered(msUpdate, receiverUsername);
+    }
+
+    public GroupMessageReceiptResponse getGroupMessageReceipts(
+            String groupId,
+            String messageId
+    ) {
+
+        if (!hasText(groupId) || !hasText(messageId)) {
+            return null;
+        }
+
+        MessageDocument msg = messageRepository
+                .findById(messageId)
+                .orElse(null);
+
+        if (msg == null) {
+            return null;
+        }
+
+        // ✅ must be group message
+        if (!msg.isGroupMessage()) {
+            return null;
+        }
+
+        // ✅ validate group ownership
+        if (!groupId.equals(msg.getGroupId())) {
+            return null;
+        }
+
+        List<UserStatus> delivered =
+                msg.getDeliveredByUsers() != null
+                        ? msg.getDeliveredByUsers()
+                        .stream()
+                        .filter(Objects::nonNull)
+                        .filter(u -> u.getUsername() != null)
+                        .filter(u -> !u.getUsername().equals(msg.getSender()))
+                        .sorted(Comparator.comparing(UserStatus::getTimestamp))
+                        .toList()
+                        : List.of();
+
+        List<UserStatus> read =
+                msg.getReadByUsers() != null
+                        ? msg.getReadByUsers()
+                        .stream()
+                        .filter(Objects::nonNull)
+                        .filter(u -> u.getUsername() != null)
+                        .filter(u -> !u.getUsername().equals(msg.getSender()))
+                        .sorted(Comparator.comparing(UserStatus::getTimestamp))
+                        .toList()
+                        : List.of();
+
+        return new GroupMessageReceiptResponse(
+                groupId,
+                msg.getId(),
+                delivered.size(),
+                read.size(),
+                delivered,
+                read
+        );
     }
 
 }

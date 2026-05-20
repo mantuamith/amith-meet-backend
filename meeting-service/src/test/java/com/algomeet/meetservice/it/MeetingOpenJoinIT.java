@@ -49,7 +49,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @TestPropertySource(properties = {
         // link base used in MeetingMapper.joinUrl
-        "algomeet.links.base=https://meet.algoframe.in",
+        "algomeet.links.base=https://fat-meet.algomeet.app",
         // JWT props used by AlgomeetJwtService
         "algomeet.jwt.secret-base64=YWxnb21lZXRfc2VjcmV0X2Jhc2U2NF9rZXlfMzJfYnl0ZXM=", // "algomeet_secret_base64_key_32_bytes" (base64)
         "algomeet.jwt.app-id=algomeet-app",

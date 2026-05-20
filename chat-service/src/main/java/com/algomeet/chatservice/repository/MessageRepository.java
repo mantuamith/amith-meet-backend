@@ -151,4 +151,12 @@ public interface MessageRepository extends MongoRepository<MessageDocument, Stri
     Optional<MessageDocument> findById(String id);
 
     List<MessageDocument> findByReceiverAndStatus(String receiver, MessageStatus status);
+
+    boolean existsByGroupId(String contactOrGroupId);
+
+    boolean existsByReceiver(String contactOrReceiver);
+
+    List<MessageDocument> findByGroupId(String contactId);
+
+    List<MessageDocument> findBySenderAndReceiver(String contactId, String reqSenderId);
 }

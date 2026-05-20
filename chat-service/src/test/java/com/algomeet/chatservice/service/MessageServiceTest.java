@@ -6,6 +6,7 @@ import com.algomeet.chatservice.document.GroupDto;
 import com.algomeet.chatservice.document.MessageDocument;
 import com.algomeet.chatservice.dto.MessageStatusUpdate;
 import com.algomeet.chatservice.dto.RecentReceivedMessageResponse;
+import com.algomeet.chatservice.dto.UserStatus;
 import com.algomeet.chatservice.mapper.MessageMapper;
 import com.algomeet.chatservice.model.MessageStatus;
 import com.algomeet.chatservice.repository.MessageRepository;
@@ -55,23 +56,23 @@ class MessageServiceTest {
         unreadFromOther.setSender("bob");
         unreadFromOther.setGroupId("51");
         unreadFromOther.setContent("hello");
-        unreadFromOther.setTimestamp(Instant.parse("2026-04-09T09:00:00Z"));
+        unreadFromOther.setTimestamp(Instant.parse("2026-04-09T09:00:00Z").toEpochMilli());
 
         MessageDocument ownMessage = new MessageDocument();
         ownMessage.setId("g2");
         ownMessage.setSender("alice");
         ownMessage.setGroupId("51");
         ownMessage.setContent("mine");
-        ownMessage.setTimestamp(Instant.parse("2026-04-09T09:01:00Z"));
-        ownMessage.markReadBy("alice");
+        ownMessage.setTimestamp(Instant.parse("2026-04-09T09:01:00Z").toEpochMilli());
+        ownMessage.markReadBy("alice", Instant.parse("2026-04-09T09:01:00Z").toEpochMilli());
 
         MessageDocument alreadyRead = new MessageDocument();
         alreadyRead.setId("g3");
         alreadyRead.setSender("carol");
         alreadyRead.setGroupId("51");
         alreadyRead.setContent("seen");
-        alreadyRead.setTimestamp(Instant.parse("2026-04-09T08:59:00Z"));
-        alreadyRead.markReadBy("alice");
+        alreadyRead.setTimestamp(Instant.parse("2026-04-09T08:59:00Z").toEpochMilli());
+        alreadyRead.markReadBy("alice", Instant.parse("2026-04-09T09:01:00Z").toEpochMilli());
 
         when(messageRepository.findBySenderOrReceiver("alice", "alice")).thenReturn(List.of());
         when(groupClient.getGroupsForUsername("alice")).thenReturn(List.of(group));
@@ -95,7 +96,7 @@ class MessageServiceTest {
         groupMessage.setSender("bob");
         groupMessage.setGroupId("51");
         groupMessage.setContent("hello");
-        groupMessage.setTimestamp(Instant.parse("2026-04-09T09:00:00Z"));
+        groupMessage.setTimestamp(Instant.parse("2026-04-09T09:00:00Z").toEpochMilli());
 
         MessageStatusUpdate update = new MessageStatusUpdate();
         update.setMessageIds(List.of("g1"));
@@ -110,7 +111,7 @@ class MessageServiceTest {
 
         service.markMessagesAsRead(update, "alice");
 
-        assertThat(groupMessage.getReadByUsers()).contains("alice");
+        assertThat(groupMessage.getReadByUsers()).contains(new UserStatus("alice", Instant.parse("2026-04-09T09:00:00Z").toEpochMilli()));
         verify(messageRepository).saveAll(List.of(groupMessage));
     }
 
@@ -124,7 +125,7 @@ class MessageServiceTest {
         groupMessage.setGroupId("51");
         groupMessage.setStatus(MessageStatus.SENT);
         groupMessage.setContent("hello");
-        groupMessage.setTimestamp(Instant.parse("2026-04-09T09:00:00Z"));
+        groupMessage.setTimestamp(Instant.parse("2026-04-09T09:00:00Z").toEpochMilli());
 
         MessageStatusUpdate update = new MessageStatusUpdate();
         update.setMessageIds(List.of("g1"));
@@ -137,7 +138,7 @@ class MessageServiceTest {
 
         assertThat(groupMessage.getStatus()).isEqualTo(MessageStatus.DELIVERED);
         assertThat(groupMessage.getMsgDeliveredTimeStamp()).isEqualTo(1_775_662_800L);
-        assertThat(groupMessage.getDeliveredByUsers()).contains("alice");
+        assertThat(groupMessage.getDeliveredByUsers()).contains(new UserStatus("alice", Instant.parse("2026-04-09T09:00:00Z").toEpochMilli()));
         verify(messageRepository).saveAll(List.of(groupMessage));
         verify(messagingSyncTemplate).convertAndSendToUser(eq("bob"), eq("/queue/delivery-receipts"), org.mockito.ArgumentMatchers.any());
     }

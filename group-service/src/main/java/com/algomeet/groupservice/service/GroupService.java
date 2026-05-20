@@ -11,6 +11,7 @@ import java.util.stream.Collectors;
 import java.time.Instant;
 import java.util.UUID;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
@@ -39,6 +40,7 @@ import lombok.RequiredArgsConstructor;
 
 import java.security.SecureRandom;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class GroupService {
@@ -56,17 +58,11 @@ public class GroupService {
 		if(request.isEmptyGroup()) {
 			//Ignore member list
 			group.setMembers(null);
-
-			// Assigned owner, this allowed us to assign group owner even if the group is empty.
-			if (StringUtils.hasText(request.getOwnerUserKey())) {
-				group.setOwnerUserKey(request.getOwnerUserKey());   
-			} else {
-				group.setOwnerUserKey(userKey);  
-			}
-		} 
-
+		}
+		group.setOwnerUserKey(userKey);
 		// Use for audit
 		group.setCreatedBy(userKey);
+		group.setDateCreated(Instant.ofEpochMilli(request.getCreatedAt()));
 		return GroupMapper.toResponse(groupRepository.save(group));
 	}
 
@@ -263,7 +259,7 @@ public class GroupService {
 				}
 
 				if(memberReq.getRole() != null) {
-					if(isUserAllowedToUpdateMemberWithRole(user.getRole(), memberReq.getRole(), updateMember.getRole())) {
+					if(!isUserAllowedToUpdateMemberWithRole(user.getRole(), memberReq.getRole(), updateMember.getRole())) {
 						throw new RuntimeException("User not authorize to change user role.");
 					}
 
