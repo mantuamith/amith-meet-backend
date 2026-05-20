@@ -15,7 +15,6 @@ import org.springframework.stereotype.Service;
 
 import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.document.CallSession;
-import com.algomeet.xmpp.chatservice.dto.StanzaInfo;
 import com.algomeet.xmpp.chatservice.enums.CallStatus;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
@@ -55,7 +54,7 @@ public class MucCallTrackerService {
 	/**
 	 * Initiates the call record reactively.
 	 */
-	public Mono<CallSession> trackInitiation(String sid, String caller, String callerSid, String callee, String callType, String roomId) {
+	public Mono<CallSession> trackInitiation(String sid, UUID caller, String callerSid, UUID callee, String callType, UUID roomId) {
 		CallSession call = CallSession.builder()
 				.sid(sid)
 				.caller(caller)
@@ -76,7 +75,7 @@ public class MucCallTrackerService {
 	 * Updates acceptance status. 
 	 * Uses flatMap to chain the lookup and the save.
 	 */
-	public Mono<CallSession> trackAcceptance(String sid, String callee, String calleeSid) {
+	public Mono<CallSession> trackAcceptance(String sid, UUID callee, String calleeSid) {
 		return repository.findFirstBySidAndCalleeOrderByCreatedAtDesc(sid, callee)
 				.flatMap(call -> {
 					call.setCalleeSid(calleeSid);
@@ -127,7 +126,7 @@ public class MucCallTrackerService {
 	/**
 	 * Remove the call record.
 	 */
-	public Mono<Void> remove(String sid, String callee) {
+	public Mono<Void> remove(String sid, UUID callee) {
 		return repository.deleteBySidAndCallee(sid, callee)
 				.doOnSuccess(success -> log.info("MUC Call session {} successfully deleted", sid))
 				.doOnError(error -> log.error("Failed to delete MUC Call SID {}", sid, error));
@@ -188,10 +187,10 @@ public class MucCallTrackerService {
 
 												// Caller is represented as room occupant JID.
 												String roomJid =
-														jidUtil.getGroupBareJid(callSession.get().getRoomId());
+														jidUtil.getGroupBareJid(callSession.get().getRoomId().toString());
 
 												// Caller receives call log message.
-												String callerJid = jidUtil.getBareJid(callSession.get().getCaller());
+												String callerJid = jidUtil.getBareJid(callSession.get().getCaller().toString());
 
 												// Unique message ID for the generated call log stanza.
 												String calleeMsgId = UuidCreator.getTimeOrderedEpoch().toString();
@@ -217,9 +216,9 @@ public class MucCallTrackerService {
 
 												// Fire-and-forget publish of final call result to callee.
 												publish(calleeMsgId,
-														callSession.get().getCaller(),
-														callSession.get().getCaller(),
-														callSession.get().getRoomId(),
+														callSession.get().getCaller().toString(),
+														callSession.get().getCaller().toString(),
+														callSession.get().getRoomId().toString(),
 														ChatType.GROUPCHAT,
 														calleeMsg);
 
@@ -243,7 +242,7 @@ public class MucCallTrackerService {
 
 	public Mono<Void> finalizeAndNotifySynchronized(String id,
 			String sid, 
-			String calleeUserKey,
+			UUID calleeUserKey,
 			String reason) {
 
 		/**
@@ -347,10 +346,10 @@ public class MucCallTrackerService {
 
 					// Caller is represented as room occupant JID.
 					String callerJid =
-							jidUtil.getGroupBareJid(session.getRoomId()) + "/" + session.getCaller();
+							jidUtil.getGroupBareJid(session.getRoomId().toString()) + "/" + session.getCaller();
 
 					// Callee receives a direct user JID message.
-					String calleeJid = jidUtil.getBareJid(session.getCallee());
+					String calleeJid = jidUtil.getBareJid(session.getCallee().toString());
 
 					// Unique message ID for the generated call log stanza.
 					String calleeMsgId = UuidCreator.getTimeOrderedEpoch().toString();
@@ -368,9 +367,9 @@ public class MucCallTrackerService {
 
 					// Fire-and-forget publish of final call result to callee.
 					publish(calleeMsgId,
-							session.getCallee(),
-							session.getCaller(),
-							session.getRoomId(),
+							session.getCallee().toString(),
+							session.getCaller().toString(),
+							session.getRoomId().toString(),
 							ChatType.GROUPCHAT,
 							calleeMsg);
 
@@ -408,16 +407,12 @@ public class MucCallTrackerService {
 	}
 
 	private void publish(String id, String to, String from, String toRoomId, ChatType chatType, String payload) {    
-		StanzaInfo info = StanzaInfo.builder()
-				.messageId(id)
-				.type(payload)
-				.build();
 
 		UUID stanzaId = UuidCreator.getTimeOrderedEpoch();
 		// Insert stanza ID
 		String forArchiveXml = XmppStanzaUtil.insertStanzaId(payload, stanzaId.toString(), domainProperties.getDomain());
 
-		xmppArchiveService.archiveEvent(forArchiveXml, info, toRoomId, to, from, stanzaId)
+		xmppArchiveService.archiveEvent(forArchiveXml, id, toRoomId, to, from, stanzaId)
 		.doFinally(signal -> {
 			// publish to cluster for synchronization
 			clusterMessagePublisher.convertAndSendToUser(id.toString(), to, from, chatType, forArchiveXml);

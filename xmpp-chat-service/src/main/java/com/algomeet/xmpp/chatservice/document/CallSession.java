@@ -2,6 +2,9 @@ package com.algomeet.xmpp.chatservice.document;
 
 import lombok.Builder;
 import lombok.Data;
+
+import java.util.UUID;
+
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.Indexed;
@@ -33,20 +36,20 @@ public class CallSession {
     private String sid;       // Maps to your Jingle 'sid'
 
     @Indexed
-    private String caller;    // caller user key
+    private UUID caller;    // caller user key
     
     @Indexed
     private String callerSid; // caller websocket connection session ID
 
     @Indexed
-    private String callee;    // callee user key
+    private UUID callee;    // callee user key
     
     @Indexed
     private String calleeSid;  // callee websocket connection session ID
 
     private String callType;  // "audio" or "video"
     
-    private String roomId;    // Room/Group chat Id
+    private UUID roomId;    // Room/Group chat Id
     
     private CallStatus status;
     

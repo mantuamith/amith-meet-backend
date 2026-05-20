@@ -60,7 +60,7 @@ public class CallLifeCycleTracker {
 		if (isInitiate) {
 			handleInitiate(toJid, fromJid, xml, sid, principal);
 		} else if (isAccept) {
-			handleAccept(sid, principal.getUserKey(), principal.getSessionId());
+			handleAccept(sid, UUID.fromString(principal.getUserKey()), principal.getSessionId());
 		} else if (isTerminate) {
 			handleTerminate(ctx, toJid, fromJid, xml, sid, principal);
 		}
@@ -100,8 +100,8 @@ public class CallLifeCycleTracker {
 				callProperties.getRingingTimeout().getSeconds());
 		
 		// Track call initiation for duration calculation
-		callTrackerService.trackInitiation(sid, principal.getUserKey(), principal.getSessionId(), 
-				XmppUtil.getUserKey(toJid), callType).subscribe();
+		callTrackerService.trackInitiation(sid, UUID.fromString(principal.getUserKey()), principal.getSessionId(), 
+				UUID.fromString(XmppUtil.getUserKey(toJid)), callType).subscribe();
 	}
 
 	/**
@@ -119,7 +119,7 @@ public class CallLifeCycleTracker {
 	 * Crucial: We must remove the SID from Redis immediately so the MissedCallScheduler 
 	 * doesn't send a "Missed Call" notification for an active conversation.
 	 */
-	private void handleAccept(String sid, String calleeUserKey, String calleeSid) {
+	private void handleAccept(String sid, UUID calleeUserKey, String calleeSid) {
 		log.info("Call accepted for SID: {}. Killing timeout timer.", sid);
 		handleResolution(sid);
 		

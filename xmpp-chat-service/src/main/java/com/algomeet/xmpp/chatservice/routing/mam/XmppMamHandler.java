@@ -1,5 +1,7 @@
 package com.algomeet.xmpp.chatservice.routing.mam;
 
+import java.util.UUID;
+
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -27,7 +29,7 @@ public class XmppMamHandler {
         if (StringUtils.hasText(to) && to.contains(domainProperties.getGroupChatDomain())) {
             String roomId = XmppUtil.getRoomId(to);
             // Call service to fetch history from the room's archive
-            xmppArchiveService.fetchMucArchive(ctx, roomId, xml, principal);
+            xmppArchiveService.fetchMucArchive(ctx, UUID.fromString(roomId), xml, principal);
         } else {
             // Call service to fetch history from the user's personal archive
             // If this server support direct chat MAM

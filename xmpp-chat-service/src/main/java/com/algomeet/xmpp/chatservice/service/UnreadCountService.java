@@ -47,8 +47,8 @@ public class UnreadCountService {
 		Query query = new Query(Criteria.where("_id").is(id));
 		Update update = new Update()
 				.inc("unread_count", 1)
-				.set("user_key", recipientKey)
-				.set("sender_key", senderKey)
+				.set("user_key", UUID.fromString(recipientKey))
+				.set("sender_key", UUID.fromString(senderKey))
 				.set("last_increment_at", Instant.now().toEpochMilli());
 
 		// upsert returns the updated document
@@ -131,7 +131,7 @@ public class UnreadCountService {
 			Long capturedIncrementAt = currentUnread.getLastIncrementAt();
 
 			// 2. Fetch the real-time pending count based on current DB state
-			return offlineMessageRepository.countByToAndFromAndIdGreaterThan(recipientKey, senderKey, messageId)
+			return offlineMessageRepository.countByToAndFromAndIdGreaterThan(UUID.fromString(recipientKey), UUID.fromString(senderKey), messageId)
 					.flatMap(count -> {
 
 						// 3. Construct the query ensuring lastIncrementAt hasn't changed
@@ -197,7 +197,7 @@ public class UnreadCountService {
 	 * Aggregates total unread count for a user across all senders reactively.
 	 */
 	public Mono<Integer> getTotalUnreadForUser(String userKey) {
-		Query query = new Query(Criteria.where("user_key").is(userKey));
+		Query query = new Query(Criteria.where("user_key").is(UUID.fromString(userKey)));
 
 		return reactiveMongoTemplate.find(query, UnreadCount.class)
 				.map(UnreadCount::getUnreadCount)
@@ -209,7 +209,7 @@ public class UnreadCountService {
 	 * Usually used to populate the main chat list/inbox.
 	 */
 	public Flux<UnreadCount> getUnreadCountsForUser(String recipientKey) {
-		Query query = new Query(Criteria.where("user_key").is(recipientKey)
+		Query query = new Query(Criteria.where("user_key").is(UUID.fromString(recipientKey))
 				.and("unread_count").gt(0));
 
 		return reactiveMongoTemplate.find(query, UnreadCount.class);
@@ -240,8 +240,8 @@ public class UnreadCountService {
 	    // but requires a single unified index tracking the sorting field across the query.
 	    Query query = new Query(
 	        new Criteria().orOperator(
-	            Criteria.where("user_key").is(targetUserKey),
-	            Criteria.where("sender_key").is(targetUserKey)
+	            Criteria.where("user_key").is(UUID.fromString(targetUserKey)),
+	            Criteria.where("sender_key").is(UUID.fromString(targetUserKey))
 	        )
 	    ).with(Sort.by(Sort.Direction.DESC, "last_increment_at"))
 	     .skip(skipValues)

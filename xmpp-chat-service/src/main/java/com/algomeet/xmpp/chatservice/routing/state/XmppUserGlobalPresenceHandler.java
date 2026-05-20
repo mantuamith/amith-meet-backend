@@ -1,5 +1,6 @@
 package com.algomeet.xmpp.chatservice.routing.state;
 
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.springframework.stereotype.Component;
@@ -185,7 +186,7 @@ public class XmppUserGlobalPresenceHandler {
 				ctx.channel().attr(XmppSessionAttributes.SM_ID_KEY).get();
 
 		// Retrieve all buffered stanzas for this SM session
-		smBufferMessageService.getStanzasForResumption(smSessionId)
+		smBufferMessageService.getStanzasForResumption(UUID.fromString(smSessionId))
 		// For each buffered stanza, immediately dispatch it to the client
 		.doOnNext(msg -> {
 
@@ -201,7 +202,7 @@ public class XmppUserGlobalPresenceHandler {
 		.doOnComplete(() -> {
 			
 			// Clean up buffer
-			smBufferMessageService.clearBuffer(smSessionId);
+			smBufferMessageService.clearBuffer(UUID.fromString(smSessionId));
 			log.info("Completed offline/SM buffer delivery for user: {}", userKey);
 
 		})

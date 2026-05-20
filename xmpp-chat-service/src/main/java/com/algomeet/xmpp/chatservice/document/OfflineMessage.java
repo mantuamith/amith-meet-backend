@@ -31,10 +31,10 @@ public class OfflineMessage {
 	@Id
 	private UUID id;          // The stanza ID from the <message id='...'> attribute
 
-	private String from;        // Sender user key / ID
+	private UUID from;        // Sender user key / ID
 
 	@Indexed
-	private String to;          // Receiver user key / ID
+	private UUID to;          // Receiver user key / ID
 
 	private String messageType; // "chat" or "normal"
 

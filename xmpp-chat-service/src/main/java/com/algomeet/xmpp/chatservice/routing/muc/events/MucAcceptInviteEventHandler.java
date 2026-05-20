@@ -7,7 +7,6 @@ import org.springframework.stereotype.Component;
 import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.dto.MucMember;
 import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
-import com.algomeet.xmpp.chatservice.dto.StanzaInfo;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.enums.MucRole;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
@@ -100,14 +99,9 @@ public class MucAcceptInviteEventHandler {
      * Persists the join event to the archive. 
      * Injects a unique Stanza-ID (XEP-0359) using a monotonic UUIDv7 for stable ordering.
      */
-    private void saveToDatabase(String id, String roomBareJid, String senderJid, MucRoomDto group, MucMember sender, UUID stanzaId, String xml) {
-        StanzaInfo info = StanzaInfo.builder()
-                .messageId(id)
-                .stanzaType(XmppMessageType.GROUPCHAT.getXmlValue())
-                .build();
-        
+    private void saveToDatabase(String id, String roomBareJid, String senderJid, MucRoomDto group, MucMember sender, UUID stanzaId, String xml) {      
 
-        xmppArchiveService.archiveEvent(xml, info, XmppUtil.getRoomId(roomBareJid), null, 
+        xmppArchiveService.archiveEvent(xml, id, XmppUtil.getRoomId(roomBareJid), null, 
         		sender.getUserKey(), stanzaId)
         .doOnError(error -> {
             log.error("Failed to archive join event for {} in room {}", senderJid, roomBareJid, error);

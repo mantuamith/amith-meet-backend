@@ -65,13 +65,13 @@ public class MucMessage {
 	private UUID messageId; 
 
 	// Indexed via the Compound Index above, but good for simple lookups
-	private String roomId;
+	private UUID roomId;
 
-	private String from;
+	private UUID from;
 
 	// Used for DIRECT PRIVATE MESSAGE (PM) WITHIN MUC 
 	@Indexed
-	private String to;
+	private UUID to;
 
 	@Size(max = 20000, message = "XML stanza is too large") // Max length 20kb
 	private String stanzaXml;

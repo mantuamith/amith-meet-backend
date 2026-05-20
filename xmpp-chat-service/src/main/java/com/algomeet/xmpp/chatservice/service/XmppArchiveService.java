@@ -74,21 +74,18 @@ public class XmppArchiveService {
 	 * @param stanzaId The unique internal ID (UUIDv7) for database indexing.
 	 * @return A {@link Mono} containing the saved {@link MucMessage}.
 	 */
-	public Mono<MucMessage> archiveEvent(String xml, StanzaInfo info, String toRoomId, String toMucMember, String from, UUID stanzaId) {	
-		UUID messageId = StringUtils.hasText(info.getMessageId()) 
-			    ? UUID.fromString(info.getMessageId().trim()) 
+	public Mono<MucMessage> archiveEvent(String xml, String id, String toRoomId, String toMucMember, String from, UUID stanzaId) {	
+		UUID messageId = StringUtils.hasText(id) 
+			    ? UUID.fromString(id) 
 			    : UuidCreator.getTimeOrderedEpoch();
 		
 		MucMessage event = new MucMessage();
 		event.setId(stanzaId);
 		event.setMessageId(messageId);
-		event.setRoomId(toRoomId);
-		event.setFrom(from);
-		event.setTo(toMucMember);
+		event.setRoomId(UUID.fromString(toRoomId));
+		event.setFrom(UUID.fromString(from));
+		event.setTo(UUID.fromString(toMucMember));
 		event.setStanzaXml(xml);
-		event.setCategory(info.getCategory());
-		event.setRefersTo(info.getTargetId());
-		event.setE2EE(info.isE2EE());
 
 		return repository.save(event);
 	}
@@ -100,14 +97,14 @@ public class XmppArchiveService {
 	 * @param xml       The MAM <query/> stanza.
 	 * @param principal User requesting the history.
 	 */
-	public void fetchMucArchive(ChannelHandlerContext ctx, String roomId, String xml, XmppPrincipal principal) {
+	public void fetchMucArchive(ChannelHandlerContext ctx, UUID roomId, String xml, XmppPrincipal principal) {
 		String afterId = XmppStanzaUtil.getFieldValue(xml, "after-id");
 		String beforeId = XmppStanzaUtil.getFieldValue(xml, "before-id");
 		int maxResults = XmppStanzaUtil.getRsmMax(xml, 50);
 		String queryId = XmppStanzaUtil.getAttribute(xml, "id");
 
 		// Get room details
-		MucRoomDto room = groupCacheService.getCachedGroup(roomId);
+		MucRoomDto room = groupCacheService.getCachedGroup(roomId.toString());
 
 		if (room == null || !(room.getMembers().stream()
 				.anyMatch(m -> principal.getUserKey().equalsIgnoreCase(m.getUserKey())))) {
@@ -143,11 +140,11 @@ public class XmppArchiveService {
 	 * Handles "Load Newer" or "Sync from last disconnect" logic.
 	 * Uses ASC order to stream messages from the oldest in the set to the newest.
 	 */
-	private void loadAfterWithRetry(String roomId, UUID currentAfterId, XmppPrincipal principal, String queryId, int maxResults) {
+	private void loadAfterWithRetry(UUID roomId, UUID currentAfterId, XmppPrincipal principal, String queryId, int maxResults) {
 		Pageable pageRequest = PageRequest.of(0, maxResults);
 
 		repository.findByRoomIdAndIdGreaterThanAndToIsNullOrEqualtoUserkeyOrderByIdAsc(
-				roomId, currentAfterId, principal.getUserKey(), pageRequest)
+				roomId, currentAfterId, UUID.fromString(principal.getUserKey()), pageRequest)
 		.collectList()
 		// Explicitly define the generic type <Void> for flatMap
 		.<Void>flatMap(list -> {
@@ -183,13 +180,13 @@ public class XmppArchiveService {
 	 * Handles "Infinite Scroll" logic (loading older messages).
 	 * Uses DESC order to find the N messages immediately preceding the 'beforeId'.
 	 */
-	private void loadBeforeIdWithRetry(ChannelHandlerContext ctx, String roomId, UUID beforeId, int maxResults, String queryId, XmppPrincipal principal) {
+	private void loadBeforeIdWithRetry(ChannelHandlerContext ctx, UUID roomId, UUID beforeId, int maxResults, String queryId, XmppPrincipal principal) {
 		log.debug("MAM Request for Room {}: beforeId={}, max={}", roomId, beforeId, maxResults);
 
 		PageRequest pageRequest = PageRequest.of(0, maxResults);
 
 		// 1. Define the source Flux
-		Flux<MucMessage> messageFlux = repository.findHistoricalMessages(roomId, beforeId, principal.getUserKey(), pageRequest);
+		Flux<MucMessage> messageFlux = repository.findHistoricalMessages(roomId, beforeId, UUID.fromString(principal.getUserKey()), pageRequest);
 
 		messageFlux
 		.collectList()
@@ -230,7 +227,7 @@ public class XmppArchiveService {
 	    
 	    // 1. Fetch all participants in this room who have read past this message's ID threshold
 	    return mucRoomReadCursorRepository.findByRoomIdAndLastReadMidGreaterThanEqual(msg.getRoomId(), msg.getMessageId())
-	            .map(MucRoomReadCursor::getUserKey) // Extract user keys
+	            .map(rc -> rc.getRoomId().toString()) // Extract user keys
 	            .collectList()                      // Accumulate reactive items into a List<String>
 	            .flatMap(userKeys -> {              // Shift into the template string construction logic
 	                // 2. Generate the dynamic XML reader tags block from your collected list
@@ -255,7 +252,7 @@ public class XmppArchiveService {
 	                        queryIdAttr,
 	                        msg.getId(),
 	                        timestamp,
-	                        mamUtil.convertToMamFormat(msg.getFrom(), msg.getRoomId(), msg.getStanzaXml()),
+	                        mamUtil.convertToMamFormat(msg.getFrom().toString(), msg.getRoomId().toString(), msg.getStanzaXml()),
 	                        readersXmlBlock
 	                );        
 
@@ -313,7 +310,7 @@ public class XmppArchiveService {
 	 * @param afterId   The UUIDv7 cursor used to resume the update stream.
 	 * @param principal The session context of the user requesting the updates.
 	 */
-	private void syncRoomRecentUpdates(String roomId, UUID afterId, XmppPrincipal principal) {
+	private void syncRoomRecentUpdates(UUID roomId, UUID afterId, XmppPrincipal principal) {
 		log.info("Syncing updates for Room {}: starting from cursor {}", roomId, afterId);
 
 		// 1. Query the repository for all message changes in this room newer than the provided ULUUIDv7ID.
@@ -338,7 +335,7 @@ public class XmppArchiveService {
 				);
 	}
 	
-	private void syncRoomDeletedMessages(String roomId, XmppPrincipal principal) {
+	private void syncRoomDeletedMessages(UUID roomId, XmppPrincipal principal) {
 		log.info("Syncing deletes for Room {}", roomId);
 
 		repository.findFirstByRoomIdOrderByIdAsc(roomId)
@@ -433,12 +430,12 @@ public class XmppArchiveService {
 	private Mono<String> buildSyncReadReceiptsXml(MucMessage msg, XmppPrincipal principal) {
 	    // 1. Fetch all participants in this room who have read past this message's ID threshold
 	    return mucRoomReadCursorRepository.findByRoomIdAndLastReadMidGreaterThanEqual(msg.getRoomId(), msg.getMessageId())
-	            .map(MucRoomReadCursor::getUserKey) // Extract user keys
+	            .map(rc -> rc.getRoomId().toString()) // Extract user keys
 	            .collectList()                      // Accumulate reactive items into a List<String>
 	            .map(userKeys -> {                  // Use .map() since we return a synchronous String from this block
 	                
 	                // Construct the group bare JID (room@service).
-	                String groupJid = jidUtil.getGroupBareJid(msg.getRoomId());
+	                String groupJid = jidUtil.getGroupBareJid(msg.getRoomId().toString());
 	                
 	                // 2. Build the synchronization stanza using the collected user keys
 	                MessageSyncReadReceiptStanza syncConversationStanza = MessageSyncReadReceiptStanza.builder()

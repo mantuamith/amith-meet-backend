@@ -7,7 +7,6 @@ import org.springframework.stereotype.Component;
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
-import com.algomeet.xmpp.chatservice.dto.StanzaInfo;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.enums.MucAffiliation;
 import com.algomeet.xmpp.chatservice.enums.MucRole;
@@ -160,14 +159,9 @@ public class MucMemberLeftEventHandler {
 			UUID stanzaId,
 			String xml) {
 
-		StanzaInfo info = StanzaInfo.builder()
-				.messageId(id)
-				.stanzaType(XmppMessageType.GROUPCHAT.getXmlValue())
-				.build();
-
 		xmppArchiveService.archiveEvent(
 				xml,
-				info,
+				id,
 				XmppUtil.getRoomId(roomBareJid),
 				null,
 				principal.getUserKey(),

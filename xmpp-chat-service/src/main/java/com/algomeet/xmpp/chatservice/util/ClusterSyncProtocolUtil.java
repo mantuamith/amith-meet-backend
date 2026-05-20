@@ -10,6 +10,6 @@ public class ClusterSyncProtocolUtil {
     public static final String v1 = "v1";
 
     // Expected number of fields for protocol version v1 payloads.
-    public static final int V1_FIELD_COUNT = 9;
+    public static final int V1_FIELD_COUNT = 10;
 
 }

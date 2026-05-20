@@ -8,7 +8,6 @@ import org.springframework.stereotype.Component;
 import com.algomeet.xmpp.chatservice.constant.XmppErrorConditions;
 import com.algomeet.xmpp.chatservice.dto.MucMember;
 import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
-import com.algomeet.xmpp.chatservice.dto.StanzaInfo;
 import com.algomeet.xmpp.chatservice.enums.PresenceStatusCode;
 import com.algomeet.xmpp.chatservice.enums.XmppErrorType;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
@@ -193,14 +192,9 @@ public class MucKickEventHandler {
 				UUID stanzaId,
 				String xml) {
 
-			StanzaInfo info = StanzaInfo.builder()
-					.messageId(id)
-					.stanzaType(XmppMessageType.GROUPCHAT.getXmlValue())
-					.build();
-
 			xmppArchiveService.archiveEvent(
 					xml,
-					info,
+					id,
 					XmppUtil.getRoomId(roomBareJid),
 					null,
 					sender.getUserKey(),

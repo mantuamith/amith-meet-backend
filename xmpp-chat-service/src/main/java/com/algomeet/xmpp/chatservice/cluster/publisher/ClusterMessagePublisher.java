@@ -176,7 +176,7 @@ public class ClusterMessagePublisher {
 			Boolean isAllowEcho,
 			String sessionId,
 			Boolean shouldCarbon,
-			Boolean ackStanza,
+			Boolean isAckStanza,
 			String payload) {
 
 		StringBuilder sb = BUFFER.get();
@@ -192,7 +192,7 @@ public class ClusterMessagePublisher {
 		.append(isAllowEcho ? "1" : "0").append(sep)
 		.append(sessionId == null ? "" : sessionId).append(sep)
 		.append(shouldCarbon ? "1" : "0").append(sep)
-		.append(ackStanza ? "1" : "0").append(sep)
+		.append(isAckStanza ? "1" : "0").append(sep)
 		.append(payload);
 
 		return sb.toString();

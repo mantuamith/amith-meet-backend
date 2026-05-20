@@ -21,7 +21,7 @@ public interface MucMessageRepository extends ReactiveMongoRepository<MucMessage
 	 */
 	@Query("{ 'roomId': ?0, 'id': { $gt: ?1 }, $or: [ { 'to': null }, { 'to': ?2 } ] }")
 	Flux<MucMessage> findByRoomIdAndIdGreaterThanAndToIsNullOrEqualtoUserkeyOrderByIdAsc(
-			String roomId, UUID afterId, String userKey, Pageable pageable
+			UUID roomId, UUID afterId, UUID userKey, Pageable pageable
 			);
 
 	/**
@@ -52,7 +52,7 @@ public interface MucMessageRepository extends ReactiveMongoRepository<MucMessage
      * @return A {@link Flux} of {@link MucMessage} sorted chronologically by their primary ID.
      */
     Flux<MucMessage> findByRoomIdAndUpdateCursorIdGreaterThanAndIdLessThanEqualOrderByIdAsc(
-            String roomId, 
+            UUID roomId, 
             UUID afterUpdateCursorId, 
             UUID limitId
     );
@@ -66,16 +66,16 @@ public interface MucMessageRepository extends ReactiveMongoRepository<MucMessage
 	@Query(value = "{ 'roomId': ?0, 'id': { $lt: ?1 }, $or: [ { 'to': null }, { 'to': ?2 } ] }", 
 			sort = "{ 'id': -1 }")
 	Flux<MucMessage> findHistoricalMessages(
-			String roomId, 
+			UUID roomId, 
 			UUID beforeId, 
-			String userKey, 
+			UUID userKey, 
 			Pageable pageable
 			);
 
 	// For the very first load (no cursor)
 	@Query(value = "{ 'roomId': ?0, $or: [ { 'to': null }, { 'to': ?1 } ] }", 
 		       sort = "{ 'id': -1 }")
-	Flux<MucMessage> findByRoomIdOrderByIdDesc(String roomId, String userKey, Pageable pageable);
+	Flux<MucMessage> findByRoomIdOrderByIdDesc(UUID roomId, UUID userKey, Pageable pageable);
 
 	Mono<MucMessage> findByMessageId(UUID messageId);
 	
@@ -86,7 +86,7 @@ public interface MucMessageRepository extends ReactiveMongoRepository<MucMessage
 	 *
 	 * @param roomId
 	 */
-	Mono<MucMessage> findFirstByRoomIdOrderByIdAsc(String roomId);
+	Mono<MucMessage> findFirstByRoomIdOrderByIdAsc(UUID roomId);
 	
 	/**
      * Counts unread messages by isolating the room and checking the ID timeline first,
@@ -107,5 +107,5 @@ public interface MucMessageRepository extends ReactiveMongoRepository<MucMessage
                    "    { '$or': [ { 'to': null }, { 'to': ?2 } ] }" +
                    "  ]" +
                    "}", count = true)
-    Mono<Long> countUnreadMessages(String roomId, UUID lastReadMessageId, String userKey);
+    Mono<Long> countUnreadMessages(UUID roomId, UUID lastReadMessageId, UUID userKey);
 }

@@ -26,7 +26,7 @@ public class SmBufferMessage {
     private UUID id;          
 
     @Indexed
-    private String smSid;    
+    private UUID smSid;    
     
     /**
      * Monotonic XEP-0198 outbound sequence number.

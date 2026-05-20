@@ -2,6 +2,7 @@ package com.algomeet.xmpp.chatservice.routing.chat;
 
 import java.time.Instant;
 import java.util.Comparator;
+import java.util.UUID;
 
 import org.springframework.stereotype.Component;
 
@@ -55,7 +56,7 @@ public class OfflineMessageHandler {
      * @param principal The authenticated user profile.
      */
     public Mono<Void> deliverOfflineMessages(String userKey) {
-        return offlineMessageService.getOfflineMessages(userKey)
+        return offlineMessageService.getOfflineMessages(UUID.fromString(userKey))
             // 1. Collect all messages into memory first to release DB cursors early
             .collectList()
             .flatMapMany(messageList -> {
@@ -79,7 +80,7 @@ public class OfflineMessageHandler {
                     String xmlWithDelay = wrapWithDelay(msg.getStanzaXml(), msg.getCreatedAt());
                     
                     // Invoke dispatch directly
-                    return localStanzaDispatcher.dispatchLocally(userKey, msg.getFrom(), xmlWithDelay)
+                    return localStanzaDispatcher.dispatchLocally(userKey, msg.getFrom().toString(), xmlWithDelay)
                             // If dispatchLocally returns a Mono<Boolean>, intercept the result here
                             .doOnNext(isSuccess -> {
                                 if (Boolean.TRUE.equals(isSuccess) && msg.getIsAckStanza()) {

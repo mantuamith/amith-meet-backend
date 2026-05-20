@@ -1,6 +1,7 @@
 package com.algomeet.xmpp.chatservice.util;
 
 import java.util.List;
+import java.util.UUID;
 import java.util.regex.Pattern;
 
 import org.springframework.stereotype.Component;
@@ -37,7 +38,7 @@ public class MamUtil {
 
 
 	public static boolean isPrincipalRecipient(MucMessage msg, XmppPrincipal principal) {
-		return (msg.getTo() == null || msg.getTo().equalsIgnoreCase(principal.getUserKey()));
+		return (msg.getTo() == null || msg.getTo().compareTo(UUID.fromString(principal.getUserKey())) == 0);
 	}
 	
 	public String convertToMamFormat(String fromUserKey, String toRoomId, String msg) {
@@ -98,7 +99,7 @@ public class MamUtil {
 	public String buildSyncConversationXml(MucMessage msg, XmppPrincipal principal) {
 
 	    // Construct the group bare JID (room@service).
-	    String groupJid = jidUtil.getGroupBareJid(msg.getRoomId());
+	    String groupJid = jidUtil.getGroupBareJid(msg.getRoomId().toString());
 	    MessageSyncConversationStanza syncConversationStanza = MessageSyncConversationStanza.builder()
 
 	            // Unique ID for this synchronization stanza.
@@ -132,7 +133,7 @@ public class MamUtil {
 					.id(UuidCreator.getTimeOrderedEpoch().toString())
 					.targetId(msg.getMessageId().toString()) // The message ID that should be hidden from view
 					.from(principal.getBareJid()) // Sent from the user's bare JID
-					.room(jidUtil.getGroupBareJid(msg.getRoomId()))
+					.room(jidUtil.getGroupBareJid(msg.getRoomId().toString()))
 					// Removed to attribute to shorten the message
 					//.to(principal.getBareJid())   // Sent to self to ensure all connected resources (phone, web) sync
 					.build();
@@ -153,7 +154,7 @@ public class MamUtil {
 	public String buildRetractionXml(MucMessage msg, XmppPrincipal principal) {
 		String timestamp = XmppStanzaUtil.formatTimestamp(msg.getDeletedAt());
 		// Construct the Occupant JID (room@service/nick)
-		String groupJid = jidUtil.getGroupBareJid(msg.getRoomId()) + "/" + msg.getFrom();
+		String groupJid = jidUtil.getGroupBareJid(msg.getRoomId().toString()) + "/" + msg.getFrom();
 
 		MessageRetractStanza retractStanza = MessageRetractStanza.builder()
 				.id(UuidCreator.getTimeOrderedEpoch().toString()) // Unique ID for this specific retraction stanza

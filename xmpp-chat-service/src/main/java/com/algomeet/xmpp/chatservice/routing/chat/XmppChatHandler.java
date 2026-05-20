@@ -99,7 +99,6 @@ public class XmppChatHandler {
 			
 			// Determine if message is ACK stanza
 			isAckStanza = XmppStanzaUtil.isMessageAckStanza(originalXml);
-			
 			offlineMessageService.save(messageId, toUserKey, fromUserKey, type, isAckStanza, forArchiveXml)
 		            .doOnSuccess(saved -> {
 		            	boolean isAckMessage = false;
@@ -142,7 +141,7 @@ public class XmppChatHandler {
 					        	
 					        	// Clear the heavy XML payload from the offline buffer now that the client has acknowledged delivery.
 					        	// We trigger this asynchronously and fire-and-forget; it does not block the main Netty/XMPP processing loop.
-					        	offlineMessageService.clearOfflineStanza(principal.getUserKey(), UUID.fromString(ackMessageId))
+					        	offlineMessageService.clearOfflineStanza(UUID.fromString(principal.getUserKey()), UUID.fromString(ackMessageId))
 					        	.doOnSuccess(unused -> log.debug("Successfully clear offline stanza for user: {} up to ID: {}", principal.getUserKey(), ackMessageId))
 					        	.doOnError(error -> log.error("Failed to clear offline message database buffer for user: {}", principal.getUserKey(), error))
 					        	.subscribe();
@@ -162,7 +161,7 @@ public class XmppChatHandler {
 					            unreadCountService.syncUnreadCount(toUserKey, fromUserKey, UUID.fromString(ackMessageId), principal)
 					            .doOnSuccess(success -> {
 					            	// Trigger a fire-and-forget background purge of processed/soft-deleted messages.
-					            	offlineMessageService.purgeDeletedMessagesUpToCheckpoint(fromUserKey, toUserKey, messageId).subscribe();
+					            	offlineMessageService.purgeDeletedMessagesUpToCheckpoint(UUID.fromString(fromUserKey), UUID.fromString(toUserKey), messageId).subscribe();
 					            })
 					            .subscribe();
 					        }
@@ -206,7 +205,7 @@ public class XmppChatHandler {
 			callTracker.track(ctx, toJid, fromJid, originalXml, principal);
 		}   				
 
-		// Check if carbon copy is required, if archivable the Carbon Copy required
+		// Check if carbon copy is required, if archivable the Carbon Copy is required
 		Boolean shouldCarbon = isArchivable;
 		
 		// Broadast to Redis: Even if they are AWAY/DND, we attempt delivery 
@@ -218,7 +217,7 @@ public class XmppChatHandler {
 	}
 	
 	public Mono<Void> processRetraction(String retractId, String toUserKey, String fromUserKey, XmppPrincipal principal) {
-		return offlineMessageService.findByIdAndSender(UUID.fromString(retractId), fromUserKey)
+		return offlineMessageService.findByIdAndSender(UUID.fromString(retractId), UUID.fromString(fromUserKey))
 				.flatMap(message -> {
 
 					// Decrement the unread counter for this specific sender-recipient pair.

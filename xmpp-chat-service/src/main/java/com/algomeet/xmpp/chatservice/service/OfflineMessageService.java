@@ -57,8 +57,8 @@ public class OfflineMessageService {
     public Mono<OfflineMessage> save(UUID id, String to, String from, String type, Boolean isAckStanza, String originalXml) {
         OfflineMessage offlineMessage = OfflineMessage.builder()
                 .id(id)
-                .to(to)
-                .from(from)
+                .to(UUID.fromString(to))
+                .from(UUID.fromString(from))
                 .messageType(type)
                 .isAckStanza(isAckStanza)
                 .stanzaXml(originalXml)
@@ -80,8 +80,8 @@ public class OfflineMessageService {
     public Mono<OfflineMessage> save(UUID id, String to, String from, String type, String originalXml) {
         OfflineMessage offlineMessage = OfflineMessage.builder()
                 .id(id)
-                .to(to)
-                .from(from)
+                .to(UUID.fromString(to))
+                .from(UUID.fromString(from))
                 .messageType(type)
                 .stanzaXml(originalXml)
                 .build();
@@ -95,7 +95,7 @@ public class OfflineMessageService {
      * @param to The User Key/JID of the recipient.
      * @return A list of {@link OfflineMessage} objects in the order they were originally sent.
      */
-    public Flux<OfflineMessage> getOfflineMessages(String to) {
+    public Flux<OfflineMessage> getOfflineMessages(UUID to) {
         return offlineMessageRepository.findByToAndDeletedAtIsNullOrderByIdAsc(to);
     }
     
@@ -108,7 +108,7 @@ public class OfflineMessageService {
      * @param messageId The unique UUID of the XMPP stanza.
      * @return A Mono signals completion (Void) once the database write is acknowledged.
      */
-    public Mono<Void> clearOfflineStanza(String to, UUID messageId) {
+    public Mono<Void> clearOfflineStanza(UUID to, UUID messageId) {
         // Leverage your compound index {'to': 1, 'id': 1} for an efficient O(1) look-up
         Query query = Query.query(
             Criteria.where("to").is(to)
@@ -144,7 +144,7 @@ public class OfflineMessageService {
         return offlineMessageRepository.deleteAllById(messageIds);
     }
         
-    public Mono<OfflineMessage> findByIdAndSender(UUID id, String sender) {
+    public Mono<OfflineMessage> findByIdAndSender(UUID id, UUID sender) {
         // Ensuring we check both ID and the 'from' JID for security
         return offlineMessageRepository.findByIdAndFromAndDeletedAtIsNull(id, sender);
     }
@@ -167,7 +167,7 @@ public class OfflineMessageService {
      * @param id The upper bound message checkpoint ID (exclusive boundary; only IDs less than this are purged).
      * @return A {@code Mono<Void>} that signals completion when the matching records have been permanently deleted from MongoDB.
      */
-    public Mono<Void> purgeDeletedMessagesUpToCheckpoint(String to, String from, UUID id){
+    public Mono<Void> purgeDeletedMessagesUpToCheckpoint(UUID to, UUID from, UUID id){
     	return offlineMessageRepository.deleteByToAndFromAndIdLessThanEqualAndDeletedAtIsNotNull(to, from, id);
     }
 }

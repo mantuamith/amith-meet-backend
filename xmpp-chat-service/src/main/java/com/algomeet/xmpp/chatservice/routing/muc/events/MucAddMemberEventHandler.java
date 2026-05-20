@@ -10,7 +10,6 @@ import org.springframework.util.CollectionUtils;
 
 import com.algomeet.xmpp.chatservice.dto.MucMember;
 import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
-import com.algomeet.xmpp.chatservice.dto.StanzaInfo;
 import com.algomeet.xmpp.chatservice.enums.MucAffiliation;
 import com.algomeet.xmpp.chatservice.enums.MucRole;
 import com.algomeet.xmpp.chatservice.enums.UserState;
@@ -295,16 +294,9 @@ public class MucAddMemberEventHandler {
 			UUID stanzaId,
 			String xml) {
 
-		StanzaInfo info = StanzaInfo.builder()
-				.messageId(id)
-				.stanzaType(
-						XmppMessageType.GROUPCHAT.getXmlValue()
-						)
-				.build();
-
 		xmppArchiveService.archiveEvent(
 				xml,
-				info,
+				id,
 				XmppUtil.getRoomId(roomBareJid),
 				null,
 				sender.getUserKey(),

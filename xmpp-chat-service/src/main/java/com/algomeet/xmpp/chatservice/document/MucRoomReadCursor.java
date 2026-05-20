@@ -23,9 +23,9 @@ public class MucRoomReadCursor {
     @Id
     private String id; // Structural compound key: String.format("%s_%s", userKey, roomId)
 
-    private String userKey;
+    private UUID userKey;
 
-    private String roomId;
+    private UUID roomId;
 
     private UUID lastReadMid; // The 'id' of the last message read by the user
 

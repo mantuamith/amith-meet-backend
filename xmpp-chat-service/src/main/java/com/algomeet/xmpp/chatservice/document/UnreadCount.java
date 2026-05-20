@@ -20,11 +20,11 @@ public class UnreadCount {
 
 	@Indexed
 	@Field("user_key")
-	private String userKey; // The person who OWNS this unread count
+	private UUID userKey; // The person who OWNS this unread count
 
 	@Indexed
 	@Field("sender_key")
-	private String senderKey; // The person who SEND this unread count
+	private UUID senderKey; // The person who SEND this unread count
 
 	@Field("unread_count")
 	private int unreadCount = 0;

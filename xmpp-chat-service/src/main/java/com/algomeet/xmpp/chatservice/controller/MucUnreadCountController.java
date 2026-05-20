@@ -13,6 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.UUID;
 
 @Slf4j
 @RestController
@@ -29,7 +30,7 @@ public class MucUnreadCountController implements MucUnreadCountControllerDoc{
     public ResponseEntity<CommonResponse<List<MucUnreadCount>>> getUnreadRooms() {
         String userKey = SecurityUtil.getUserKey();
         return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, 
-        		mucUnreadCountService.getUnreadCountsByUser(userKey)));
+        		mucUnreadCountService.getUnreadCountsByUser(UUID.fromString(userKey))));
     }
 
     /**
@@ -43,7 +44,7 @@ public class MucUnreadCountController implements MucUnreadCountControllerDoc{
         String userKey = SecurityUtil.getUserKey();
         
         // Step 2: Fetch the active room unread metrics block from the service layer
-        List<MucUnreadCount> unreadCounts = mucUnreadCountService.getUnreadCountsByUser(userKey);
+        List<MucUnreadCount> unreadCounts = mucUnreadCountService.getUnreadCountsByUser(UUID.fromString(userKey));
         
         // Step 3: Stream and sum up the counts using an inline integer reduction accumulator
         int totalUnreadBadge = unreadCounts.stream()
@@ -61,6 +62,6 @@ public class MucUnreadCountController implements MucUnreadCountControllerDoc{
     public ResponseEntity<CommonResponse<Integer>> getRoomUnread(@PathVariable String roomId) {
         String userKey = SecurityUtil.getUserKey();
         return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, 
-        		mucUnreadCountService.getUnreadCount(userKey, roomId)));
+        		mucUnreadCountService.getUnreadCount(UUID.fromString(userKey), UUID.fromString(roomId))));
     }
 }

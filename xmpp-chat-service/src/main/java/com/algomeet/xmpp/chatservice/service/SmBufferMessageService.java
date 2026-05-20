@@ -33,7 +33,7 @@ public class SmBufferMessageService {
 	 * @param stanzaXml The raw XML content to be buffered.
 	 * @return A Mono containing the saved SmBufferMessage.
 	 */
-	public Mono<SmBufferMessage> bufferStanza(String smSessionId, UUID stanzaId, UUID seq, String stanzaXml) {    	
+	public Mono<SmBufferMessage> bufferStanza(UUID smSessionId, UUID stanzaId, UUID seq, String stanzaXml) {    	
 		SmBufferMessage message = SmBufferMessage.builder()
 				.id(stanzaId)
 				.smSid(smSessionId)
@@ -51,7 +51,7 @@ public class SmBufferMessageService {
 	 * * @param smId The Stream Management ID.
 	 * @return A Flux of stanzas ordered by creation time.
 	 */
-	public Flux<SmBufferMessage> getStanzasForResumption(String smSid) {
+	public Flux<SmBufferMessage> getStanzasForResumption(UUID smSid) {
 		log.debug("Retrieving buffered stanzas for resumption of session [{}]", smSid);
 		return repository.findBySmSidOrderBySeqAsc(smSid);
 	}
@@ -63,7 +63,7 @@ public class SmBufferMessageService {
 	 * * @param smId The Stream Management ID.
 	 * @return A Mono indicating completion.
 	 */
-	public Mono<Void> clearBuffer(String smSid) {
+	public Mono<Void> clearBuffer(UUID smSid) {
 		return repository.deleteBySmSid(smSid)
 				.doOnSuccess(v -> log.debug("Cleared SM buffer for session [{}]", smSid));
 	}
