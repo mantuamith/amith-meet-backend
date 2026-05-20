@@ -101,9 +101,6 @@ public class XmppChatHandler {
 			isAckStanza = XmppStanzaUtil.isMessageAckStanza(originalXml);
 			offlineMessageService.save(messageId, toUserKey, fromUserKey, type, isAckStanza, forArchiveXml)
 		            .doOnSuccess(saved -> {
-		            	boolean isAckMessage = false;
-		            	boolean isRetractStanza = false;
-		    		            	
 		            	// Send an immediate server-level acknowledgment to the sender.
 		            	//
 		            	// This acknowledgment confirms that:
@@ -122,8 +119,6 @@ public class XmppChatHandler {
 
 		            	    // Ensure the retract ID is valid and not empty before proceeding
 		            	    if (StringUtils.hasText(retractMessageId)) {
-		            	        // Flag this message as a protocol-level retraction rather than a standard chat message
-		            	        isRetractStanza = true;
 		            	        
 		            	        // Execute the deletion logic (checking permissions, removing from offline storage, and updating MAM)
 		            	        processRetraction(retractMessageId, toUserKey, fromUserKey, principal).subscribe();
@@ -134,7 +129,6 @@ public class XmppChatHandler {
 					    // If the stanza contains the 'urn:xmpp:receipts' namespace, the recipient's 
 					    // device has successfully received the message.
 					    if (originalXml.contains(XmppReceiptUtil.NS_RECEIPTS)) {
-					    	isAckMessage = true;
 
 					        String ackMessageId = xmppReceiptUtil.getAckMessageId(originalXml);
 					        if (StringUtils.hasText(ackMessageId)) {
@@ -152,7 +146,6 @@ public class XmppChatHandler {
 					    // If the stanza contains the 'urn:xmpp:chat-markers:0' namespace (displayed), 
 					    // the user has actively viewed the conversation.
 					    if (originalXml.contains(XmppReadUtil.NS_DISPLAYS)) {
-					    	isAckMessage = true;
 					        String ackMessageId = xmppReadUtil.getAckMessageId(originalXml);
 					        
 					        if (StringUtils.hasText(ackMessageId)) {
@@ -167,7 +160,7 @@ public class XmppChatHandler {
 					        }
 					    }
 					    
-					    if (!isAckMessage && !isRetractStanza) {
+					    if (XmppStanzaUtil.isCountableStanza(originalXml)) {
 					    	// Asynchronous Unread Tracking
 					    	// Increment the unread counter for the recipient (toUserKey) relative to the sender (fromUserKey).
 					    	// This is handled reactively to avoid blocking the Netty event loop during DB writes.
