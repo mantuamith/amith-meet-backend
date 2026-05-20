@@ -8,6 +8,6 @@ import org.springframework.stereotype.Component;
 @Component
 @Data
 public class LinkProps {
-    @Value("${algomeet.links.base:https://meet.algoframe.in}")
+    @Value("${algomeet.links.base:https://fat-meet.algomeet.app}")
     private String base;
 }

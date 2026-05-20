@@ -23,6 +23,7 @@ import java.util.Map;
 @AllArgsConstructor
 public class AuthService {
 
+    private static final String DEFAULT_PLAN_CODE = "FREE";
 
     private final UserClient userClient;
     private final PasswordEncoder passwordEncoder;
@@ -47,10 +48,7 @@ public class AuthService {
             refreshTokenStore.revokeAllForUser(user.getEmail());
         }
 
-        Map<String, String> planResponse =
-                subscriptionClient.getUserPlan(user.getId());
-
-        String planCode = planResponse.getOrDefault("planCode", "FREE");
+        String planCode = resolvePlanCode(user.getId());
 
         // 3) Mint tokens WITH sid
         //String accessToken  = jwtUtil.generateToken(user, sid);
@@ -143,10 +141,7 @@ public class AuthService {
             // either revoked or another login rotated SID
             return AuthResponse.from(ResponseCode.AUTH_SESSION_REVOKED, user);
         }
-        Map<String, String> planResponse =
-                subscriptionClient.getUserPlan(user.getId());
-
-        String latestPlan = planResponse.getOrDefault("planCode", "FREE");
+        String latestPlan = resolvePlanCode(user.getId());
 
         // 5) issue new ACCESS token with SAME sid; optionally extend/rotate refresh here
         String newAccess = jwtUtil.generateToken(user, currentSid, latestPlan);
@@ -172,6 +167,26 @@ public class AuthService {
     private String safeMsg(Throwable t) {
         String m = t.getMessage();
         return (m == null || m.length() > 200) ? t.getClass().getSimpleName() : m;
+    }
+
+    private String resolvePlanCode(Long userId) {
+        try {
+            Map<String, String> planResponse = subscriptionClient.getUserPlan(userId);
+            if (planResponse == null) {
+                log.warn("SUBSCRIPTION: null plan response for userId={}, defaulting plan={}",
+                        userId, DEFAULT_PLAN_CODE);
+                return DEFAULT_PLAN_CODE;
+            }
+            return planResponse.getOrDefault("planCode", DEFAULT_PLAN_CODE);
+        } catch (feign.FeignException fe) {
+            log.warn("SUBSCRIPTION: upstream error for userId={}, status={}, defaulting plan={}",
+                    userId, fe.status(), DEFAULT_PLAN_CODE);
+            return DEFAULT_PLAN_CODE;
+        } catch (Exception e) {
+            log.warn("SUBSCRIPTION: unexpected error for userId={}, err={}, defaulting plan={}",
+                    userId, safeMsg(e), DEFAULT_PLAN_CODE);
+            return DEFAULT_PLAN_CODE;
+        }
     }
 
 }

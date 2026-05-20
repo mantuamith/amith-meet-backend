@@ -10,6 +10,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.*;
 import java.security.Principal;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -79,8 +81,9 @@ class MessageActionsWsControllerTest {
         ForwardRequest req = new ForwardRequest();
         req.setOriginalMessageId("orig2");
         req.setReceiver("bob");
-
-        controller.wsForward(req, principal);
+        List<ForwardRequest> list = new ArrayList<>();
+        list.add(req);
+        controller.wsForward(list, principal);
         verify(actions).forward(any(ForwardRequest.class), eq("alice"), isNull());
     }
 }

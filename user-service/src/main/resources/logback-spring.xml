@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<configuration debug="false" scan="true" scanPeriod="1 seconds">
+<configuration debug="false">
 
     <contextName>${hostname}</contextName>
 
@@ -29,28 +29,6 @@
         </encoder>
         <filter class="ch.qos.logback.classic.filter.LevelFilter">
             <level>ERROR</level>
-            <onMatch>ACCEPT</onMatch>
-            <onMismatch>DENY</onMismatch>
-        </filter>
-    </appender>
-
-    <!-- WARN logs -->
-    <appender name="FILE_WARN" class="ch.qos.logback.core.rolling.RollingFileAppender">
-        <file>${LOG_PATH}/${appName}/${appName}-warn.log</file>
-        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
-            <fileNamePattern>${LOG_PATH}/${appName}/${appName}-warn-%d{yyyy-MM-dd}.%i.log</fileNamePattern>
-            <timeBasedFileNamingAndTriggeringPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
-                <maxFileSize>200MB</maxFileSize>
-            </timeBasedFileNamingAndTriggeringPolicy>
-        </rollingPolicy>
-        <append>true</append>
-        <encoder class="ch.qos.logback.core.encoder.LayoutWrappingEncoder">
-            <layout class="org.apache.skywalking.apm.toolkit.log.logback.v1.x.TraceIdPatternLogbackLayout">
-                <pattern>${CONSOLE_LOG_PATTERN}</pattern>
-            </layout>
-        </encoder>
-        <filter class="ch.qos.logback.classic.filter.LevelFilter">
-            <level>WARN</level>
             <onMatch>ACCEPT</onMatch>
             <onMismatch>DENY</onMismatch>
         </filter>
@@ -119,28 +97,27 @@
             </layout>
         </encoder>
         <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
-            <level>DEBUG</level>
+            <level>INFO</level>
         </filter>
     </appender>
 
-    <logger name="org.springframework" level="ERROR" />
     <logger name="com.algomeet" level="INFO" />
+    <logger name="org.springframework" level="ERROR" />
+    <logger name="org.hibernate" level="ERROR" />
 
     <!-- Production profile -->
-    <springProfile name="pro">
-        <root level="INFO">
+    <springProfile name="prod">
+        <root level="ERROR">
             <appender-ref ref="FILE_ERROR" />
-            <appender-ref ref="FILE_WARN" />
             <appender-ref ref="FILE_INFO" />
             <appender-ref ref="LOGSTASH" />
         </root>
     </springProfile>
 
     <!-- Dev / non-prod profile -->
-    <springProfile name="!pro">
-        <root level="INFO">
+    <springProfile name="!prod">
+        <root level="ERROR">
             <appender-ref ref="FILE_ERROR" />
-            <appender-ref ref="FILE_WARN" />
             <appender-ref ref="FILE_INFO" />
             <appender-ref ref="LOGSTASH" />
             <appender-ref ref="STDOUT" />

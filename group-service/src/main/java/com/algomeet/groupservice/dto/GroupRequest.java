@@ -41,15 +41,18 @@ public class GroupRequest {
      */
     private boolean emptyGroup;
 
-    /**
-     * Optional user key of the group owner.
-     * <p>
-     * Behavior:
-     * <ul>
-     *   <li>If not provided, the group creator is assigned as the owner</li>
-     *   <li>The owner has full administrative privileges</li>
-     *   <li>Used only when {@code emptyGroup = true}</li>
-     * </ul>
-     */
-    private String ownerUserKey;
+
+    private Long createdAt;
+
+//    /**
+//     * Optional user key of the group owner.
+//     * <p>
+//     * Behavior:
+//     * <ul>
+//     *   <li>If not provided, the group creator is assigned as the owner</li>
+//     *   <li>The owner has full administrative privileges</li>
+//     *   <li>Used only when {@code emptyGroup = true}</li>
+//     * </ul>
+//     */
+//    private String ownerUserKey;
 }

@@ -8,6 +8,9 @@ import org.springframework.data.mongodb.core.mapping.Field;
 @NoArgsConstructor
 public class ForwardInfo {
 
+    @Field("sequence")
+    private Integer sequence;
+
     @Field("isForwarded")
     private boolean isForwarded = true;
 

@@ -18,6 +18,7 @@ import com.algomeet.chatservice.util.SecurityUtil;
 
 import jakarta.validation.Valid;
     import lombok.AllArgsConstructor;
+    import lombok.extern.slf4j.Slf4j;
     import org.springframework.data.domain.PageRequest;
     import org.springframework.data.domain.Pageable;
     import org.springframework.data.domain.Sort;
@@ -35,6 +36,7 @@ import jakarta.validation.Valid;
     @RestController
     @RequestMapping("/api/messages")
     @AllArgsConstructor
+    @Slf4j
     public class MessageController {
 
         private final MessageRepository messageRepository;
@@ -151,15 +153,11 @@ import jakarta.validation.Valid;
             }
         }
 
-
-
-
         //API to GET  Recent Messages for a User ( all messaages from all users).
         @GetMapping("/recent")
         public List<RecentReceivedMessageResponse> getRecentMessages(@RequestParam String receiver) {
             return messageService.getRecentMessages(receiver);
         }
-
 
         // Recent unread messages API = TO Address
         @GetMapping("/recent/{userId}")
@@ -173,7 +171,6 @@ import jakarta.validation.Valid;
             messageService.resetUnreadCount(request.getSender(), request.getReceiver());
             return ResponseEntity.noContent().build();
         }
-
 
         @PostMapping("/mark-as-read")
         public ResponseEntity<Void> markAsRead(@Valid @RequestBody ResetUnreadRequest request) {
@@ -203,10 +200,39 @@ import jakarta.validation.Valid;
             final String me = getCurrentUserName();
             long affected = messageService.clearChatForUser(me, req.getContactId());
 
+            log.info("Clear chat for user {} and affected {}", me, affected);
+
             // push real-time UI updates
             messageService.pushAfterClear(me, req.getContactId(), affected);
 
             return ResponseEntity.ok(new ClearChatResult(affected, req.getContactId()));
+        }
+
+        @GetMapping("/group/{groupId}/{messageId}/receipts")
+        public ResponseEntity<GroupMessageReceiptResponse> getGroupReceipts(
+                @PathVariable String groupId,
+                @PathVariable String messageId
+        ) {
+            String currentUser = SecurityContextHolder.getContext().getAuthentication().getName();
+
+            GroupDto group = groupClient.getGroupById(groupId);
+
+            boolean member = group.getMembers()
+                    .stream()
+                    .anyMatch(m -> currentUser.equals(m.getUsername()));
+
+            if (!member) {
+                throw new RuntimeException("Access denied");
+            }
+
+            GroupMessageReceiptResponse response =
+                    messageService.getGroupMessageReceipts(groupId, messageId);
+
+            if (response == null) {
+                return ResponseEntity.notFound().build();
+            }
+
+            return ResponseEntity.ok(response);
         }
 
     }

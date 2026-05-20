@@ -239,8 +239,26 @@ public class XmppStanzaUtil {
 		Pattern pattern = Pattern.compile(regex);
 		Matcher matcher = pattern.matcher(xml);
 
-		return matcher.find() ? matcher.group(1) : null;
-	}
+        return matcher.find() ? matcher.group(1) : null;
+    }
+
+	public static String replaceBodyTag(String xml, String tagName) {
+      return "";
+    }
+    
+    /**
+     * Determines if the incoming XML string is one of the three core XMPP stanzas:
+     * <message/>, <presence/>, or <iq/>.
+     * * This check is vital for XEP-0198 Stream Management to ensure we only increment
+     * the 'h' (handled) counter for top-level stanzas and not for protocol control 
+     * elements like <r/>, <a/>, or <sm/>.
+     *
+     * @param xml The raw XML string from the WebSocket frame.
+     * @return true if it is a core stanza, false otherwise.
+     */
+    public static boolean isCountableStanza(String xml) {
+        if (xml == null) return false;
+    }
 
 	/**
 	 * Extracts the text content of a direct child tag.

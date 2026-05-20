@@ -8,6 +8,7 @@ import java.util.List;
 @AllArgsConstructor
 public class ReadReceipt {
     private String contactId;         // who read them (user2)
+    private String groupId;
     private List<String> messageIds;  // which messages got read
     private long atEpochSec;          // when it was marked READ
 }
