@@ -16,7 +16,6 @@ import com.algomeet.xmpp.chatservice.routing.dispacher.LocalStanzaDispatcher;
 import com.algomeet.xmpp.chatservice.routing.muc.MucMessageRouter;
 import com.algomeet.xmpp.chatservice.service.XmppArchiveService;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
-import com.algomeet.xmpp.chatservice.util.MucCommandUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
 import com.github.f4b6a3.uuid.UuidCreator;
@@ -71,9 +70,8 @@ public class MucKickEventHandler {
 			return;
 		}
 
-		String targetJid = jidUtil.getBareJid(victimJid);
 		String roomBareJid = XmppUtil.getRoomBareJid(roomJid);
-		String kickPresence = buildKickPresence(roomBareJid, victimUserKey, targetJid, senderJid, reason);
+		String kickPresence = buildKickPresence(roomBareJid, victimUserKey, victimJid, senderJid, reason);
 
 		mucMessageRouter.broadcastToOccupants(id, sender.getUserKey(), group, kickPresence, true);
 		sendSuccessResponse(ctx, senderJid, roomJid, id);
