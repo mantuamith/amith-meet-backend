@@ -82,13 +82,13 @@ public class XmppArchiveService {
 		event.setMessageId(messageId);
 		event.setRoomId(UUID.fromString(toRoomId));
 		event.setFrom(UUID.fromString(from));
-		event.setTo(UUID.fromString(toMucMember));
+		event.setTo(StringUtils.hasText(toMucMember) ? UUID.fromString(toMucMember) : null);
 		event.setCountable(XmppStanzaUtil.isCountableMessage(xml));
 		event.setStanzaXml(xml);
 
 		return repository.save(event);
 	}
-
+	
 	/**
 	 * Routes MAM queries to the appropriate pagination handler based on RSM fields.
 	 * * @param ctx       Netty context.
