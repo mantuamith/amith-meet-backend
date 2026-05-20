@@ -319,6 +319,7 @@ public class MucAddMemberEventHandler {
 						"  <x xmlns='http://algomeet.app/protocol/system'>" +
 						"    <event type='member_added' jid='%s'/>" +
 						"  </x>" +
+						"<countable xmlns='urn:algomeet:meta:0'/>" +
 						"</message>",
 						id,
 						fromJid,

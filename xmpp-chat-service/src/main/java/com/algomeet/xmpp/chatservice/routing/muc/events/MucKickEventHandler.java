@@ -175,6 +175,7 @@ public class MucKickEventHandler {
 							"  <x xmlns='http://algomeet.app/protocol/system'>" +
 							"    <event type='member_removed' jid='%s'/>" +
 							"  </x>" +
+							"<countable xmlns='urn:algomeet:meta:0'/>" +
 							"</message>",
 							id,
 							fromJid,

@@ -313,6 +313,7 @@ public class MucMissedCallService {
 						"<subject>Missed %s Call</subject>" +
 						"<body>Missed %s call</body>" +
 						"<call-log xmlns='urn:xmpp:algomeet:calls' type='%s' status='missed' timestamp='%s' sid='%s'/>" +
+						"<countable xmlns='urn:algomeet:meta:0'/>" +
 						"</message>",
 						fromRoomJid, toJid, id, type, type, type, Instant.now().toString(), sid
 				);	
