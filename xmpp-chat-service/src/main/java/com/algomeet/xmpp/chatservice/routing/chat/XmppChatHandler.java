@@ -1,6 +1,5 @@
 package com.algomeet.xmpp.chatservice.routing.chat;
 
-import java.time.Instant;
 import java.util.Set;
 import java.util.UUID;
 
