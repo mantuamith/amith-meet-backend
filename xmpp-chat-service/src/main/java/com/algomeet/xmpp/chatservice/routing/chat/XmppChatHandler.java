@@ -1,6 +1,5 @@
 package com.algomeet.xmpp.chatservice.routing.chat;
 
-import java.time.Instant;
 import java.util.Set;
 import java.util.UUID;
 
@@ -97,7 +96,7 @@ public class XmppChatHandler {
 				    ? UUID.fromString(id.trim()) 
 				    : UuidCreator.getTimeOrderedEpoch();
 			
-			boolean isCountable = XmppStanzaUtil.isCountableStanza(originalXml);
+			boolean isCountable = XmppStanzaUtil.isCountableMessage(originalXml);
 			
 			// Determine if message is ACK stanza
 			isAckStanza = XmppStanzaUtil.isMessageAckStanza(originalXml);
@@ -224,7 +223,6 @@ public class XmppChatHandler {
 					String newString = "<body>This message was deleted</body>";
 					message.setStanzaXml(XmppStanzaUtil.markAsRetractedStanza(message.getStanzaXml(), newString));
 					message.setCountable(false);
-					message.setDeletedAt(Instant.now());
 					return offlineMessageService.save(message)
 							.then();
 				});
