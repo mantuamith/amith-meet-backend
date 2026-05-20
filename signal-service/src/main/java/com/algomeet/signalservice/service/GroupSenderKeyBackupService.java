@@ -38,7 +38,7 @@ public class GroupSenderKeyBackupService {
 		return GroupSenderKeyBackupMapper.toResponse(saved);
 	}
 
-	public GroupSenderKeyBackupResponse update(UUID userKey, String groupId, UUID distributionId, GroupSenderKeyBackupUpdateRequest request) {
+	public GroupSenderKeyBackupResponse update(UUID userKey, UUID groupId, UUID distributionId, GroupSenderKeyBackupUpdateRequest request) {
 		return repository.findById(new GroupSenderKeyBackupId(userKey, groupId, distributionId))
 				.map(entity -> {
 
@@ -51,7 +51,7 @@ public class GroupSenderKeyBackupService {
 				.orElseThrow(() -> new RecordNotFoundException("Group sender key backup not found"));
 	}
 
-	public Optional<GroupSenderKeyBackupResponse> findById(UUID userKey, String groupId, UUID distributionId) {
+	public Optional<GroupSenderKeyBackupResponse> findById(UUID userKey, UUID groupId, UUID distributionId) {
 		return repository.findById(new GroupSenderKeyBackupId(userKey, groupId, distributionId))
 				.map(GroupSenderKeyBackupMapper::toResponse);
 	}
@@ -63,14 +63,14 @@ public class GroupSenderKeyBackupService {
 				.collect(Collectors.toList());
 	}
 
-	public List<GroupSenderKeyBackupResponse> findByGroup(String groupId) {
+	public List<GroupSenderKeyBackupResponse> findByGroup(UUID groupId) {
 		return repository.findByIdGroupId(groupId)
 				.stream()
 				.map(GroupSenderKeyBackupMapper::toResponse)
 				.collect(Collectors.toList());
 	}
 
-	public void delete(UUID userKey, String groupId, UUID distributionId) {
+	public void delete(UUID userKey, UUID groupId, UUID distributionId) {
 		repository.findById(new GroupSenderKeyBackupId(userKey, groupId, distributionId))
 		.orElseThrow(() -> new RecordNotFoundException("Group sender key backup not found"));
 

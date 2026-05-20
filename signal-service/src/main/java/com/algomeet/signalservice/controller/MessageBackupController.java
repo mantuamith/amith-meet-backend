@@ -144,7 +144,7 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 			@RequestParam(defaultValue = "5000") int maxResults) {
 
 		List<MessageBackupDocument> backupsPage =
-				messageBackupService.syncMessageUpdates(SecurityUtil.getUserKey(), peerKey, before, before, maxResults);
+				messageBackupService.syncMessageUpdates(UUID.fromString(SecurityUtil.getUserKey()), peerKey, before, before, maxResults);
 
 		List<MessageBackupResponse> responseList = backupsPage
 				.stream() 
@@ -215,7 +215,7 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 	@GetMapping("/{messageId}")
 	public ResponseEntity<CommonResponse<MessageBackupResponse>> getMessage(@PathVariable UUID messageId) {
 		try {
-			MessageBackupDocument saved = messageBackupService.getMessage(SecurityUtil.getUserKey(), messageId);     
+			MessageBackupDocument saved = messageBackupService.getMessage(UUID.fromString(SecurityUtil.getUserKey()), messageId);     
 			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, MessageBackupResponse.from(saved)));
 
 		} catch (RecordNotFoundException ex) {
@@ -234,7 +234,7 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 	public ResponseEntity<CommonResponse<MessageBackupResponse>> updateMessage(@PathVariable UUID messageId, 
 			@RequestBody MessageBackupDocument request) {
 		try {
-			MessageBackupDocument saved = messageBackupService.update(SecurityUtil.getUserKey(), messageId, request);
+			MessageBackupDocument saved = messageBackupService.update(UUID.fromString(SecurityUtil.getUserKey()), messageId, request);
 			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, MessageBackupResponse.from(saved)));
 		} catch (RecordNotFoundException ex) {
 			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.MESSAGE_BACKUP_NOT_FOUND));
@@ -257,7 +257,7 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 	public ResponseEntity<CommonResponse<MessageBackupResponse>> editMessage(@PathVariable UUID messageId, 
 			@RequestBody MessageBackupDocument request) {
 		try {
-			MessageBackupDocument saved = messageBackupService.edit(SecurityUtil.getUserKey(), messageId, request);
+			MessageBackupDocument saved = messageBackupService.edit(UUID.fromString(SecurityUtil.getUserKey()), messageId, request);
 			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, MessageBackupResponse.from(saved)));
 		} catch (RecordNotFoundException ex) {
 			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.MESSAGE_BACKUP_NOT_FOUND));
@@ -273,7 +273,7 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 	@DeleteMapping("/{messageId}")
 	public ResponseEntity<CommonResponse<?>> deleteMessage(@PathVariable UUID messageId) {
 		try {
-			messageBackupService.delete(SecurityUtil.getUserKey(), messageId);        
+			messageBackupService.delete(UUID.fromString(SecurityUtil.getUserKey()), messageId);        
 			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
 		} catch (RecordNotFoundException ex) {
 			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.MESSAGE_BACKUP_NOT_FOUND));
@@ -288,7 +288,7 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 	 */
 	@DeleteMapping("/{peerKey}/conversation")
 	public ResponseEntity<CommonResponse<?>> deleteByConversation(@PathVariable String peerKey) {
-		messageBackupService.deleteConversation(SecurityUtil.getUserKey(), peerKey);          
+		messageBackupService.deleteConversation(UUID.fromString(SecurityUtil.getUserKey()), UUID.fromString(peerKey));          
 		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
 	}
 
@@ -299,7 +299,7 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 	 */
 	@DeleteMapping
 	public ResponseEntity<CommonResponse<?>> deleteByUserKey() {
-		messageBackupService.deleteByUserKey(SecurityUtil.getUserKey());        
+		messageBackupService.deleteByUserKey(UUID.fromString(SecurityUtil.getUserKey()));        
 		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
 	}
 

@@ -10,5 +10,5 @@ import com.algomeet.signalservice.entity.GroupSenderKeyBackupId;
 
 public interface GroupSenderKeyBackupRepository extends JpaRepository<GroupSenderKeyBackup, GroupSenderKeyBackupId> {
     List<GroupSenderKeyBackup> findByIdUserKey(UUID userKey);
-    List<GroupSenderKeyBackup> findByIdGroupId(String groupId);
+    List<GroupSenderKeyBackup> findByIdGroupId(UUID groupId);
 }

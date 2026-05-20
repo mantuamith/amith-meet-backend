@@ -55,15 +55,22 @@ class MessageBackupServiceTest {
 	private ValueOperations<String, String> valueOperations;
 
 	private UUID messageId;
+	private UUID userKey;
+	private UUID senderKey;
+	private UUID receiverKey;
 	
 	@BeforeEach
 	void setup() {
 		document = new MessageBackupDocument();
 		messageId = UuidCreator.getTimeOrderedEpoch();
+		userKey = UuidCreator.getTimeOrderedEpoch();
+		senderKey = UuidCreator.getTimeOrderedEpoch();
+		receiverKey = UuidCreator.getTimeOrderedEpoch();
+		
 		document.setMessageId(messageId);
-		document.setUserKey("user-1");
-		document.setSenderKey("sender-1");
-		document.setReceiverKey("receiver-1");
+		document.setUserKey(userKey);
+		document.setSenderKey(senderKey);
+		document.setReceiverKey(receiverKey);
 		document.setEncryptedMessage("ENCRYPTED_PAYLOAD");
 		document.setAlgorithm("AES/GCM/NoPadding");
 		document.setVersion("v1");
@@ -104,7 +111,7 @@ class MessageBackupServiceTest {
 		.thenReturn(Optional.of(document));
 
 		MessageBackupDocument result =
-				service.getMessage("user-1", messageId);
+				service.getMessage(userKey, messageId);
 
 		assertNotNull(result);
 		assertEquals("msg-1", result.getMessageId());
@@ -116,7 +123,7 @@ class MessageBackupServiceTest {
 		.thenReturn(Optional.empty());
 
 		assertThrows(RecordNotFoundException.class,
-				() -> service.getMessage("user-1", UuidCreator.getTimeOrderedEpoch()));
+				() -> service.getMessage(userKey, UuidCreator.getTimeOrderedEpoch()));
 	}
 
 	/* -------------------------------------------------
@@ -142,7 +149,10 @@ class MessageBackupServiceTest {
 	@Test
 	void update_success() {
 		MessageBackupDocument existingMsg = new MessageBackupDocument();
-		existingMsg.setUserKey("user-2");
+		UUID userKey2 = UuidCreator.getTimeOrderedEpoch();
+		UUID senderKey2 = UuidCreator.getTimeOrderedEpoch();
+		UUID receiverKey2 = UuidCreator.getTimeOrderedEpoch();
+		existingMsg.setUserKey(userKey2);
 		existingMsg.setMessageId(messageId);
 		existingMsg.setSize(50L);
 		
@@ -151,10 +161,10 @@ class MessageBackupServiceTest {
 		
 
 		MessageBackupDocument update = new MessageBackupDocument();
-		update.setUserKey("user-2");
+		update.setUserKey(userKey2);
 		update.setEncryptedMessage("UPDATED_PAYLOAD");
-		update.setSenderKey("sender-2");
-		update.setReceiverKey("receiver-2");
+		update.setSenderKey(senderKey2);
+		update.setReceiverKey(receiverKey2);
 		update.setAlgorithm("AES-CBC");
 		update.setVersion("v2");
 		update.setSalt("TkVXX1NBTFQ=");
@@ -164,7 +174,7 @@ class MessageBackupServiceTest {
 		.thenReturn(update);
 
 		MessageBackupDocument result =
-				service.update("user-1", messageId, update);
+				service.update(userKey, messageId, update);
 
 		assertEquals("msg-1", result.getMessageId());
 		verify(repository).save(any(MessageBackupDocument.class));
@@ -176,7 +186,7 @@ class MessageBackupServiceTest {
 		.thenReturn(Optional.empty());
 
 		assertThrows(RecordNotFoundException.class,
-				() -> service.update("user-1", messageId, document));
+				() -> service.update(userKey, messageId, document));
 
 		verify(repository, never()).save(any());
 	}
@@ -188,7 +198,10 @@ class MessageBackupServiceTest {
 	@Test
 	void delete_success() {
 		MessageBackupDocument existingMsg = new MessageBackupDocument();
-		existingMsg.setUserKey("user-2");
+		UUID userKey2 = UuidCreator.getTimeOrderedEpoch();
+
+		
+		existingMsg.setUserKey(userKey2);
 		existingMsg.setMessageId(messageId);
 		existingMsg.setSize(50L);
 		
@@ -197,7 +210,7 @@ class MessageBackupServiceTest {
 
 		doNothing().when(repository).deleteById(messageId);
 
-		service.delete("user-1", messageId);
+		service.delete(userKey, messageId);
 
 		verify(repository).deleteById(messageId);
 	}
@@ -208,7 +221,7 @@ class MessageBackupServiceTest {
 		.thenReturn(Optional.empty());
 
 		assertThrows(RecordNotFoundException.class,
-				() -> service.delete("user-1", messageId));
+				() -> service.delete(userKey, messageId));
 
 		verify(repository, never()).deleteById(any());
 	}
@@ -219,13 +232,15 @@ class MessageBackupServiceTest {
 
 	@Test
 	void deleteConversation_success() {
+		UUID peerKey = UuidCreator.getTimeOrderedEpoch();
+		
 		doNothing().when(repository)
-		.deleteByUserKeyAndConversationId("user-1", "peer-1");
+		.deleteByUserKeyAndConversationId(userKey, peerKey.toString());
 
-		service.deleteConversation("user-1", "peer-1");
+		service.deleteConversation(userKey, peerKey);
 
 		verify(repository)
-		.deleteByUserKeyAndConversationId("user-1", "peer-1");
+		.deleteByUserKeyAndConversationId(userKey, peerKey.toString());
 	}
 
 	/* -------------------------------------------------
@@ -235,11 +250,11 @@ class MessageBackupServiceTest {
 	@Test
 	void deleteByUserKey_success() {
 		doNothing().when(repository)
-		.deleteByUserKey("user-1");
+		.deleteByUserKey(userKey);
 
-		service.deleteByUserKey("user-1");
+		service.deleteByUserKey(userKey);
 
 		verify(repository)
-		.deleteByUserKey("user-1");
+		.deleteByUserKey(userKey);
 	}
 }

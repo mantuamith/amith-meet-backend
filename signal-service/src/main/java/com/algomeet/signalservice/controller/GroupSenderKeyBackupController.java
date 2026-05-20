@@ -49,7 +49,7 @@ public class GroupSenderKeyBackupController implements GroupSenderKeyBackupContr
 	@Override
 	@PutMapping("/{groupId}/{distributionId}")
 	public ResponseEntity<CommonResponse<GroupSenderKeyBackupResponse>> update(
-			@PathVariable String groupId,
+			@PathVariable UUID groupId,
 			@PathVariable UUID distributionId,
 			@Validated @RequestBody GroupSenderKeyBackupUpdateRequest request) {
 		
@@ -65,7 +65,7 @@ public class GroupSenderKeyBackupController implements GroupSenderKeyBackupContr
 	@Override
 	@GetMapping("/{groupId}/{distributionId}")
 	public ResponseEntity<CommonResponse<GroupSenderKeyBackupResponse>> get(
-			@PathVariable String groupId,
+			@PathVariable UUID groupId,
 			@PathVariable UUID distributionId) {
 		return service.findById(UUID.fromString(SecurityUtil.getUserKey()), groupId, distributionId)
 				.map(data -> ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, data)))
@@ -82,7 +82,7 @@ public class GroupSenderKeyBackupController implements GroupSenderKeyBackupContr
 
 	@Override
 	@GetMapping("/{groupId}")
-	public ResponseEntity<CommonResponse<List<GroupSenderKeyBackupResponse>>> getByGroup(@PathVariable String groupId) {
+	public ResponseEntity<CommonResponse<List<GroupSenderKeyBackupResponse>>> getByGroup(@PathVariable UUID groupId) {
 		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS,
 				service.findByGroup(groupId)));
 	}
@@ -90,7 +90,7 @@ public class GroupSenderKeyBackupController implements GroupSenderKeyBackupContr
 	@Override
 	@DeleteMapping("/{groupId}/{distributionId}")
 	public ResponseEntity<CommonResponse<?>> delete(
-			@PathVariable String groupId,
+			@PathVariable UUID groupId,
 			@PathVariable UUID distributionId) {
 		try {
 			service.delete(UUID.fromString(SecurityUtil.getUserKey()), groupId, distributionId);

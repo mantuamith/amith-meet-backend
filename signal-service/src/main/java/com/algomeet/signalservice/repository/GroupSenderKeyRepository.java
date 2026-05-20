@@ -1,7 +1,6 @@
 package com.algomeet.signalservice.repository;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.domain.Pageable;
@@ -36,10 +35,10 @@ public interface GroupSenderKeyRepository extends JpaRepository<GroupSenderKey, 
 	List<GroupSenderKeyView> findByIdSenderUserKeyAndIdSenderDeviceIdAndIdGroupId(
 			@Param("senderUserKey") UUID senderUserKey, 
 			@Param("senderDeviceId") Integer senderDeviceId, 
-			@Param("groupId") String groupId);
+			@Param("groupId") UUID groupId);
 
 	List<GroupSenderKey> findByIdReceiverUserKeyAndIdReceiverDeviceIdAndIdGroupIdAndDeletedAtIsNull(
-			UUID receiverUserKey, Integer receiverDeviceId, String groupId);
+			UUID receiverUserKey, Integer receiverDeviceId, UUID groupId);
 
 	@Query(value = """
 			SELECT 
@@ -56,7 +55,7 @@ public interface GroupSenderKeyRepository extends JpaRepository<GroupSenderKey, 
 			""", nativeQuery = true)
 	List<GroupSenderKeyView> findByIdSenderUserKeyAndIdGroupId(
 			@Param("senderUserKey") UUID senderUserKey, 
-			@Param("groupId") String groupId);
+			@Param("groupId") UUID groupId);
 
 	@Modifying
 	@Transactional
@@ -69,11 +68,11 @@ public interface GroupSenderKeyRepository extends JpaRepository<GroupSenderKey, 
 			FROM GroupSenderKey g
 			WHERE g.id.groupId = :groupId
 			""")
-	List<GroupSenderKey> findFirstByGroupId(@Param("groupId") String groupId, Pageable pageable);
+	List<GroupSenderKey> findFirstByGroupId(@Param("groupId") UUID groupId, Pageable pageable);
 
 	@Modifying
 	@Transactional
-	void deleteByIdGroupId(String groupId);
+	void deleteByIdGroupId(UUID groupId);
 
 	@Query("""
 			SELECT g
@@ -85,7 +84,7 @@ public interface GroupSenderKeyRepository extends JpaRepository<GroupSenderKey, 
 	List<GroupSenderKeyView> findFirstBySenderUserKeyAndReceiverUserKeyAndGroupId(
 			@Param("senderUserKey") UUID senderUserKey,
 			@Param("receiverUserKey") UUID receiverUserKey,
-			@Param("groupId") String groupId, Pageable pageable);
+			@Param("groupId") UUID groupId, Pageable pageable);
 
-	void deleteByIdSenderUserKeyAndIdReceiverUserKeyAndIdGroupId(UUID senderUserKey, UUID receiverUserKey, String groupId);
+	void deleteByIdSenderUserKeyAndIdReceiverUserKeyAndIdGroupId(UUID senderUserKey, UUID receiverUserKey, UUID groupId);
 }

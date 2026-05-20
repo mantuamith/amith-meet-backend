@@ -26,7 +26,7 @@ public class GroupSenderKeyBackupMapper {
     public static GroupSenderKeyBackupResponse toResponse(GroupSenderKeyBackup entity) {
         GroupSenderKeyBackupResponse response = new GroupSenderKeyBackupResponse();
         response.setUserKey(entity.getId().getUserKey());
-        response.setGroupId(entity.getId().getGroupId());
+        response.setGroupId(entity.getId().getGroupId().toString());
         response.setDistributionId(entity.getId().getDistributionId());
         response.setSerializedSkdm(entity.getSerializedSkdm());
         response.setVersion(entity.getVersion());

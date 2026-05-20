@@ -16,14 +16,14 @@ public interface GroupSessionBackupRepository extends JpaRepository<GroupSession
 	List<GroupSessionBackup> findByIdUserKey(UUID userKey);
 	
 	@Transactional(readOnly = true)
-	List<GroupSessionBackup> findByIdUserKeyAndIdGroupIdAndIdDistributionId(UUID userKey, String groupId, UUID distributionId);
+	List<GroupSessionBackup> findByIdUserKeyAndIdGroupIdAndIdDistributionId(UUID userKey, UUID groupId, UUID distributionId);
 	
 	@Transactional(readOnly = true)
 	List<GroupSessionBackup> findByIdUserKeyAndDeviceId(UUID userKey, Integer deviceId);
 	
 	@Modifying
     @Transactional
-	void deleteByIdUserKeyAndIdGroupIdAndIdDistributionId(UUID userKey, String groupId, UUID distributionId);
+	void deleteByIdUserKeyAndIdGroupIdAndIdDistributionId(UUID userKey, UUID groupId, UUID distributionId);
 	
 	@Modifying
     @Transactional

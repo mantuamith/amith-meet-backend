@@ -11,7 +11,7 @@ import lombok.Data;
 @Data
 public class GroupSenderKeyBackupRequest {
     @NotBlank
-    private String groupId;
+    private UUID groupId;
 
     @NotNull
     private UUID distributionId;

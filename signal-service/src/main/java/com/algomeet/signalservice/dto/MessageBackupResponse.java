@@ -34,9 +34,9 @@ public class MessageBackupResponse {
         return MessageBackupResponse.builder()        		
                 .messageId(doc.getMessageId().toString())  
                 .stanzaId(doc.getStanzaId().toString())
-                .userKey(doc.getUserKey())
-                .senderKey(doc.getSenderKey())
-                .receiverKey(doc.getReceiverKey())
+                .userKey(doc.getUserKey().toString())
+                .senderKey(doc.getSenderKey().toString())
+                .receiverKey(doc.getReceiverKey().toString())
                 .encryptedMessage(doc.getEncryptedMessage())
                 
                 // Fields that were missing in your snippet:

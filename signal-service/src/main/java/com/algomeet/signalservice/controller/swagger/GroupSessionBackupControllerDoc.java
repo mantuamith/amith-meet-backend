@@ -71,7 +71,7 @@ public interface GroupSessionBackupControllerDoc {
     )
     public ResponseEntity<CommonResponse<GroupSessionBackupResponse>> getBackupByDistribution(
             @Parameter(description = "Group identifier")
-            @PathVariable String groupId,
+            @PathVariable UUID groupId,
 
             @Parameter(description = "Sender key distribution ID")
             @PathVariable UUID distributionId,
@@ -106,7 +106,7 @@ public interface GroupSessionBackupControllerDoc {
     )
     public ResponseEntity<CommonResponse<?>> deleteBackup(
             @Parameter(description = "Group identifier")
-            @PathVariable String groupId,
+            @PathVariable UUID groupId,
 
             @Parameter(description = "Sender key distribution ID")
             @PathVariable UUID distributionId,

@@ -17,7 +17,7 @@ public class GroupSessionBackupId implements Serializable {
     private static final long serialVersionUID = 1L;
     private UUID userKey;
 
-    private String groupId;
+    private UUID groupId;
     
     private UUID distributionId;
     

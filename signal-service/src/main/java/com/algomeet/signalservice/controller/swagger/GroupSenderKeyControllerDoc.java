@@ -1,6 +1,7 @@
 package com.algomeet.signalservice.controller.swagger;
 
 import java.util.List;
+import java.util.UUID;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -45,7 +46,7 @@ public interface GroupSenderKeyControllerDoc {
 			@PathVariable Integer senderDeviceId,
 
 			@Parameter(description = "Group ID", required = true)
-			@PathVariable String groupId,
+			@PathVariable UUID groupId,
 
 			@Parameter(description = "SKDM upload request payload", required = true)
 			@RequestBody GroupSenderKeyRequest request);
@@ -73,7 +74,7 @@ public interface GroupSenderKeyControllerDoc {
 			@PathVariable Integer senderDeviceId,
 
 			@Parameter(description = "Group ID", required = true)
-			@PathVariable String groupId) ;
+			@PathVariable UUID groupId) ;
 
 	/**
 	 * Receiver device polls for SKDM (long polling)
@@ -117,7 +118,7 @@ public interface GroupSenderKeyControllerDoc {
 					required = true,
 					example = "group-1234"
 					)
-			@PathVariable String groupId,
+			@PathVariable UUID groupId,
 
 			@Parameter(
 					description = "Maximum wait time in milliseconds for long polling",
@@ -181,7 +182,7 @@ public interface GroupSenderKeyControllerDoc {
 					required = true,
 					example = "group-1234"
 					)
-			@PathVariable String groupId
+			@PathVariable UUID groupId
 			);  
 }
 

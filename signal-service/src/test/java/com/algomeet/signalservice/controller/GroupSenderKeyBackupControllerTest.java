@@ -74,6 +74,7 @@ class GroupSenderKeyBackupControllerTest {
     private ObjectMapper objectMapper;
 
     private static final UUID USER_KEY = UUID.fromString("11111111-1111-1111-1111-111111111111");
+    private static final UUID GROUP_ID = UUID.fromString("11111111-1111-2222-2222-111111111111");
 
     private MockedStatic<SecurityUtil> securityUtilMock;
 
@@ -102,7 +103,7 @@ class GroupSenderKeyBackupControllerTest {
         GroupSenderKeyBackupRequest request = new GroupSenderKeyBackupRequest();
 
         // Required fields
-        request.setGroupId("group-123");
+        request.setGroupId(GROUP_ID);
         request.setDistributionId(UUID.randomUUID());
         request.setSerializedSkdm("QUJDREVGR0g="); // Base64 example, valid pattern
 
@@ -128,7 +129,7 @@ class GroupSenderKeyBackupControllerTest {
     	GroupSenderKeyBackupRequest request = new GroupSenderKeyBackupRequest();
 
         // Required fields
-        request.setGroupId("group-123");
+        request.setGroupId(GROUP_ID);
         request.setDistributionId(UUID.randomUUID());
         request.setSerializedSkdm("QUJDREVGR0g="); // Base64 example, valid pattern
 
@@ -165,7 +166,7 @@ class GroupSenderKeyBackupControllerTest {
 
         GroupSenderKeyBackupResponse response = new GroupSenderKeyBackupResponse();
 
-        when(service.update(eq(USER_KEY), eq("group-123"), any(UUID.class), any()))
+        when(service.update(eq(USER_KEY), eq(GROUP_ID), any(UUID.class), any()))
                 .thenReturn(response);
 
         mockMvc.perform(put("/signal/group-sender-key-backups/group-123/" + UUID.randomUUID())
@@ -188,7 +189,7 @@ class GroupSenderKeyBackupControllerTest {
         request.setVersion("v1");               // <=10 chars
         request.setSalt("U0FsdGVkX1NhbXBsZVNhbHQ="); // valid Base64, <=88 chars
 
-        when(service.update(eq(USER_KEY), eq("group-123"), any(UUID.class), any()))
+        when(service.update(eq(USER_KEY), eq(GROUP_ID), any(UUID.class), any()))
                 .thenThrow(new RecordNotFoundException("not found"));
 
         mockMvc.perform(put("/signal/group-sender-key-backups/group-123/" + UUID.randomUUID())
@@ -207,7 +208,7 @@ class GroupSenderKeyBackupControllerTest {
         GroupSenderKeyBackupResponse response = new GroupSenderKeyBackupResponse();
         UUID distributionId = UUID.randomUUID();
 
-        when(service.findById(USER_KEY, "group-123", distributionId))
+        when(service.findById(USER_KEY, GROUP_ID, distributionId))
                 .thenReturn(Optional.of(response));
 
         mockMvc.perform(get("/signal/group-sender-key-backups/group-123/" + distributionId))
@@ -219,7 +220,7 @@ class GroupSenderKeyBackupControllerTest {
     void getBackup_notFound() throws Exception {
         UUID distributionId = UUID.randomUUID();
 
-        when(service.findById(USER_KEY, "group-123", distributionId))
+        when(service.findById(USER_KEY, GROUP_ID, distributionId))
                 .thenReturn(Optional.empty());
 
         mockMvc.perform(get("/signal/group-sender-key-backups/group-123/" + distributionId))
@@ -253,7 +254,7 @@ class GroupSenderKeyBackupControllerTest {
      * ------------------------------------------------- */
     @Test
     void getByGroup_success() throws Exception {
-        when(service.findByGroup("group-123"))
+        when(service.findByGroup(GROUP_ID))
                 .thenReturn(List.of(new GroupSenderKeyBackupResponse()));
 
         mockMvc.perform(get("/signal/group-sender-key-backups/group-123"))
@@ -267,7 +268,7 @@ class GroupSenderKeyBackupControllerTest {
      * ------------------------------------------------- */
     @Test
     void deleteBackup_success() throws Exception {
-        doNothing().when(service).delete(eq(USER_KEY), eq("group-123"), any(UUID.class));
+        doNothing().when(service).delete(eq(USER_KEY), eq(GROUP_ID), any(UUID.class));
 
         mockMvc.perform(delete("/signal/group-sender-key-backups/group-123/" + UUID.randomUUID())
                         .with(csrf()))
@@ -278,7 +279,7 @@ class GroupSenderKeyBackupControllerTest {
     @Test
     void deleteBackup_notFound() throws Exception {
         doThrow(new RecordNotFoundException("not found"))
-                .when(service).delete(eq(USER_KEY), eq("group-123"), any(UUID.class));
+                .when(service).delete(eq(USER_KEY), eq(GROUP_ID), any(UUID.class));
 
         mockMvc.perform(delete("/signal/group-sender-key-backups/group-123/" + UUID.randomUUID())
                         .with(csrf()))

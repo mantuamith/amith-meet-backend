@@ -9,7 +9,7 @@ import com.algomeet.signalservice.entity.GroupSenderKeyId;
 
 public class GroupSenderKeyMapper {
 
-	public static GroupSenderKey toEntity(UUID senderUserKey, Integer senderDeviceId, String groupId, GroupSenderKeyRequest req) {
+	public static GroupSenderKey toEntity(UUID senderUserKey, Integer senderDeviceId, UUID groupId, GroupSenderKeyRequest req) {
 		GroupSenderKey entity = new GroupSenderKey();
 		entity.setId(new GroupSenderKeyId(senderUserKey, 
 				senderDeviceId, 

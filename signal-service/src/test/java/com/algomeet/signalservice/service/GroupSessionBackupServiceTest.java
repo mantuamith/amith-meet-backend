@@ -40,7 +40,7 @@ class GroupSessionBackupServiceTest {
 
     private static final UUID USER_KEY = UUID.fromString("11111111-1111-1111-1111-111111111111");
     private static final UUID DISTRIBUTION_ID = UUID.randomUUID();
-    private static final String GROUP_ID = "group1";
+    private static final UUID GROUP_ID = UUID.fromString("11111111-1111-1111-2222-111111111111");
 
     private GroupSessionBackupRequest request;
 

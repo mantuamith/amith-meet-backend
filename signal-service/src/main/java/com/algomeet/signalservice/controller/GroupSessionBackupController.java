@@ -51,7 +51,7 @@ public class GroupSessionBackupController implements GroupSessionBackupControlle
 	@Override
 	@GetMapping("/{groupId}/{distributionId}/{isInbound}")
 	public ResponseEntity<CommonResponse<GroupSessionBackupResponse>> getBackupByDistribution(
-			@PathVariable String groupId,
+			@PathVariable UUID groupId,
 			@PathVariable UUID distributionId,
 			@PathVariable boolean isInbound) {
 		try {
@@ -76,7 +76,7 @@ public class GroupSessionBackupController implements GroupSessionBackupControlle
 	@Override
 	@DeleteMapping("/{groupId}/{distributionId}/{isInbound}")
 	public ResponseEntity<CommonResponse<?>> deleteBackup(
-			@PathVariable String groupId,
+			@PathVariable UUID groupId,
 			@PathVariable UUID distributionId,
 			@PathVariable boolean isInbound) {
 		try {

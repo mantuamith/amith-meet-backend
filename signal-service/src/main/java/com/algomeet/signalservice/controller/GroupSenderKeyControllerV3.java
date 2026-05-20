@@ -42,7 +42,7 @@ public class GroupSenderKeyControllerV3 implements GroupSenderKeyControllerV3Doc
     /** Sender uploads SKDM */
     @PostMapping("/devices/{senderDeviceId}")
     public ResponseEntity<CommonResponse<GroupSenderKeyResponse>> create(
-            @PathVariable String groupId,
+            @PathVariable UUID groupId,
             @PathVariable Integer senderDeviceId,
             @Validated @RequestBody GroupSenderKeyRequest request) {
 
@@ -62,7 +62,7 @@ public class GroupSenderKeyControllerV3 implements GroupSenderKeyControllerV3Doc
     /** Fetch sender key for sender device */
     @GetMapping("/devices/{senderDeviceId}")
     public ResponseEntity<CommonResponse<List<GroupSenderKeyResponse>>> get(
-            @PathVariable String groupId,
+            @PathVariable UUID groupId,
             @PathVariable Integer senderDeviceId) {
 
         try {
@@ -81,7 +81,7 @@ public class GroupSenderKeyControllerV3 implements GroupSenderKeyControllerV3Doc
     /** Receiver fetch inbox sender-keys */
     @GetMapping("/devices/{receiverDeviceId}/receiver")
     public ResponseEntity<CommonResponse<List<GroupSenderKeyResponse>>> getSenderKeys(
-            @PathVariable String groupId,
+            @PathVariable UUID groupId,
             @PathVariable Integer receiverDeviceId) {
 
         try {
@@ -100,7 +100,7 @@ public class GroupSenderKeyControllerV3 implements GroupSenderKeyControllerV3Doc
     /** Missing sender-key devices (important optimization endpoint) */
     @GetMapping("/devices/missing")
     public ResponseEntity<CommonResponse<List<UserDeviceResponse>>> getMissingSenderKeys(
-            @PathVariable String groupId) {
+            @PathVariable UUID groupId) {
 
         try {
             return ResponseEntity.ok(
@@ -118,7 +118,7 @@ public class GroupSenderKeyControllerV3 implements GroupSenderKeyControllerV3Doc
     /** Delete sender key mapping */
     @DeleteMapping("/devices/{senderDeviceId}")
     public ResponseEntity<CommonResponse<?>> deleteBySender(
-            @PathVariable String groupId,
+            @PathVariable UUID groupId,
             @PathVariable Integer senderDeviceId,
             @RequestParam UUID receiverUserKey,
             @RequestParam Integer receiverDeviceId) {
@@ -144,7 +144,7 @@ public class GroupSenderKeyControllerV3 implements GroupSenderKeyControllerV3Doc
     /** Receiver soft delete */
     @DeleteMapping("/devices/{receiverDeviceId}/receiver")
     public ResponseEntity<CommonResponse<?>> markAsProcessed(
-            @PathVariable String groupId,
+            @PathVariable UUID groupId,
             @PathVariable Integer receiverDeviceId,
             @RequestParam UUID senderUserKey,
             @RequestParam Integer senderDeviceId) {
@@ -170,7 +170,7 @@ public class GroupSenderKeyControllerV3 implements GroupSenderKeyControllerV3Doc
     /** Delete receiver member key mapping */
     @DeleteMapping("/members/{receiverUserKey}")
     public ResponseEntity<CommonResponse<?>> deleteSenderKeys(
-            @PathVariable String groupId,
+            @PathVariable UUID groupId,
             @PathVariable UUID receiverUserKey) {
 
         try {
@@ -188,7 +188,7 @@ public class GroupSenderKeyControllerV3 implements GroupSenderKeyControllerV3Doc
     /** delete */
     @DeleteMapping
     public ResponseEntity<CommonResponse<?>> delete(
-            @PathVariable String groupId) {
+            @PathVariable UUID groupId) {
         try {
             UUID receiverUserKey = currentUserKey();
             // Delete group sender keys

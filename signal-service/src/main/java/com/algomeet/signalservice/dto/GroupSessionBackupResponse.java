@@ -7,7 +7,7 @@ import lombok.Data;
 
 @Data
 public class GroupSessionBackupResponse {
-    private String groupId;
+    private UUID groupId;
     private UUID distributionId;
     private Integer deviceId;
     /** true = inbound, false = outbound */

@@ -14,7 +14,7 @@ import lombok.Data;
 public class GroupSessionBackupRequest {
 
     @NotBlank
-    private String groupId;
+    private UUID groupId;
 
     @NotNull
     private UUID distributionId;

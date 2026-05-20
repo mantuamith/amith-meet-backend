@@ -24,7 +24,7 @@ public class GroupSenderKeyId implements Serializable {
     
     private Integer receiverDeviceId;    	
     
-	private String groupId;
+	private UUID groupId;
 	@Override
     public boolean equals(Object o) {
         if (this == o) return true;

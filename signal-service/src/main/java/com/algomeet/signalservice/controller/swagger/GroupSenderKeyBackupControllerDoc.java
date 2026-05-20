@@ -41,7 +41,7 @@ public interface GroupSenderKeyBackupControllerDoc {
             @ApiResponse(responseCode = "404", description = "Backup not found")
         })
     public ResponseEntity<CommonResponse<GroupSenderKeyBackupResponse>> update(
-            @Parameter(description = "Group ID") @PathVariable String groupId,
+            @Parameter(description = "Group ID") @PathVariable UUID groupId,
             @Parameter(description = "Distribution ID") @PathVariable UUID distributionId,
             @Validated @RequestBody GroupSenderKeyBackupUpdateRequest request);
 
@@ -52,7 +52,7 @@ public interface GroupSenderKeyBackupControllerDoc {
             @ApiResponse(responseCode = "404", description = "Backup not found")
         })
     public ResponseEntity<CommonResponse<GroupSenderKeyBackupResponse>> get(
-            @Parameter(description = "Group ID") @PathVariable String groupId,
+            @Parameter(description = "Group ID") @PathVariable UUID groupId,
             @Parameter(description = "Distribution ID") @PathVariable UUID distributionId);
     
     @Operation(summary = "Get all group sender key backups for the current user",
@@ -68,7 +68,7 @@ public interface GroupSenderKeyBackupControllerDoc {
                 content = @Content(schema = @Schema(implementation = GroupSenderKeyBackupResponse.class)))
         })
     public ResponseEntity<CommonResponse<List<GroupSenderKeyBackupResponse>>> getByGroup(
-            @Parameter(description = "Group ID") @PathVariable String groupId);
+            @Parameter(description = "Group ID") @PathVariable UUID groupId);
 
     @Operation(summary = "Delete a group sender key backup",
         responses = {
@@ -76,6 +76,6 @@ public interface GroupSenderKeyBackupControllerDoc {
             @ApiResponse(responseCode = "404", description = "Backup not found")
         })
     public ResponseEntity<CommonResponse<?>> delete(
-            @Parameter(description = "Group ID") @PathVariable String groupId,
+            @Parameter(description = "Group ID") @PathVariable UUID groupId,
             @Parameter(description = "Distribution ID") @PathVariable UUID distributionId);
 }
