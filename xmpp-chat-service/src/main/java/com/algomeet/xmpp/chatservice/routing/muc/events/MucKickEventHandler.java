@@ -64,13 +64,14 @@ public class MucKickEventHandler {
 				.filter(m -> m.getUserKey() != null && m.getUserKey().equalsIgnoreCase(victimUserKey))
 				.findFirst();        
 		
-		if (victimOpt.isPresent() && !(MucCommandUtil.isAuthorized(sender, victimOpt.get()))) {        	
+		// Prerequisite: the member must have already been removed from the group.
+		if (victimOpt.isPresent()) {        	
 			xmppUtil.sendError(ctx, id, senderJid, domainProperties.getGroupChatDomain(), 
 					XmppErrorType.AUTH, XmppErrorConditions.FORBIDDEN, "Error code 403");
 			return;
 		}
 
-		String targetJid = jidUtil.getBareJid(victimOpt.get().getUserKey());
+		String targetJid = jidUtil.getBareJid(victimJid);
 		String roomBareJid = XmppUtil.getRoomBareJid(roomJid);
 		String kickPresence = buildKickPresence(roomBareJid, victimUserKey, targetJid, senderJid, reason);
 
