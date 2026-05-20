@@ -532,6 +532,7 @@ public class MucCallLifeCycleTracker {
 		.append("status='").append(status).append("' ")
 		.append("timestamp='").append(timestamp).append("' ")
 		.append("sid='").append(sid).append("'/>")
+		.append("<countable xmlns='urn:algomeet:meta:0'/>")
 		.append("</message>");
 
 		String toUserKey = XmppUtil.getUserKey(toJid);
@@ -552,11 +553,6 @@ public class MucCallLifeCycleTracker {
 				forArchiveXml
 				)
 		.doOnSuccess(success -> {
-			// Increment MUC unread messages count 
-//			mucUnreadCountService.incrementForRoomMembers(roomId,
-//					List.of(toUserKey), 
-//					fromUserKey)
-//			.subscribe();
 		})
 		.subscribe();
 

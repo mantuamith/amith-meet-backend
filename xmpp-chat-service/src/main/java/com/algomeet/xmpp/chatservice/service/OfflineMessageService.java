@@ -55,14 +55,14 @@ public class OfflineMessageService {
      * @param originalXml The raw XML payload to be stored.
      * @return A {@link Mono} emitting the saved {@link OfflineMessage}.
      */
-    public Mono<OfflineMessage> save(UUID id, String to, String from, String type, Boolean isAckStanza, String originalXml) {
+    public Mono<OfflineMessage> save(UUID id, String to, String from, String type, Boolean isAckStanza, boolean isCountable, String originalXml) {
         OfflineMessage offlineMessage = OfflineMessage.builder()
                 .id(id)
                 .to(UUID.fromString(to))
                 .from(UUID.fromString(from))
                 .messageType(type)
                 .isAckStanza(isAckStanza)
-                .countable(XmppStanzaUtil.isCountableStanza(originalXml))
+                .countable(isCountable)
                 .stanzaXml(originalXml)
                 .build();
         

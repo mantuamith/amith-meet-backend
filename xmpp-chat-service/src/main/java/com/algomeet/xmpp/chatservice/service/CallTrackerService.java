@@ -452,6 +452,7 @@ public class CallTrackerService {
 						"duration='%d' " +
 						"status='%s' " +
 						"timestamp='%s' />" +
+						"<countable xmlns='urn:algomeet:meta:0'/>" +
 						"</message>",
 						id, to, from,
 						capitalize(type),

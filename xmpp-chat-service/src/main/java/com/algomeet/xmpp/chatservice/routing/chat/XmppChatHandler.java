@@ -97,9 +97,11 @@ public class XmppChatHandler {
 				    ? UUID.fromString(id.trim()) 
 				    : UuidCreator.getTimeOrderedEpoch();
 			
+			boolean isCountable = XmppStanzaUtil.isCountableStanza(originalXml);
+			
 			// Determine if message is ACK stanza
 			isAckStanza = XmppStanzaUtil.isMessageAckStanza(originalXml);
-			offlineMessageService.save(messageId, toUserKey, fromUserKey, type, isAckStanza, forArchiveXml)
+			offlineMessageService.save(messageId, toUserKey, fromUserKey, type, isAckStanza, isCountable, forArchiveXml)
 		            .doOnSuccess(saved -> {
 		            	// Send an immediate server-level acknowledgment to the sender.
 		            	//
@@ -160,7 +162,7 @@ public class XmppChatHandler {
 					        }
 					    }
 					    
-					    if (XmppStanzaUtil.isCountableStanza(originalXml)) {
+					    if (isCountable) {
 					    	// Asynchronous Unread Tracking
 					    	// Increment the unread counter for the recipient (toUserKey) relative to the sender (fromUserKey).
 					    	// This is handled reactively to avoid blocking the Netty event loop during DB writes.
