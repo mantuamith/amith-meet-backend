@@ -83,7 +83,7 @@ public class XmppArchiveService {
 		event.setRoomId(UUID.fromString(toRoomId));
 		event.setFrom(UUID.fromString(from));
 		event.setTo(UUID.fromString(toMucMember));
-		event.setCountable(XmppStanzaUtil.isCountableStanza(xml));
+		event.setCountable(XmppStanzaUtil.isCountableMessage(xml));
 		event.setStanzaXml(xml);
 
 		return repository.save(event);

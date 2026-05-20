@@ -85,7 +85,7 @@ public class OfflineMessageService {
                 .to(UUID.fromString(to))
                 .from(UUID.fromString(from))
                 .messageType(type)
-                .countable(XmppStanzaUtil.isCountableStanza(originalXml))
+                .countable(XmppStanzaUtil.isCountableMessage(originalXml))
                 .stanzaXml(originalXml)
                 .build();
         

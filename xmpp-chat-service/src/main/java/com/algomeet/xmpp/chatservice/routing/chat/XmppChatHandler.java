@@ -97,7 +97,7 @@ public class XmppChatHandler {
 				    ? UUID.fromString(id.trim()) 
 				    : UuidCreator.getTimeOrderedEpoch();
 			
-			boolean isCountable = XmppStanzaUtil.isCountableStanza(originalXml);
+			boolean isCountable = XmppStanzaUtil.isCountableMessage(originalXml);
 			
 			// Determine if message is ACK stanza
 			isAckStanza = XmppStanzaUtil.isMessageAckStanza(originalXml);
