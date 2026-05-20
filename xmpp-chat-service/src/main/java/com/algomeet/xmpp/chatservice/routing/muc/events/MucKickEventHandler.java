@@ -136,7 +136,7 @@ public class MucKickEventHandler {
 	/**
 	 * Formats a 307 Kick presence stanza.
 	 */
-	private String buildKickPresence(String roomJid, String victimUserKey, String targetJid, String actorJid, String reason) {
+	private String buildKickPresence(String roomJid, String victimUserKey, String victimJid, String actorJid, String reason) {
 		return String.format(
 				"<presence from='%s/%s' type='unavailable'>" +
 						"  <x xmlns='http://jabber.org/protocol/muc#user'>" +
@@ -147,7 +147,7 @@ public class MucKickEventHandler {
 						"    <status code='%d'/>" + 
 						"  </x>" +
 						"</presence>",
-						roomJid, victimUserKey, targetJid, actorJid, reason, PresenceStatusCode.KICKED.getCode()
+						roomJid, victimUserKey, victimJid, actorJid, reason, PresenceStatusCode.KICKED.getCode()
 				);
 	}
 	
