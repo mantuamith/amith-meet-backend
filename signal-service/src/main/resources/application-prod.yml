@@ -40,6 +40,9 @@ server:
 jwt:
   secret: ${SPRING_JWT_SECRET}
 
-media:
-    service:
-      url: http://localhost:8095
+feign:
+  client:
+    group-service:
+      url: http://group-service:8087
+    media-service:
+      url: http://media-service:8095
