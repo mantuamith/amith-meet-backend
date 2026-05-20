@@ -27,9 +27,11 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class XmppStanzaUtil {
 	private static final String CHATSTATE = "chatstates";
-	private static final String BODY = "<body";
+	private static final String BODY_TAG = "<body";
 	private static final String NS_DISPLAYED_MARKER = "urn:xmpp:chat-markers:0";
 	private static final String NS_RECEIPTS = "urn:xmpp:receipts";
+	private static final String NS_COUNTABLE = "urn:algomeet:meta:0";
+	private static final String COUNTABLE_TAG = "<countable";
 	
 	private static final XMLInputFactory XML_FACTORY = XMLInputFactory.newInstance();
 
@@ -83,7 +85,7 @@ public class XmppStanzaUtil {
 		// Typing notifications ("is typing...") are transient. We only archive 
 		// if the stanza ALSO contains a <body> element (e.g., a message with a state).
 		if (xml.indexOf(CHATSTATE) >= 0) {
-			return xml.indexOf(BODY) >= 0;
+			return xml.indexOf(BODY_TAG) >= 0;
 		}
 
 		// If it survived the negative filters, it is likely a conversational <message/>
@@ -115,7 +117,7 @@ public class XmppStanzaUtil {
 		// Typing notifications ("is typing...") are transient. We only archive 
 		// if the stanza ALSO contains a <body> element (e.g., a message with a state).
 		if (xml.indexOf(CHATSTATE) >= 0) {
-			return xml.indexOf(BODY) >= 0;
+			return xml.indexOf(BODY_TAG) >= 0;
 		}
 
 		// If it survived the negative filters, it is likely a conversational <message/>
@@ -206,7 +208,7 @@ public class XmppStanzaUtil {
 	
 	public static boolean isMessageAckStanza(String xml) {
 		if (isMessageStanza(xml)) {			
-			return xml.indexOf(BODY) == -1 
+			return xml.indexOf(BODY_TAG) == -1 
 					&& (xml.indexOf(NS_DISPLAYED_MARKER) != -1 || xml.indexOf(NS_RECEIPTS) != -1);
 		}
 		
@@ -474,7 +476,7 @@ public class XmppStanzaUtil {
 			 * the full XML DOM for every incoming message. 
 			 * NS_RETRACT = "urn:xmpp:message-retract:1"
 			 */
-			return xml.indexOf(XmppRetractUtil.NS_RETRACT) != -1 && xml.indexOf(BODY) == -1;
+			return xml.indexOf(XmppRetractUtil.NS_RETRACT) != -1 && xml.indexOf(BODY_TAG) == -1;
 		}
 
 		// Not a message stanza or does not contain the retraction trigger
@@ -495,5 +497,37 @@ public class XmppStanzaUtil {
 		return new StringBuilder(xml)
 				.insert(insertAt, replacement)
 				.toString();
-	}    
+	}   
+	
+	public static boolean isCountableMessage(String xml) {
+
+	    // Locate the last occurrence of the <countable tag.
+	    // We use lastIndexOf because in typical XMPP stanzas this extension tag
+	    // appears near the end of the message payload, making backward search
+	    // potentially faster than scanning from the beginning.
+	    int tagIndex = xml.lastIndexOf(COUNTABLE_TAG);
+
+	    // If the tag is not present at all, we can safely exit early.
+	    if (tagIndex == -1) {
+	        return false;
+	    }
+
+	    // Find the closing '>' of the <countable ...> element starting from the tag position.
+	    // This defines the boundary of the tag we are inspecting.
+	    int end = xml.indexOf('>', tagIndex);
+
+	    // If no closing bracket is found, the XML is malformed or incomplete,
+	    // so we treat it as non-countable for safety.
+	    if (end == -1) {
+	        return false;
+	    }
+
+	    // Check that the expected namespace appears within the bounds of the tag.
+	    // This ensures we are not matching random occurrences elsewhere in the XML body.
+	    int nsIndex = xml.indexOf(NS_COUNTABLE, tagIndex);
+
+	    // Valid only if the namespace exists AND is located inside the <countable ...> tag.
+	    // This prevents false positives from other parts of the stanza.
+	    return nsIndex != -1 && nsIndex < end;
+	}
 }

@@ -23,7 +23,7 @@ public interface OfflineMessageRepository extends ReactiveMongoRepository<Offlin
     Mono<Void> deleteByToAndFromAndIdLessThanEqualAndDeletedAtIsNotNull(UUID to, UUID from, UUID id);
     
     // Counts unread messages
-    Mono<Long> countByToAndFromAndIdGreaterThan(UUID to, UUID from, UUID id);
+    Mono<Long> countByToAndFromAndIdGreaterThanAndCountableTrue(UUID to, UUID from, UUID id);
     
     /**
      * Hard-deletes an offline message record matching the given ID 

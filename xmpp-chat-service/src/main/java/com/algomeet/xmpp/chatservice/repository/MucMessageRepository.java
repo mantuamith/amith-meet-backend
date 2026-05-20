@@ -25,37 +25,37 @@ public interface MucMessageRepository extends ReactiveMongoRepository<MucMessage
 			);
 
 	/**
-     * Performs a range-based synchronization query for Multi-User Chat (MUC) messages.
-     * 
-     * <p>This method implements a synchronized "catch-up" mechanism, allowing clients to 
-     * retrieve updates that occurred after a specific state (represented by the cursor) 
-     * up to a specific snapshot point (the limit ID).</p>
-     * 
-     * <b>Query Logic:</b>
-     * <ul>
-     *   <li>{@code roomId}: Equality match for the specific chat room.</li>
-     *   <li>{@code updateCursorId}: Greater-than filter to find records modified/created 
-     *       after the client's last sync point.</li>
-     *   <li>{@code id}: Less-than-or-equal filter to ensure a deterministic result set 
-     *       and prevent "sliding window" issues where new messages arrive during the query.</li>
-     * </ul>
-     * 
-     * <b>Performance Note:</b>
-     * This method relies on an ESR-compliant (Equality, Sort, Range) compound index:
-     * {@code { "roomId": 1, "updateCursorId": 1, "id": 1 }}.
-     *
-     * @param roomId               The unique identifier of the MUC room.
-     * @param afterUpdateCursorId  The cursor ID from the last successful sync; only 
-     *                             messages with a higher cursor will be returned.
-     * @param limitId              The upper bound message ID (usually the current 
-     *                             max ID known to the server) to cap the result set.
-     * @return A {@link Flux} of {@link MucMessage} sorted chronologically by their primary ID.
-     */
-    Flux<MucMessage> findByRoomIdAndUpdateCursorIdGreaterThanAndIdLessThanEqualOrderByIdAsc(
-            UUID roomId, 
-            UUID afterUpdateCursorId, 
-            UUID limitId
-    );
+	 * Performs a range-based synchronization query for Multi-User Chat (MUC) messages.
+	 * 
+	 * <p>This method implements a synchronized "catch-up" mechanism, allowing clients to 
+	 * retrieve updates that occurred after a specific state (represented by the cursor) 
+	 * up to a specific snapshot point (the limit ID).</p>
+	 * 
+	 * <b>Query Logic:</b>
+	 * <ul>
+	 *   <li>{@code roomId}: Equality match for the specific chat room.</li>
+	 *   <li>{@code updateCursorId}: Greater-than filter to find records modified/created 
+	 *       after the client's last sync point.</li>
+	 *   <li>{@code id}: Less-than-or-equal filter to ensure a deterministic result set 
+	 *       and prevent "sliding window" issues where new messages arrive during the query.</li>
+	 * </ul>
+	 * 
+	 * <b>Performance Note:</b>
+	 * This method relies on an ESR-compliant (Equality, Sort, Range) compound index:
+	 * {@code { "roomId": 1, "updateCursorId": 1, "id": 1 }}.
+	 *
+	 * @param roomId               The unique identifier of the MUC room.
+	 * @param afterUpdateCursorId  The cursor ID from the last successful sync; only 
+	 *                             messages with a higher cursor will be returned.
+	 * @param limitId              The upper bound message ID (usually the current 
+	 *                             max ID known to the server) to cap the result set.
+	 * @return A {@link Flux} of {@link MucMessage} sorted chronologically by their primary ID.
+	 */
+	Flux<MucMessage> findByRoomIdAndUpdateCursorIdGreaterThanAndIdLessThanEqualOrderByIdAsc(
+			UUID roomId, 
+			UUID afterUpdateCursorId, 
+			UUID limitId
+			);
 
 	/**
 	 * Retrieves older messages (scrolling up).
@@ -74,11 +74,11 @@ public interface MucMessageRepository extends ReactiveMongoRepository<MucMessage
 
 	// For the very first load (no cursor)
 	@Query(value = "{ 'roomId': ?0, $or: [ { 'to': null }, { 'to': ?1 } ] }", 
-		       sort = "{ 'id': -1 }")
+			sort = "{ 'id': -1 }")
 	Flux<MucMessage> findByRoomIdOrderByIdDesc(UUID roomId, UUID userKey, Pageable pageable);
 
 	Mono<MucMessage> findByMessageId(UUID messageId);
-	
+
 	/**
 	 * Retrieves the current first available group message in the conversation.
 	 * Used as the synchronization reference for local device conversations,
@@ -87,25 +87,26 @@ public interface MucMessageRepository extends ReactiveMongoRepository<MucMessage
 	 * @param roomId
 	 */
 	Mono<MucMessage> findFirstByRoomIdOrderByIdAsc(UUID roomId);
-	
+
 	/**
-     * Counts unread messages by isolating the room and checking the ID timeline first,
-     * before filtering private stanzas using the user key.
-     * 
-     * <p>At scale, this structure allows MongoDB to slice the timeline window first, 
-     * avoiding scanning private messages outside of the unread range.</p>
-     *
-     * @param roomId            The unique identifier of the MUC room.
-     * @param lastReadMessageId The chronological anchor (UUIDv7) where the user left off.
-     * @param userKey           The target user key used to filter private messages.
-     * @return A {@link Mono} emitting the count of unread messages.
-     */
-    @Query(value = "{" +
-                   "  '$and': [" +
-                   "    { 'roomId': ?0 }," +
-                   "    { 'messageId': { '$gt': ?1 } }," +
-                   "    { '$or': [ { 'to': null }, { 'to': ?2 } ] }" +
-                   "  ]" +
-                   "}", count = true)
-    Mono<Long> countUnreadMessages(UUID roomId, UUID lastReadMessageId, UUID userKey);
+	 * Counts unread messages by isolating the room and checking the ID timeline first,
+	 * before filtering private stanzas using the user key.
+	 * 
+	 * <p>At scale, this structure allows MongoDB to slice the timeline window first, 
+	 * avoiding scanning private messages outside of the unread range.</p>
+	 *
+	 * @param roomId            The unique identifier of the MUC room.
+	 * @param lastReadMessageId The chronological anchor (UUIDv7) where the user left off.
+	 * @param userKey           The target user key used to filter private messages.
+	 * @return A {@link Mono} emitting the count of unread messages.
+	 */
+	@Query(value = "{" +
+			"  '$and': [" +
+			"    { 'roomId': ?0 }," +
+			"    { 'messageId': { '$gt': ?1 } }," +
+			"    { 'countable': true }," + // <-- Added countable condition here
+			"    { '$or': [ { 'to': null }, { 'to': ?2 } ] }" +
+			"  ]" +
+			"}", count = true)
+	Mono<Long> countUnreadMessages(UUID roomId, UUID lastReadMessageId, UUID userKey);
 }

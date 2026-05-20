@@ -53,7 +53,13 @@ import lombok.NoArgsConstructor;
 	@CompoundIndex(
 			name = "idx_muc_sync_optimized", 
 			def = "{'roomId': 1, 'updateCursorId': 1, 'id': 1}"
-			)
+			),
+	
+	@CompoundIndex(
+		    name = "idx_muc_unread_count_optimized", 
+		    def = "{ 'roomId': 1, 'countable': 1, 'messageId': 1, 'to': 1 }",
+		    partialFilter = "{ 'deletedAt': null, 'countable': true }"
+		)
 })
 public class MucMessage {    
 	@Id
@@ -75,15 +81,6 @@ public class MucMessage {
 
 	@Size(max = 20000, message = "XML stanza is too large") // Max length 20kb
 	private String stanzaXml;
-
-	private String category;
-
-	// 3. INDEX for Threading/Reactions
-	// Useful for finding all reactions to a specific message
-	@Indexed
-	private String refersTo;     
-
-	private boolean isE2EE;
 
 	private Instant deletedAt;
 
@@ -112,6 +109,24 @@ public class MucMessage {
 	private UUID updateCursorId;
 
 	private Instant createdAt = Instant.now();
+	
+	/**
+	 * Indicates whether this message should increment the unread message count.
+	 *
+	 * Countable messages typically include:
+	 * - normal chat messages
+	 * - OMEMO encrypted messages
+	 * - attachments
+	 *
+	 * Non-countable messages typically include:
+	 * - message edits/corrections
+	 * - delivery receipts
+	 * - chat markers
+	 * - reactions
+	 * - typing indicators
+	 * - retraction events
+	 */
+	private Boolean countable;
 	
     /**
      * Optional: MongoDB TTL (Time To Live) index.

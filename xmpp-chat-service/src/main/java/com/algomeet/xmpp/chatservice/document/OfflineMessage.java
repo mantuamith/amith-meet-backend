@@ -20,7 +20,7 @@ import lombok.Data;
 @CompoundIndex(name = "active_messages_stream_idx", def = "{'to': 1, 'id': 1}", partialFilter = "{'deletedAt': null}")
 @CompoundIndex(name = "active_lookup_by_sender_idx", def = "{'from': 1, 'id': 1}", partialFilter = "{'deletedAt': null}")
 @CompoundIndex(name = "purge_soft_deleted_batch_idx", def = "{'to': 1, 'from': 1, 'deletedAt': 1, 'id': 1}")
-@CompoundIndex(name = "unread_count_idx", def = "{'to': 1, 'from': 1, 'id': 1}")
+@CompoundIndex(name = "unread_count_idx", def = "{'to': 1, 'from': 1, 'id': 1}", partialFilter = "{'countable': true}")
 @CompoundIndex(
 	    name = "acknowledged_purge_idx", 
 	    def = "{'id': 1}", 
@@ -47,6 +47,24 @@ public class OfflineMessage {
 	private Instant deletedAt;
 	
 	private Boolean isAckStanza;
+	
+	/**
+	 * Indicates whether this message should increment the unread message count.
+	 *
+	 * Countable messages typically include:
+	 * - normal chat messages
+	 * - OMEMO encrypted messages
+	 * - attachments
+	 *
+	 * Non-countable messages typically include:
+	 * - message edits/corrections
+	 * - delivery receipts
+	 * - chat markers
+	 * - reactions
+	 * - typing indicators
+	 * - retraction events
+	 */
+	private Boolean countable;
 
 	/**
 	 * Optional: MongoDB TTL (Time To Live) index.

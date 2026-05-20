@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 
 import com.algomeet.xmpp.chatservice.document.OfflineMessage;
 import com.algomeet.xmpp.chatservice.repository.OfflineMessageRepository;
+import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 
 import lombok.AllArgsConstructor;
 import reactor.core.publisher.Flux;
@@ -61,6 +62,7 @@ public class OfflineMessageService {
                 .from(UUID.fromString(from))
                 .messageType(type)
                 .isAckStanza(isAckStanza)
+                .countable(XmppStanzaUtil.isCountableStanza(originalXml))
                 .stanzaXml(originalXml)
                 .build();
         
@@ -83,6 +85,7 @@ public class OfflineMessageService {
                 .to(UUID.fromString(to))
                 .from(UUID.fromString(from))
                 .messageType(type)
+                .countable(XmppStanzaUtil.isCountableStanza(originalXml))
                 .stanzaXml(originalXml)
                 .build();
         

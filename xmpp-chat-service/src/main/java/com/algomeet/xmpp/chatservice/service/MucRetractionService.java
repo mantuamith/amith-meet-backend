@@ -90,6 +90,7 @@ public class MucRetractionService {
                     // Soft delete from MAM archive so the message is not returned in future history fetches
                     message.setDeletedAt(Instant.now());
                     message.setUpdateCursorId(updateCursorId);
+                    message.setCountable(false);
                     message.setStanzaXml(XmppStanzaUtil.markAsRetractedStanza(message.getStanzaXml(), newString));
 
                     return xmppArchiveService.save(message)

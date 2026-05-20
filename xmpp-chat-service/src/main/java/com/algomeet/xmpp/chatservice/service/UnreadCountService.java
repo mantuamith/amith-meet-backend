@@ -131,7 +131,8 @@ public class UnreadCountService {
 			Long capturedIncrementAt = currentUnread.getLastIncrementAt();
 
 			// 2. Fetch the real-time pending count based on current DB state
-			return offlineMessageRepository.countByToAndFromAndIdGreaterThan(UUID.fromString(recipientKey), UUID.fromString(senderKey), messageId)
+			return offlineMessageRepository.countByToAndFromAndIdGreaterThanAndCountableTrue(
+					UUID.fromString(recipientKey), UUID.fromString(senderKey), messageId)
 					.flatMap(count -> {
 
 						// 3. Construct the query ensuring lastIncrementAt hasn't changed
@@ -234,21 +235,21 @@ public class UnreadCountService {
 	 * @return A Flux of document _ids, sorted by most recent activity, limited by the page size.
 	 */
 	public Flux<String> getRecentContactKeysReactive(String targetUserKey, int page, int size) {
-	    long skipValues = (long) page * size;
+		long skipValues = (long) page * size;
 
-	    // A standard query using $or CAN use indexes for sorting if structured right,
-	    // but requires a single unified index tracking the sorting field across the query.
-	    Query query = new Query(
-	        new Criteria().orOperator(
-	            Criteria.where("user_key").is(UUID.fromString(targetUserKey)),
-	            Criteria.where("sender_key").is(UUID.fromString(targetUserKey))
-	        )
-	    ).with(Sort.by(Sort.Direction.DESC, "last_increment_at"))
-	     .skip(skipValues)
-	     .limit(size);
+		// A standard query using $or CAN use indexes for sorting if structured right,
+		// but requires a single unified index tracking the sorting field across the query.
+		Query query = new Query(
+				new Criteria().orOperator(
+						Criteria.where("user_key").is(UUID.fromString(targetUserKey)),
+						Criteria.where("sender_key").is(UUID.fromString(targetUserKey))
+						)
+				).with(Sort.by(Sort.Direction.DESC, "last_increment_at"))
+				.skip(skipValues)
+				.limit(size);
 
-	    return reactiveMongoTemplate.find(query, UnreadCount.class)
-	            .map(UnreadCount::getId)
-	            .distinct(); 
+		return reactiveMongoTemplate.find(query, UnreadCount.class)
+				.map(UnreadCount::getId)
+				.distinct(); 
 	}
 }
