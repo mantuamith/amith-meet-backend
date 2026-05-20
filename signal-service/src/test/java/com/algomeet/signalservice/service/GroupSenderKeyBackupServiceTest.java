@@ -38,7 +38,7 @@ class GroupSenderKeyBackupServiceTest {
 
     private static final UUID USER_KEY = UUID.fromString("11111111-1111-1111-1111-111111111111");
     private static final UUID DISTRIBUTION_ID = UUID.fromString("22222222-2222-2222-2222-222222222222");
-    private static final String GROUP_ID = "group-1";
+    private static final UUID GROUP_ID = UUID.fromString("22222222-2222-2222-3333-222222222222");
 
     private GroupSenderKeyBackupRequest saveRequest;
     private GroupSenderKeyBackupUpdateRequest updateRequest;

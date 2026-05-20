@@ -1,6 +1,7 @@
 package com.algomeet.xmpp.chatservice.routing.muc;
 
 import java.util.Set;
+import java.util.UUID;
 
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
@@ -76,7 +77,8 @@ public class MucMessageRouter {
 
 		// 1. Call Tracking (For VoIP/Video logic)
 		if (isJingleStanza) {	        	
-			mucCallTracker.track(ctx, jidUtil.getBareJid(toUserKey), fromJid, originalXml, principal, XmppUtil.getRoomId(toRoomJid));
+			mucCallTracker.track(ctx, jidUtil.getBareJid(toUserKey), fromJid, originalXml, principal, 
+					UUID.fromString(XmppUtil.getRoomId(toRoomJid)));
 		}
 
 		// 2. Anonymization (JID Rewriting)

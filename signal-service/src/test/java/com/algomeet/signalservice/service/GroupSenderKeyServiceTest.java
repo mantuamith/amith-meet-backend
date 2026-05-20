@@ -44,7 +44,7 @@ class GroupSenderKeyServiceTest {
 
     private static final UUID SENDER_USER_KEY = UUID.fromString("11111111-1111-1111-1111-111111111111");
     private static final UUID RECEIVER_USER_KEY = UUID.fromString("22222222-2222-2222-2222-222222222222");
-    private static final String GROUP_ID = "group-1";
+    private static final UUID GROUP_ID = UUID.fromString("22222222-2222-2222-3333-222222222222");
     private static final Integer SENDER_DEVICE_ID = 1;
     private static final Integer RECEIVER_DEVICE_ID = 2;
 
@@ -106,7 +106,7 @@ class GroupSenderKeyServiceTest {
         GroupSenderKeyView groupSenderKey = new GroupSenderKeyView() {
 
 			@Override
-			public String getGroupId() {
+			public UUID getGroupId() {
 				return GROUP_ID;
 			}
 

@@ -78,7 +78,7 @@ public class MucRetractionService {
             .<Void>flatMap(message -> { 
             	
                 // Authorization: Validate that the initiator is the one who sent the original message
-                if (message.getFrom().equalsIgnoreCase(principal.getUserKey())) {
+                if (message.getFrom().compareTo(UUID.fromString(principal.getUserKey())) == 0) {
 
                     log.info("Executing retraction: Message {} in room {} by user {}", 
                             retractMessageId, roomJid, principal.getUserKey());
@@ -90,6 +90,7 @@ public class MucRetractionService {
                     // Soft delete from MAM archive so the message is not returned in future history fetches
                     message.setDeletedAt(Instant.now());
                     message.setUpdateCursorId(updateCursorId);
+                    message.setCountable(false);
                     message.setStanzaXml(XmppStanzaUtil.markAsRetractedStanza(message.getStanzaXml(), newString));
 
                     return xmppArchiveService.save(message)

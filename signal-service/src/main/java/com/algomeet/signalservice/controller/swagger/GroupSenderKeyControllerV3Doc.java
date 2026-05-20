@@ -36,7 +36,7 @@ public interface GroupSenderKeyControllerV3Doc {
     })
     ResponseEntity<CommonResponse<GroupSenderKeyResponse>> create(
             @Parameter(description = "Group identifier")
-            @PathVariable String groupId,
+            @PathVariable UUID groupId,
 
             @Parameter(description = "Sender device ID")
             @PathVariable Integer senderDeviceId,
@@ -74,7 +74,7 @@ public interface GroupSenderKeyControllerV3Doc {
     })
     ResponseEntity<CommonResponse<List<GroupSenderKeyResponse>>> get(
             @Parameter(description = "Group identifier")
-            @PathVariable String groupId,
+            @PathVariable UUID groupId,
 
             @Parameter(description = "Sender device ID")
             @PathVariable Integer senderDeviceId);
@@ -92,7 +92,7 @@ public interface GroupSenderKeyControllerV3Doc {
     })
     ResponseEntity<CommonResponse<List<GroupSenderKeyResponse>>> getSenderKeys(
             @Parameter(description = "Group identifier")
-            @PathVariable String groupId,
+            @PathVariable UUID groupId,
 
             @Parameter(description = "Receiver device ID")
             @PathVariable Integer receiverDeviceId);
@@ -111,7 +111,7 @@ public interface GroupSenderKeyControllerV3Doc {
     })
     ResponseEntity<CommonResponse<List<UserDeviceResponse>>> getMissingSenderKeys(
             @Parameter(description = "Group identifier")
-            @PathVariable String groupId);
+            @PathVariable UUID groupId);
 
     @Operation(
             summary = "Delete sender key mapping",
@@ -126,7 +126,7 @@ public interface GroupSenderKeyControllerV3Doc {
     })
     ResponseEntity<CommonResponse<?>> deleteBySender(
             @Parameter(description = "Group identifier")
-            @PathVariable String groupId,
+            @PathVariable UUID groupId,
 
             @Parameter(description = "Sender device ID")
             @PathVariable Integer senderDeviceId,
@@ -150,7 +150,7 @@ public interface GroupSenderKeyControllerV3Doc {
     })
     ResponseEntity<CommonResponse<?>> markAsProcessed(
             @Parameter(description = "Group identifier")
-            @PathVariable String groupId,
+            @PathVariable UUID groupId,
 
             @Parameter(description = "Receiver device ID")
             @PathVariable Integer receiverDeviceId,
@@ -175,7 +175,7 @@ public interface GroupSenderKeyControllerV3Doc {
     })
     ResponseEntity<CommonResponse<?>> deleteSenderKeys(
             @Parameter(description = "Group identifier")
-            @PathVariable String groupId,
+            @PathVariable UUID groupId,
 
             @Parameter(description = "Receiver user key")
             @PathVariable UUID receiverUserKey);
@@ -194,5 +194,5 @@ public interface GroupSenderKeyControllerV3Doc {
     })
     ResponseEntity<CommonResponse<?>> delete(
             @Parameter(description = "Group identifier")
-            @PathVariable String groupId);
+            @PathVariable UUID groupId);
 }

@@ -350,7 +350,7 @@ public class XmppSmBufferService {
                             && XmppStanzaUtil.isArchivable(xml))) {
 
                         return smBufferMessageService.bufferStanza(
-                                smSessionId,
+                        		UUID.fromString(smSessionId),
                                 
                                 /**
                                  * Generate fallback id if sender omitted stanza id.
@@ -468,7 +468,7 @@ public class XmppSmBufferService {
 
                                 .flatMap(smSessionId ->
                                         smBufferMessageService.bufferStanza(
-                                                smSessionId,
+                                        		UUID.fromString(smSessionId),
                                                 stanzaId,
                                                 seq,
                                                 xml

@@ -10,20 +10,27 @@ import reactor.core.publisher.Mono;
 public interface OfflineMessageRepository extends ReactiveMongoRepository<OfflineMessage, UUID> {
     
     // Use Flux for a stream of reactive results
-    Flux<OfflineMessage> findByToOrderByIdAsc(String to);
+    Flux<OfflineMessage> findByToAndDeletedAtIsNullOrderByIdAsc(UUID to);
     
     // Use Mono<Void> for reactive deletion
-    Mono<Void> deleteByTo(String to);
+    Mono<Void> deleteByTo(UUID to);
     
-    Mono<OfflineMessage> findByIdAndFrom(String id, String from);
+    Mono<OfflineMessage> findByIdAndFromAndDeletedAtIsNull(UUID id, UUID from);
     
     /**
-     * Deletes all pending offline messages for a specific recipient 
-     * up to and including the specified message ID checkpoint.
-     *
-     * @param to        The receiver user key/ID whose offline queue is being cleared
-     * @param messageId The highest stanza ID/UUIDv7 that was successfully delivered (inclusive)
-     * @return A Mono signaling completion when the database purge finishes
+     * Deletes all delivered and read messages
      */
-    Mono<Void> deleteByToAndIdLessThan(String to, UUID messageId);
+    Mono<Void> deleteByToAndFromAndIdLessThanEqualAndDeletedAtIsNotNull(UUID to, UUID from, UUID id);
+    
+    // Counts unread messages
+    Mono<Long> countByToAndFromAndIdGreaterThanAndCountableTrue(UUID to, UUID from, UUID id);
+    
+    /**
+     * Hard-deletes an offline message record matching the given ID 
+     * only if its acknowledgement status (isAck) is set to true.
+     *
+     * @param id The unique message UUID checkpoint
+     * @return A Mono<Void> signaling completion when the operation finishes
+     */
+    Mono<Void> deleteByIdAndIsAckStanzaTrue(UUID id);
 }

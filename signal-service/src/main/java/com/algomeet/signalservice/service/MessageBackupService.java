@@ -86,16 +86,16 @@ public class MessageBackupService {
 	 */
 	public MessageBackupDocument insert(MessageBackupDocument backup) {
 		// Resolve the authenticated user's identity from security context
-		String userKey = SecurityUtil.getUserKey();
+		UUID userKey = UUID.fromString(SecurityUtil.getUserKey());
 
 		// Assign owner of this message backup
-		backup.setUserKey(SecurityUtil.getUserKey());
+		backup.setUserKey(userKey);
 
 		// Build deterministic conversation ID so both directions map to the same thread
 		String conversationId = ConversationUtil.getConversationId(
-				userKey,
-				backup.getSenderKey(),
-				backup.getReceiverKey()
+				userKey.toString(),
+				backup.getSenderKey().toString(),
+				backup.getReceiverKey().toString()
 				);
 		backup.setConversationId(conversationId);
 
@@ -158,7 +158,7 @@ public class MessageBackupService {
 		req.setChatMessageCountDelta(1L);
 		req.setChatStorageBytesDelta(backup.getSize());
 
-		mediaService.adjustStorageUsage(userKey, req);
+		mediaService.adjustStorageUsage(userKey.toString(), req);
 
 		// Persist message backup into MongoDB
 		return repository.save(backup);
@@ -181,7 +181,7 @@ public class MessageBackupService {
 	}
 
 	public List<MessageBackupDocument> syncMessageUpdates(
-	        String userKey,
+	        UUID userKey,
 	        String peerKey,
 	        String cursorStanzaId,
 	        String limitStanzaId,
@@ -189,7 +189,7 @@ public class MessageBackupService {
 	) {
 	    Query query = new Query();
 
-	    String conversationId = ConversationUtil.getConversationId(userKey, peerKey);
+	    String conversationId = ConversationUtil.getConversationId(userKey.toString(), peerKey);
 
 	    // Filter: conversationId AND updateCursorId > cursorStanzaId AND stanzaId <= limitStanzaId
 	    query.addCriteria(
@@ -225,7 +225,7 @@ public class MessageBackupService {
 	    modifiedRecords.addAll(mongoTemplate.find(query, MessageBackupDocument.class));
 
 	    // Get the latest first message in the conversation
-	    String converationId = ConversationUtil.getConversationId(userKey, peerKey);
+	    String converationId = ConversationUtil.getConversationId(userKey.toString(), peerKey);
 	    Optional<MessageBackupDocument> optCurrentFirstMessage = repository.findFirstByUserKeyAndConversationIdOrderByStanzaIdAsc(userKey, converationId);
 
 	    if (optCurrentFirstMessage.isPresent()) {
@@ -247,7 +247,7 @@ public class MessageBackupService {
 		return repository.findByConversationIdAndStanzaIdGreaterThan(converationId, stanzaId, pageable);
 	}
 
-	public MessageBackupDocument getMessage(String userKey, UUID messageId) {
+	public MessageBackupDocument getMessage(UUID userKey, UUID messageId) {
 		Optional<MessageBackupDocument> backupOpt = repository.findByMessageIdAndUserKey(messageId, userKey);	
 		return backupOpt.orElseThrow(() -> new RecordNotFoundException("Message ID not found"));
 	}
@@ -305,7 +305,7 @@ public class MessageBackupService {
 		private String contactKey;
 	}
 
-	public MessageBackupDocument update(String userKey,  UUID messageId, MessageBackupDocument backup) {	
+	public MessageBackupDocument update(UUID userKey,  UUID messageId, MessageBackupDocument backup) {	
 		backup.setMessageId(messageId);
 		Optional<MessageBackupDocument> updateOpt = repository.findByMessageIdAndUserKey(messageId, userKey);
 
@@ -322,7 +322,7 @@ public class MessageBackupService {
 		// Update user storage usage 
 		StorageUsageAdjustmentRequest req = new StorageUsageAdjustmentRequest();
 		req.setChatStorageBytesDelta(backup.getSize() - updateOpt.get().getSize());
-		mediaService.adjustStorageUsage(backup.getUserKey(), req);
+		mediaService.adjustStorageUsage(backup.getUserKey().toString(), req);
 
 		return repository.save(updateOpt.map(existing -> {
 			// Core Identity & Routing
@@ -357,7 +357,7 @@ public class MessageBackupService {
 		}).get());
 	}
 
-	public MessageBackupDocument edit(String userKey, UUID messageId, MessageBackupDocument backup) {	
+	public MessageBackupDocument edit(UUID userKey, UUID messageId, MessageBackupDocument backup) {	
 		backup.setMessageId(messageId);
 		Optional<MessageBackupDocument> updateOpt = repository.findByMessageIdAndUserKey(messageId, userKey);
 
@@ -374,7 +374,7 @@ public class MessageBackupService {
 		// Update user storage usage 
 		StorageUsageAdjustmentRequest req = new StorageUsageAdjustmentRequest();
 		req.setChatStorageBytesDelta(backup.getSize() - updateOpt.get().getSize());
-		mediaService.adjustStorageUsage(backup.getUserKey(), req);
+		mediaService.adjustStorageUsage(backup.getUserKey().toString(), req);
 
 		UUID updateStanzaId;		
 		
@@ -407,7 +407,7 @@ public class MessageBackupService {
 		}).get());
 	}
 
-	public void delete(String userKey, UUID messageId) {
+	public void delete(UUID userKey, UUID messageId) {
 		Optional<MessageBackupDocument> updateOpt = repository.findByMessageIdAndUserKey(messageId, userKey);	
 		if (updateOpt.isEmpty()) {
 			throw new RecordNotFoundException("Message ID not found");
@@ -417,14 +417,14 @@ public class MessageBackupService {
 		StorageUsageAdjustmentRequest req = new StorageUsageAdjustmentRequest();
 		req.setChatMessageCountDelta(-1L);
 		req.setChatStorageBytesDelta(-updateOpt.get().getSize());
-		mediaService.adjustStorageUsage(updateOpt.get().getUserKey(), req);
+		mediaService.adjustStorageUsage(updateOpt.get().getUserKey().toString(), req);
 
 		repository.deleteById(messageId);
 	}	
 
 	@Transactional
-	public void deleteConversation(String userKey, String peerKey) {
-		String converationId = ConversationUtil.getConversationId(userKey, peerKey);
+	public void deleteConversation(UUID userKey, UUID peerKey) {
+		String converationId = ConversationUtil.getConversationId(userKey.toString(), peerKey.toString());
 		
 		ConversationStorageStats stats =
 				repository.getConversationStorageStats(userKey, converationId)
@@ -440,16 +440,16 @@ public class MessageBackupService {
 		StorageUsageAdjustmentRequest req = new StorageUsageAdjustmentRequest();
 		req.setChatMessageCountDelta(-messageCount);
 		req.setChatStorageBytesDelta(-totalSize);
-		mediaService.adjustStorageUsage(userKey, req);
+		mediaService.adjustStorageUsage(userKey.toString(), req);
 		
 		repository.deleteByUserKeyAndConversationId(userKey, converationId);				
 	}	
 
-	public void deleteByUserKey(String userKey ){
+	public void deleteByUserKey(UUID userKey ){
 		repository.deleteByUserKey(userKey);
 
 		// Delete user storage usage
-		mediaService.deleteStorage(userKey);
+		mediaService.deleteStorage(userKey.toString());
 	}	
 
 	public void updateStatus(UUID messageId, String timestampField, UUID stanzaId, Long timestamp) {
@@ -482,7 +482,7 @@ public class MessageBackupService {
 
 		// Atomic update for high-concurrency environments
 		Query query = null;		
-		if(FIELD_READ_AT.equals(timestampField) || FIELD_DELIVERED_AT.equals(timestampField)) {
+		if(FIELD_READ_AT.equals(timestampField)) {
 			// Uses .lte() to ensure the message ID is less than or equal to the threshold
 			// 1. Filter by User Key (Equality match)
 			// 2. Filter by Message ID threshold (Range match)

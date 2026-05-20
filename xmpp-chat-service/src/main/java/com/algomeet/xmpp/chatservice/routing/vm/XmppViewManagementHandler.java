@@ -172,6 +172,6 @@ public class XmppViewManagementHandler {
 	        principal.getUserKey(), 
 	        principal.getUserKey(), 
 	        iqResult
-	    );
+	    ).subscribe();
 	}
 }

@@ -4,7 +4,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 public interface GroupSenderKeyView {
-    String getGroupId();
+    UUID getGroupId();
 
     UUID getReceiverUserKey();
 

@@ -59,6 +59,7 @@ class GroupSenderKeyControllerTest {
     private ObjectMapper objectMapper;
 
     private static final UUID USER_KEY = UUID.fromString("11111111-1111-1111-1111-111111111111");
+    private static final UUID GROUP_ID = UUID.fromString("11111111-1111-1111-2222-111111111111");
 
     private MockedStatic<SecurityUtil> securityUtilMock;
 
@@ -91,7 +92,7 @@ class GroupSenderKeyControllerTest {
 
         GroupSenderKeyResponse response = new GroupSenderKeyResponse();
 
-        when(service.create(USER_KEY, 1, "group-1", request))
+        when(service.create(USER_KEY, 1, GROUP_ID, request))
                 .thenReturn(response);
 
         mockMvc.perform(post("/signal/v2/devices/1/groups/group-1/sender-keys")
@@ -109,7 +110,7 @@ class GroupSenderKeyControllerTest {
         request.setReceiverDeviceId(1);
         request.setSkdmCipher("U29tZVNhbXBsZVNlbmRlclNLRE1EYXRh"); // valid Base64 string
 
-        when(service.create(USER_KEY, 1, "group-1", request))
+        when(service.create(USER_KEY, 1, GROUP_ID, request))
                 .thenThrow(new RecordNotFoundException("not found"));
 
         mockMvc.perform(post("/signal/v2/devices/1/groups/group-1/sender-keys")
@@ -127,7 +128,7 @@ class GroupSenderKeyControllerTest {
     void getGroupSenderKeys_success() throws Exception {
         GroupSenderKeyResponse response = new GroupSenderKeyResponse();
 
-        when(service.getList(USER_KEY, 1, "group-1"))
+        when(service.getList(USER_KEY, 1, GROUP_ID))
                 .thenReturn(List.of(response));
 
         mockMvc.perform(get("/signal/v2/devices/1/groups/group-1/sender-keys")
@@ -139,7 +140,7 @@ class GroupSenderKeyControllerTest {
 
     @Test
     void getGroupSenderKeys_notFound() throws Exception {
-        when(service.getList(USER_KEY, 1, "group-1"))
+        when(service.getList(USER_KEY, 1, GROUP_ID))
                 .thenThrow(new RecordNotFoundException("not found"));
 
         mockMvc.perform(get("/signal/v2/devices/1/groups/group-1/sender-keys")
@@ -155,7 +156,7 @@ class GroupSenderKeyControllerTest {
     void pollGroupSenderKeys_success() throws Exception {
         GroupSenderKeyResponse response = new GroupSenderKeyResponse();
 
-        when(service.longPoll(USER_KEY, 1, "group-1", 100))
+        when(service.longPoll(USER_KEY, 1, GROUP_ID, 100))
                 .thenReturn(List.of(response));
 
         mockMvc.perform(get("/signal/v2/devices/1/groups/group-1/sender-keys/poll")
@@ -168,7 +169,7 @@ class GroupSenderKeyControllerTest {
 
     @Test
     void pollGroupSenderKeys_notFound() throws Exception {
-        when(service.longPoll(USER_KEY, 1, "group-1", 100))
+        when(service.longPoll(USER_KEY, 1, GROUP_ID, 100))
                 .thenThrow(new RecordNotFoundException("not found"));
 
         mockMvc.perform(get("/signal/v2/devices/1/groups/group-1/sender-keys/poll")

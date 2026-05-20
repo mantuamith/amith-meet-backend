@@ -37,7 +37,7 @@ public class GroupSenderKeyController implements GroupSenderKeyControllerDoc{
 	@PostMapping("/{senderDeviceId}/groups/{groupId}/sender-keys")
 	public ResponseEntity<CommonResponse<GroupSenderKeyResponse>> create(
 			@PathVariable Integer senderDeviceId,
-			@PathVariable String groupId,
+			@PathVariable UUID groupId,
 			@Validated @RequestBody GroupSenderKeyRequest request) {
 		try {
 			UUID senderUserKey = UUID.fromString(SecurityUtil.getUserKey());
@@ -56,7 +56,7 @@ public class GroupSenderKeyController implements GroupSenderKeyControllerDoc{
 	@GetMapping("/{senderDeviceId}/groups/{groupId}/sender-keys")
 	public ResponseEntity<CommonResponse<List<GroupSenderKeyResponse>>> get(
 			@PathVariable Integer senderDeviceId,
-			@PathVariable String groupId) {
+			@PathVariable UUID groupId) {
 
 		UUID senderUserKey = UUID.fromString(SecurityUtil.getUserKey());
 		try {
@@ -76,7 +76,7 @@ public class GroupSenderKeyController implements GroupSenderKeyControllerDoc{
 	@GetMapping("/{receiverDeviceId}/groups/{groupId}/sender-keys/poll")
 	public ResponseEntity<CommonResponse<List<GroupSenderKeyResponse>>> poll(
 			@PathVariable Integer receiverDeviceId,
-			@PathVariable String groupId,
+			@PathVariable UUID groupId,
 	        @RequestParam(defaultValue = "0") long timeoutMs) {
 		try {
 			UUID receiverUserKey = UUID.fromString(SecurityUtil.getUserKey());
@@ -96,7 +96,7 @@ public class GroupSenderKeyController implements GroupSenderKeyControllerDoc{
 	@GetMapping("/{receiverDeviceId}/groups/{groupId}/sender-keys/receiver")
 	public ResponseEntity<CommonResponse<List<GroupSenderKeyResponse>>> getSenderKeys(
 			@PathVariable Integer receiverDeviceId,
-			@PathVariable String groupId) {
+			@PathVariable UUID groupId) {
 		try {
 			UUID receiverUserKey = UUID.fromString(SecurityUtil.getUserKey());
 			List<GroupSenderKeyResponse> list =

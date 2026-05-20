@@ -12,17 +12,19 @@ import lombok.Data;
 @Data
 @Document(collection = "unread_counts")
 @CompoundIndex(name = "user_inbox_idx", def = "{'user_key': 1, 'last_increment_at': -1}")
+// Index for UnreadCount class:
+@CompoundIndex(name = "user_sent_idx", def = "{'sender_key': 1, 'last_increment_at': -1}")
 public class UnreadCount {    
 	@Id
 	private String id; // format: <senderKey>_<recipientKey>
 
 	@Indexed
 	@Field("user_key")
-	private String userKey; // The person who OWNS this unread count
+	private UUID userKey; // The person who OWNS this unread count
 
 	@Indexed
 	@Field("sender_key")
-	private String senderKey; // The person who SEND this unread count
+	private UUID senderKey; // The person who SEND this unread count
 
 	@Field("unread_count")
 	private int unreadCount = 0;

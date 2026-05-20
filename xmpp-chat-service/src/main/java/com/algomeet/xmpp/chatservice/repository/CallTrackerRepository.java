@@ -1,5 +1,7 @@
 package com.algomeet.xmpp.chatservice.repository;
 
+import java.util.UUID;
+
 import org.springframework.data.mongodb.repository.ReactiveMongoRepository;
 import org.springframework.stereotype.Repository;
 import com.algomeet.xmpp.chatservice.document.CallSession;
@@ -34,7 +36,7 @@ public interface CallTrackerRepository extends ReactiveMongoRepository<CallSessi
      * Forces a single result by returning the most recently created session
      * for a specific SID and Callee JID.
      */
-    Mono<CallSession> findFirstBySidAndCalleeOrderByCreatedAtDesc(String sid, String callee);
+    Mono<CallSession> findFirstBySidAndCalleeOrderByCreatedAtDesc(String sid, UUID callee);
     
 
     /**
@@ -53,7 +55,7 @@ public interface CallTrackerRepository extends ReactiveMongoRepository<CallSessi
     /**
      * Removes documents matching the SID and Callee.
      */
-    Mono<Void> deleteBySidAndCallee(String sid, String callee);
+    Mono<Void> deleteBySidAndCallee(String sid, UUID callee);
     
     /**
      * Removes documents matching the SID.

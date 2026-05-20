@@ -105,19 +105,16 @@ public class MessageBackupDocument {
      * Auto populated field.
      */
     @Schema(hidden = true)
-	@Size(max = 45)
 	@Field("userKey")
-	private String userKey;   
+	private UUID userKey;   
 
 	@NotEmpty
-	@Size(max = 45)
 	@Field("senderKey")
-	private String senderKey; 
+	private UUID senderKey; 
 
 	@NotEmpty
-	@Size(max = 45)
 	@Field("receiverKey")
-	private String receiverKey;     
+	private UUID receiverKey;     
 
 	@NotEmpty
 	@Size(max = 20000)

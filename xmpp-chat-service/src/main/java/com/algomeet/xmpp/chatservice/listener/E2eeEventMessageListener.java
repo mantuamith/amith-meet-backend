@@ -72,7 +72,8 @@ public class E2eeEventMessageListener {
                     bundlePayload
                 );
 
-                localStanzaDispatcher.dispatchLocally(subscriberKey, event.getSourceUserKey(), fullIq);
+                localStanzaDispatcher.dispatchLocally(subscriberKey, event.getSourceUserKey(), fullIq)
+                .subscribe();
             }            
         }
     }

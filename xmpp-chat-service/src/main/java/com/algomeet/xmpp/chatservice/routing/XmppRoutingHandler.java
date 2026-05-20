@@ -24,6 +24,7 @@ import com.algomeet.xmpp.chatservice.service.OfflineMessageService;
 import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
+import com.github.f4b6a3.uuid.UuidCreator;
 
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
@@ -116,11 +117,16 @@ public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocke
 					}
 				}
 			}
+			
+			// 5. Assign Message ID if not assigned
+			if (!StringUtils.hasText(id)) {
+				id = UuidCreator.getTimeOrderedEpoch().toString();
+			}
 
-			// 5. Identify MAM once
+			// 6. Identify MAM once
 			boolean mam = isMamRequest(type, xml);
 
-			// 6. Branch based on logic: MAM and Server-directed queries go to InfoQueryHandler
+			// 7. Branch based on logic: MAM and Server-directed queries go to InfoQueryHandler
 			// Direct/Group messages go to respective handlers
 
 			if (!mam && (XmppMessageType.GROUPCHAT == XmppMessageType.fromString(type) || isGroupChat(toJid))) {

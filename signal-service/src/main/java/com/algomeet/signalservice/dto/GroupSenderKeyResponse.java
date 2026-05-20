@@ -6,7 +6,7 @@ import lombok.Data;
 
 @Data
 public class GroupSenderKeyResponse {
-    private String groupId;
+    private UUID groupId;
 
     private UUID receiverUserKey;
     private Integer receiverDeviceId;

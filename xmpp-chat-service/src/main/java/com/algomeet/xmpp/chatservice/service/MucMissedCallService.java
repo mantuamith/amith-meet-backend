@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -23,7 +24,6 @@ import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.document.CallSession;
 import com.algomeet.xmpp.chatservice.dto.MucMember;
 import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
-import com.algomeet.xmpp.chatservice.dto.StanzaInfo;
 import com.algomeet.xmpp.chatservice.enums.CallSessionMetadata;
 import com.algomeet.xmpp.chatservice.enums.CallSessionRedisKey;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
@@ -157,11 +157,11 @@ public class MucMissedCallService {
 									.filter(isFirst -> isFirst) // Only continue if we are the first node
 									.flatMap(isFirst ->  {
 
-										String fromJid = jidUtil.getGroupBareJid(session.getCaller());
-										String toJid = jidUtil.getBareJid(session.getCaller());
+										String fromJid = jidUtil.getGroupBareJid(session.getCaller().toString());
+										String toJid = jidUtil.getBareJid(session.getCaller().toString());
 
 										sendGroupChatMissedCallStanza(fromJid, toJid, session.getSid(), 
-												session.getCallType(), session.getRoomId());
+												session.getCallType(), session.getRoomId().toString());
 
 										log.info("Call SID {} fully processed. Notification sent to {}", session.getSid(), toJid);
 
@@ -216,9 +216,9 @@ public class MucMissedCallService {
 					// Build the session
 					CallSession session = CallSession.builder()
 							.sid(sid)
-							.callee(XmppUtil.getUserKey(toJid))
-							.caller(XmppUtil.getUserKey(fromJid)) // Fixed: likely intended fromJid here, not metaKey
-							.roomId(groupId)
+							.callee(UUID.fromString(XmppUtil.getUserKey(toJid)))
+							.caller(UUID.fromString(XmppUtil.getUserKey(fromJid))) // Fixed: likely intended fromJid here, not metaKey
+							.roomId(UUID.fromString(groupId))
 							.tenantId(StringUtils.hasText(tenantId) ? Integer.parseInt(tenantId) : 0)
 							.callType(type)
 							.build();	
@@ -273,7 +273,7 @@ public class MucMissedCallService {
 							sendGroupChatMissedCallStanza(fromJid, toJid, sid, type, groupId);
 
 							// Delete MUC call session from DB
-							mucCallTrackerService.remove(sid, toUserKey).subscribe();
+							mucCallTrackerService.remove(sid, UUID.fromString(toUserKey)).subscribe();
 
 							if (!hasActiveSession) {
 								sendPush(toUserKey,
@@ -313,17 +313,16 @@ public class MucMissedCallService {
 						"<subject>Missed %s Call</subject>" +
 						"<body>Missed %s call</body>" +
 						"<call-log xmlns='urn:xmpp:algomeet:calls' type='%s' status='missed' timestamp='%s' sid='%s'/>" +
+						"<countable xmlns='urn:algomeet:meta:0'/>" +
 						"</message>",
 						fromRoomJid, toJid, id, type, type, type, Instant.now().toString(), sid
 				);	
-
-		StanzaInfo info = StanzaInfo.builder().messageId(UuidCreator.getTimeOrderedEpoch().toString()).build();
 
 		String stanzaId = UuidCreator.getTimeOrderedEpoch().toString();
 		// Insert stanza ID
 		String forArchiveXml = XmppStanzaUtil.insertStanzaId(xml, stanzaId, domainProperties.getDomain());
 		
-		xmppArchiveService.archiveEvent(forArchiveXml, info, groupId, toUserKey, 
+		xmppArchiveService.archiveEvent(forArchiveXml, UuidCreator.getTimeOrderedEpoch().toString(), groupId, toUserKey, 
 				fromUserKey, UuidCreator.getTimeOrderedEpoch())
 		.doOnSuccess(success -> {
 			// Publish 

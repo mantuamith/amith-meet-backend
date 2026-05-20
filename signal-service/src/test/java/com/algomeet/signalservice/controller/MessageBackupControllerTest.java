@@ -75,9 +75,17 @@ class MessageBackupControllerTest {
 
     @Autowired
     MessageSource messageSource;
+    
+	private static UUID userKey;
+	private static UUID senderKey;
+	private static UUID receiverKey;
 
     @BeforeEach
     void setup() {
+		userKey = UuidCreator.getTimeOrderedEpoch();
+		senderKey = UuidCreator.getTimeOrderedEpoch();
+		receiverKey = UuidCreator.getTimeOrderedEpoch();
+		
         securityUtilMock = Mockito.mockStatic(SecurityUtil.class);
         securityUtilMock.when(SecurityUtil::getUserKey)
                 .thenReturn(USER_KEY);
@@ -96,9 +104,9 @@ class MessageBackupControllerTest {
         MessageBackupDocument doc = new MessageBackupDocument();
 
         doc.setMessageId(UuidCreator.getTimeOrderedEpoch()); // max 56 chars
-        doc.setUserKey("11111111-1111-1111-1111-111111111111"); // deprecated, still must be <= 45 chars
-        doc.setSenderKey("sender-uuid-1234"); // <= 45 chars, not empty
-        doc.setReceiverKey("receiver-uuid-5678"); // <= 45 chars, not empty
+        doc.setUserKey(userKey); // deprecated, still must be <= 45 chars
+        doc.setSenderKey(senderKey); // <= 45 chars, not empty
+        doc.setReceiverKey(receiverKey); // <= 45 chars, not empty
 
         // Base64-encoded encrypted message, <= 20000 chars, not empty
         doc.setEncryptedMessage("U29tZUVuY3J5cHRlZE1lc3NhZ2VCYXNlNjQ="); 
@@ -163,7 +171,7 @@ class MessageBackupControllerTest {
     @Test
     void getMessage_notFound() throws Exception {
     	UUID messageId = UuidCreator.getTimeOrderedEpoch();
-        when(messageBackupService.getMessage(anyString(), eq(messageId))).thenThrow(new RecordNotFoundException("not found"));
+        when(messageBackupService.getMessage(userKey, eq(messageId))).thenThrow(new RecordNotFoundException("not found"));
 
         mockMvc.perform(get("/signal/backup/chat-messages/msg-1"))
                 .andExpect(status().isNotFound())
@@ -179,7 +187,7 @@ class MessageBackupControllerTest {
         UUID messageId = UuidCreator.getTimeOrderedEpoch();
         MessageBackupDocument saved = sampleMessageBackupDocument();
 
-        when(messageBackupService.update(anyString(), eq(messageId), any())).thenReturn(saved);
+        when(messageBackupService.update(userKey, eq(messageId), any())).thenReturn(saved);
 
         mockMvc.perform(put("/signal/backup/chat-messages/msg-1")
                 .with(csrf())
@@ -194,7 +202,7 @@ class MessageBackupControllerTest {
     void updateMessage_notFound() throws Exception {
         MessageBackupDocument request = sampleMessageBackupDocument();
         UUID messageId = UuidCreator.getTimeOrderedEpoch();
-        when(messageBackupService.update(anyString(), eq(messageId), any())).thenThrow(new RecordNotFoundException("not found"));
+        when(messageBackupService.update(userKey, eq(messageId), any())).thenThrow(new RecordNotFoundException("not found"));
 
         mockMvc.perform(put("/signal/backup/chat-messages/msg-1")
                 .with(csrf())
@@ -210,7 +218,7 @@ class MessageBackupControllerTest {
     @Test
     void deleteMessage_success() throws Exception {
     	UUID messageId = UuidCreator.getTimeOrderedEpoch();
-        doNothing().when(messageBackupService).delete(anyString(), eq(messageId));
+        doNothing().when(messageBackupService).delete(userKey, eq(messageId));
 
         mockMvc.perform(delete("/signal/backup/chat-messages/msg-1")
                 .with(csrf()))
@@ -222,7 +230,7 @@ class MessageBackupControllerTest {
     void deleteMessage_notFound() throws Exception {
     	UUID messageId = UuidCreator.getTimeOrderedEpoch();
         doThrow(new RecordNotFoundException("not found"))
-                .when(messageBackupService).delete(anyString(), eq(messageId));
+                .when(messageBackupService).delete(userKey, eq(messageId));
 
         mockMvc.perform(delete("/signal/backup/chat-messages/msg-1")
                 .with(csrf()))
@@ -235,7 +243,7 @@ class MessageBackupControllerTest {
      * ------------------------------------------------- */
     @Test
     void deleteByConversation_success() throws Exception {
-        doNothing().when(messageBackupService).deleteConversation(USER_KEY, "peer-1");
+        doNothing().when(messageBackupService).deleteConversation(userKey, userKey);
 
         mockMvc.perform(delete("/signal/backup/chat-messages/peer-1/conversation")
                 .with(csrf()))
@@ -248,7 +256,7 @@ class MessageBackupControllerTest {
      * ------------------------------------------------- */
     @Test
     void deleteByUserKey_success() throws Exception {
-        doNothing().when(messageBackupService).deleteByUserKey(USER_KEY);
+        doNothing().when(messageBackupService).deleteByUserKey(userKey);
 
         mockMvc.perform(delete("/signal/backup/chat-messages")
                 .with(csrf()))

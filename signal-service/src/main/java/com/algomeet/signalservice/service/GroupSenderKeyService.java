@@ -45,7 +45,7 @@ public class GroupSenderKeyService {
 	private final UserDeviceRepository deviceRepository;
 	private final GroupClient groupClient;
 
-	public GroupSenderKeyResponse create(UUID senderUserKey, Integer senderDeviceId, String groupId, GroupSenderKeyRequest request) {
+	public GroupSenderKeyResponse create(UUID senderUserKey, Integer senderDeviceId, UUID groupId, GroupSenderKeyRequest request) {
 		deviceRepository.findById(new UserDeviceId(senderUserKey, senderDeviceId))
 		.orElseThrow(() -> new RecordNotFoundException("User device ID not found"));
 
@@ -55,7 +55,7 @@ public class GroupSenderKeyService {
 	}
 
 	@Transactional(readOnly = true)
-	public List<GroupSenderKeyResponse> getList(UUID senderUserKey, Integer senderDeviceId, String groupId) {
+	public List<GroupSenderKeyResponse> getList(UUID senderUserKey, Integer senderDeviceId, UUID groupId) {
 		deviceRepository.findById(new UserDeviceId(senderUserKey, senderDeviceId))
 		.orElseThrow(() -> new RecordNotFoundException("User device ID not found"));
 
@@ -66,9 +66,9 @@ public class GroupSenderKeyService {
 	}
 
 	@Transactional(readOnly = true)
-	public List<UserDeviceResponse> getMissingDevices(UUID senderUserKey, String groupId) {
+	public List<UserDeviceResponse> getMissingDevices(UUID senderUserKey, UUID groupId) {
 	    // 1. Initial validation and early exit
-	    GroupResponse group = groupClient.getGroupById(groupId);
+	    GroupResponse group = groupClient.getGroupById(groupId.toString());
 	    if (group == null || group.getMembers() == null || group.getMembers().isEmpty()) {
 	        return Collections.emptyList();
 	    }
@@ -126,13 +126,13 @@ public class GroupSenderKeyService {
 	}
 
 	public List<GroupSenderKeyResponse> longPoll(
-			UUID receiverUserKey, Integer receiverDeviceId, String groupId, long timeoutMs) {
+			UUID receiverUserKey, Integer receiverDeviceId, UUID groupId, long timeoutMs) {
 		return getSenderKeys(
 				receiverUserKey, receiverDeviceId, groupId);
 	}
 
 	public List<GroupSenderKeyResponse> getSenderKeys(
-			UUID receiverUserKey, Integer receiverDeviceId, String groupId) {
+			UUID receiverUserKey, Integer receiverDeviceId, UUID groupId) {
 
 		deviceRepository.findById(new UserDeviceId(receiverUserKey, receiverDeviceId))
 		.orElseThrow(() -> new RecordNotFoundException("User device ID not found"));
@@ -181,7 +181,7 @@ public class GroupSenderKeyService {
 	}
 	
 	@Transactional
-	public void delete(UUID senderUserKey, UUID receiverUserKey, String groupId) {	
+	public void delete(UUID senderUserKey, UUID receiverUserKey, UUID groupId) {	
 		Pageable limitOne = PageRequest.of(0, 1);
 		
 		if(repository.findFirstBySenderUserKeyAndReceiverUserKeyAndGroupId(senderUserKey, receiverUserKey, groupId, limitOne).isEmpty()) {
@@ -192,8 +192,8 @@ public class GroupSenderKeyService {
 	}
 			
 	@Transactional
-	public void delete(String currentUserKey, String groupId) {		
-	    GroupResponse group = groupClient.getGroupById(groupId);
+	public void delete(String currentUserKey, UUID groupId) {		
+	    GroupResponse group = groupClient.getGroupById(groupId.toString());
 	    if (!(group == null || group.getMembers() == null || group.getMembers().isEmpty())) {
 	    	if(!(group.getMembers().stream()
 	    			.anyMatch(m -> m.getUserKey().equals(currentUserKey) 

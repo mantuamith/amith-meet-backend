@@ -15,6 +15,9 @@ import io.netty.channel.ChannelFuture;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.publisher.Mono;
+import reactor.core.publisher.Sinks;
+import reactor.core.publisher.Sinks.EmitFailureHandler;
 
 /**
  * Responsible for delivering XMPP stanzas to locally connected sessions
@@ -71,7 +74,7 @@ public class LocalStanzaDispatcher {
 	 * @param sessionId    originating session (used to prevent echo loops)
 	 * @param payload      raw XML stanza
 	 */
-	public void dispatchLocally(
+	public Mono<Boolean> dispatchLocally(
 			UUID id,
 			String to,
 			Boolean isAllowEcho,
@@ -88,7 +91,7 @@ public class LocalStanzaDispatcher {
 			xmppSmBufferService.saveStanzaSynchronized(id, to, payload).subscribe();
 			
 			log.debug("No active local channel found for JID: {}", to);
-			return;
+			return Mono.empty();
 		}
 
 		XmppPrincipal principal =
@@ -100,10 +103,10 @@ public class LocalStanzaDispatcher {
 				&& principal.getSessionId().equals(sessionId)) {
 
 			log.trace("Message suppressed for originating session: {}", sessionId);
-			return;
+			return Mono.empty();
 		}
 
-		writeAndFlush(targetChannel, id, to, payload);
+		return writeAndFlush(targetChannel, id, to, payload);
 	}
 
 	/**
@@ -111,16 +114,16 @@ public class LocalStanzaDispatcher {
 	 *
 	 * Used for internal or simplified routing paths.
 	 */
-	public void dispatchLocally(String to, String from, String payload) {
+	public Mono<Boolean> dispatchLocally(String to, String from, String payload) {
 
 		Channel targetChannel = localChannelRegistry.getChannel(to);
 
 		if (targetChannel == null) {
 			log.debug("No active local channel found for JID: {}", to);
-			return;
+			return Mono.empty();
 		}
 
-		writeAndFlush(targetChannel, UuidCreator.getTimeOrderedEpoch(), to, payload);
+		return writeAndFlush(targetChannel, UuidCreator.getTimeOrderedEpoch(), to, payload);
 	}
 
 	/**
@@ -132,31 +135,49 @@ public class LocalStanzaDispatcher {
 	 * - Handle async success/failure callbacks
 	 * - Trigger SM buffer fallback on failure (if enabled)
 	 */
-	private void writeAndFlush(Channel targetChannel, UUID id, String to, String payload) {
-		targetChannel
-		.writeAndFlush(new TextWebSocketFrame(payload))
-		.addListener((ChannelFuture future) -> {
+	private Mono<Boolean> writeAndFlush(Channel targetChannel, UUID id, String to, String payload) {
+	    Sinks.One<Boolean> sink = Sinks.one();
 
-			// Successful write means Netty accepted the message for delivery
-			if (future.isSuccess()) {
-				log.debug("Message delivered. channel={}", targetChannel.id());
-				return;
-			}
+	    targetChannel.writeAndFlush(new TextWebSocketFrame(payload))
+	    .addListener((ChannelFuture future) -> {
+	        if (future.isSuccess()) {
+	            log.debug("Message delivered. channel={}", targetChannel.id());
+	            // Use FAIL_FAST to handle highly concurrent edge cases gracefully
+	            sink.emitValue(true, EmitFailureHandler.FAIL_FAST);
+	            return;
+	        }
+	        
+	        // Emit immediately
+            sink.emitValue(false, EmitFailureHandler.FAIL_FAST);
 
-			Channel ch = future.channel();
-			log.warn("Delivery failed active={}, open={}, cause={}",
-					ch.isActive(),
-					ch.isOpen(),
-					future.cause().toString());
+	        // Failure Path
+	        Channel ch = future.channel();
+	        log.warn("Delivery failed active={}, open={}, cause={}",
+	                ch.isActive(), ch.isOpen(),
+	                future.cause() != null ? future.cause().toString() : "Unknown");
 
-			// Stream Management fallback
-			// Persist stanza into SM buffer for reliability (XEP-0198)
-			// If session is resumable, buffer stanza for later replay
-			String smSessionId =
-					targetChannel.attr(XmppSessionAttributes.SM_ID_KEY).get();
+	        try {
+	            String smSessionId = targetChannel.attr(XmppSessionAttributes.SM_ID_KEY).get();
 
-			xmppSmBufferService.saveStanza(id, to, payload, smSessionId)
-			.subscribe();
-		});
+	            // CRITICAL FIX: Bind the database fallback to the sink context 
+	            // without creating a completely separate unmanaged thread subscription
+	            xmppSmBufferService.saveStanza(id, to, payload, smSessionId)
+	                    .doOnSuccess(v -> {
+	                        log.debug("Fallback storage completed for missed stanza: {}", id);
+
+	                    })
+	                    .doOnError(err -> {
+	                        log.error("Severe: SM Backup failed for user: {}", to, err);
+	                        sink.emitError(err, EmitFailureHandler.FAIL_FAST);
+	                    })
+	                    .subscribe();
+	        } catch (Exception ex) {
+	            // Safety net: If reading attributes throws a NullPointerException or similar,
+	            // make sure the sink still fires so downstream threads don't hang!
+	            log.error("Fatal failure backing-up stanza for stream management resume: {}", id, ex);
+	        }
+	    });
+
+	    return sink.asMono();
 	}
 }

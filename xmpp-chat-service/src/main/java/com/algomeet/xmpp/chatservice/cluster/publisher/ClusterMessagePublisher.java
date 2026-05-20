@@ -1,7 +1,5 @@
 package com.algomeet.xmpp.chatservice.cluster.publisher;
 
-import java.util.UUID;
-
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
@@ -84,7 +82,7 @@ public class ClusterMessagePublisher {
 			ChatType chatType,
 			String payload) {
 
-		convertAndSendToUser(id, to, from, chatType, true, null, false, payload);
+		convertAndSendToUser(id, to, from, chatType, true, null, false, false, payload);
 	}
 
 	/**
@@ -119,7 +117,7 @@ public class ClusterMessagePublisher {
 	        sessionId = principal.getSessionId();
 	    }
 
-	    convertAndSendToUser(id, to, from, chatType, isAllowEcho, sessionId, false, payload);
+	    convertAndSendToUser(id, to, from, chatType, isAllowEcho, sessionId, false, false, payload);
 	}
 
 	/**
@@ -146,6 +144,7 @@ public class ClusterMessagePublisher {
 	        ChatType chatType,
 	        Boolean isAllowEcho,
 	        Boolean shouldCarbon,
+	        Boolean isAckStanza,
 	        String payload,
 	        XmppPrincipal principal) {
 
@@ -156,7 +155,7 @@ public class ClusterMessagePublisher {
 	        sessionId = principal.getSessionId();
 	    }
 
-	    convertAndSendToUser(id, to, from, chatType, isAllowEcho, sessionId, shouldCarbon, payload);
+	    convertAndSendToUser(id, to, from, chatType, isAllowEcho, sessionId, shouldCarbon, isAckStanza, payload);
 	}
 	
 	/**
@@ -177,6 +176,7 @@ public class ClusterMessagePublisher {
 			Boolean isAllowEcho,
 			String sessionId,
 			Boolean shouldCarbon,
+			Boolean isAckStanza,
 			String payload) {
 
 		StringBuilder sb = BUFFER.get();
@@ -192,6 +192,7 @@ public class ClusterMessagePublisher {
 		.append(isAllowEcho ? "1" : "0").append(sep)
 		.append(sessionId == null ? "" : sessionId).append(sep)
 		.append(shouldCarbon ? "1" : "0").append(sep)
+		.append(isAckStanza ? "1" : "0").append(sep)
 		.append(payload);
 
 		return sb.toString();
@@ -228,6 +229,7 @@ public class ClusterMessagePublisher {
 			Boolean isAllowEcho,
 			String sessionId,
 			Boolean shouldCarbon,
+			Boolean isAckStanza,
 			String payload) {
 
 		try {
@@ -267,6 +269,7 @@ public class ClusterMessagePublisher {
 			 *     <li>isAllowEcho  - "1" = true, "0" = false</li>
 			 *     <li>sessionId    - Originating session for duplicate suppression</li>
 			 *     <li>shouldCarbon - "1" = true, "0" = false</li></li>
+			 *     <li>isAckStanza  - "1" = true, "0" = false</li></li>
 			 *     <li>payload      - Raw XMPP XML stanza</li>
 			 *      
 			 * </ol>
@@ -280,6 +283,7 @@ public class ClusterMessagePublisher {
 					isAllowEcho,
 					sessionId,
 					shouldCarbon,
+					isAckStanza,
 					payload
 					);
 

@@ -35,8 +35,8 @@ public class MucMessageReadCursorService {
      * @param roomId  The target chat room identifier.
      * @return A {@link Mono} emitting the exact unread message count. Defaults to 0 if no history exists.
      */
-    public Mono<Long> getUnreadCount(final String userKey, final String roomId) {
-        final String cursorId = String.format("%s_%s", userKey, roomId);
+    public Mono<Long> getUnreadCount(final UUID userKey, final UUID roomId) {
+        final String cursorId = String.format("%s_%s", userKey.toString(), roomId.toString());
 
         return reactiveMongoTemplate.findById(cursorId, MucRoomReadCursor.class)
                 .flatMap(cursor -> mucMessageRepository.countUnreadMessages(
@@ -61,8 +61,8 @@ public class MucMessageReadCursorService {
      * @param lastReadMid The message ID (UUIDv7) up to which the user has read.
      * @return A {@link Mono} emitting the updated {@link MucRoomReadCursor} state.
      */
-    public Mono<MucRoomReadCursor> advanceReadCursor(final String userKey, final String roomId, final UUID lastReadMid) {
-        final String cursorId = String.format("%s_%s", userKey, roomId);
+    public Mono<MucRoomReadCursor> advanceReadCursor(final UUID userKey, final UUID roomId, final UUID lastReadMid) {
+        final String cursorId = String.format("%s_%s", userKey.toString(), roomId.toString());
         final long nowMs = Instant.now().toEpochMilli();
 
         final Query query = new Query(Criteria.where("_id").is(cursorId));

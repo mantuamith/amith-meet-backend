@@ -37,9 +37,9 @@ public class MucUnreadCountService {
 	 * @param userKey The unique identifier of the user requesting badge counts.
 	 * @return A {@link List} containing {@link MucUnreadCount} payloads for each group.
 	 */
-	public List<MucUnreadCount> getUnreadCountsByUser(String userKey) {
+	public List<MucUnreadCount> getUnreadCountsByUser(UUID userKey) {
 		// Step 1: Fetch the user's groups from your external client service
-		List<MucRoomDto> rooms = groupClient.getGroupsForUserKey(userKey);
+		List<MucRoomDto> rooms = groupClient.getGroupsForUserKey(userKey.toString());
 		if (rooms == null || rooms.isEmpty()) {
 			return Collections.emptyList();
 		}
@@ -49,7 +49,7 @@ public class MucUnreadCountService {
 				.collectList()
 				.flatMapIterable(cursorList -> {
 					// Convert the cursor list into an optimized O(1) lookup Map
-					Map<String, MucRoomReadCursor> cursorMap = cursorList.stream()
+					Map<UUID, MucRoomReadCursor> cursorMap = cursorList.stream()
 							.collect(Collectors.toMap(
 									MucRoomReadCursor::getRoomId,
 									cursor -> cursor,
@@ -66,11 +66,11 @@ public class MucUnreadCountService {
 					String roomId = context.room.getId();
 					UUID lastReadMid = context.cursor != null ? context.cursor.getLastReadMid() : Constants.SMALLEST_UUID_V7;
 
-					return mucMessageRepository.countUnreadMessages(roomId, lastReadMid, userKey)
+					return mucMessageRepository.countUnreadMessages(UUID.fromString(roomId), lastReadMid, userKey)
 							.map(count -> {
 								MucUnreadCount unreadCountDto = new MucUnreadCount();
 								unreadCountDto.setId(String.format("%s_%s", userKey, roomId));
-								unreadCountDto.setUserKey(userKey);
+								unreadCountDto.setUserKey(userKey.toString());
 								unreadCountDto.setRoomId(roomId);
 								unreadCountDto.setUnreadCount(count.intValue());
 								unreadCountDto.setLastReadMid(lastReadMid.toString());
@@ -108,7 +108,7 @@ public class MucUnreadCountService {
 	 * @param roomId  The target group chat room identifier.
 	 * @return A {@link Mono} emitting the total unread integer count.
 	 */
-	public Integer getUnreadCount(String userKey, String roomId) {
+	public Integer getUnreadCount(UUID userKey, UUID roomId) {
 
 		// Step 1: Look up the single cursor document for this specific user and room
 		return mucRoomReadCursorRepository.findByUserKeyAndRoomId(userKey, roomId)

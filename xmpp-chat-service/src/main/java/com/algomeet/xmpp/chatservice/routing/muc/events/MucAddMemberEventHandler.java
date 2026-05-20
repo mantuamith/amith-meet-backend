@@ -10,7 +10,6 @@ import org.springframework.util.CollectionUtils;
 
 import com.algomeet.xmpp.chatservice.dto.MucMember;
 import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
-import com.algomeet.xmpp.chatservice.dto.StanzaInfo;
 import com.algomeet.xmpp.chatservice.enums.MucAffiliation;
 import com.algomeet.xmpp.chatservice.enums.MucRole;
 import com.algomeet.xmpp.chatservice.enums.UserState;
@@ -295,16 +294,9 @@ public class MucAddMemberEventHandler {
 			UUID stanzaId,
 			String xml) {
 
-		StanzaInfo info = StanzaInfo.builder()
-				.messageId(id)
-				.stanzaType(
-						XmppMessageType.GROUPCHAT.getXmlValue()
-						)
-				.build();
-
 		xmppArchiveService.archiveEvent(
 				xml,
-				info,
+				id,
 				XmppUtil.getRoomId(roomBareJid),
 				null,
 				sender.getUserKey(),
@@ -327,6 +319,7 @@ public class MucAddMemberEventHandler {
 						"  <x xmlns='http://algomeet.app/protocol/system'>" +
 						"    <event type='member_added' jid='%s'/>" +
 						"  </x>" +
+						"<countable xmlns='urn:algomeet:meta:0'/>" +
 						"</message>",
 						id,
 						fromJid,
@@ -349,7 +342,7 @@ public class MucAddMemberEventHandler {
 				String.format("<iq from='%s' to='%s' id='%s' type='result'/>",
 						from, to, id);
 
-		localStanzaDispatcher.dispatchLocally(to, from, resp);
+		localStanzaDispatcher.dispatchLocally(to, from, resp).subscribe();
 	}
 
 	/**

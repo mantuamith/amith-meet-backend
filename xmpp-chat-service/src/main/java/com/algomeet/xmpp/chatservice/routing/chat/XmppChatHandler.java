@@ -77,6 +77,7 @@ public class XmppChatHandler {
 
 		// Persistence & XEP-0198 Acknowledgment
 		boolean isArchivable = XmppStanzaUtil.isArchivable(originalXml);
+		boolean isAckStanza = false;
 		if (msgType.supportsOfflineStorage() && isArchivable) {	
 			 /**
 	         * Generate a monotonic UUIDv7 used as the stanza-id value.
@@ -91,12 +92,17 @@ public class XmppChatHandler {
 	        String stanzaId = UuidCreator.getTimeOrderedEpoch().toString();
 			// Insert stanza ID
 			forArchiveXml = XmppStanzaUtil.insertStanzaId(originalXml, stanzaId, principal.getDomain());
-					    
-			offlineMessageService.save(UUID.fromString(id), toUserKey, fromUserKey, type, forArchiveXml)
+			
+			UUID messageId = StringUtils.hasText(id) 
+				    ? UUID.fromString(id.trim()) 
+				    : UuidCreator.getTimeOrderedEpoch();
+			
+			boolean isCountable = XmppStanzaUtil.isCountableStanza(originalXml);
+			
+			// Determine if message is ACK stanza
+			isAckStanza = XmppStanzaUtil.isMessageAckStanza(originalXml);
+			offlineMessageService.save(messageId, toUserKey, fromUserKey, type, isAckStanza, isCountable, forArchiveXml)
 		            .doOnSuccess(saved -> {
-		            	boolean isAckMessage = false;
-		            	boolean isRetractStanza = false;
-		    		            	
 		            	// Send an immediate server-level acknowledgment to the sender.
 		            	//
 		            	// This acknowledgment confirms that:
@@ -115,8 +121,6 @@ public class XmppChatHandler {
 
 		            	    // Ensure the retract ID is valid and not empty before proceeding
 		            	    if (StringUtils.hasText(retractMessageId)) {
-		            	        // Flag this message as a protocol-level retraction rather than a standard chat message
-		            	        isRetractStanza = true;
 		            	        
 		            	        // Execute the deletion logic (checking permissions, removing from offline storage, and updating MAM)
 		            	        processRetraction(retractMessageId, toUserKey, fromUserKey, principal).subscribe();
@@ -127,15 +131,14 @@ public class XmppChatHandler {
 					    // If the stanza contains the 'urn:xmpp:receipts' namespace, the recipient's 
 					    // device has successfully received the message.
 					    if (originalXml.contains(XmppReceiptUtil.NS_RECEIPTS)) {
-					    	isAckMessage = true;
-					    	log.info("---->{}", originalXml);
+
 					        String ackMessageId = xmppReceiptUtil.getAckMessageId(originalXml);
 					        if (StringUtils.hasText(ackMessageId)) {
-					        	// Once delivery is confirmed via an XEP-0198 Stream Management acknowledgment (<a h='...'/>), 
-					        	// the batch of messages is no longer considered "offline" and can be safely purged.
-					        	// Utilizing time-sorted IDs (UUIDv7) enables an optimized $lte range deletion.
-					        	offlineMessageService.purgeOfflineQueueUpTo(principal.getUserKey(), UUID.fromString(ackMessageId))
-					        	.doOnSuccess(unused -> log.debug("Successfully purged offline queue for user: {} up to ID: {}", principal.getUserKey(), ackMessageId))
+					        	
+					        	// Clear the heavy XML payload from the offline buffer now that the client has acknowledged delivery.
+					        	// We trigger this asynchronously and fire-and-forget; it does not block the main Netty/XMPP processing loop.
+					        	offlineMessageService.clearOfflineStanza(UUID.fromString(principal.getUserKey()), UUID.fromString(ackMessageId))
+					        	.doOnSuccess(unused -> log.debug("Successfully clear offline stanza for user: {} up to ID: {}", principal.getUserKey(), ackMessageId))
 					        	.doOnError(error -> log.error("Failed to clear offline message database buffer for user: {}", principal.getUserKey(), error))
 					        	.subscribe();
 					        }
@@ -145,17 +148,21 @@ public class XmppChatHandler {
 					    // If the stanza contains the 'urn:xmpp:chat-markers:0' namespace (displayed), 
 					    // the user has actively viewed the conversation.
 					    if (originalXml.contains(XmppReadUtil.NS_DISPLAYS)) {
-					    	isAckMessage = true;
 					        String ackMessageId = xmppReadUtil.getAckMessageId(originalXml);
 					        
 					        if (StringUtils.hasText(ackMessageId)) {
 					            // Decrement the unread counter for this specific sender-recipient pair.
 					            // Note: fromUserKey is the person who read it, toUserKey is the original sender.
-					            unreadCountService.decrementUnreadCount(toUserKey, fromUserKey, principal).subscribe();
+					            unreadCountService.syncUnreadCount(toUserKey, fromUserKey, UUID.fromString(ackMessageId), principal)
+					            .doOnSuccess(success -> {
+					            	// Trigger a fire-and-forget background purge of processed/soft-deleted messages.
+					            	offlineMessageService.purgeDeletedMessagesUpToCheckpoint(UUID.fromString(fromUserKey), UUID.fromString(toUserKey), messageId).subscribe();
+					            })
+					            .subscribe();
 					        }
 					    }
 					    
-					    if (!isAckMessage && !isRetractStanza) {
+					    if (isCountable) {
 					    	// Asynchronous Unread Tracking
 					    	// Increment the unread counter for the recipient (toUserKey) relative to the sender (fromUserKey).
 					    	// This is handled reactively to avoid blocking the Netty event loop during DB writes.
@@ -193,29 +200,30 @@ public class XmppChatHandler {
 			callTracker.track(ctx, toJid, fromJid, originalXml, principal);
 		}   				
 
-		// Check if carbon copy is required, if archivable the Carbon Copy required
+		// Check if carbon copy is required, if archivable the Carbon Copy is required
 		Boolean shouldCarbon = isArchivable;
 		
 		// Broadast to Redis: Even if they are AWAY/DND, we attempt delivery 
 		// to their active WebSocket channels across the cluster.
-		clusterMessagePublisher.convertAndSendToUser(id, toUserKey, fromUserKey, ChatType.CHAT, false, shouldCarbon, 
+		clusterMessagePublisher.convertAndSendToUser(id, toUserKey, fromUserKey, ChatType.CHAT, false, shouldCarbon, isAckStanza,
 				(isArchivable ? forArchiveXml : originalXml), principal);
 						
 		pushNotification(ctx, id, toUserKey, fromUserKey, type, originalXml, sessions, principal);
 	}
 	
 	public Mono<Void> processRetraction(String retractId, String toUserKey, String fromUserKey, XmppPrincipal principal) {
-		return offlineMessageService.findByIdAndSender(retractId, fromUserKey)
+		return offlineMessageService.findByIdAndSender(UUID.fromString(retractId), UUID.fromString(fromUserKey))
 				.flatMap(message -> {
 
 					// Decrement the unread counter for this specific sender-recipient pair.
 					// Note: fromUserKey is the person who read it, toUserKey is the original sender.
-					unreadCountService.decrementUnreadCount(toUserKey, fromUserKey, principal).subscribe();
+					unreadCountService.decrementUnreadCount(toUserKey, fromUserKey, UUID.fromString(retractId), principal).subscribe();
 
 					// Scenario: Record found, proceed to soft delete
 					log.info("Message found, soft deleting offline record by emptying the body of the message: {}", retractId);
-
-					message.setStanzaXml(XmppStanzaUtil.emptyBodyTag(message.getStanzaXml()));
+					String newString = "<body>This message was deleted</body>";
+					message.setStanzaXml(XmppStanzaUtil.markAsRetractedStanza(message.getStanzaXml(), newString));
+					message.setCountable(false);
 					message.setDeletedAt(Instant.now());
 					return offlineMessageService.save(message)
 							.then();

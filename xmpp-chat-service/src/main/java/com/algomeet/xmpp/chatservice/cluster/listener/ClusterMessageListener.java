@@ -6,6 +6,7 @@ import java.util.regex.Pattern;
 import org.springframework.stereotype.Component;
 
 import com.algomeet.xmpp.chatservice.enums.ChatType;
+import com.algomeet.xmpp.chatservice.repository.OfflineMessageRepository;
 import com.algomeet.xmpp.chatservice.routing.chat.CarbonCopyHandler;
 import com.algomeet.xmpp.chatservice.routing.dispacher.LocalStanzaDispatcher;
 import com.algomeet.xmpp.chatservice.util.ClusterSyncProtocolUtil;
@@ -39,6 +40,7 @@ public class ClusterMessageListener {
     
     private final LocalStanzaDispatcher localStanzaDispatcher;
     private final CarbonCopyHandler carbonCopyHandler;
+    private final OfflineMessageRepository offlineMessageRepository;
 
     /**
      * Entry point for messages arriving from the cluster infrastructure (e.g., Redis Pub/Sub).
@@ -72,7 +74,8 @@ public class ClusterMessageListener {
          *     <li>[5] allowEcho   - "1" = true, "0" = false</li>
          *     <li>[6] sessionId   - Originating client session ID</li>
          *     <li>[7] shouldCarbon - "1" = true, "0" = false</li></li>
-         *     <li>[8] payload     - Raw XMPP XML stanza</li>
+         *     <li>[8] isAckStanza - "1" = true, "0" = false</li></li>
+         *     <li>[9] payload     - Raw XMPP XML stanza</li>
 
          * </ol>
          *
@@ -101,7 +104,8 @@ public class ClusterMessageListener {
         	boolean isAllowEcho = "1".equals(message[5]);
         	String userSessionId = message[6];
         	boolean shouldCarbon = "1".equals(message[7]);
-        	String payload = message[8];
+        	boolean isAckStanza = "1".equals(message[8]);
+        	String payload = message[9];
         	
             localStanzaDispatcher.dispatchLocally(
             		id,
@@ -109,7 +113,17 @@ public class ClusterMessageListener {
             		isAllowEcho,
             		userSessionId,
             		payload
-            );
+            )
+            // Intercept the emitted boolean when it arrives from the Netty/WebSocket pipeline
+            .doOnNext(isSuccess -> {
+                if (Boolean.TRUE.equals(isSuccess) && isAckStanza) {
+                	// Delete if record is ACK stanza
+                	offlineMessageRepository.deleteByIdAndIsAckStanzaTrue(id).subscribe();
+                }
+            })
+            // If this is the absolute end-point of an event listener/fire-and-forget handler,
+            // keep ONE .subscribe() here. If it's inside a pipeline, remove .subscribe() and return the Mono.
+            .subscribe();
 
             /**
              * Message Carbons are only applicable to one-to-one chats.

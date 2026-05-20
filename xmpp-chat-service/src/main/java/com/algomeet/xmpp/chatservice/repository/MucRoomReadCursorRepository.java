@@ -21,7 +21,7 @@ public interface MucRoomReadCursorRepository extends ReactiveMongoRepository<Muc
      * @param userKey The unique identifier of the user.
      * @return A {@link Flux} emitting the user's room read cursors.
      */
-    Flux<MucRoomReadCursor> findByUserKey(String userKey);
+    Flux<MucRoomReadCursor> findByUserKey(UUID userKey);
     
     /**
      * Retrieves the single, authoritative read cursor for a specific user within a specific room.
@@ -35,7 +35,7 @@ public interface MucRoomReadCursorRepository extends ReactiveMongoRepository<Muc
      * @return A {@link Mono} emitting the matching {@link MucRoomReadCursor}, 
      *         or completing empty if the user has no recorded read history in this room.
      */
-    Mono<MucRoomReadCursor> findByUserKeyAndRoomId(String userKey, String roomId);
+    Mono<MucRoomReadCursor> findByUserKeyAndRoomId(UUID userKey, UUID roomId);
     
     /**
      * Finds all room read cursors in the specified room where the
@@ -50,5 +50,5 @@ public interface MucRoomReadCursorRepository extends ReactiveMongoRepository<Muc
      * @param messageId the reference message ID threshold
      * @return a reactive stream of matching room read cursors
      */
-    Flux<MucRoomReadCursor> findByRoomIdAndLastReadMidGreaterThanEqual(String roomId, UUID lastReadMid);
+    Flux<MucRoomReadCursor> findByRoomIdAndLastReadMidGreaterThanEqual(UUID roomId, UUID lastReadMid);
 }

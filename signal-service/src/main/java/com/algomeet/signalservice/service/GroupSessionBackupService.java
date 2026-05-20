@@ -46,7 +46,7 @@ public class GroupSessionBackupService {
                 .collect(Collectors.toList());
     }
 
-    public GroupSessionBackupResponse findBackup(UUID userKey, String groupId, UUID distributionId, boolean isInbound) {
+    public GroupSessionBackupResponse findBackup(UUID userKey, UUID groupId, UUID distributionId, boolean isInbound) {
         return repository.findById(new GroupSessionBackupId(userKey, groupId, distributionId, isInbound))
                 .map(GroupSessionBackupMapper::toDto)
                 .orElseThrow(() -> new RecordNotFoundException("Group session backup not found"));
@@ -60,7 +60,7 @@ public class GroupSessionBackupService {
     }
 
     @Transactional
-    public void deleteBackup(UUID userKey, String groupId, UUID distributionId, boolean isInbound) {
+    public void deleteBackup(UUID userKey, UUID groupId, UUID distributionId, boolean isInbound) {
     	repository.findById(new GroupSessionBackupId(userKey, groupId, distributionId, isInbound))
     	.orElseThrow(() -> new RecordNotFoundException("Group session backup not found"));
 

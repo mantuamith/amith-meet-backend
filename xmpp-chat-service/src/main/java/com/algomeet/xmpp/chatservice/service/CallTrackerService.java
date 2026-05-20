@@ -110,9 +110,9 @@ public class CallTrackerService {
 	 */
 	public Mono<CallSession> trackInitiation(
 			String sid,
-			String caller,
+			UUID caller,
 			String callerSid,
-			String callee,
+			UUID callee,
 			String callType) {
 
 		CallSession call = CallSession.builder()
@@ -148,7 +148,7 @@ public class CallTrackerService {
 	 */
 	public Mono<CallSession> trackAcceptance(
 			String sid,
-			String callee,
+			UUID callee,
 			String calleeSid) {
 
 		return repository.findFirstBySidAndCalleeOrderByCreatedAtDesc(sid, callee)
@@ -351,8 +351,8 @@ public class CallTrackerService {
 			String status,
 			String ts) {
 
-		String callerJid = jidUtil.getBareJid(session.getCaller());
-		String calleeJid = jidUtil.getBareJid(session.getCallee());
+		String callerJid = jidUtil.getBareJid(session.getCaller().toString());
+		String calleeJid = jidUtil.getBareJid(session.getCallee().toString());
 
 		UUID callerMsgId = UuidCreator.getTimeOrderedEpoch();
 		UUID calleeMsgId = UuidCreator.getTimeOrderedEpoch();
@@ -372,7 +372,7 @@ public class CallTrackerService {
 		// Insert stanza ID
 		String forArchiveCallerMsg = XmppStanzaUtil.insertStanzaId(callerMsg, stanzaId, domainProperties.getDomain());
 		
-		publish(callerMsgId, session.getCaller(), session.getCallee(), ChatType.CHAT, forArchiveCallerMsg);
+		publish(callerMsgId, session.getCaller().toString(), session.getCallee().toString(), ChatType.CHAT, forArchiveCallerMsg);
 
 		// Send compose and send call logs to responder/callee
 		String calleeMsg = composeCallLogStanza(
@@ -389,7 +389,7 @@ public class CallTrackerService {
 		// Insert stanza ID
 		String forArchiveCalleeMsg = XmppStanzaUtil.insertStanzaId(calleeMsg, stanzaIdCallee, domainProperties.getDomain());
 
-		publish(calleeMsgId, session.getCallee(), session.getCaller(), ChatType.CHAT, forArchiveCalleeMsg);
+		publish(calleeMsgId, session.getCallee().toString(), session.getCaller().toString(), ChatType.CHAT, forArchiveCalleeMsg);
 	}
 
 	/**
@@ -452,6 +452,7 @@ public class CallTrackerService {
 						"duration='%d' " +
 						"status='%s' " +
 						"timestamp='%s' />" +
+						"<countable xmlns='urn:algomeet:meta:0'/>" +
 						"</message>",
 						id, to, from,
 						capitalize(type),

@@ -107,7 +107,8 @@ public class ContactPresenceService {
 						.build();
 
 				// Direct write to the local Netty pipeline
-				localStanzaDispatcher.dispatchLocally(principal.getUserKey(), principal.getUserKey(), presenceXml);
+				localStanzaDispatcher.dispatchLocally(principal.getUserKey(), principal.getUserKey(), presenceXml)
+				.subscribe();
 			}
 			log.debug("Successfully pushed presence roster for user {}", principal.getUserKey());
 

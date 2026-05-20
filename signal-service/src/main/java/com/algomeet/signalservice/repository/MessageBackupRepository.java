@@ -27,11 +27,11 @@ public interface MessageBackupRepository extends MongoRepository<MessageBackupDo
 	@Modifying
 	@Query(value = "{ 'userKey': ?0, 'conversationId': ?1 }", delete = true)
 	@Transactional
-	void deleteByUserKeyAndConversationId(String userKey, String conversationId);
+	void deleteByUserKeyAndConversationId(UUID userKey, String conversationId);
 
 	@Modifying
 	@Transactional
-	void deleteByUserKey(String userKey);
+	void deleteByUserKey(UUID userKey);
 
 	@Aggregation(pipeline = {
 			// 1. Filter by the record owner and the specific conversation
@@ -44,13 +44,13 @@ public interface MessageBackupRepository extends MongoRepository<MessageBackupDo
 			"messageCount: { $sum: 1 } " +
 			"} }"
 	})
-	List<ConversationStorageStats> getConversationStorageStats(String userKey, String conversationId);
+	List<ConversationStorageStats> getConversationStorageStats(UUID userKey, String conversationId);
 
 	/**
 	 * Retrieves a message backup only if it belongs to the specified user.
 	 * Use this instead of findById for better security and index locality.
 	 */
-	Optional<MessageBackupDocument> findByMessageIdAndUserKey(UUID messageId, String userKey);
+	Optional<MessageBackupDocument> findByMessageIdAndUserKey(UUID messageId, UUID userKey);
 
 
 	/**
@@ -62,7 +62,7 @@ public interface MessageBackupRepository extends MongoRepository<MessageBackupDo
 	 * @return The first message ever sent/received in this chat, or empty.
 	 */
 	Optional<MessageBackupDocument> findFirstByUserKeyAndConversationIdOrderByStanzaIdAsc(
-	    String userKey, 
+	    UUID userKey, 
 	    String conversationId
 	);
 }

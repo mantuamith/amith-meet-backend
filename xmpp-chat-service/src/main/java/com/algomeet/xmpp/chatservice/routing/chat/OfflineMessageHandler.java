@@ -1,17 +1,22 @@
 package com.algomeet.xmpp.chatservice.routing.chat;
 
 import java.time.Instant;
+import java.util.Comparator;
+import java.util.UUID;
 
 import org.springframework.stereotype.Component;
 
-import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
+import com.algomeet.xmpp.chatservice.document.OfflineMessage;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
+import com.algomeet.xmpp.chatservice.repository.OfflineMessageRepository;
 import com.algomeet.xmpp.chatservice.routing.dispacher.LocalStanzaDispatcher;
 import com.algomeet.xmpp.chatservice.service.OfflineMessageService;
 
 import io.netty.channel.ChannelHandlerContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 /**
  * <p>Handles the retrieval and delivery of messages stored while a user was offline.</p>
@@ -40,6 +45,7 @@ public class OfflineMessageHandler {
     private final OfflineMessageService offlineMessageService;
     private final DomainProperties domainProperties;
     private final LocalStanzaDispatcher localStanzaDispatcher;
+    private final OfflineMessageRepository offlineMessageRepository;
 
     /**
      * Fetches offline stanzas for the given principal and flushes them to the channel.
@@ -49,23 +55,51 @@ public class OfflineMessageHandler {
      * @param ctx       The Netty {@link ChannelHandlerContext} for the active session.
      * @param principal The authenticated user profile.
      */
-    public void deliverOfflineMessages(ChannelHandlerContext ctx, XmppPrincipal principal) {
-        String userKey = principal.getUserKey();
+    public Mono<Void> deliverOfflineMessages(String userKey) {
+        return offlineMessageService.getOfflineMessages(UUID.fromString(userKey))
+            // 1. Collect all messages into memory first to release DB cursors early
+            .collectList()
+            .flatMapMany(messageList -> {
+                if (messageList.isEmpty()) {
+                    log.debug("No offline messages found to process for user: {}", userKey);
+                    return Flux.empty();
+                }
 
-        // Subscribe to the Flux of offline messages
-        offlineMessageService.getOfflineMessages(userKey)
-            .doOnNext(msg -> {
-                // Add XEP-0203 Delay metadata
-                String xmlWithDelay = wrapWithDelay(msg.getStanzaXml(), msg.getCreatedAt());
+                // Sort the list explicitly in-memory by the OfflineMessage ID field
+                messageList.sort(Comparator.comparing(OfflineMessage::getId));
+
+                log.info("Collected and sorted {} offline messages. Beginning true sequential dispatch for user: {}", 
+                        messageList.size(), userKey);
                 
-                // Push to WebSocket
-                localStanzaDispatcher.dispatchLocally(userKey, msg.getFrom(), xmlWithDelay);
+                return Flux.fromIterable(messageList);
             })
-            .doOnComplete(() -> log.info("Completed offline message delivery for user: {}", userKey))
-            .doOnError(e -> log.error("Failed to deliver offline messages for {}: {}", userKey, e.getMessage()))
-            .subscribe(); // This triggers the execution asynchronously
+            // 2. STAGE IN SEQUENCE: concatMap awaits the async network response of each message
+            .concatMap(msg -> {
+                return Mono.defer(() -> {
+                    // Enrich stanza with XEP-0203 Delay metadata
+                    String xmlWithDelay = wrapWithDelay(msg.getStanzaXml(), msg.getCreatedAt());
+                    
+                    // Invoke dispatch directly
+                    return localStanzaDispatcher.dispatchLocally(userKey, msg.getFrom().toString(), xmlWithDelay)
+                            // If dispatchLocally returns a Mono<Boolean>, intercept the result here
+                            .doOnNext(isSuccess -> {
+                                if (Boolean.TRUE.equals(isSuccess) && msg.getIsAckStanza()) {
+                                	// Delete if record is ACK stanza
+                                	offlineMessageRepository.deleteByIdAndIsAckStanzaTrue(msg.getId()).subscribe();
+                                 }
+                            });
+                })
+                // Error handling isolated per-message so a single transmission drop doesn't break the entire pipeline
+                .onErrorResume(e -> {
+                    log.error("Failed to deliver message stanza {} during sequential dispatch for user: {}", msg.getId(), userKey, e);
+                    return Mono.empty(); // Swallow error to allow the sequence to continue to the next message
+                });
+            })
+            .doOnComplete(() -> log.info("Successfully completed offline message delivery batch for user: {}", userKey))
+            .doOnError(e -> log.error("Fatal error during offline message processing sequence for {}: {}", userKey, e.getMessage()))
+            .then(); 
     }
-
+    
     /**
      * Injects a {@code <delay/>} element into the XML stanza per XEP-0203.
      * 

@@ -60,6 +60,7 @@ class GroupSessionBackupControllerTest {
     private ObjectMapper objectMapper;
 
     private static final UUID USER_KEY = UUID.fromString("11111111-1111-1111-1111-111111111111");
+    private static final UUID GROUP_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
 
     private MockedStatic<SecurityUtil> securityUtilMock;
 
@@ -83,7 +84,7 @@ class GroupSessionBackupControllerTest {
     public GroupSessionBackupRequest getGroupSessionBackupRequest() {
         GroupSessionBackupRequest request = new GroupSessionBackupRequest();
         
-        request.setGroupId("group-12345");
+        request.setGroupId(GROUP_ID);
         request.setDistributionId(UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"));
         request.setDeviceId(1);
         request.setInbound(true);
@@ -160,11 +161,11 @@ class GroupSessionBackupControllerTest {
         GroupSessionBackupResponse backup = new GroupSessionBackupResponse();
         UUID distributionId = UUID.randomUUID();
 
-        when(service.findBackup(USER_KEY, "group-1", distributionId, true))
+        when(service.findBackup(USER_KEY, GROUP_ID, distributionId, true))
                 .thenReturn(backup);
 
         mockMvc.perform(get("/signal/backup/group-sessions/{groupId}/{distributionId}/{isInbound}", 
-                        "group-1", distributionId, true)
+                        GROUP_ID, distributionId, true)
                         .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(ResponseCode.SUCCESS.name()));
@@ -174,11 +175,11 @@ class GroupSessionBackupControllerTest {
     void getBackupByDistribution_notFound() throws Exception {
         UUID distributionId = UUID.randomUUID();
 
-        when(service.findBackup(USER_KEY, "group-1", distributionId, true))
+        when(service.findBackup(USER_KEY, GROUP_ID, distributionId, true))
                 .thenThrow(new RecordNotFoundException("not found"));
 
         mockMvc.perform(get("/signal/backup/group-sessions/{groupId}/{distributionId}/{isInbound}", 
-                        "group-1", distributionId, true)
+                        GROUP_ID, distributionId, true)
                         .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value(ResponseCode.GROUP_SESSION_BACKUP_NOT_FOUND.name()));
@@ -208,14 +209,14 @@ class GroupSessionBackupControllerTest {
 
     @Test
     void deleteBackup_success() throws Exception {
-        doNothing().when(service).deleteBackup(USER_KEY, "group-1", UUID.randomUUID(), true);
+        doNothing().when(service).deleteBackup(USER_KEY, GROUP_ID, UUID.randomUUID(), true);
 
         // Use a fixed UUID for request, matching what service expects is mocked
         UUID distributionId = UUID.randomUUID();
-        doNothing().when(service).deleteBackup(USER_KEY, "group-1", distributionId, true);
+        doNothing().when(service).deleteBackup(USER_KEY, GROUP_ID, distributionId, true);
 
         mockMvc.perform(delete("/signal/backup/group-sessions/{groupId}/{distributionId}/{isInbound}",
-                        "group-1", distributionId, true)
+                        GROUP_ID, distributionId, true)
                         .with(csrf()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(ResponseCode.SUCCESS.name()));
@@ -225,10 +226,10 @@ class GroupSessionBackupControllerTest {
     void deleteBackup_notFound() throws Exception {
         UUID distributionId = UUID.randomUUID();
         doThrow(new RecordNotFoundException("not found"))
-                .when(service).deleteBackup(USER_KEY, "group-1", distributionId, true);
+                .when(service).deleteBackup(USER_KEY, GROUP_ID, distributionId, true);
 
         mockMvc.perform(delete("/signal/backup/group-sessions/{groupId}/{distributionId}/{isInbound}",
-                        "group-1", distributionId, true)
+                        GROUP_ID, distributionId, true)
                         .with(csrf()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value(ResponseCode.GROUP_SESSION_BACKUP_NOT_FOUND.name()));

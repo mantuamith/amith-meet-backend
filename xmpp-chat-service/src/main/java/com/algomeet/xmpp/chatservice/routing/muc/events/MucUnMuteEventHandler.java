@@ -120,7 +120,7 @@ public class MucUnMuteEventHandler {
 	 */
 	private void sendSuccessResponse(ChannelHandlerContext ctx, String to, String from, String id) {
 		String resp = String.format("<iq from='%s' to='%s' id='%s' type='result'/>", from, to, id);
-		localStanzaDispatcher.dispatchLocally(to, from, resp);
+		localStanzaDispatcher.dispatchLocally(to, from, resp).subscribe();
 	}
 
 	/**

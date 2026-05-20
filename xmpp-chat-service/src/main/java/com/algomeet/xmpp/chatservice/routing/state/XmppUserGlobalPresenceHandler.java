@@ -1,5 +1,6 @@
 package com.algomeet.xmpp.chatservice.routing.state;
 
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.springframework.stereotype.Component;
@@ -101,7 +102,8 @@ public class XmppUserGlobalPresenceHandler {
 				}
 
 				// B. Deliver offline messages accumulated while user was disconnected
-				offlineMessageHandler.deliverOfflineMessages(ctx, principal);
+				offlineMessageHandler.deliverOfflineMessages(principal.getUserKey())
+				.subscribe();
 
 				// C. Deliver buffered SM stanzas if session was successfully resumed
 				if (smResumptionSuccess != null && smResumptionSuccess.get()) {
@@ -184,7 +186,7 @@ public class XmppUserGlobalPresenceHandler {
 				ctx.channel().attr(XmppSessionAttributes.SM_ID_KEY).get();
 
 		// Retrieve all buffered stanzas for this SM session
-		smBufferMessageService.getStanzasForResumption(smSessionId)
+		smBufferMessageService.getStanzasForResumption(UUID.fromString(smSessionId))
 		// For each buffered stanza, immediately dispatch it to the client
 		.doOnNext(msg -> {
 
@@ -194,13 +196,13 @@ public class XmppUserGlobalPresenceHandler {
 					userKey,
 					userKey,
 					msg.getStanzaXml()
-					);
+					).subscribe();
 		})
 		// Called when all buffered stanzas have been successfully replayed
 		.doOnComplete(() -> {
 			
 			// Clean up buffer
-			smBufferMessageService.clearBuffer(smSessionId);
+			smBufferMessageService.clearBuffer(UUID.fromString(smSessionId));
 			log.info("Completed offline/SM buffer delivery for user: {}", userKey);
 
 		})

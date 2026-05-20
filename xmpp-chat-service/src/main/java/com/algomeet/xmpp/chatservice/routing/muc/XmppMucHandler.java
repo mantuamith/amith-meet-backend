@@ -12,11 +12,9 @@ import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.constant.XmppErrorConditions;
 import com.algomeet.xmpp.chatservice.dto.MucMember;
 import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
-import com.algomeet.xmpp.chatservice.dto.StanzaInfo;
 import com.algomeet.xmpp.chatservice.enums.PresenceType;
 import com.algomeet.xmpp.chatservice.enums.XmppErrorType;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
-import com.algomeet.xmpp.chatservice.parser.GroupChatParser;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.service.GroupCacheService;
 import com.algomeet.xmpp.chatservice.service.MucMessageReadCursorService;
@@ -126,7 +124,7 @@ public class XmppMucHandler {
 			// Check if it's archivable
 			boolean isArchivable = XmppStanzaUtil.isArchivable(originalXml);
 
-			boolean isMessageAck = XmppStanzaUtil.isMessageAckStanza(originalXml);
+			boolean isAckStanza = XmppStanzaUtil.isMessageAckStanza(originalXml);
 
 			/**
 			 * Generate a monotonic UUIDv7 used as the stable stanza-id value.
@@ -144,7 +142,7 @@ public class XmppMucHandler {
 			 */
 			UUID stanzaId = UuidCreator.getTimeOrderedEpoch();
 
-			if (isMessageAck) {
+			if (isAckStanza) {
 				// --- XEP-0333: Chat Markers (Read Receipts) ---
 				// If the stanza contains the 'urn:xmpp:chat-markers:0' namespace (displayed), 
 				// the user has actively viewed the conversation.
@@ -153,7 +151,7 @@ public class XmppMucHandler {
 					if (StringUtils.hasText(ackMessageId)) {	
 						UUID messageId = UUID.fromString(ackMessageId);
 						// Save read MUC message ACK
-						mucMessageReadService.advanceReadCursor(principal.getUserKey(), group.getId(), messageId)
+						mucMessageReadService.advanceReadCursor(UUID.fromString(principal.getUserKey()), UUID.fromString(group.getId()), messageId)
 						.subscribe();
 						
 						// Read message
@@ -161,12 +159,11 @@ public class XmppMucHandler {
 					}					
 				}
 			} else if ((msgType.supportsOfflineStorage() && isArchivable)) {
-				StanzaInfo info = GroupChatParser.parse(originalXml);
-
+								
 				// Insert stanza ID
-				forArchiveXml = XmppStanzaUtil.insertStanzaId(originalXml, stanzaId.toString(), principal.getDomain());
-
-				xmppArchiveService.archiveEvent(forArchiveXml, info, XmppUtil.getRoomId(toRoomJid), (pmToMucMember != null ? pmToMucMember.getUserKey() : null), 
+				forArchiveXml = XmppStanzaUtil.insertStanzaId(originalXml, stanzaId.toString(), principal.getDomain());		
+				
+				xmppArchiveService.archiveEvent(forArchiveXml, id, XmppUtil.getRoomId(toRoomJid), (pmToMucMember != null ? pmToMucMember.getUserKey() : null), 
 						XmppUtil.getUserKey(fromJid), stanzaId)
 				.doOnSuccess(saved -> {
 
