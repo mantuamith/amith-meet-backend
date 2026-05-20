@@ -224,7 +224,6 @@ public class XmppChatHandler {
 					String newString = "<body>This message was deleted</body>";
 					message.setStanzaXml(XmppStanzaUtil.markAsRetractedStanza(message.getStanzaXml(), newString));
 					message.setCountable(false);
-					message.setDeletedAt(Instant.now());
 					return offlineMessageService.save(message)
 							.then();
 				});
