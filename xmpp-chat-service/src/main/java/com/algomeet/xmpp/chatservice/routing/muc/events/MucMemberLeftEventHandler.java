@@ -142,7 +142,6 @@ public class MucMemberLeftEventHandler {
 						"  <x xmlns='http://algomeet.app/protocol/system'>" +
 						"    <event type='member_left' jid='%s'/>" +
 						"  </x>" +
-						"<countable xmlns='urn:algomeet:meta:0'/>" +
 						"</message>",
 						id,
 						fromJid,

@@ -120,7 +120,6 @@ public class MucAcceptInviteEventHandler {
                 "  <x xmlns='http://algomeet.app/protocol/system'>" +
                 "    <event type='member_joined' jid='%s'/>" + // Fixed: used %s directly
                 "  </x>" +
-                "<countable xmlns='urn:algomeet:meta:0'/>" +
                 "</message>",
                 roomJid, roomJid, body, userJid
         );
