@@ -77,7 +77,7 @@ public class MucAcceptInviteEventHandler {
         // 3. Prepare a system message to log the join event in the chat stream.
         String messageId = UuidCreator.getTimeOrderedEpoch().toString();
         String body = sender.getUsername() + " joined";
-        String acceptedInvitationLogXml = buildAcceptInviteLog(roomBareJid, body, sender.getUserKey(), senderJid);
+        String acceptedInvitationLogXml = buildAcceptInviteLog(messageId, roomBareJid, body, sender.getUserKey(), senderJid);
         
         UUID stanzaId = UuidCreator.getTimeOrderedEpoch();
 		// Insert stanza ID
@@ -113,15 +113,15 @@ public class MucAcceptInviteEventHandler {
      * Builds a system message stanza with a custom 'member_joined' event extension.
      * This allows UI clients to render a "User joined" notification instead of a standard chat bubble.
      */
-    private String buildAcceptInviteLog(String roomJid, String body, String user, String userJid) {
+    private String buildAcceptInviteLog(String id, String roomJid, String body, String user, String userJid) {
         return String.format(
-                "<message from='%s' to='%s' type='groupchat'>" +
+                "<message id='%s' from='%s' to='%s' type='groupchat'>" +
                 "  <body>%s</body>" +
                 "  <x xmlns='http://algomeet.app/protocol/system'>" +
                 "    <event type='member_joined' jid='%s'/>" + // Fixed: used %s directly
                 "  </x>" +
                 "</message>",
-                roomJid, roomJid, body, userJid
+                id, roomJid, roomJid, body, userJid
         );
     }
 }
