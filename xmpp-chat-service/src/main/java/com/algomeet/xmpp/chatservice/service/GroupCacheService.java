@@ -52,7 +52,7 @@ public class GroupCacheService {
      * @param groupId The unique identifier of the room/group.
      * @return {@link MucRoomDto} containing room configuration and member list.
      */
-    public MucRoomDto refreshCachedGroup(String groupId) {
+    public MucRoomDto refreshGroupCache(String groupId) {
     	// Clean up first
     	evictGroup(groupId);
     	

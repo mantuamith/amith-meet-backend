@@ -61,7 +61,7 @@ public class MucUserCommandRouter {
 		String action = actionOpt.orElse(null);
 		
 		// Force refresh group cache
-		MucRoomDto group = groupCacheService.refreshCachedGroup(XmppUtil.getRoomId(roomJid));
+		MucRoomDto group = groupCacheService.refreshGroupCache(XmppUtil.getRoomId(roomJid));
 		Optional<MucMember> senderMucMember = group.getMembers().stream()
 				.filter(m -> m.getUserKey().equals(principal.getUserKey()))
 				.findFirst();
