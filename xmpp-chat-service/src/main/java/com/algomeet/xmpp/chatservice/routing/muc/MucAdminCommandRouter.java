@@ -59,7 +59,7 @@ public class MucAdminCommandRouter {
     	TenantContext.setCurrentTenant(principal.getTenantId());
     	
 		// Force refresh group cache
-		MucRoomDto group = groupCacheService.refreshCachedGroup(XmppUtil.getRoomId(roomJid));
+		MucRoomDto group = groupCacheService.refreshGroupCache(XmppUtil.getRoomId(roomJid));
 				
 		if (MucCommandUtil.isKickPayload(xml)) {
 			/**

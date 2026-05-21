@@ -8,12 +8,14 @@ import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.dto.MucMember;
 import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
+import com.algomeet.xmpp.chatservice.enums.MucEventType;
 import com.algomeet.xmpp.chatservice.enums.MucRole;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.routing.muc.MucMessageRouter;
 import com.algomeet.xmpp.chatservice.service.MucPresenceService;
 import com.algomeet.xmpp.chatservice.service.XmppArchiveService;
+import com.algomeet.xmpp.chatservice.stanza.events.MucSystemEventLogMessageStanza;
 import com.algomeet.xmpp.chatservice.stanza.presence.MucUserPresenceBuilder;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
@@ -77,14 +79,14 @@ public class MucAcceptInviteEventHandler {
         // 3. Prepare a system message to log the join event in the chat stream.
         String messageId = UuidCreator.getTimeOrderedEpoch().toString();
         String body = sender.getUsername() + " joined";
-        String acceptedInvitationLogXml = buildAcceptInviteLog(roomBareJid, body, sender.getUserKey(), senderJid);
+        String acceptedInvitationLogXml = buildAcceptInviteLog(messageId, roomBareJid, body, sender.getUserKey(), senderJid);
         
         UUID stanzaId = UuidCreator.getTimeOrderedEpoch();
 		// Insert stanza ID
 		String forArchiveLogXml = XmppStanzaUtil.insertStanzaId(acceptedInvitationLogXml, stanzaId.toString(), domainProperties.getDomain());
         
         // 4. Persistence: Archive the join event to the database for future Message Archive Management (MAM) queries.
-        saveToDatabase(messageId, roomJid, senderJid, group, sender, stanzaId, forArchiveLogXml);
+        saveToDatabase(messageId, roomJid, sender, stanzaId, forArchiveLogXml);
         
         // 5. Broadcast: Real-time notification to all online occupants via the MessageRouter.
         xmppBroadCastHandler.broadcastToOccupants(ctx, messageId, roomJid, senderJid, XmppMessageType.GROUPCHAT, group, null, forArchiveLogXml);
@@ -99,12 +101,12 @@ public class MucAcceptInviteEventHandler {
      * Persists the join event to the archive. 
      * Injects a unique Stanza-ID (XEP-0359) using a monotonic UUIDv7 for stable ordering.
      */
-    private void saveToDatabase(String id, String roomBareJid, String senderJid, MucRoomDto group, MucMember sender, UUID stanzaId, String xml) {      
+    private void saveToDatabase(String id, String roomBareJid, MucMember sender, UUID stanzaId, String xml) {      
 
         xmppArchiveService.archiveEvent(xml, id, XmppUtil.getRoomId(roomBareJid), null, 
         		sender.getUserKey(), stanzaId)
         .doOnError(error -> {
-            log.error("Failed to archive join event for {} in room {}", senderJid, roomBareJid, error);
+            log.error("Failed to archive join event for {} in room {}", sender.getUserKey(), roomBareJid, error);
         })
         .subscribe();
     }
@@ -113,16 +115,15 @@ public class MucAcceptInviteEventHandler {
      * Builds a system message stanza with a custom 'member_joined' event extension.
      * This allows UI clients to render a "User joined" notification instead of a standard chat bubble.
      */
-    private String buildAcceptInviteLog(String roomJid, String body, String user, String userJid) {
-        return String.format(
-                "<message from='%s' to='%s' type='groupchat'>" +
-                "  <body>%s</body>" +
-                "  <x xmlns='http://algomeet.app/protocol/system'>" +
-                "    <event type='member_joined' jid='%s'/>" + // Fixed: used %s directly
-                "  </x>" +
-                "<countable xmlns='urn:algomeet:meta:0'/>" +
-                "</message>",
-                roomJid, roomJid, body, userJid
-        );
+    private String buildAcceptInviteLog(String id, String roomJid, String body, String user, String userJid) {
+    	return MucSystemEventLogMessageStanza.builder()
+				.id(id)
+				.from(userJid)
+				.to(roomJid)
+				.body(body)
+				.eventType(MucEventType.MEMBER_ACCEPTED_INVITE)
+				.eventJid(userJid)
+				.build()
+				.toXml();
     }
 }

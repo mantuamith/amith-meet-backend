@@ -43,7 +43,7 @@ public class GroupCacheService {
     /** * Time-to-live for cached group metadata. 
      * Configured via {@code xmpp.cache.group-ttl} in application.yml.
      */
-    @Value("${cache.group.ttl:30m}")
+    @Value("${group.cache.ttl:30m}")
     private Duration cacheTtl;
 
     /**
@@ -52,7 +52,7 @@ public class GroupCacheService {
      * @param groupId The unique identifier of the room/group.
      * @return {@link MucRoomDto} containing room configuration and member list.
      */
-    public MucRoomDto refreshCachedGroup(String groupId) {
+    public MucRoomDto refreshGroupCache(String groupId) {
     	// Clean up first
     	evictGroup(groupId);
     	

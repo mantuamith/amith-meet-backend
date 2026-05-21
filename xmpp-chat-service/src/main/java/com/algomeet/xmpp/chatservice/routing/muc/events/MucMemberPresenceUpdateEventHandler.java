@@ -1,7 +1,5 @@
 package com.algomeet.xmpp.chatservice.routing.muc.events;
 
-import java.util.UUID;
-
 import org.springframework.stereotype.Component;
 
 import com.algomeet.xmpp.chatservice.dto.MucMember;

@@ -8,11 +8,14 @@ import java.util.UUID;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 
+import com.algomeet.xmpp.chatservice.constant.XmppErrorConditions;
 import com.algomeet.xmpp.chatservice.dto.MucMember;
 import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
 import com.algomeet.xmpp.chatservice.enums.MucAffiliation;
+import com.algomeet.xmpp.chatservice.enums.MucEventType;
 import com.algomeet.xmpp.chatservice.enums.MucRole;
 import com.algomeet.xmpp.chatservice.enums.UserState;
+import com.algomeet.xmpp.chatservice.enums.XmppErrorType;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.routing.dispacher.LocalStanzaDispatcher;
@@ -21,6 +24,7 @@ import com.algomeet.xmpp.chatservice.service.MucPresenceService;
 import com.algomeet.xmpp.chatservice.service.XmppArchiveService;
 import com.algomeet.xmpp.chatservice.session.UserSessionRegistry;
 import com.algomeet.xmpp.chatservice.session.model.UserSession;
+import com.algomeet.xmpp.chatservice.stanza.events.MucSystemEventLogMessageStanza;
 import com.algomeet.xmpp.chatservice.stanza.presence.MucUserPresenceBuilder;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.algomeet.xmpp.chatservice.util.UserStateUtil;
@@ -81,6 +85,7 @@ public class MucAddMemberEventHandler {
 	private final JidUtil jidUtil;
 	private final MucPresenceService mucPresenceService;
 	private final LocalStanzaDispatcher localStanzaDispatcher;
+	private final XmppUtil xmppUtil;
 
 	/**
 	 * Handles the "add member" administrative action.
@@ -137,6 +142,14 @@ public class MucAddMemberEventHandler {
 						XmppUtil.getUserKey(newMemberJid)
 						))
 				.findFirst();
+		
+		// Prerequisite: the member must have already been added to the group using group-service API.
+		if (newMemberOpt.isEmpty()) {        	
+			xmppUtil.sendError(ctx, id, senderJid, domainProperties.getGroupChatDomain(), 
+					XmppErrorType.AUTH, XmppErrorConditions.FORBIDDEN, "Error code 403");
+			log.error("Error code 403 adding new member {} to room {} by {}", newMemberJid, roomJid, senderJid);
+			return;
+		}
 
 		/**
 		 * NOTE:
@@ -238,7 +251,7 @@ public class MucAddMemberEventHandler {
 		// Insert stanza ID
 		String forArchiveXmlLog = XmppStanzaUtil.insertStanzaId(xmlLogStanza, stanzaId.toString(), domainProperties.getDomain());
 		
-		saveToDatabase(messageId, roomBareJid, senderJid, group, sender, stanzaId, forArchiveXmlLog);
+		saveToDatabase(messageId, roomBareJid, sender, stanzaId, forArchiveXmlLog);
 
 		/**
 		 * ----------------------------------------------------------
@@ -288,8 +301,6 @@ public class MucAddMemberEventHandler {
 	private void saveToDatabase(
 			String id,
 			String roomBareJid,
-			String senderJid,
-			MucRoomDto group,
 			MucMember sender,
 			UUID stanzaId,
 			String xml) {
@@ -312,21 +323,16 @@ public class MucAddMemberEventHandler {
 			String roomJid,
 			String body,
 			String newlyAddedUserJid) {
-
-		return String.format(
-				"<message id='%s' from='%s' to='%s' type='groupchat'>" +
-						"  <body>%s</body>" +
-						"  <x xmlns='http://algomeet.app/protocol/system'>" +
-						"    <event type='member_added' jid='%s'/>" +
-						"  </x>" +
-						"<countable xmlns='urn:algomeet:meta:0'/>" +
-						"</message>",
-						id,
-						fromJid,
-						roomJid,
-						body,
-						newlyAddedUserJid
-				);
+		
+		return MucSystemEventLogMessageStanza.builder()
+				.id(id)
+				.from(fromJid)
+				.to(roomJid)
+				.body(body)
+				.eventType(MucEventType.MEMBER_ADDED)
+				.eventJid(newlyAddedUserJid)
+				.build()
+				.toXml();
 	}
 
 	/**

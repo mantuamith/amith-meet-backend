@@ -8,6 +8,7 @@ import org.springframework.stereotype.Component;
 import com.algomeet.xmpp.chatservice.constant.XmppErrorConditions;
 import com.algomeet.xmpp.chatservice.dto.MucMember;
 import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
+import com.algomeet.xmpp.chatservice.enums.MucEventType;
 import com.algomeet.xmpp.chatservice.enums.PresenceStatusCode;
 import com.algomeet.xmpp.chatservice.enums.XmppErrorType;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
@@ -15,8 +16,8 @@ import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.routing.dispacher.LocalStanzaDispatcher;
 import com.algomeet.xmpp.chatservice.routing.muc.MucMessageRouter;
 import com.algomeet.xmpp.chatservice.service.XmppArchiveService;
+import com.algomeet.xmpp.chatservice.stanza.events.MucSystemEventLogMessageStanza;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
-import com.algomeet.xmpp.chatservice.util.MucCommandUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
 import com.github.f4b6a3.uuid.UuidCreator;
@@ -64,15 +65,17 @@ public class MucKickEventHandler {
 				.filter(m -> m.getUserKey() != null && m.getUserKey().equalsIgnoreCase(victimUserKey))
 				.findFirst();        
 		
-		if (victimOpt.isPresent() && !(MucCommandUtil.isAuthorized(sender, victimOpt.get()))) {        	
+		// Prerequisite: the member must have already been removed from the group using group-service API.
+		if (victimOpt.isPresent()) {        	
 			xmppUtil.sendError(ctx, id, senderJid, domainProperties.getGroupChatDomain(), 
 					XmppErrorType.AUTH, XmppErrorConditions.FORBIDDEN, "Error code 403");
+			
+			log.error("Error code 403 removing member {} from room {} by {}.", victimJid, roomJid, senderJid);
 			return;
 		}
 
-		String targetJid = jidUtil.getBareJid(victimOpt.get().getUserKey());
 		String roomBareJid = XmppUtil.getRoomBareJid(roomJid);
-		String kickPresence = buildKickPresence(roomBareJid, victimUserKey, targetJid, senderJid, reason);
+		String kickPresence = buildKickPresence(roomBareJid, victimUserKey, victimJid, senderJid, reason);
 
 		mucMessageRouter.broadcastToOccupants(id, sender.getUserKey(), group, kickPresence, true);
 		sendSuccessResponse(ctx, senderJid, roomJid, id);
@@ -105,7 +108,7 @@ public class MucKickEventHandler {
 		// Insert stanza ID
 		String forArchiveXmlLog = XmppStanzaUtil.insertStanzaId(xmlLogStanza, stanzaId.toString(), domainProperties.getDomain());
 		
-		saveToDatabase(messageId, roomBareJid, senderJid, group, sender, stanzaId, forArchiveXmlLog);
+		saveToDatabase(messageId, roomBareJid, sender, stanzaId, forArchiveXmlLog);
 
 		/**
 		 * ----------------------------------------------------------
@@ -137,7 +140,7 @@ public class MucKickEventHandler {
 	/**
 	 * Formats a 307 Kick presence stanza.
 	 */
-	private String buildKickPresence(String roomJid, String victimUserKey, String targetJid, String actorJid, String reason) {
+	private String buildKickPresence(String roomJid, String victimUserKey, String victimJid, String actorJid, String reason) {
 		return String.format(
 				"<presence from='%s/%s' type='unavailable'>" +
 						"  <x xmlns='http://jabber.org/protocol/muc#user'>" +
@@ -148,7 +151,7 @@ public class MucKickEventHandler {
 						"    <status code='%d'/>" + 
 						"  </x>" +
 						"</presence>",
-						roomJid, victimUserKey, targetJid, actorJid, reason, PresenceStatusCode.KICKED.getCode()
+						roomJid, victimUserKey, victimJid, actorJid, reason, PresenceStatusCode.KICKED.getCode()
 				);
 	}
 	
@@ -168,27 +171,21 @@ public class MucKickEventHandler {
 				String roomJid,
 				String body,
 				String removedUserJid) {
-
-			return String.format(
-					"<message id='%s' from='%s' to='%s' type='groupchat'>" +
-							"  <body>%s</body>" +
-							"  <x xmlns='http://algomeet.app/protocol/system'>" +
-							"    <event type='member_removed' jid='%s'/>" +
-							"  </x>" +
-							"<countable xmlns='urn:algomeet:meta:0'/>" +
-							"</message>",
-							id,
-							fromJid,
-							roomJid,
-							body,
-							removedUserJid);
+		  
+	    	return MucSystemEventLogMessageStanza.builder()
+					.id(id)
+					.from(fromJid)
+					.to(roomJid)
+					.body(body)
+					.eventType(MucEventType.MEMBER_REMOVED)
+					.eventJid(removedUserJid)
+					.build()
+					.toXml();	    	
 		}
 	    
 	    private void saveToDatabase(
 				String id,
 				String roomBareJid,
-				String senderJid,
-				MucRoomDto group,
 				MucMember sender,
 				UUID stanzaId,
 				String xml) {
