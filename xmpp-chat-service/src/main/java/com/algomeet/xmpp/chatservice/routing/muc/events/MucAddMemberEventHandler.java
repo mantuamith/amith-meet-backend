@@ -8,11 +8,13 @@ import java.util.UUID;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 
+import com.algomeet.xmpp.chatservice.constant.XmppErrorConditions;
 import com.algomeet.xmpp.chatservice.dto.MucMember;
 import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
 import com.algomeet.xmpp.chatservice.enums.MucAffiliation;
 import com.algomeet.xmpp.chatservice.enums.MucRole;
 import com.algomeet.xmpp.chatservice.enums.UserState;
+import com.algomeet.xmpp.chatservice.enums.XmppErrorType;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.routing.dispacher.LocalStanzaDispatcher;
@@ -81,6 +83,7 @@ public class MucAddMemberEventHandler {
 	private final JidUtil jidUtil;
 	private final MucPresenceService mucPresenceService;
 	private final LocalStanzaDispatcher localStanzaDispatcher;
+	private final XmppUtil xmppUtil;
 
 	/**
 	 * Handles the "add member" administrative action.
@@ -137,6 +140,13 @@ public class MucAddMemberEventHandler {
 						XmppUtil.getUserKey(newMemberJid)
 						))
 				.findFirst();
+		
+		// Prerequisite: the member must have already been added to the group using group-service API.
+		if (newMemberOpt.isEmpty()) {        	
+			xmppUtil.sendError(ctx, id, senderJid, domainProperties.getGroupChatDomain(), 
+					XmppErrorType.AUTH, XmppErrorConditions.FORBIDDEN, "Error code 403");
+			return;
+		}
 
 		/**
 		 * NOTE:

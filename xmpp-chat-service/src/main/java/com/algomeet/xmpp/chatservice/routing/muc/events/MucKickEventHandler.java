@@ -63,7 +63,7 @@ public class MucKickEventHandler {
 				.filter(m -> m.getUserKey() != null && m.getUserKey().equalsIgnoreCase(victimUserKey))
 				.findFirst();        
 		
-		// Prerequisite: the member must have already been removed from the group.
+		// Prerequisite: the member must have already been removed from the group using group-service API.
 		if (victimOpt.isPresent()) {        	
 			xmppUtil.sendError(ctx, id, senderJid, domainProperties.getGroupChatDomain(), 
 					XmppErrorType.AUTH, XmppErrorConditions.FORBIDDEN, "Error code 403");
