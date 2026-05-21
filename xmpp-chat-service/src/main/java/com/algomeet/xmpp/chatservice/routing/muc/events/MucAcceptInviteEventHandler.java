@@ -121,7 +121,7 @@ public class MucAcceptInviteEventHandler {
                 "    <event type='member_joined' jid='%s'/>" + // Fixed: used %s directly
                 "  </x>" +
                 "</message>",
-                id, roomJid, roomJid, body, userJid
+                id, userJid, roomJid, body, userJid
         );
     }
 }
