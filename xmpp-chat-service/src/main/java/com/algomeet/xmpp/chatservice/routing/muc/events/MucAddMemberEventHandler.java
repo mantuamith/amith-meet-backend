@@ -12,6 +12,7 @@ import com.algomeet.xmpp.chatservice.constant.XmppErrorConditions;
 import com.algomeet.xmpp.chatservice.dto.MucMember;
 import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
 import com.algomeet.xmpp.chatservice.enums.MucAffiliation;
+import com.algomeet.xmpp.chatservice.enums.MucEventType;
 import com.algomeet.xmpp.chatservice.enums.MucRole;
 import com.algomeet.xmpp.chatservice.enums.UserState;
 import com.algomeet.xmpp.chatservice.enums.XmppErrorType;
@@ -23,6 +24,7 @@ import com.algomeet.xmpp.chatservice.service.MucPresenceService;
 import com.algomeet.xmpp.chatservice.service.XmppArchiveService;
 import com.algomeet.xmpp.chatservice.session.UserSessionRegistry;
 import com.algomeet.xmpp.chatservice.session.model.UserSession;
+import com.algomeet.xmpp.chatservice.stanza.events.MucSystemEventLogMessageStanza;
 import com.algomeet.xmpp.chatservice.stanza.presence.MucUserPresenceBuilder;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.algomeet.xmpp.chatservice.util.UserStateUtil;
@@ -321,20 +323,16 @@ public class MucAddMemberEventHandler {
 			String roomJid,
 			String body,
 			String newlyAddedUserJid) {
-
-		return String.format(
-				"<message id='%s' from='%s' to='%s' type='groupchat'>" +
-						"  <body>%s</body>" +
-						"  <x xmlns='http://algomeet.app/protocol/system'>" +
-						"    <event type='member_added' jid='%s'/>" +
-						"  </x>" +
-						"</message>",
-						id,
-						fromJid,
-						roomJid,
-						body,
-						newlyAddedUserJid
-				);
+		
+		return MucSystemEventLogMessageStanza.builder()
+				.id(id)
+				.from(fromJid)
+				.to(roomJid)
+				.body(body)
+				.eventType(MucEventType.MEMBER_ADDED)
+				.eventJid(newlyAddedUserJid)
+				.build()
+				.toXml();
 	}
 
 	/**

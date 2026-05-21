@@ -9,6 +9,7 @@ import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.enums.MucAffiliation;
+import com.algomeet.xmpp.chatservice.enums.MucEventType;
 import com.algomeet.xmpp.chatservice.enums.MucRole;
 import com.algomeet.xmpp.chatservice.enums.PresenceStatusCode;
 import com.algomeet.xmpp.chatservice.enums.PresenceType;
@@ -16,6 +17,7 @@ import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.routing.muc.MucMessageRouter;
 import com.algomeet.xmpp.chatservice.service.XmppArchiveService;
+import com.algomeet.xmpp.chatservice.stanza.events.MucSystemEventLogMessageStanza;
 import com.algomeet.xmpp.chatservice.stanza.presence.MucUserPresenceBuilder;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
@@ -135,19 +137,16 @@ public class MucMemberLeftEventHandler {
 			String roomJid,
 			String body,
 			String leftUserJid) {
-
-		return String.format(
-				"<message id='%s' from='%s' to='%s' type='groupchat'>" +
-						"  <body>%s</body>" +
-						"  <x xmlns='http://algomeet.app/protocol/system'>" +
-						"    <event type='member_left' jid='%s'/>" +
-						"  </x>" +
-						"</message>",
-						id,
-						fromJid,
-						roomJid,
-						body,
-						leftUserJid);
+    	
+    	return MucSystemEventLogMessageStanza.builder()
+				.id(id)
+				.from(fromJid)
+				.to(roomJid)
+				.body(body)
+				.eventType(MucEventType.MEMBER_LEFT)
+				.eventJid(leftUserJid)
+				.build()
+				.toXml();	
 	}
     
     private void saveToDatabase(

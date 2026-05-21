@@ -8,12 +8,14 @@ import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.dto.MucMember;
 import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
+import com.algomeet.xmpp.chatservice.enums.MucEventType;
 import com.algomeet.xmpp.chatservice.enums.MucRole;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.routing.muc.MucMessageRouter;
 import com.algomeet.xmpp.chatservice.service.MucPresenceService;
 import com.algomeet.xmpp.chatservice.service.XmppArchiveService;
+import com.algomeet.xmpp.chatservice.stanza.events.MucSystemEventLogMessageStanza;
 import com.algomeet.xmpp.chatservice.stanza.presence.MucUserPresenceBuilder;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
@@ -114,14 +116,14 @@ public class MucAcceptInviteEventHandler {
      * This allows UI clients to render a "User joined" notification instead of a standard chat bubble.
      */
     private String buildAcceptInviteLog(String id, String roomJid, String body, String user, String userJid) {
-        return String.format(
-                "<message id='%s' from='%s' to='%s' type='groupchat'>" +
-                "  <body>%s</body>" +
-                "  <x xmlns='http://algomeet.app/protocol/system'>" +
-                "    <event type='member_joined' jid='%s'/>" + // Fixed: used %s directly
-                "  </x>" +
-                "</message>",
-                id, userJid, roomJid, body, userJid
-        );
+    	return MucSystemEventLogMessageStanza.builder()
+				.id(id)
+				.from(userJid)
+				.to(roomJid)
+				.body(body)
+				.eventType(MucEventType.MEMBER_ACCEPTED_INVITE)
+				.eventJid(userJid)
+				.build()
+				.toXml();
     }
 }
