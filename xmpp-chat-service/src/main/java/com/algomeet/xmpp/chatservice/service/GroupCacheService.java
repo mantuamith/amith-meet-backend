@@ -43,7 +43,7 @@ public class GroupCacheService {
     /** * Time-to-live for cached group metadata. 
      * Configured via {@code xmpp.cache.group-ttl} in application.yml.
      */
-    @Value("${cache.group.ttl:30m}")
+    @Value("${group.cache.ttl:30m}")
     private Duration cacheTtl;
 
     /**
