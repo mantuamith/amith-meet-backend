@@ -145,6 +145,7 @@ public class MucAddMemberEventHandler {
 		if (newMemberOpt.isEmpty()) {        	
 			xmppUtil.sendError(ctx, id, senderJid, domainProperties.getGroupChatDomain(), 
 					XmppErrorType.AUTH, XmppErrorConditions.FORBIDDEN, "Error code 403");
+			log.error("Error code 403 adding new member {} to room {} by {}", newMemberJid, roomJid, senderJid);
 			return;
 		}
 

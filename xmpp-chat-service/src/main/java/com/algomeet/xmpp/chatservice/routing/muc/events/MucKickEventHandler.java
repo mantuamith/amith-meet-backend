@@ -67,6 +67,8 @@ public class MucKickEventHandler {
 		if (victimOpt.isPresent()) {        	
 			xmppUtil.sendError(ctx, id, senderJid, domainProperties.getGroupChatDomain(), 
 					XmppErrorType.AUTH, XmppErrorConditions.FORBIDDEN, "Error code 403");
+			
+			log.error("Error code 403 removing member {} from room {} by {}.", victimJid, roomJid, senderJid);
 			return;
 		}
 
