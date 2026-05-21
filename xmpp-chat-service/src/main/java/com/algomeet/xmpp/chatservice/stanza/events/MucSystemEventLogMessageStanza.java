@@ -118,6 +118,7 @@ public class MucSystemEventLogMessageStanza {
 		public MucSystemEventLogMessageStanza build() {
 			Objects.requireNonNull(id, "Message ID cannot be null");
 			Objects.requireNonNull(from, "From JID cannot be null");
+			Objects.requireNonNull(to, "To JID cannot be null");
 			Objects.requireNonNull(eventType, "Event type cannot be null");
 			Objects.requireNonNull(eventJid, "Event targeted JID cannot be null");
 
