@@ -249,7 +249,7 @@ public class MucAddMemberEventHandler {
 		// Insert stanza ID
 		String forArchiveXmlLog = XmppStanzaUtil.insertStanzaId(xmlLogStanza, stanzaId.toString(), domainProperties.getDomain());
 		
-		saveToDatabase(messageId, roomBareJid, senderJid, group, sender, stanzaId, forArchiveXmlLog);
+		saveToDatabase(messageId, roomBareJid, sender, stanzaId, forArchiveXmlLog);
 
 		/**
 		 * ----------------------------------------------------------
@@ -299,8 +299,6 @@ public class MucAddMemberEventHandler {
 	private void saveToDatabase(
 			String id,
 			String roomBareJid,
-			String senderJid,
-			MucRoomDto group,
 			MucMember sender,
 			UUID stanzaId,
 			String xml) {

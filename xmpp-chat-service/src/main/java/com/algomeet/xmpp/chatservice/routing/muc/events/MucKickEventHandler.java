@@ -106,7 +106,7 @@ public class MucKickEventHandler {
 		// Insert stanza ID
 		String forArchiveXmlLog = XmppStanzaUtil.insertStanzaId(xmlLogStanza, stanzaId.toString(), domainProperties.getDomain());
 		
-		saveToDatabase(messageId, roomBareJid, senderJid, group, sender, stanzaId, forArchiveXmlLog);
+		saveToDatabase(messageId, roomBareJid, sender, stanzaId, forArchiveXmlLog);
 
 		/**
 		 * ----------------------------------------------------------
@@ -187,8 +187,6 @@ public class MucKickEventHandler {
 	    private void saveToDatabase(
 				String id,
 				String roomBareJid,
-				String senderJid,
-				MucRoomDto group,
 				MucMember sender,
 				UUID stanzaId,
 				String xml) {
