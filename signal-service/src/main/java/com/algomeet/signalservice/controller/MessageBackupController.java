@@ -197,31 +197,8 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, 
 				messageList.stream().map(mb -> MessageBackupResponse.from(mb)).toList()));
 	}
-
-	/**
-	 * Retrieves a list of user keys representing all distinct chat partners
-	 * (1:1 conversation contacts) for the currently authenticated user.
-	 *
-	 * <p>This endpoint:
-	 * <ul>
-	 *   <li>Identifies the current user via {@link SecurityUtil#getUserKey()}</li>
-	 *   <li>Fetches unique conversation IDs associated with the user</li>
-	 *   <li>Extracts the "peer" user key from each conversation</li>
-	 *   <li>Returns a distinct list of user keys the user has interacted with</li>
-	 * </ul>
-	 *
-	 * <p>Use case:
-	 * <ul>
-	 *   <li>Populate recent chats / contact list</li>
-	 *   <li>Display users with whom the current user had direct conversations</li>
-	 * </ul>
-	 *
-	 * @return ResponseEntity containing:
-	 *         <ul>
-	 *           <li>status: {@link ResponseCode#SUCCESS}</li>
-	 *           <li>data: List of peer user keys</li>
-	 *         </ul>
-	 */
+	
+	@Deprecated
 	@GetMapping("/contacts")
 	public ResponseEntity<CommonResponse<List<String>>> getConversationContacts() {
 
