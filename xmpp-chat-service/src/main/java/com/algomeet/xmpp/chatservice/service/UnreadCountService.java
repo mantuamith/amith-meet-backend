@@ -122,50 +122,53 @@ public class UnreadCountService {
 	 * @throws ConcurrentModificationException if the unread count state remains unstable after 3 retry attempts due to heavy concurrent writes.
 	 */
 	public Mono<UnreadCount> syncUnreadCount(String senderKey, String recipientKey, UUID messageId, XmppPrincipal principal) {
-		String id = String.format("%s_%s", senderKey, recipientKey);
+	    String id = String.format("%s_%s", senderKey, recipientKey);
 
-		// We defer the execution block so that every retry attempt pulls fresh state from the database
-		return Mono.defer(() -> 
-		reactiveMongoTemplate.findById(id, UnreadCount.class)
-		.flatMap(currentUnread -> {
-			Long capturedIncrementAt = currentUnread.getLastIncrementAt();
+	    // 1. Explicitly type Mono.<UnreadCount>defer so the compiler knows the final target type
+	    return Mono.<UnreadCount>defer(() -> 
+	        reactiveMongoTemplate.findById(id, UnreadCount.class)
+	            .flatMap(currentUnread -> {
+	                Long capturedIncrementAt = currentUnread.getLastIncrementAt();
+	                
+	                // 2. Fetch the message first
+	                return offlineMessageRepository.findById(messageId)
+	                    .flatMap(message -> {
+	                        UUID stanzaId = message.getStanzaId();
 
-			// 2. Fetch the real-time pending count based on current DB state
-			return offlineMessageRepository.countByToAndFromAndIdGreaterThanAndCountableTrue(
-					UUID.fromString(recipientKey), UUID.fromString(senderKey), messageId)
-					.flatMap(count -> {
+	                        // 3. Fetch the count, explicitly telling flatMap it will evaluate to an UnreadCount
+	                        return offlineMessageRepository.countByToAndFromAndIdGreaterThanAndCountableTrue(
+	                                UUID.fromString(recipientKey), UUID.fromString(senderKey), messageId)
+	                            .flatMap((Long count) -> { // Explicit lambda param type helps inference
 
-						// 3. Construct the query ensuring lastIncrementAt hasn't changed
-						Query query = new Query(
-								Criteria.where("_id").is(id)
-								.and("last_increment_at").is(capturedIncrementAt)
-								);
+	                                Query query = new Query(
+	                                        Criteria.where("_id").is(id)
+	                                        .and("last_increment_at").is(capturedIncrementAt)
+	                                        );
 
-						Update update = new Update()
-								.set("unread_count", count)
-								.set("last_decrement_at", Instant.now().toEpochMilli())
-								.set("last_read_mid", messageId);
+	                                Update update = new Update()
+	                                        .set("unread_count", count)
+	                                        .set("last_decrement_at", Instant.now().toEpochMilli())
+	                                        .set("last_read_mid", messageId)
+	                                        .set("last_read_sid", stanzaId);
 
-						// 4. Execute the update conditionally
-						return reactiveMongoTemplate.updateFirst(query, update, UnreadCount.class)
-								.flatMap(updateResult -> {
-									if (updateResult.getModifiedCount() == 0) {
-										// Concurrency conflict occurred! Throw exception to trigger a retry
-										return Mono.error(new ConcurrentModificationException(
-												"Unread count changed during processing. Retrying..."
-												));
-									}
-
-									// Update succeeded, return the refreshed document
-									return reactiveMongoTemplate.findById(id, UnreadCount.class);
-								});
-					});
-		})
-				)
-				// 5. Retry configuration: Max 3 attempts, specifically targeting concurrency exceptions
-				.retryWhen(Retry.max(3).filter(throwable -> throwable instanceof ConcurrentModificationException));
+	                                // 4. Perform the conditional update
+	                                return reactiveMongoTemplate.updateFirst(query, update, UnreadCount.class)
+	                                        .flatMap(updateResult -> {
+	                                            if (updateResult.getModifiedCount() == 0) {
+	                                                return Mono.error(new ConcurrentModificationException(
+	                                                        "Unread count changed during processing. Retrying..."
+	                                                        ));
+	                                            }
+	                                            // Final return matching the Mono<UnreadCount> expectation
+	                                            return reactiveMongoTemplate.findById(id, UnreadCount.class);
+	                                        });
+	                            });
+	                    });
+	            })
+	    )
+	    .retryWhen(Retry.max(3).filter(throwable -> throwable instanceof ConcurrentModificationException));
 	}
-
+	
 	/**
 	 * Non-blocking reset of the unread count.
 	 */

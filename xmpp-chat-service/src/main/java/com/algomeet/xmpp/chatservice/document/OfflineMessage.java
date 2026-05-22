@@ -29,8 +29,10 @@ import lombok.Data;
 
 public class OfflineMessage {
 	@Id
-	private UUID id;          // The stanza ID from the <message id='...'> attribute
-
+	private UUID id;          // The Message ID from the <message id='...'> attribute
+	
+	private UUID stanzaId; 
+	
 	private UUID from;        // Sender user key / ID
 
 	@Indexed

@@ -58,7 +58,7 @@ public class MucUnreadCountService {
 
 					// Pair each room with its respective read cursor context
 					return rooms.stream()
-							.map(room -> new RoomWithCursorContext(room, cursorMap.get(room.getId())))
+							.map(room -> new RoomWithCursorContext(room, cursorMap.get(UUID.fromString(room.getId()))))
 							.collect(Collectors.toList());
 				})
 				// Step 3: Concurrently execute the covered index scans across the room batch

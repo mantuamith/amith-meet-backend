@@ -54,7 +54,8 @@ public interface MucMessageRepository extends ReactiveMongoRepository<MucMessage
 	Flux<MucMessage> findByRoomIdAndUpdateCursorIdGreaterThanAndIdLessThanEqualOrderByIdAsc(
 			UUID roomId, 
 			UUID afterUpdateCursorId, 
-			UUID limitId
+			UUID limitId,
+			Pageable pageable
 			);
 
 	/**

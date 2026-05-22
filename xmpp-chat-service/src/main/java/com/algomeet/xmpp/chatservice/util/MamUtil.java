@@ -110,7 +110,7 @@ public class MamUtil {
 
 	            // Indicates the current starting point of the conversation.
 	            // All messages before this stanzaId are considered hard deleted.
-	            .startOfConversationStanzaId((msg.getId() == Constants.SMALLEST_UUID_V7)
+	            .startOfConversationStanzaId((msg.getId() == Constants.NIL_UUID)
 	            ? Constants.EMPTY_CONVERSATION_STANZA_ID 
 	            		: msg.getId().toString())
 

@@ -55,9 +55,10 @@ public class OfflineMessageService {
      * @param originalXml The raw XML payload to be stored.
      * @return A {@link Mono} emitting the saved {@link OfflineMessage}.
      */
-    public Mono<OfflineMessage> save(UUID id, String to, String from, String type, Boolean isAckStanza, boolean isCountable, String originalXml) {
+    public Mono<OfflineMessage> save(UUID id, UUID stanzaId, String to, String from, String type, Boolean isAckStanza, boolean isCountable, String originalXml) {
         OfflineMessage offlineMessage = OfflineMessage.builder()
                 .id(id)
+                .stanzaId(stanzaId)
                 .to(UUID.fromString(to))
                 .from(UUID.fromString(from))
                 .messageType(type)
@@ -79,9 +80,10 @@ public class OfflineMessageService {
      * @param originalXml The raw XML payload to be stored.
      * @return A {@link Mono} emitting the saved {@link OfflineMessage}.
      */
-    public Mono<OfflineMessage> save(UUID id, String to, String from, String type, String originalXml) {
+    public Mono<OfflineMessage> save(UUID id, UUID stanzaId, String to, String from, String type, String originalXml) {
         OfflineMessage offlineMessage = OfflineMessage.builder()
                 .id(id)
+                .stanzaId(stanzaId)
                 .to(UUID.fromString(to))
                 .from(UUID.fromString(from))
                 .messageType(type)

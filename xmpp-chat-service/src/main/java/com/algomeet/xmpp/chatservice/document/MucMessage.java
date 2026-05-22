@@ -84,7 +84,7 @@ public class MucMessage {
 
 	private Instant deletedAt;
 
-	private Set<String> hiddenFromUserKeys = new HashSet<>();
+	private Set<UUID> hiddenFromUserKeys = new HashSet<>();
 		
 	// Indicates whether this record represents the current starting point of the room conversation.
 	// Used to synchronize hard-deleted messages across local devices.

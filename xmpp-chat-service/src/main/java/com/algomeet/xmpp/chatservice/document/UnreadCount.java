@@ -47,6 +47,11 @@ public class UnreadCount {
      * Stores the ID of the last message that triggered a decrement.
      * Prevents "double-decrement" logic errors.
      */
+    /** Last Read Message ID **/
     @Field("last_read_mid")
     private UUID lastReadMid;
+    
+    /** Last Read stanza ID **/
+    @Field("last_read_sid")
+    private UUID lastReadSid;
 }

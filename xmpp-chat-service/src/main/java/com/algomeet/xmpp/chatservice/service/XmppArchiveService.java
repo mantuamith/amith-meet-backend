@@ -287,7 +287,7 @@ public class XmppArchiveService {
 		return repository.save(message);
 	}
 
-	public Mono<Void> hideMessageForUser(UUID messageId, String userKey) {
+	public Mono<Void> hideMessageForUser(UUID messageId, UUID userKey) {
 		// 1. Locate the document by ID
 		Query query = new Query(Criteria.where("messageId").is(messageId));
 
@@ -314,7 +314,8 @@ public class XmppArchiveService {
 
 		// 1. Query the repository for all message changes in this room newer than the provided ULUUIDv7ID.
 		// OrderByIdAsc ensures we process and dispatch updates in the exact order they occurred.
-		repository.findByRoomIdAndUpdateCursorIdGreaterThanAndIdLessThanEqualOrderByIdAsc(roomId, afterId, afterId)
+		Pageable pageable = PageRequest.of(0, 10000);
+		repository.findByRoomIdAndUpdateCursorIdGreaterThanAndIdLessThanEqualOrderByIdAsc(roomId, afterId, afterId, pageable)
 
 		// 2. Filter: Ensure the update is relevant to the requesting principal.
 		// This prevents leaking "Delete for Me" events or private stanzas to the wrong users.
@@ -343,7 +344,7 @@ public class XmppArchiveService {
 	        // Explicitly instantiate 'MucMessage'
 	        MucMessage msg = new MucMessage();
 	        msg.setRoomId(roomId);
-	        msg.setId(Constants.SMALLEST_UUID_V7); // indicator of empty room conversation
+	        msg.setId(Constants.NIL_UUID); // indicator of empty room conversation
 	        msg.setStartOfRoomConversation(true);
 	        // pass an empty message
 	        dispatchRecentUpdatesResult(msg, principal).subscribe();
@@ -458,40 +459,5 @@ public class XmppArchiveService {
 	                // 3. Serialize the synchronization stanza into XML format.
 	                return syncConversationStanza.toXml();
 	            });
-	}
-		
-	/**
-	 * Advances the message synchronization cursor to indicate that the message has
-	 * been acknowledged via a Read Receipt (Read ACK).
-	 *
-	 * <p>This method is used as a lightweight state marker for read tracking in
-	 * distributed chat synchronization flows. When a client sends a Read ACK for
-	 * a message, this operation updates the {@code updateCursorId} field with a
-	 * new monotonic UUIDv7 to reflect that the message has been processed and read
-	 * by the recipient.</p>
-	 *
-	 * <p>This cursor is primarily used for:
-	 * <ul>
-	 *   <li>Cross-device read state synchronization</li>
-	 *   <li>Incremental MAM / delta polling</li>
-	 *   <li>Efficient batch read acknowledgment tracking</li>
-	 * </ul>
-	 * </p>
-	 *
-	 * @param messageId The unique identifier of the message that has been read.
-	 * @return A {@link Mono<Void>} signaling asynchronous completion of the update operation.
-	 */
-	public Mono<Void> advanceMessageSyncCursor(UUID messageId) {
-
-	    // 1. Locate the document by message ID
-	    Query query = new Query(Criteria.where("messageId").is(messageId));
-
-	    // 2. Update cursor to a new monotonic UUIDv7 to mark Read ACK progression
-	    Update update = new Update()
-	            .set("updateCursorId", UuidCreator.getTimeOrderedEpoch());
-
-	    // 3. Apply atomic update to ensure consistency in concurrent environments
-	    return reactiveMongoTemplate.updateFirst(query, update, MucMessage.class)
-	            .then();
-	}
+	}	
 }

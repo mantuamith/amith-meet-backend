@@ -81,7 +81,7 @@ public class XmppViewManagementHandler {
 						item.id, item.room, principal.getUserKey());
 
 				// Atomic update in MongoDB: add current user key to 'hiddenFromUserKeys'
-				return xmppArchiveService.hideMessageForUser(message.getMessageId(), principal.getUserKey())
+				return xmppArchiveService.hideMessageForUser(message.getMessageId(), UUID.fromString(principal.getUserKey()))
 						.doOnSuccess(success -> {
 							// Response to client
 							// Send response

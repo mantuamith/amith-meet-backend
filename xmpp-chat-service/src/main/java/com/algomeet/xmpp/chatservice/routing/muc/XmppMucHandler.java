@@ -153,9 +153,6 @@ public class XmppMucHandler {
 						// Save read MUC message ACK
 						mucMessageReadService.advanceReadCursor(UUID.fromString(principal.getUserKey()), UUID.fromString(group.getId()), messageId)
 						.subscribe();
-						
-						// Read message
-						xmppArchiveService.advanceMessageSyncCursor(messageId).subscribe();
 					}					
 				}
 			} else if ((msgType.supportsOfflineStorage() && isArchivable)) {
