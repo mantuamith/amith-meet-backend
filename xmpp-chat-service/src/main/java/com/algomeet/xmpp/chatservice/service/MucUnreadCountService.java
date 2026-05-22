@@ -3,6 +3,7 @@ package com.algomeet.xmpp.chatservice.service;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -73,7 +74,8 @@ public class MucUnreadCountService {
 								unreadCountDto.setUserKey(userKey.toString());
 								unreadCountDto.setRoomId(roomId);
 								unreadCountDto.setUnreadCount(count.intValue());
-								unreadCountDto.setLastReadMid(lastReadMid.toString());
+								unreadCountDto.setLastReadMid(context.cursor != null ? context.cursor.getLastReadMid().toString() : null);
+								unreadCountDto.setLastReadSid(context.cursor != null ? context.cursor.getLastReadSid().toString() : null);
 								return unreadCountDto;
 							});
 				})

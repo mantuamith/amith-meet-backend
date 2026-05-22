@@ -27,7 +27,9 @@ public class MucRoomReadCursor {
 
     private UUID roomId;
 
-    private UUID lastReadMid; // The 'id' of the last message read by the user
+    private UUID lastReadMid; // The 'messageId' of the last message read by the user
+    
+    private UUID lastReadSid; // The stanzaId 'id' he last message read by the user
 
     private long lastReadAt;
 }
