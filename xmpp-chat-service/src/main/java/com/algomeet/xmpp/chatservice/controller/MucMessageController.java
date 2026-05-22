@@ -34,8 +34,8 @@ public class MucMessageController implements MucMessageControllerDoc{
 	 * <p>
 	 * Supports cursor-based pagination using UUID v7 stanza IDs:
 	 * <ul>
-	 *     <li><b>afterStanzaId</b> → fetch newer messages after the provided stanza ID</li>
-	 *     <li><b>beforeStanzaId</b> → fetch older messages before the provided stanza ID</li>
+	 *     <li><b>after</b> → fetch newer messages after the provided stanza ID</li>
+	 *     <li><b>before</b> → fetch older messages before the provided stanza ID</li>
 	 * </ul>
 	 * <p>
 	 * This endpoint is commonly used for:
@@ -57,8 +57,8 @@ public class MucMessageController implements MucMessageControllerDoc{
 	@GetMapping("/{groupId}/messages")
 	public ResponseEntity<CommonResponse<List<MucMessageResponse>>> getMessages(
 			@PathVariable UUID groupId,
-			@RequestParam("beforeStanzaId") Optional<String> beforeStanzaId,
-			@RequestParam("afterStanzaId") Optional<String> afterStanzaId,    		
+			@RequestParam("before") Optional<String> beforeStanzaId,
+			@RequestParam("after") Optional<String> afterStanzaId,    		
 			@RequestParam(value = "page", defaultValue = "0") int page, 
 			@RequestParam(value = "size", defaultValue = "20") int size) {
 
