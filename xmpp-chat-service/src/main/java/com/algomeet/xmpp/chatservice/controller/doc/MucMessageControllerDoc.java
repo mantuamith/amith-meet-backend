@@ -136,4 +136,40 @@ public interface MucMessageControllerDoc {
 					example = "50"
 			)
 			@RequestParam(value = "size", defaultValue = "50") int size);
+	
+	@Operation(
+	        summary = "Get user group conversations",
+	        description = """
+	                Retrieves the chat inbox overview for the currently authenticated user.
+
+	                This endpoint returns all joined MUC (Multi-User Chat) conversations
+	                together with the latest visible message from each room.
+
+	                The response automatically respects:
+	                - hidden or deleted messages
+	                - private whisper visibility rules
+	                - message access restrictions
+
+	                Commonly used for:
+	                - chat inbox rendering
+	                - conversation sidebar initialization
+	                - latest message previews
+	                - conversation activity ordering
+	                """
+	)
+	@ApiResponses(value = {
+	        @ApiResponse(
+	                responseCode = "200",
+	                description = "Conversations retrieved successfully",
+	                content = @Content(
+	                        mediaType = "application/json",
+	                        array = @ArraySchema(
+	                                schema = @Schema(implementation = MucMessageResponse.class)
+	                        )
+	                )
+	        ),
+	        @ApiResponse(responseCode = "401", description = "Unauthorized"),
+	        @ApiResponse(responseCode = "403", description = "Forbidden")
+	})
+	public ResponseEntity<CommonResponse<List<MucMessageResponse>>> getConversations();
 }

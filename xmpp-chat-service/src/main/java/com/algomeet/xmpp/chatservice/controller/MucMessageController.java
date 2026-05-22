@@ -25,11 +25,36 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/muc/messages")
+@RequestMapping("/api/chat/muc")
 public class MucMessageController implements MucMessageControllerDoc{
 	private final MucMessageService mucMessageService;
 
-	@GetMapping("/{groupId}")
+	/**
+	 * Retrieves paginated messages for a specific MUC (group chat) conversation.
+	 * <p>
+	 * Supports cursor-based pagination using UUID v7 stanza IDs:
+	 * <ul>
+	 *     <li><b>afterStanzaId</b> → fetch newer messages after the provided stanza ID</li>
+	 *     <li><b>beforeStanzaId</b> → fetch older messages before the provided stanza ID</li>
+	 * </ul>
+	 * <p>
+	 * This endpoint is commonly used for:
+	 * <ul>
+	 *     <li>initial conversation loading</li>
+	 *     <li>infinite scroll history loading</li>
+	 *     <li>incremental message synchronization</li>
+	 *     <li>backup restoration</li>
+	 * </ul>
+	 *
+	 * @param groupId The unique MUC room identifier.
+	 * @param beforeStanzaId Cursor used to retrieve older messages.
+	 * @param afterStanzaId Cursor used to retrieve newer messages.
+	 * @param page Pagination page index.
+	 * @param size Number of messages per page.
+	 * @return A standardized {@link CommonResponse} containing a list of
+	 *         {@link MucMessageResponse} objects ordered chronologically.
+	 */
+	@GetMapping("/{groupId}/messages")
 	public ResponseEntity<CommonResponse<List<MucMessageResponse>>> getMessages(
 			@PathVariable UUID groupId,
 			@RequestParam("beforeStanzaId") Optional<String> beforeStanzaId,
@@ -59,7 +84,29 @@ public class MucMessageController implements MucMessageControllerDoc{
 				));
 	}   
 
-	@GetMapping("/{groupId}/updates")
+	/**
+	 * Retrieves incremental message updates for a MUC (group chat) conversation.
+	 * <p>
+	 * Returns message state changes up to the provided stanza ID including:
+	 * <ul>
+	 *     <li>message edits</li>
+	 *     <li>message deletions/retractions</li>
+	 *     <li>read state updates</li>
+	 *     <li>delivery state updates</li>
+	 *     <li>reaction updates</li>
+	 * </ul>
+	 * <p>
+	 * This endpoint is intended for conversations that have already been
+	 * partially synchronized locally.
+	 *
+	 * @param groupId The unique MUC room identifier.
+	 * @param untilStanzaId Upper synchronization boundary stanza ID.
+	 * @param page Pagination page index.
+	 * @param size Number of update records per page.
+	 * @return A standardized {@link CommonResponse} containing incremental
+	 *         {@link MucMessageResponse} update records.
+	 */
+	@GetMapping("/{groupId}/massages/updates")
 	public ResponseEntity<CommonResponse<List<MucMessageResponse>>> getMessageUpdates(
 			@PathVariable UUID groupId,
 			@RequestParam("untilStanzaId") UUID untilStanzaId,
@@ -73,5 +120,30 @@ public class MucMessageController implements MucMessageControllerDoc{
 				ResponseCode.SUCCESS, 
 				mucMessageService.getMessageUpdates(UUID.fromString(userKey), groupId, untilStanzaId, page, size)
 				));
-	}   
+	}  
+
+	/**
+     * Retrieves the chat inbox overview for the currently authenticated user.
+     * <p>
+     * This endpoint compiles a real-time list of all conversational channels 
+     * (MUC Rooms) the user belongs to, populated exclusively with the absolute 
+     * latest visible message snippet from each thread. It automatically respects 
+     * privacy conditions (hidden messages) and message isolation rules (private whispers).
+     * <p>
+     * Typically utilized by UI layers to render the master-detail sidebar layout 
+     * or active chat thread selector immediately upon client connection.
+     *
+     * @return A standardized {@link CommonResponse} wrapper enclosing a list of 
+     *         {@link MucMessageResponse} objects sorted by recent activity.
+     */
+	@GetMapping("/conversations")
+	public ResponseEntity<CommonResponse<List<MucMessageResponse>>> getConversations(){
+		// Get the authenticated user's key
+		String userKey = SecurityUtil.getUserKey();                  
+
+		return ResponseEntity.ok(CommonResponse.from(
+				ResponseCode.SUCCESS, 
+				mucMessageService.getConversations(UUID.fromString(userKey))
+				));
+	}
 }

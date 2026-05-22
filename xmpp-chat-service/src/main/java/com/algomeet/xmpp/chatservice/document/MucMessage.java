@@ -59,9 +59,17 @@ import lombok.NoArgsConstructor;
 		    name = "idx_muc_unread_count_optimized", 
 		    def = "{ 'roomId': 1, 'countable': 1, 'messageId': 1, 'to': 1 }",
 		    partialFilter = "{ 'deletedAt': null, 'countable': true }"
+		),
+	
+	@CompoundIndex(
+		    name = "idx_muc_conversations_optimized", 
+		    def = "{'roomId': 1, 'to': 1, 'id': -1}"
 		)
 })
-public class MucMessage {    
+public class MucMessage {   
+    public static final String FIELD_ID = "id"; // StanzaId
+    public static final String FIELD_ROOM_ID = "roomId";
+    
 	@Id
 	private UUID id;           // UUIDv7 or Sequential String
 
