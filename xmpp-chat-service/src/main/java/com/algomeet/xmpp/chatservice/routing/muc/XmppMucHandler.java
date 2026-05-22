@@ -159,9 +159,10 @@ public class XmppMucHandler {
 								
 				// Insert stanza ID
 				forArchiveXml = XmppStanzaUtil.insertStanzaId(originalXml, stanzaId.toString(), principal.getDomain());		
+				Boolean isCountable = XmppStanzaUtil.isCountableMessage(originalXml);
 				
 				xmppArchiveService.archiveEvent(forArchiveXml, id, XmppUtil.getRoomId(toRoomJid), (pmToMucMember != null ? pmToMucMember.getUserKey() : null), 
-						XmppUtil.getUserKey(fromJid), stanzaId)
+						XmppUtil.getUserKey(fromJid), stanzaId, isCountable)
 				.doOnSuccess(saved -> {
 
 					// Send an immediate server-level acknowledgment to the sender.
@@ -174,6 +175,12 @@ public class XmppMucHandler {
 					// This is a custom acknowledgment (not client XEP-0198 ack),
 					// used to provide early delivery assurance back to the sender.
 					XmppServerAckUtil.send(ctx, id, domainProperties.getDomain(), fromJid);
+					
+					// Move cursor for the message sender
+					if (isCountable) {
+						mucMessageReadService.advanceReadCursor(UUID.fromString(principal.getUserKey()), UUID.fromString(group.getId()), UUID.fromString(id))
+						.subscribe();
+					}
 
 					log.debug("MAM Archive Success: ID={} Room={}", stanzaId, toRoomId);
 				})

@@ -72,6 +72,34 @@ public class XmppArchiveService {
 	 * @param stanzaId The unique internal ID (UUIDv7) for database indexing.
 	 * @return A {@link Mono} containing the saved {@link MucMessage}.
 	 */
+	public Mono<MucMessage> archiveEvent(String xml, String id, String toRoomId, String toMucMember, String from, UUID stanzaId, Boolean isCountable) {	
+		UUID messageId = StringUtils.hasText(id) 
+			    ? UUID.fromString(id) 
+			    : UuidCreator.getTimeOrderedEpoch();
+		
+		MucMessage event = new MucMessage();
+		event.setId(stanzaId);
+		event.setMessageId(messageId);
+		event.setRoomId(UUID.fromString(toRoomId));
+		event.setFrom(UUID.fromString(from));
+		event.setTo(StringUtils.hasText(toMucMember) ? UUID.fromString(toMucMember) : null);
+		event.setCountable(isCountable);
+		event.setStanzaXml(xml);
+
+		return repository.save(event);
+	}
+	
+	/**
+	 * Persists a room event (message or signaling) to the archive.
+	 *
+	 * @param xml        The raw XML stanza content.
+	 * @param info       Metadata extracted from the stanza (ID, Category, Encryption status).
+	 * @param toRoomId   The internal ID of the room destination.
+	 * @param toMucMember The specific recipient (for private MUC messages) User Key.
+	 * @param from       The sender's User Key.
+	 * @param stanzaId The unique internal ID (UUIDv7) for database indexing.
+	 * @return A {@link Mono} containing the saved {@link MucMessage}.
+	 */
 	public Mono<MucMessage> archiveEvent(String xml, String id, String toRoomId, String toMucMember, String from, UUID stanzaId) {	
 		UUID messageId = StringUtils.hasText(id) 
 			    ? UUID.fromString(id) 
