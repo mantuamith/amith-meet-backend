@@ -99,28 +99,28 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 	 */
 	@GetMapping("/{peerKey}/conversation")
 	public ResponseEntity<CommonResponse<Page<MessageBackupResponse>>> getConversationMessages(
-			@PathVariable String peerKey,
-			@RequestParam("before") Optional<String> before,
-			@RequestParam("after") Optional<String> after,
+			@PathVariable UUID peerKey,
+			@RequestParam("before") Optional<String> beforeStanzaId,
+			@RequestParam("after") Optional<String> afterStanzaId,
 			@RequestParam(defaultValue = "0") int page,
 			@RequestParam(defaultValue = "50") int size) {
 
 		// Fetch paginated message backups for the conversation between the current user and the peer.
 		// NOTE: The "after" cursor is not yet applied in the query and should be integrated at the service level.
 		Page<MessageBackupDocument> backupsPage = null;
-		if (after.isPresent()) {			
+		if (afterStanzaId.isPresent()) {			
 			backupsPage =
 					messageBackupService.getConversationMessagesAfter(
-							SecurityUtil.getUserKey(), peerKey, after.get(), page, size);    		
+							UUID.fromString(SecurityUtil.getUserKey()), peerKey, UUID.fromString(afterStanzaId.get()), page, size);    		
 
 		} else {    
-			if (before.isEmpty()) {
-				before = Optional.ofNullable(UuidCreator.getTimeOrderedEpoch().toString());
+			if (beforeStanzaId.isEmpty()) {
+				beforeStanzaId = Optional.ofNullable(UuidCreator.getTimeOrderedEpoch().toString());
 			}
 			
 			backupsPage =
 					messageBackupService.getConversationMessagesBefore(
-							SecurityUtil.getUserKey(), peerKey, before.get(), page, size);
+							UUID.fromString(SecurityUtil.getUserKey()), peerKey, UUID.fromString(beforeStanzaId.get()), page, size);
 		}
 
 		// Transform database documents into API response DTOs.
@@ -135,16 +135,47 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 
 		// Return standardized success response with paginated data.
 		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, responsePage));
-	}     
-
-	@GetMapping("/{peerKey}/conversation/sync")
-	public ResponseEntity<CommonResponse<List<MessageBackupResponse>>> syncMessages(
-			@PathVariable String peerKey,
-			@RequestParam("before") String before,
-			@RequestParam(defaultValue = "5000") int maxResults) {
+	}  
+	
+	@GetMapping("/{peerKey}/conversation/updates")
+	public ResponseEntity<CommonResponse<List<MessageBackupResponse>>> getMessageUpdates(
+			@PathVariable UUID peerKey,
+			@RequestParam("untilStanzaId") UUID untilStanzaId,
+			@RequestParam(defaultValue = "0") int page,
+			@RequestParam(defaultValue = "1000") int size) {
 
 		List<MessageBackupDocument> backupsPage =
-				messageBackupService.syncMessageUpdates(UUID.fromString(SecurityUtil.getUserKey()), peerKey, before, before, maxResults);
+				messageBackupService.getMessageUpdates(
+						UUID.fromString(SecurityUtil.getUserKey()), 
+						peerKey, 
+						untilStanzaId, 
+						untilStanzaId, 
+						page,
+						size);
+
+		List<MessageBackupResponse> responseList = backupsPage
+				.stream() 
+				.map(MessageBackupResponse::from)
+				.collect(Collectors.toList());
+
+		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, responseList));
+	}
+	
+	@Deprecated
+	@GetMapping("/{peerKey}/conversation/sync")
+	public ResponseEntity<CommonResponse<List<MessageBackupResponse>>> syncMessages(
+			@PathVariable UUID peerKey,
+			@RequestParam("before") UUID before,
+			@RequestParam(defaultValue = "0") int page,
+			@RequestParam(defaultValue = "1000") int size) {
+
+		List<MessageBackupDocument> backupsPage =
+				messageBackupService.getMessageUpdates(UUID.fromString(SecurityUtil.getUserKey()), 
+						peerKey, 
+						before, 
+						before, 
+						page,
+						size);
 
 		List<MessageBackupResponse> responseList = backupsPage
 				.stream() 
@@ -198,13 +229,40 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 		String currentUserKey = SecurityUtil.getUserKey();
 
 		// Delegate to service layer to fetch distinct chat partners (peer user keys)
-		List<String> contacts = messageBackupService.getConversationContacts(currentUserKey);
+		List<String> contacts = messageBackupService.getConversationContacts(
+				UUID.fromString(currentUserKey));
 
 		// Wrap result in a standardized API response structure and return HTTP 200
 		return ResponseEntity.ok(
 				CommonResponse.from(ResponseCode.SUCCESS, contacts)
 				);
 	}
+	
+	/**
+     * Retrieves the latest message backup document for each unique conversation 
+     * belonging to the authenticated user. 
+     * <p>
+     * This acts as the user's archival inbox overview, providing a snapshot 
+     * of the most recent interaction for all active chat threads.
+     *
+     * @return A standard API wrapper containing a list of the latest {@link MessageBackupDocument}s
+     */
+    @GetMapping("/conversations")
+    public ResponseEntity<CommonResponse<List<MessageBackupDocument>>> getConversations() {
+
+        // 1. Resolve the principal identity of the currently authenticated session
+        String currentUserKey = SecurityUtil.getUserKey();
+
+        // 2. Query the backup database for distinct conversation tracks, 
+        // passing the parsed UUID to pull the latest chronological record for each chat
+        List<MessageBackupDocument> messages = messageBackupService.findUniqueConversationsWithFullDetails(
+                UUID.fromString(currentUserKey));
+
+        // 3. Encapsulate the result matrix within a uniform response structure and return an HTTP 200 OK
+        return ResponseEntity.ok(
+                CommonResponse.from(ResponseCode.SUCCESS, messages)
+        );
+    }
 
 	/**
 	 * Retrieves a single message backup by its message ID.
@@ -287,8 +345,8 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 	 * @return success response
 	 */
 	@DeleteMapping("/{peerKey}/conversation")
-	public ResponseEntity<CommonResponse<?>> deleteByConversation(@PathVariable String peerKey) {
-		messageBackupService.deleteConversation(UUID.fromString(SecurityUtil.getUserKey()), UUID.fromString(peerKey));          
+	public ResponseEntity<CommonResponse<?>> deleteByConversation(@PathVariable UUID peerKey) {
+		messageBackupService.deleteConversation(UUID.fromString(SecurityUtil.getUserKey()), peerKey);          
 		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
 	}
 
@@ -397,5 +455,5 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 			return ResponseEntity.status(HttpStatus.NOT_FOUND)
 					.body(CommonResponse.from(ResponseCode.MESSAGE_BACKUP_NOT_FOUND));
 		}
-	}
+	}	
 }

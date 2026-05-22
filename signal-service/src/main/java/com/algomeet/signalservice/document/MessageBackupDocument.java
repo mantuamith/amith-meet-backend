@@ -13,6 +13,7 @@ import org.springframework.data.mongodb.core.mapping.Field;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
@@ -32,8 +33,8 @@ import lombok.NoArgsConstructor;
     // By putting timestamp before conversationId, MongoDB can find the 
     // latest unique conversations for a user with minimal index walking.
     @CompoundIndex(
-        name = "idx_user_inbox_view", 
-        def = "{'userKey': 1, 'timestamp': -1, 'conversationId': 1}"
+        name = "idx_user_latest_conversations_view", 
+        def = "{'userKey': 1, 'stanzaId': -1, 'conversationId': 1}"
     ),
     
     // 3. Retrieve record updates
@@ -108,11 +109,11 @@ public class MessageBackupDocument {
 	@Field("userKey")
 	private UUID userKey;   
 
-	@NotEmpty
+    @NotNull
 	@Field("senderKey")
 	private UUID senderKey; 
 
-	@NotEmpty
+	@NotNull
 	@Field("receiverKey")
 	private UUID receiverKey;     
 

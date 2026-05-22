@@ -18,10 +18,10 @@ import jakarta.transaction.Transactional;
 
 public interface MessageBackupRepository extends MongoRepository<MessageBackupDocument, UUID> {	
 	Page<MessageBackupDocument> findByConversationIdAndStanzaIdLessThan(
-			String conversationId, String stanzaId, Pageable pageable);
+			String conversationId, UUID stanzaId, Pageable pageable);
 
 	Page<MessageBackupDocument> findByConversationIdAndStanzaIdGreaterThan(
-			String conversationId, String stanzaId, Pageable pageable);
+			String conversationId, UUID stanzaId, Pageable pageable);
 
 	// Custom delete query for both sides of conversation
 	@Modifying

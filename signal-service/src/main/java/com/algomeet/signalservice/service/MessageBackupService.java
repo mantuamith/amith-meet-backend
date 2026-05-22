@@ -21,6 +21,7 @@ import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_VE
 
 import java.nio.charset.Charset;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
@@ -33,6 +34,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.aggregation.Aggregation;
+import org.springframework.data.mongodb.core.aggregation.AggregationOptions;
 import org.springframework.data.mongodb.core.aggregation.AggregationResults;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -43,6 +45,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
+import com.algomeet.signalservice.constant.Constants;
 import com.algomeet.signalservice.document.MessageBackupDocument;
 import com.algomeet.signalservice.dto.StorageUsageAdjustmentRequest;
 import com.algomeet.signalservice.exceptions.MessageInsertInProgressException;
@@ -164,86 +167,106 @@ public class MessageBackupService {
 		return repository.save(backup);
 	}
 
-	public Page<MessageBackupDocument> getConversationMessagesBefore(String userKey, String peerKey,String stanzaId, int page, int size) {
+	public Page<MessageBackupDocument> getConversationMessagesBefore(UUID userKey, UUID peerKey, UUID stanzaId, int page, int size) {
 		Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, FIELD_STANZA_ID));
 
 		// Get converation ID
-		String converationId = ConversationUtil.getConversationId(userKey, peerKey);		
+		String converationId = ConversationUtil.getConversationId(userKey.toString(), peerKey.toString());		
 		return repository.findByConversationIdAndStanzaIdLessThan(converationId, stanzaId, pageable);
 	}
 
-	public Page<MessageBackupDocument> getConversationMessagesAfter(String userKey, String peerKey, String stanzaId, int page, int size) {
+	public Page<MessageBackupDocument> getConversationMessagesAfter(UUID userKey, UUID peerKey, UUID stanzaId, int page, int size) {
 		Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.ASC, FIELD_STANZA_ID));
 
 		// Get converation ID
-		String converationId = ConversationUtil.getConversationId(userKey, peerKey);		
+		String converationId = ConversationUtil.getConversationId(userKey.toString(), peerKey.toString());		
 		return repository.findByConversationIdAndStanzaIdGreaterThan(converationId, stanzaId, pageable);
 	}
 
-	public List<MessageBackupDocument> syncMessageUpdates(
-	        UUID userKey,
-	        String peerKey,
-	        String cursorStanzaId,
-	        String limitStanzaId,
-	        int maxResults // safety cap (e.g., 1000)
-	) {
-	    Query query = new Query();
+	public List<MessageBackupDocument> getMessageUpdates(
+			UUID userKey,
+			UUID peerKey,
+			UUID cursorStanzaId,
+			UUID limitStanzaId,
+			int page, 
+			int size
+			) {
+		// 1. Initialize Spring Data Pagination
+		if (page == 0) {
+			size = size - 1;
+		}
 
-	    String conversationId = ConversationUtil.getConversationId(userKey.toString(), peerKey);
+		Pageable pageable = PageRequest.of(page, size);
+		Query query = new Query();
 
-	    // Filter: conversationId AND updateCursorId > cursorStanzaId AND stanzaId <= limitStanzaId
-	    query.addCriteria(
-	            Criteria.where(FIELD_CONVERSATION_ID).is(conversationId)
-	                    .and(FIELD_UPDATE_CURSOR_ID).gt(cursorStanzaId)
-	                    .and(FIELD_STANZA_ID).lte(limitStanzaId)
-	    );
+		String conversationId = ConversationUtil.getConversationId(userKey.toString(), peerKey.toString());
 
-	    // Projection
-	    query.fields()
-	            .include(FIELD_MESSAGE_ID)
-	            .include(FIELD_STANZA_ID)
-	            .include(FIELD_SENDER_KEY)
-	            .include(FIELD_RECEIVER_KEY)
-	            .include(FIELD_ENCRYPTED_MSG)
-	            .include(FIELD_ALGORITHM)
-	            .include(FIELD_VERSION)
-	            .include(FIELD_SALT)
-	            .include(FIELD_SENT_AT)
-	            .include(FIELD_DELIVERED_AT)
-	            .include(FIELD_READ_AT)
-	            .include(FIELD_DELETED_AT)
-	            .include(FIELD_EDIT_COUNT);
+		// Filter: conversationId AND updateCursorId > cursorStanzaId AND stanzaId <= limitStanzaId
+		query.addCriteria(
+				Criteria.where(FIELD_CONVERSATION_ID).is(conversationId)
+				.and(FIELD_UPDATE_CURSOR_ID).gt(cursorStanzaId)
+				.and(FIELD_STANZA_ID).lte(limitStanzaId)
+				);
 
-	    // Sort (IMPORTANT: keep deterministic order)
-	    query.with(Sort.by(Sort.Direction.ASC, FIELD_STANZA_ID));
+		// Projection
+		query.fields()
+		.include(FIELD_MESSAGE_ID)
+		.include(FIELD_STANZA_ID)
+		.include(FIELD_SENDER_KEY)
+		.include(FIELD_RECEIVER_KEY)
+		.include(FIELD_ENCRYPTED_MSG)
+		.include(FIELD_ALGORITHM)
+		.include(FIELD_VERSION)
+		.include(FIELD_SALT)
+		.include(FIELD_SENT_AT)
+		.include(FIELD_DELIVERED_AT)
+		.include(FIELD_READ_AT)
+		.include(FIELD_DELETED_AT)
+		.include(FIELD_EDIT_COUNT);
 
-	    // Limit (VERY IMPORTANT to avoid unbounded fetch)
-	    query.limit(maxResults);
+		// 2. Attach Sort and Pagination Bounds to Query
+		query.with(Sort.by(Sort.Direction.ASC, FIELD_STANZA_ID));
+		query.with(pageable);
 
-	    List<MessageBackupDocument> modifiedRecords = new LinkedList<>();
-	    // Execute
-	    modifiedRecords.addAll(mongoTemplate.find(query, MessageBackupDocument.class));
+		// 3. Collect to standard ArrayList for significantly faster processing and serialization
+		List<MessageBackupDocument> modifiedRecords = new ArrayList<>(mongoTemplate.find(query, MessageBackupDocument.class));
 
-	    // Get the latest first message in the conversation
-	    String converationId = ConversationUtil.getConversationId(userKey.toString(), peerKey);
-	    Optional<MessageBackupDocument> optCurrentFirstMessage = repository.findFirstByUserKeyAndConversationIdOrderByStanzaIdAsc(userKey, converationId);
+		// 4. Inject Conversation Start Indicator ONLY on Page 0
+		if (page == 0) {
+			Optional<MessageBackupDocument> optCurrentFirstMessage = repository.findFirstByUserKeyAndConversationIdOrderByStanzaIdAsc(userKey, conversationId);
 
-	    if (optCurrentFirstMessage.isPresent()) {
-	    	// Mark the first available message as the conversation starting point.
-	    	// This serves as the synchronization reference for deleted messages across local devices.
-	    	MessageBackupDocument message = optCurrentFirstMessage.get();
-	    	message.setStartOfConversation(true);
-	    	modifiedRecords.add(0, message);
-	    }
+			if (optCurrentFirstMessage.isPresent()) {
+				MessageBackupDocument conversationStartMessage = optCurrentFirstMessage.get();
 
-	    return modifiedRecords;
+				// Check if this record was already pulled by the main pagination query
+				int existingIndex = modifiedRecords.indexOf(conversationStartMessage);
+
+				if (existingIndex != -1) {
+					// If it already exists in the payload, don't duplicate it—just flag it in place
+					modifiedRecords.get(existingIndex).setStartOfConversation(true);
+				} else {
+					// Otherwise, mark it and inject it cleanly as the first item
+					conversationStartMessage.setStartOfConversation(true);
+					modifiedRecords.add(0, conversationStartMessage);
+				}
+			} else {
+				MessageBackupDocument conversationStartMessage = new MessageBackupDocument();
+				conversationStartMessage.setStartOfConversation(true);
+				conversationStartMessage.setMessageId(Constants.NIL_UUID);
+				conversationStartMessage.setStanzaId(Constants.NIL_UUID);
+				
+				return List.of(conversationStartMessage);
+			}
+		}
+
+		return modifiedRecords;
 	}
-	
-	public Page<MessageBackupDocument> getSyncConversationMessages(String userKey, String peerKey, String stanzaId, int page, int size) {
+
+	public Page<MessageBackupDocument> getSyncConversationMessages(UUID userKey, UUID peerKey, UUID stanzaId, int page, int size) {
 		Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.ASC, FIELD_STANZA_ID));
 
 		// Get converation ID
-		String converationId = ConversationUtil.getConversationId(userKey, peerKey);		
+		String converationId = ConversationUtil.getConversationId(userKey.toString(), peerKey.toString());		
 		return repository.findByConversationIdAndStanzaIdGreaterThan(converationId, stanzaId, pageable);
 	}
 
@@ -257,7 +280,7 @@ public class MessageBackupService {
 		return messageList;
 	}
 
-	public List<String> getConversationContacts(String userKey){
+	public List<String> getConversationContacts(UUID userKey){
 		List<String> conversationIds = findUniqueConversationIds(userKey);
 
 		if (!CollectionUtils.isEmpty(conversationIds)) {
@@ -267,42 +290,72 @@ public class MessageBackupService {
 		return List.of();
 	}
 
-	private List<String> findUniqueConversationIds(String userKey) {
-		Aggregation aggregation = Aggregation.newAggregation(
-				// 1. Filter only for messages belonging to this user
-				Aggregation.match(Criteria.where(FIELD_USER_KEY).is(userKey)),
+	private List<String> findUniqueConversationIds(UUID userKey) {
+	    // 1. Memory guardrail is critical for high-volume pipeline processing
+	    AggregationOptions options = AggregationOptions.builder().allowDiskUse(true).build();
 
-				// 2. Group by the deterministic conversationId
-				// and find the maximum timestamp for that specific chat
-				Aggregation.group(FIELD_CONVERSATION_ID)
-				.max(FIELD_TIMESTAMP).as("lastInteraction"),
+	    Aggregation aggregation = Aggregation.newAggregation(
+	            // 2. Instantly target the user space via index prefix
+	            Aggregation.match(Criteria.where(FIELD_USER_KEY).is(userKey)),
 
-				// 3. Sort conversations: most recent messages first
-				Aggregation.sort(Sort.Direction.DESC, "lastInteraction"),
+	            // 3. Walk backwards down your compound index: {'userKey': 1, 'stanzaId': -1, 'conversationId': 1}
+	            // Because it's a UUIDv7, sorting DESC here guarantees the newest message is read FIRST.
+	            Aggregation.sort(Sort.Direction.DESC, FIELD_STANZA_ID),
 
-				// 4. Project the ID (which is the conversationId) to our DTO
-				Aggregation.project().and("_id").as(FIELD_CONVERSATION_ID)
-				);
+	            // 4. Group by conversationId. MongoDB optimizes this streaming input: 
+	            // The first record it sees per conversation is inherently the maximum/newest!
+	            Aggregation.group(FIELD_CONVERSATION_ID),
 
-		AggregationResults<ConversationIdResult> results = mongoTemplate.aggregate(
-				aggregation, "message_backups", ConversationIdResult.class
-				);
+	            // 5. Project out the resulting conversation identifier
+	            Aggregation.project().and("_id").as(FIELD_CONVERSATION_ID)
+	    )
+	    .withOptions(options);
 
-		return results.getMappedResults().stream()
-				.map(ConversationIdResult::getConversationId)
-				.collect(Collectors.toList());
+	    AggregationResults<ConversationIdResult> results = mongoTemplate.aggregate(
+	            aggregation, "message_backups", ConversationIdResult.class
+	    );
+
+	    return results.getMappedResults().stream()
+	            .map(ConversationIdResult::getConversationId)
+	            .collect(Collectors.toList());
 	}
-
+	
 	// Simple DTO for mapping
 	@Data
 	private static class ConversationIdResult {
 		private String conversationId;
 	}
 
-	// Helper class to map aggregation results
-	@Data
-	private static class ContactResult {
-		private String contactKey;
+	public List<MessageBackupDocument> findUniqueConversationsWithFullDetails(UUID userKey) {
+		AggregationOptions options = AggregationOptions.builder().allowDiskUse(true).build();
+
+		Aggregation aggregation = Aggregation.newAggregation(
+				// 1. Filter only for messages belonging to this user
+				// This perfectly utilizes your compound index: idx_user_inbox_view {'userKey': 1, 'timestamp': -1, 'conversationId': 1}
+				Aggregation.match(Criteria.where(FIELD_USER_KEY).is(userKey)),
+
+				// 2. Sort them by timestamp descending BEFORE grouping.
+				// This ensures the first document MongoDB encounters per conversation is the newest one.
+				Aggregation.sort(Sort.Direction.DESC, FIELD_STANZA_ID),
+
+				// 3. Group by conversationId and capture the entire first document ($first)
+				Aggregation.group(FIELD_CONVERSATION_ID)
+				.first(Aggregation.ROOT).as("latestMessage"),
+
+				// 4. Flatten the structure so it maps directly back into your document class
+				Aggregation.replaceRoot("latestMessage"),
+
+				// 5. Final sort to ensure the entire conversation list is ordered by newest message first
+				Aggregation.sort(Sort.Direction.DESC, FIELD_STANZA_ID)
+				)
+				.withOptions(options); // Attach memory guardrail
+		
+
+		AggregationResults<MessageBackupDocument> results = mongoTemplate.aggregate(
+				aggregation, "message_backups", MessageBackupDocument.class
+				);
+
+		return results.getMappedResults();
 	}
 
 	public MessageBackupDocument update(UUID userKey,  UUID messageId, MessageBackupDocument backup) {	
@@ -326,34 +379,34 @@ public class MessageBackupService {
 
 		return repository.save(updateOpt.map(existing -> {
 			// Core Identity & Routing
-		    if (backup.getUserKey() != null) existing.setUserKey(backup.getUserKey());
-		    if (backup.getConversationId() != null) existing.setConversationId(backup.getConversationId());
-		    if (backup.getStanzaId() != null) existing.setStanzaId(backup.getStanzaId());
-		    
-		    // Encryption Metadata
-		    if (backup.getEncryptedMessage() != null) existing.setEncryptedMessage(backup.getEncryptedMessage());
-		    if (backup.getSenderKey() != null) existing.setSenderKey(backup.getSenderKey());
-		    if (backup.getReceiverKey() != null) existing.setReceiverKey(backup.getReceiverKey());
-		    if (backup.getAlgorithm() != null) existing.setAlgorithm(backup.getAlgorithm());
-		    if (backup.getVersion() != null) existing.setVersion(backup.getVersion());
-		    if (backup.getSalt() != null) existing.setSalt(backup.getSalt());
-		    
-		    // State & Timestamps
-		    if (backup.getSentAt() != null) existing.setSentAt(backup.getSentAt());
-		    if (backup.getDeliveredAt() != null) existing.setDeliveredAt(backup.getDeliveredAt());
-		    if (backup.getReadAt() != null) existing.setReadAt(backup.getReadAt());
-		    if (backup.getDeletedAt() != null) existing.setDeletedAt(backup.getDeletedAt());
-		    
-		    // Relationships & Sync
-		    if (backup.getRefersTo() != null) existing.setRefersTo(backup.getRefersTo());
-		    if (backup.getEditCount() != null) existing.setEditCount(backup.getEditCount());
-		    if (backup.getUpdateCursorId() != null) existing.setUpdateCursorId(backup.getUpdateCursorId());
-		    if (backup.getSize() != null) existing.setSize(backup.getSize());
-		    
-		    // Note: timestamp is usually 'Instant.now()' on creation, 
-		    // but you can update it here if you want to track 'last modified'
-		    
-		    return existing;
+			if (backup.getUserKey() != null) existing.setUserKey(backup.getUserKey());
+			if (backup.getConversationId() != null) existing.setConversationId(backup.getConversationId());
+			if (backup.getStanzaId() != null) existing.setStanzaId(backup.getStanzaId());
+
+			// Encryption Metadata
+			if (backup.getEncryptedMessage() != null) existing.setEncryptedMessage(backup.getEncryptedMessage());
+			if (backup.getSenderKey() != null) existing.setSenderKey(backup.getSenderKey());
+			if (backup.getReceiverKey() != null) existing.setReceiverKey(backup.getReceiverKey());
+			if (backup.getAlgorithm() != null) existing.setAlgorithm(backup.getAlgorithm());
+			if (backup.getVersion() != null) existing.setVersion(backup.getVersion());
+			if (backup.getSalt() != null) existing.setSalt(backup.getSalt());
+
+			// State & Timestamps
+			if (backup.getSentAt() != null) existing.setSentAt(backup.getSentAt());
+			if (backup.getDeliveredAt() != null) existing.setDeliveredAt(backup.getDeliveredAt());
+			if (backup.getReadAt() != null) existing.setReadAt(backup.getReadAt());
+			if (backup.getDeletedAt() != null) existing.setDeletedAt(backup.getDeletedAt());
+
+			// Relationships & Sync
+			if (backup.getRefersTo() != null) existing.setRefersTo(backup.getRefersTo());
+			if (backup.getEditCount() != null) existing.setEditCount(backup.getEditCount());
+			if (backup.getUpdateCursorId() != null) existing.setUpdateCursorId(backup.getUpdateCursorId());
+			if (backup.getSize() != null) existing.setSize(backup.getSize());
+
+			// Note: timestamp is usually 'Instant.now()' on creation, 
+			// but you can update it here if you want to track 'last modified'
+
+			return existing;
 		}).get());
 	}
 
@@ -377,7 +430,7 @@ public class MessageBackupService {
 		mediaService.adjustStorageUsage(backup.getUserKey().toString(), req);
 
 		UUID updateStanzaId;		
-		
+
 		if(backup.getUpdateCursorId() != null) {
 			updateStanzaId = backup.getUpdateCursorId();
 		} else {
@@ -387,7 +440,7 @@ public class MessageBackupService {
 		return repository.save(updateOpt.map(b -> {
 			b.setEditCount(b.getEditCount() != null ? (b.getEditCount() + 1) : 1);
 			b.setUpdateCursorId(updateStanzaId);
-			
+
 			if(StringUtils.hasText(backup.getEncryptedMessage())) {
 				b.setEncryptedMessage(backup.getEncryptedMessage());
 			}
@@ -425,7 +478,7 @@ public class MessageBackupService {
 	@Transactional
 	public void deleteConversation(UUID userKey, UUID peerKey) {
 		String converationId = ConversationUtil.getConversationId(userKey.toString(), peerKey.toString());
-		
+
 		ConversationStorageStats stats =
 				repository.getConversationStorageStats(userKey, converationId)
 				.stream()
@@ -441,7 +494,7 @@ public class MessageBackupService {
 		req.setChatMessageCountDelta(-messageCount);
 		req.setChatStorageBytesDelta(-totalSize);
 		mediaService.adjustStorageUsage(userKey.toString(), req);
-		
+
 		repository.deleteByUserKeyAndConversationId(userKey, converationId);				
 	}	
 
@@ -488,14 +541,14 @@ public class MessageBackupService {
 			// 2. Filter by Message ID threshold (Range match)
 			// 3. Apply the dynamic status timestamp null check last
 			query = new Query(
-			    Criteria.where(FIELD_USER_KEY).is(SecurityUtil.getUserKey())
-			            .and(FIELD_MESSAGE_ID).lte(messageId)
-			            .and(timestampField).isNull()
-			);
-			
+					Criteria.where(FIELD_USER_KEY).is(SecurityUtil.getUserKey())
+					.and(FIELD_MESSAGE_ID).lte(messageId)
+					.and(timestampField).isNull()
+					);
+
 		} else {			
-		    query = new Query(Criteria.where(FIELD_MESSAGE_ID).is(messageId)
-				.and(FIELD_USER_KEY).is(SecurityUtil.getUserKey()));
+			query = new Query(Criteria.where(FIELD_MESSAGE_ID).is(messageId)
+					.and(FIELD_USER_KEY).is(SecurityUtil.getUserKey()));
 		}
 
 		Update update = new Update()
