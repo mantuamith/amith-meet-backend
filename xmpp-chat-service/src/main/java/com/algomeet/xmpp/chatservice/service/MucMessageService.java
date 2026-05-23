@@ -208,7 +208,7 @@ public class MucMessageService {
 
 		AggregationOptions options = AggregationOptions.
 				builder()
-				.hint("idx_muc_room_to_id_desc") // Forces use of {'roomId': 1, 'to': 1, 'id': -1}
+				.hint("idxMuc_room_to_idDesc") // Forces use of {'roomId': 1, 'to': 1, 'id': -1}
 				.build();
 
 		// 3. Build the aggregation pipeline with targeted MUC visibility and privacy constraints
