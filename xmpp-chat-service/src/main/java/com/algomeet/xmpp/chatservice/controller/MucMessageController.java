@@ -72,7 +72,7 @@ public class MucMessageController implements MucMessageControllerDoc{
 					UUID.fromString(afterStanzaId.get()), 
 					page, size);   
 		} else if (beforeStanzaId.isPresent()){
-			messages = mucMessageService.getMessagesAfter(UUID.fromString(userKey), 
+			messages = mucMessageService.getMessagesBefore(UUID.fromString(userKey), 
 					groupId, 
 					UUID.fromString(beforeStanzaId.get()), 
 					page, size);   
