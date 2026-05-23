@@ -110,7 +110,7 @@ public class MucMessage {
 	@Indexed(unique = true, sparse = true)
 	private UUID updateCursorId;
 
-	private Long createdAt = Instant.now().toEpochMilli();
+	private Instant createdAt = Instant.now();
 
 	/**
 	 * Indicates whether this message should increment the unread message count.

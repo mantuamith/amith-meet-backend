@@ -2,11 +2,13 @@ package com.algomeet.xmpp.chatservice.mapper;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 import org.springframework.stereotype.Component;
 
 import com.algomeet.xmpp.chatservice.document.MucMessage;
 import com.algomeet.xmpp.chatservice.dto.MucMessageResponse;
+import com.algomeet.xmpp.chatservice.util.SecurityUtil;
 
 @Component
 public class MucMessageMapper {
@@ -31,13 +33,17 @@ public class MucMessageMapper {
 		response.setReadAt(document.getReadAt());
 
 		// Safe collection mapping to prevent sharing internal mutable references
-		if (document.getHiddenFromUserKeys() != null) {
-			response.setHiddenFromUserKeys(
-					document.getHiddenFromUserKeys());
+		if (document.getHiddenFromUserKeys() != null
+				&& document.getHiddenFromUserKeys().contains(
+					UUID.fromString(SecurityUtil.getUserKey()))) {
+				response.setIsHidden(true);
 		}
 
 		response.setStartOfRoomConversation(document.getStartOfRoomConversation());
-		response.setCreatedAt(document.getCreatedAt());
+		if(document.getCreatedAt() != null) {
+			response.setCreatedAt(document.getCreatedAt().toEpochMilli());
+		}
+		
 		response.setExpireAt(document.getExpireAt());
 
 		return response;

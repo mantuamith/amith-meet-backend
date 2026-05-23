@@ -69,9 +69,7 @@ public class MucMessageService {
 
 		// Map and process messages in a single clear pass
 		for (MucMessageResponse message : messages) {         
-			if (message.getHiddenFromUserKeys() != null && message.getHiddenFromUserKeys().contains(userKey)) {             
-				message.setIsHidden(true);
-				message.setHiddenFromUserKeys(null); // Lighten the load
+			if (message.getIsHidden()) {             
 				message.setStanzaXml(null);         // Lighten the load
 			} 
 		}  
@@ -114,9 +112,7 @@ public class MucMessageService {
 
 		// Map and process messages in a single clear pass
 		for (MucMessageResponse message : messages) {         
-			if (message.getHiddenFromUserKeys() != null && message.getHiddenFromUserKeys().contains(userKey)) {             
-				message.setIsHidden(true);
-				message.setHiddenFromUserKeys(null); // Lighten the load
+			if (message.getIsHidden()) {             
 				message.setStanzaXml(null);         // Lighten the load
 			} 
 		}  
@@ -178,9 +174,7 @@ public class MucMessageService {
 
 		// Map and process messages in a single clear pass
 		for (MucMessageResponse message : modifiedMessages) {         
-			if (message.getHiddenFromUserKeys() != null && message.getHiddenFromUserKeys().contains(userKey)) {             
-				message.setIsHidden(true);
-				message.setHiddenFromUserKeys(null); // Lighten the load
+			if (message.getIsHidden()) {             
 				message.setStanzaXml(null);         // Lighten the load
 			} 
 		}       

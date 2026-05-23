@@ -251,7 +251,7 @@ public class XmppArchiveService {
 	 */
 	private Mono<Void> dispatchMamResult(MucMessage msg, String queryId, XmppPrincipal principal) {
 	    // Determine the timestamp (Format: 2026-05-16T19:45:43Z)
-	    String timestamp = XmppStanzaUtil.formatTimestamp(Instant.ofEpochMilli(msg.getCreatedAt())); 
+	    String timestamp = XmppStanzaUtil.formatTimestamp(msg.getCreatedAt()); 
 	    
 	    // 1. Fetch all participants in this room who have read past this message's ID threshold
 	    return mucRoomReadCursorRepository.findByRoomIdAndLastReadMidGreaterThanEqual(msg.getRoomId(), msg.getMessageId())
