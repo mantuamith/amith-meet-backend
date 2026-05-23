@@ -21,28 +21,28 @@ import lombok.Data;
 	/**
 	 * Used for findByToAndDeletedAtIsNullOrderByIdAsc
 	 */
-	@CompoundIndex(name = "active_messages_stream_idx", def = "{'to': 1, 'id': 1}", partialFilter = "{'deletedAt': null}"),
+	@CompoundIndex(name = "idxOffline_to_idAsc", def = "{'to': 1, 'id': 1}", partialFilter = "{'deletedAt': null}"),
 
 	/**
 	 * Used for findByIdAndFromAndDeletedAtIsNull
 	 */
-	@CompoundIndex(name = "active_lookup_by_sender_idx", def = "{'from': 1, 'id': 1}", partialFilter = "{'deletedAt': null}"),
+	@CompoundIndex(name = "idxOffline_from_id", def = "{'from': 1, 'id': 1}", partialFilter = "{'deletedAt': null}"),
 
 	/**
 	 * Used for deleteByToAndFromAndStanzaIdLessThanEqualAndDeletedAtIsNotNull
 	 */
-	@CompoundIndex(name = "purge_soft_deleted_batch_idx", def = "{'to': 1, 'from': 1, 'deletedAt': 1, 'stanzaId': 1}"),
+	@CompoundIndex(name = "idxOffline_to_from_deletedAt_stanzaId", def = "{'to': 1, 'from': 1, 'deletedAt': 1, 'stanzaId': 1}"),
 
 	/**
 	 * Used for countByToAndFromAndStanzaIdGreaterThanAndCountableTrue
 	 */
-	@CompoundIndex(name = "unread_count_idx", def = "{'to': 1, 'from': 1, 'stanzaId': 1}", partialFilter = "{'countable': true}"),
+	@CompoundIndex(name = "idxOffline_to_from_stanzaId", def = "{'to': 1, 'from': 1, 'stanzaId': 1}", partialFilter = "{'countable': true}"),
 
 	/**
 	 * Used for deleteByIdAndIsAckStanzaTrue
 	 */
 	@CompoundIndex(
-			name = "acknowledged_purge_idx", 
+			name = "idxOffline_id", 
 			def = "{'id': 1}", 
 			partialFilter = "{'isAck': true}"
 			)

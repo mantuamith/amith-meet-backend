@@ -31,7 +31,7 @@ import lombok.NoArgsConstructor;
 	 * Used for findByRoomIdAndLastReadSidGreaterThanEqual()
 	 * and findByRoomIdIn(Set<UUID> roomIds)
 	 */
-	@CompoundIndex( name = "idx_room_last_read_sid", def = "{'roomId': 1, 'lastReadSid': 1}")
+	@CompoundIndex( name = "idx_room_lastReadSid", def = "{'roomId': 1, 'lastReadSid': 1}")
 })
 public class MucRoomReadCursor {
 	@Id

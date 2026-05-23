@@ -22,7 +22,7 @@ import lombok.Data;
 	/**
 	 * Used for findBySmSidOrderBySeqAsc
 	 */
-	@CompoundIndex(name = "sm_playback_idx",  def = "{'smSid' : 1, 'seq' : 1}")
+	@CompoundIndex(name = "idxSm_smSid_seq",  def = "{'smSid' : 1, 'seq' : 1}")
 })
 public class SmBufferMessage {
 	@Id

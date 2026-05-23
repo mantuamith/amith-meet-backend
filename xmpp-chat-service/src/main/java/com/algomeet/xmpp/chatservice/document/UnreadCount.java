@@ -22,7 +22,7 @@ import lombok.Data;
      * - UnreadCountService.getUnreadCountsForUser(recipientKey) [via index-bound range filtering]
      * - Left-leg optimization of UnreadCountService.getRecentContactKeysReactive ($or clause matching user_key)
      */
-	@CompoundIndex(name = "idx_unread_user_timeline", def = "{'user_key': 1, 'last_increment_at': -1}"),
+	@CompoundIndex(name = "idxUnread_userKey_lastIncrementAtDesc", def = "{'user_key': 1, 'last_increment_at': -1}"),
 	
 	/**
      * Covers:
@@ -31,7 +31,7 @@ import lombok.Data;
      * Ensures that the parallel sorting on 'last_increment_at DESC' runs instantly 
      * via index intersection with no in-memory sorting penalties.
      */
-	@CompoundIndex(name = "idx_unread_sender_timeline", def = "{'sender_key': 1, 'last_increment_at': -1}")
+	@CompoundIndex(name = "idxUnread_senderKey_lastIncrementAtDesc", def = "{'sender_key': 1, 'last_increment_at': -1}")
 })
 public class UnreadCount {    
 	@Id

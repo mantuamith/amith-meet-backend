@@ -23,38 +23,31 @@ import lombok.NoArgsConstructor;
 @Document(collection = "muc_messages")
 @CompoundIndexes({
 	/**
-	 * Used for retrieving messages findByRoomIdAndIdGreaterThan...() and findHistoricalMessages() query
+	 * Used for retrieving messages findByRoomIdAndIdGreaterThan...(), findHistoricalMessages() 
+	 *  MucMessageService.getConversations() queries
 	 */
-	@CompoundIndex(name = "idx_muc_latest_and_old_msgs", def = "{'roomId': 1, 'to': 1, 'id': -1}"),
+	@CompoundIndex(name = "idxMuc_room_to_idDesc", def = "{'roomId': 1, 'to': 1, 'id': -1}"),
 
 	/**
 	 * Used for synchronization of local device copies.
 	 * findByRoomIdAndUpdateCursorIdGreaterThanAndIdLessThanEqualOrderByIdAsc()
 	 */
-	@CompoundIndex(name = "idx_muc_sync", def = "{'roomId': 1, 'updateCursorId': 1, 'id': 1}"),
+	@CompoundIndex(name = "idxMuc_room_updateCursorId_idAsc", def = "{'roomId': 1, 'updateCursorId': 1, 'id': 1}"),
 
 	/**
 	 * Used for unread counts countUnreadMessages()
 	 */
 	@CompoundIndex(
-			name = "idx_muc_unread_count", 
+			name = "idxMuc_room_countable_id_to", 
 			def = "{ 'roomId': 1, 'countable': 1, 'id': 1, 'to': 1 }",
 			partialFilter = "{ 'deletedAt': null, 'countable': true }"
-			),
-
-	/**
-	 * Used for retrieving muc conversations MucMessageService.getConversations()
-	 */
-	@CompoundIndex(
-			name = "idx_muc_conversations", 
-			def = "{'roomId': 1, 'to': 1, 'id': -1 }"
 			),
 	
 	/**
 	 * Used for Read status batch update MucMessageService.bulkMarkRoomMessagesAsRead()
 	 */
 	@CompoundIndex(
-		    name = "idx_muc_read_catchup", 
+		    name = "idxMuc_room_readAt_id", 
 		    def = "{ 'roomId': 1, 'readAt': 1, '_id': 1 }"
 		)
 })

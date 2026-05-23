@@ -20,16 +20,16 @@ import com.algomeet.xmpp.chatservice.enums.ParticipantCallStatus;
 @CompoundIndexes({
 	// 1. Covers: findAllBySidAndRoomIdIsNull, findAllBySidAndRoomIdIsNotNull, 
 	//            findFirstBySidAndRoomIdIsNotNull, deleteBySid, and state updates matching sid/status.
-	@CompoundIndex(name = "idx_call_sid_room_timeline", def = "{'sid': 1, 'roomId': 1, 'createdAt': -1}"),
+	@CompoundIndex(name = "idxCall_sid_roomId_createdAtDesc", def = "{'sid': 1, 'roomId': 1, 'createdAt': -1}"),
 
 	// 2. Covers: findFirstBySidAndCalleeOrderByCreatedAtDesc AND deleteBySidAndCallee
-	@CompoundIndex(name = "idx_call_sid_callee_timeline", def = "{'sid': 1, 'callee': 1, 'createdAt': -1}"),
+	@CompoundIndex(name = "idxCall_sid_callee_createdAtDesc", def = "{'sid': 1, 'callee': 1, 'createdAt': -1}"),
 
 	// 3. Covers: First leg of findByCallerSidOrCalleeSid AND callerSid WebSocket cleanups
-	@CompoundIndex(name = "idx_call_caller_sid_status", def = "{'callerSid': 1, 'status': 1}"),
+	@CompoundIndex(name = "idxCall_callerSid_status", def = "{'callerSid': 1, 'status': 1}"),
 
 	// 4. Covers: Second leg of findByCallerSidOrCalleeSid (Prevents full collection scans on $or)
-	@CompoundIndex(name = "idx_call_callee_sid_status", def = "{'calleeSid': 1, 'status': 1}")
+	@CompoundIndex(name = "idxCall_calleeSid_status", def = "{'calleeSid': 1, 'status': 1}")
 })
 
 public class CallSession {
