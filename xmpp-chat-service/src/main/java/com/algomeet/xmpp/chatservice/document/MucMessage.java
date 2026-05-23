@@ -21,18 +21,9 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 @Document(collection = "muc_messages")
-// 1. COMPOUND INDEX for MAM Queries (Room + Sequential ID)
 @CompoundIndexes({
-	// Optimized for the specific findByRoomIdAndIdGreaterThan... query
-	@CompoundIndex(name = "room_id_to_idx", def = "{'roomId': 1, 'id': 1, 'to': 1}"),    
-	// Existing cursor index for recentUpdates logic
-	@CompoundIndex(name = "room_updatecursorid_seq_idx", def = "{'roomId': 1, 'updateCursorId': 1}"),
-
-	// Optimized for Sync (Forward) and History (Backward)
-	// roomId: 1 (Equality) 
-	// id: -1 (Optimized for "Latest messages first")
-	// to: 1 (Filter)
-	@CompoundIndex(name = "idx_muc_history_optimized", def = "{'roomId': 1, 'id': -1, 'to': 1}"),
+	// Optimized for the specific findByRoomIdAndIdGreaterThan... and findHistoricalMessages query
+	@CompoundIndex(name = "idx_muc_latest_and_old_msgs", def = "{'roomId': 1, 'to': 1, 'id': -1}"),
 	
 	/**
 	 * Optimized index for incremental synchronization of MUC history.
@@ -50,20 +41,23 @@ import lombok.NoArgsConstructor;
 	 * 
 	 * <p>Crucial for maintaining high throughput in {@code findByRoomIdAndUpdateCursorIdGreaterThanAndIdLessThanEqualOrderByIdAsc}.</p>
 	 */
-	@CompoundIndex(
-			name = "idx_muc_sync_optimized", 
-			def = "{'roomId': 1, 'updateCursorId': 1, 'id': 1}"
-			),
+	@CompoundIndex(name = "idx_muc_sync", def = "{'roomId': 1, 'updateCursorId': 1, 'id': 1}"),
 	
+	/**
+	 * Used for unread counts MucMessageReadCursorService.advanceReadCursor
+	 */
 	@CompoundIndex(
-		    name = "idx_muc_unread_count_optimized", 
+		    name = "idx_muc_unread_count", 
 		    def = "{ 'roomId': 1, 'countable': 1, 'messageId': 1, 'to': 1 }",
 		    partialFilter = "{ 'deletedAt': null, 'countable': true }"
 		),
 	
+	/**
+	 * Used for retrieving muc conversations MucMessageService.getConversations
+	 */
 	@CompoundIndex(
-		    name = "idx_muc_conversations_optimized", 
-		    def = "{'roomId': 1, 'to': 1, 'id': -1}"
+		    name = "idx_muc_conversations", 
+		    def = "{ 'to': 1, 'roomId': 1, 'id': -1 }"
 		)
 })
 public class MucMessage {   
