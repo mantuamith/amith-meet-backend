@@ -209,7 +209,7 @@ public class MucMessageService {
 		AggregationOptions options = AggregationOptions.
 				builder()
 				.hint("idx_muc_conversations") // Forces use of {'roomId': 1, 'to': 1, 'id': -1}
-				.allowDiskUse(true).build();
+				.build();
 
 		// 3. Build the aggregation pipeline with targeted MUC visibility and privacy constraints
 		Aggregation aggregation = Aggregation.newAggregation(
