@@ -82,9 +82,9 @@ public class MucMessage {
 	@Size(max = 20000, message = "XML stanza is too large") // Max length 20kb
 	private String stanzaXml;
 
-	private Instant deletedAt;
+	private Long deletedAt;
 	
-	private Instant readAt;
+	private Long readAt;
 
 	private Set<UUID> hiddenFromUserKeys = new HashSet<>();
 
@@ -110,7 +110,7 @@ public class MucMessage {
 	@Indexed(unique = true, sparse = true)
 	private UUID updateCursorId;
 
-	private Instant createdAt = Instant.now();
+	private Long createdAt = Instant.now().toEpochMilli();
 
 	/**
 	 * Indicates whether this message should increment the unread message count.

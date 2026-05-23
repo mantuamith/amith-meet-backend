@@ -1,5 +1,6 @@
 package com.algomeet.xmpp.chatservice.util;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import java.util.regex.Pattern;
@@ -26,14 +27,13 @@ public class MamUtil {
 	// Pre-compile patterns outside the method to save CPU
 	private static final Pattern TO_ATTR_PATTERN = Pattern.compile("\\s+to='[^']*'");
 	private static final Pattern FROM_ATTR_PATTERN = Pattern.compile("from='[^']*'");
-	
-	
-
+		
 	/**
 	 * Filters messages to ensure Private Messages within a MUC are only visible to the recipient.
 	 */
 	public static boolean isAuthorized(MucMessage msg, XmppPrincipal principal) {
-		return !(msg.getHiddenFromUserKeys() != null && msg.getHiddenFromUserKeys().contains(principal.getUserKey()));
+		return !(msg.getHiddenFromUserKeys() != null && msg.getHiddenFromUserKeys()
+				.contains(UUID.fromString(principal.getUserKey())));
 	}
 
 
@@ -152,7 +152,7 @@ public class MamUtil {
 	 * Builds a XEP-0424 Message Retraction stanza for MUC groupchat.
 	 */
 	public String buildRetractionXml(MucMessage msg, XmppPrincipal principal) {
-		String timestamp = XmppStanzaUtil.formatTimestamp(msg.getDeletedAt());
+		String timestamp = XmppStanzaUtil.formatTimestamp(Instant.ofEpochMilli(msg.getDeletedAt()));
 		// Construct the Occupant JID (room@service/nick)
 		String groupJid = jidUtil.getGroupBareJid(msg.getRoomId().toString()) + "/" + msg.getFrom();
 

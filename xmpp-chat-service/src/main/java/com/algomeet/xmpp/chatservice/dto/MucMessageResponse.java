@@ -21,9 +21,9 @@ public class MucMessageResponse {
 	private UUID from;
 	private UUID to;
 	private String stanzaXml;
-	private Instant deletedAt;
+	private Long deletedAt;
 	
-	private Instant readAt;
+	private Long readAt;
 
 	@JsonIgnore
 	private Set<UUID> hiddenFromUserKeys = new HashSet<>();
@@ -31,6 +31,6 @@ public class MucMessageResponse {
 	private Boolean startOfRoomConversation = false;
 
 	private List<UUID> readByIds;
-	private Instant createdAt;
+	private Long createdAt;
 	private Instant expireAt;
 }

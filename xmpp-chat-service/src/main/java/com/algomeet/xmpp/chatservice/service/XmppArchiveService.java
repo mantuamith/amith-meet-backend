@@ -1,5 +1,6 @@
 package com.algomeet.xmpp.chatservice.service;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -250,7 +251,7 @@ public class XmppArchiveService {
 	 */
 	private Mono<Void> dispatchMamResult(MucMessage msg, String queryId, XmppPrincipal principal) {
 	    // Determine the timestamp (Format: 2026-05-16T19:45:43Z)
-	    String timestamp = XmppStanzaUtil.formatTimestamp(msg.getCreatedAt()); 
+	    String timestamp = XmppStanzaUtil.formatTimestamp(Instant.ofEpochMilli(msg.getCreatedAt())); 
 	    
 	    // 1. Fetch all participants in this room who have read past this message's ID threshold
 	    return mucRoomReadCursorRepository.findByRoomIdAndLastReadMidGreaterThanEqual(msg.getRoomId(), msg.getMessageId())

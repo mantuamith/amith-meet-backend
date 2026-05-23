@@ -298,6 +298,7 @@ public class MucMessageService {
 	 * @return
 	 */
 	public Mono<Long> bulkMarkRoomMessagesAsRead(final UUID lastReadMessageId) {		
+		final long nowMs = Instant.now().toEpochMilli();
 		final String lockKey = "xmpp:lock:update-read:muc-msg:msg-id:" + lastReadMessageId;
 		final RLockReactive lock = redissonReactiveClient.getLock(lockKey);
 
@@ -322,7 +323,7 @@ public class MucMessageService {
 										.and("readAt").isNull()
 										);
 
-								Update update = new Update().set("readAt", Instant.now());
+								Update update = new Update().set("readAt", nowMs);
 
 								return reactiveMongoTemplate.updateMulti(query, update, MucMessage.class)
 										.map(updateResult -> updateResult.getModifiedCount());
