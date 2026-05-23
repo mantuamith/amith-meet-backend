@@ -206,7 +206,10 @@ public class MucMessageService {
 				.map(UUID::fromString)
 				.collect(Collectors.toSet());
 
-		AggregationOptions options = AggregationOptions.builder().allowDiskUse(true).build();
+		AggregationOptions options = AggregationOptions.
+				builder()
+				.hint("idx_muc_conversations") // Forces use of {'roomId': 1, 'to': 1, 'id': -1}
+				.allowDiskUse(true).build();
 
 		// 3. Build the aggregation pipeline with targeted MUC visibility and privacy constraints
 		Aggregation aggregation = Aggregation.newAggregation(
@@ -235,8 +238,7 @@ public class MucMessageService {
 
 		// 4. Execute using your ReactiveMongoTemplate (which returns a Flux)
 		Flux<MucMessage> results = mongoTemplate.aggregate(
-				aggregation, "muc_messages", MucMessage.class
-				);
+				aggregation, "muc_messages", MucMessage.class);
 
 		// 5. Reactively map each document, collect them into a list, and block to return synchronously
 		List<MucMessageResponse> resultDtos = results

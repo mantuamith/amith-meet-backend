@@ -47,7 +47,7 @@ import lombok.NoArgsConstructor;
 	 */
 	@CompoundIndex(
 			name = "idx_muc_conversations", 
-			def = "{ 'to': 1, 'roomId': 1, 'id': -1 }"
+			def = "{'roomId': 1, 'to': 1, 'id': -1 }"
 			),
 	
 	/**
