@@ -55,7 +55,7 @@ public class MucMessage {
 	@Id
 	private UUID id;           // UUIDv7 or Sequential String
 
-	// 2. UNIQUE INDEX for Message ID
+	// UNIQUE INDEX for Message ID
 	// Prevents duplicate messages if a client retries a send
 	@Indexed(unique = true, sparse = true)
 	private UUID messageId; 
