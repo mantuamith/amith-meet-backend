@@ -25,6 +25,8 @@ import lombok.NoArgsConstructor;
 	/**
 	 * Used for retrieving messages findByRoomIdAndIdGreaterThan...(), findHistoricalMessages() 
 	 *  MucMessageService.getConversations() queries
+	 *  
+	 *  Important Notice: Be careful on changing the name of this index it's hard coded inside MucMessageService.getConversations().
 	 */
 	@CompoundIndex(name = "idxMuc_room_to_idDesc", def = "{'roomId': 1, 'to': 1, 'id': -1}"),
 
