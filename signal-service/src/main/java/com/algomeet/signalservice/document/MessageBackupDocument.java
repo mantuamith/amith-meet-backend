@@ -24,59 +24,59 @@ import lombok.NoArgsConstructor;
 @Document(collection = "message_backups")
 @CompoundIndexes({
     /**
-     * 1. The Core Engine Index (ESR Blueprint)
+     * 1. Message history + range queries per conversation (ESR pattern)
      * Covers: findByConversationIdAndStanzaIdLessThan, findByConversationIdAndStanzaIdGreaterThan,
      *         deleteByUserKeyAndConversationId, getConversationStorageStats,
      *         and findFirstByUserKeyAndConversationIdOrderByStanzaIdAsc.
      */
     @CompoundIndex(
-        name = "idx_msg_history_esr", 
+        name = "idxMsg_userKey_updateCursorId_stanzaIdAsc", 
         def = "{'userKey': 1, 'conversationId': 1, 'stanzaId': -1}"
     ),
     
     /**
-     * 2. The Incremental Sync & State Change Update Cursor
+     * 2. Incremental sync cursor (update tracking + ordering)
      * Covers high-frequency background synchronization loops matching user modifications.
      * MessageBackupService.getMessageUpdates
      */
     @CompoundIndex(
-        name = "idx_user_sync_cursor", 
+        name = "idxMsg_userKey_messageId", 
         def = "{'userKey': 1, 'updateCursorId': 1, 'stanzaId': 1}"
     ),
     
     /**
-     * 3. Secure Target Point Lookups & Bulk Status Modifiers
+     * 3. Direct message lookup + lightweight ordering
      * Covers: findByMessageIdAndUserKey, and any chronological receipt processing (Read/Delivered states).
      */
     @CompoundIndex(
-        name = "idx_user_message_direct", 
+        name = "idxMsg_userKey", 
         def = "{'userKey': 1, '_id': 1}"
     ),
     
     /**
-     * 4. Complete Account Purge Cleanup Index
+     * 4. Account deletion / cleanup by owner
      * Covers: deleteByUserKey(UUID userKey) during account offboarding or device un-pairing actions.
      */
     @CompoundIndex(
-        name = "idx_user_tombstone_cleanup", 
+        name = "idxMsg_userKey", 
         def = "{'userKey': 1}"
     ),
     
     /**
-     * 5. Used for finding user conversations
+     * 5. Inbox / conversation listing (latest-first scan). Used for finding user conversations 
      * MessageBackupService.findUniqueConversationsWithFullDetails
      */
     @CompoundIndex(
-    	    name = "idx_user_inbox_pipeline", 
+    	    name = "idxMsg_userKey_stanzaIdDesc_conversationId", 
     	    def = "{'userKey': 1, 'stanzaId': -1, 'conversationId': 1}"
     	),
     
     /**
-     * 6. Optimized for bulk-marking Read Statuses backward chronologically
+     * 6. Read-state bulk update per conversation
      * MessageBackupService.updateStatus
      */
     @CompoundIndex(
-        name = "idx_conversation_msg_read_state", 
+        name = "idxMsg_conversationId_stanzaId_readAt", 
         def = "{'conversationId': 1, 'stanzaId': 1, 'readAt': 1}"
     )
 })
