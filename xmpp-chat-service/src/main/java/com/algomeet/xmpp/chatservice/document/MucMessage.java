@@ -23,6 +23,8 @@ import lombok.NoArgsConstructor;
 @Document(collection = "muc_messages")
 @CompoundIndexes({
 	/**
+	 * Latest messages, history pagination, conversation feed.
+	 * 
 	 * Used for retrieving messages findByRoomIdAndIdGreaterThan...(), findHistoricalMessages() 
 	 *  MucMessageService.getConversations() queries
 	 *  
@@ -31,12 +33,16 @@ import lombok.NoArgsConstructor;
 	@CompoundIndex(name = "idxMuc_room_to_idDesc", def = "{'roomId': 1, 'to': 1, 'id': -1}"),
 
 	/**
+	 * Incremental synchronization cursor.
+	 * 
 	 * Used for synchronization of local device copies.
 	 * findByRoomIdAndUpdateCursorIdGreaterThanAndIdLessThanEqualOrderByIdAsc()
 	 */
 	@CompoundIndex(name = "idxMuc_room_updateCursorId_idAsc", def = "{'roomId': 1, 'updateCursorId': 1, 'id': 1}"),
 
 	/**
+	 * Unread message counting.
+	 * 
 	 * Used for unread counts countUnreadMessages()
 	 */
 	@CompoundIndex(
@@ -46,6 +52,8 @@ import lombok.NoArgsConstructor;
 			),
 	
 	/**
+	 * Read state catch-up updates.
+	 * 
 	 * Used for Read status batch update MucMessageService.bulkMarkRoomMessagesAsRead()
 	 */
 	@CompoundIndex(
