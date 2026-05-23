@@ -20,7 +20,7 @@ public interface OfflineMessageRepository extends ReactiveMongoRepository<Offlin
     /**
      * Deletes all delivered and read messages
      */
-    Mono<Void> deleteByToAndFromAndIdLessThanEqualAndDeletedAtIsNotNull(UUID to, UUID from, UUID id);
+    Mono<Void> deleteByToAndFromAndStanzaIdLessThanEqualAndDeletedAtIsNotNull(UUID to, UUID from, UUID stanzaId);
     
     // Counts unread messages
     Mono<Long> countByToAndFromAndStanzaIdGreaterThanAndCountableTrue(UUID to, UUID from, UUID stanzaId);

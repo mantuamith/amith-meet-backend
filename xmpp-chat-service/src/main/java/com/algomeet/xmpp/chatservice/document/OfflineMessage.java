@@ -29,9 +29,9 @@ import lombok.Data;
 	@CompoundIndex(name = "active_lookup_by_sender_idx", def = "{'from': 1, 'id': 1}", partialFilter = "{'deletedAt': null}"),
 
 	/**
-	 * Used for deleteByToAndFromAndIdLessThanEqualAndDeletedAtIsNotNull
+	 * Used for deleteByToAndFromAndStanzaIdLessThanEqualAndDeletedAtIsNotNull
 	 */
-	@CompoundIndex(name = "purge_soft_deleted_batch_idx", def = "{'to': 1, 'from': 1, 'deletedAt': 1, 'id': 1}"),
+	@CompoundIndex(name = "purge_soft_deleted_batch_idx", def = "{'to': 1, 'from': 1, 'deletedAt': 1, 'stanzaId': 1}"),
 
 	/**
 	 * Used for countByToAndFromAndStanzaIdGreaterThanAndCountableTrue

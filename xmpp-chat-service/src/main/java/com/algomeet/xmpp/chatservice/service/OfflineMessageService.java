@@ -172,7 +172,7 @@ public class OfflineMessageService {
      * @param id The upper bound message checkpoint ID (exclusive boundary; only IDs less than this are purged).
      * @return A {@code Mono<Void>} that signals completion when the matching records have been permanently deleted from MongoDB.
      */
-    public Mono<Void> purgeDeletedMessagesUpToCheckpoint(UUID to, UUID from, UUID id){
-    	return offlineMessageRepository.deleteByToAndFromAndIdLessThanEqualAndDeletedAtIsNotNull(to, from, id);
+    public Mono<Void> purgeDeletedMessagesUpToCheckpoint(UUID to, UUID from, UUID stanzaId){
+    	return offlineMessageRepository.deleteByToAndFromAndStanzaIdLessThanEqualAndDeletedAtIsNotNull(to, from, stanzaId);
     }
 }

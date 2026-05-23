@@ -155,7 +155,8 @@ public class XmppChatHandler {
 					            unreadCountService.syncUnreadCount(toUserKey, fromUserKey, UUID.fromString(ackMessageId), principal)
 					            .doOnSuccess(success -> {
 					            	// Trigger a fire-and-forget background purge of processed/soft-deleted messages.
-					            	offlineMessageService.purgeDeletedMessagesUpToCheckpoint(UUID.fromString(fromUserKey), UUID.fromString(toUserKey), messageId).subscribe();
+					            	offlineMessageService.purgeDeletedMessagesUpToCheckpoint(
+					            			UUID.fromString(fromUserKey), UUID.fromString(toUserKey), success.getLastReadSid()).subscribe();
 					            })
 					            .subscribe();
 					        }
