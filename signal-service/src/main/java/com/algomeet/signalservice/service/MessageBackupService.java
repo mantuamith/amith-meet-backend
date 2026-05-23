@@ -14,7 +14,6 @@ import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_SA
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_SENDER_KEY;
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_SENT_AT;
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_STANZA_ID;
-import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_TIMESTAMP;
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_UPDATE_CURSOR_ID;
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_USER_KEY;
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_VERSION;
@@ -22,7 +21,6 @@ import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_VE
 import java.nio.charset.Charset;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
