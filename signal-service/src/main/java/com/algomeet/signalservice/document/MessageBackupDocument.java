@@ -175,8 +175,8 @@ public class MessageBackupDocument {
         description = "Cursor used for incremental sync ordering. " +
                       "Set this to the stanza-id of the edit (replace) request when a message is updated; " +
                       "otherwise leave it blank." +
-                      "This field is monotonic and used for cursor-based lookup.",
-        example = "01kqs6j68dqtejmb653qhp35sz"
+                      "This field is UUID v7 and used for cursor-based lookup.",
+        example = "019e537d-31a0-7556-a160-7ac448312343"
     )
     private UUID updateCursorId;
 
