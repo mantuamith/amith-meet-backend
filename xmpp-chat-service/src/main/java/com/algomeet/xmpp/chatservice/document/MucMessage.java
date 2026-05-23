@@ -26,19 +26,7 @@ import lombok.NoArgsConstructor;
 	@CompoundIndex(name = "idx_muc_latest_and_old_msgs", def = "{'roomId': 1, 'to': 1, 'id': -1}"),
 	
 	/**
-	 * Optimized index for incremental synchronization of MUC history.
-	 * 
-	 * <p>This index follows the <b>ESR (Equality, Sort, Range)</b> rule to handle 
-	 * billion-scale message datasets with millisecond latency:</p>
-	 * <ul>
-	 *   <li><b>Equality (roomId):</b> Quickly narrows the search space to a specific chat room.</li>
-	 *   <li><b>Sort/Range (updateCursorId):</b> Provides a high-performance anchor for 
-	 *       incremental sync (e.g., "Give me everything since my last cursor").</li>
-	 *   <li><b>Range (id):</b> Allows the query to be "covered" by the index when 
-	 *       applying an upper-bound limit (limitId), preventing the database from 
-	 *       needing to fetch documents from disk to verify the ID constraint.</li>
-	 * </ul>
-	 * 
+	 * Used for synchronization of local device copies.
 	 * <p>Crucial for maintaining high throughput in {@code findByRoomIdAndUpdateCursorIdGreaterThanAndIdLessThanEqualOrderByIdAsc}.</p>
 	 */
 	@CompoundIndex(name = "idx_muc_sync", def = "{'roomId': 1, 'updateCursorId': 1, 'id': 1}"),
