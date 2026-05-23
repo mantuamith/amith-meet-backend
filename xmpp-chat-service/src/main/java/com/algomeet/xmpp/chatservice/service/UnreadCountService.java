@@ -2,12 +2,10 @@ package com.algomeet.xmpp.chatservice.service;
 
 import java.time.Instant;
 import java.util.ConcurrentModificationException;
-import java.util.Map;
 import java.util.UUID;
 
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.ReactiveMongoTemplate;
-import org.springframework.data.mongodb.core.aggregation.Aggregation;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;

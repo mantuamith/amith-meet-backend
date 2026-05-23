@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 import org.springframework.data.mongodb.core.index.CompoundIndex;
+import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
@@ -16,23 +17,42 @@ import lombok.Data;
 @Data
 @Builder
 @Document(collection = "offline_messages")
+@CompoundIndexes({
+	/**
+	 * Used for findByToAndDeletedAtIsNullOrderByIdAsc
+	 */
+	@CompoundIndex(name = "active_messages_stream_idx", def = "{'to': 1, 'id': 1}", partialFilter = "{'deletedAt': null}"),
 
-@CompoundIndex(name = "active_messages_stream_idx", def = "{'to': 1, 'id': 1}", partialFilter = "{'deletedAt': null}")
-@CompoundIndex(name = "active_lookup_by_sender_idx", def = "{'from': 1, 'id': 1}", partialFilter = "{'deletedAt': null}")
-@CompoundIndex(name = "purge_soft_deleted_batch_idx", def = "{'to': 1, 'from': 1, 'deletedAt': 1, 'id': 1}")
-@CompoundIndex(name = "unread_count_idx", def = "{'to': 1, 'from': 1, 'id': 1}", partialFilter = "{'countable': true}")
-@CompoundIndex(
-	    name = "acknowledged_purge_idx", 
-	    def = "{'id': 1}", 
-	    partialFilter = "{'isAck': true}"
-	)
+	/**
+	 * Used for findByIdAndFromAndDeletedAtIsNull
+	 */
+	@CompoundIndex(name = "active_lookup_by_sender_idx", def = "{'from': 1, 'id': 1}", partialFilter = "{'deletedAt': null}"),
 
+	/**
+	 * Used for deleteByToAndFromAndIdLessThanEqualAndDeletedAtIsNotNull
+	 */
+	@CompoundIndex(name = "purge_soft_deleted_batch_idx", def = "{'to': 1, 'from': 1, 'deletedAt': 1, 'id': 1}"),
+
+	/**
+	 * Used for countByToAndFromAndIdGreaterThanAndCountableTrue
+	 */
+	@CompoundIndex(name = "unread_count_idx", def = "{'to': 1, 'from': 1, 'id': 1}", partialFilter = "{'countable': true}"),
+
+	/**
+	 * Used for deleteByIdAndIsAckStanzaTrue
+	 */
+	@CompoundIndex(
+			name = "acknowledged_purge_idx", 
+			def = "{'id': 1}", 
+			partialFilter = "{'isAck': true}"
+			)
+})
 public class OfflineMessage {
 	@Id
 	private UUID id;          // The Message ID from the <message id='...'> attribute
-	
+
 	private UUID stanzaId; 
-	
+
 	private UUID from;        // Sender user key / ID
 
 	@Indexed
@@ -47,9 +67,9 @@ public class OfflineMessage {
 	private Instant createdAt = Instant.now(); // Used for XEP-0203 Delayed Delivery stamp
 
 	private Instant deletedAt;
-	
+
 	private Boolean isAckStanza;
-	
+
 	/**
 	 * Indicates whether this message should increment the unread message count.
 	 *

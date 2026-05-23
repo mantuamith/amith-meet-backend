@@ -39,10 +39,4 @@ public interface SmBufferMessageRepository
      * Typically used after successful ACK reconciliation or session teardown.
      */
     Mono<Void> deleteBySmSid(UUID smSid);
-
-    /**
-     * Deletes a specific stanza by its unique ID.
-     * Used for granular ACK-based cleanup if required.
-     */
-    Mono<Void> deleteById(UUID id);
 }

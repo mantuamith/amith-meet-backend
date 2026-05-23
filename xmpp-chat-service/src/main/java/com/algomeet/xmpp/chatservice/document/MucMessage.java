@@ -22,36 +22,38 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @Document(collection = "muc_messages")
 @CompoundIndexes({
-	// Optimized for the specific findByRoomIdAndIdGreaterThan... and findHistoricalMessages query
+	/**
+	 * Used for retrieving messages findByRoomIdAndIdGreaterThan... and findHistoricalMessages query
+	 */
 	@CompoundIndex(name = "idx_muc_latest_and_old_msgs", def = "{'roomId': 1, 'to': 1, 'id': -1}"),
-	
+
 	/**
 	 * Used for synchronization of local device copies.
 	 * <p>Crucial for maintaining high throughput in {@code findByRoomIdAndUpdateCursorIdGreaterThanAndIdLessThanEqualOrderByIdAsc}.</p>
 	 */
 	@CompoundIndex(name = "idx_muc_sync", def = "{'roomId': 1, 'updateCursorId': 1, 'id': 1}"),
-	
+
 	/**
 	 * Used for unread counts MucMessageReadCursorService.advanceReadCursor
 	 */
 	@CompoundIndex(
-		    name = "idx_muc_unread_count", 
-		    def = "{ 'roomId': 1, 'countable': 1, 'messageId': 1, 'to': 1 }",
-		    partialFilter = "{ 'deletedAt': null, 'countable': true }"
-		),
-	
+			name = "idx_muc_unread_count", 
+			def = "{ 'roomId': 1, 'countable': 1, 'messageId': 1, 'to': 1 }",
+			partialFilter = "{ 'deletedAt': null, 'countable': true }"
+			),
+
 	/**
 	 * Used for retrieving muc conversations MucMessageService.getConversations
 	 */
 	@CompoundIndex(
-		    name = "idx_muc_conversations", 
-		    def = "{ 'to': 1, 'roomId': 1, 'id': -1 }"
-		)
+			name = "idx_muc_conversations", 
+			def = "{ 'to': 1, 'roomId': 1, 'id': -1 }"
+			)
 })
 public class MucMessage {   
-    public static final String FIELD_ID = "id"; // StanzaId
-    public static final String FIELD_ROOM_ID = "roomId";
-    
+	public static final String FIELD_ID = "id"; // StanzaId
+	public static final String FIELD_ROOM_ID = "roomId";
+
 	@Id
 	private UUID id;           // UUIDv7 or Sequential String
 
@@ -75,11 +77,11 @@ public class MucMessage {
 	private Instant deletedAt;
 
 	private Set<UUID> hiddenFromUserKeys = new HashSet<>();
-		
+
 	// Indicates whether this record represents the current starting point of the room conversation.
 	// Used to synchronize hard-deleted messages across local devices.
 	@Transient
-    private Boolean startOfRoomConversation = false;
+	private Boolean startOfRoomConversation = false;
 
 	/**
 	 * Monotonically increasing UUIDv7 used as a synchronization cursor for this message record.
@@ -99,7 +101,7 @@ public class MucMessage {
 	private UUID updateCursorId;
 
 	private Instant createdAt = Instant.now();
-	
+
 	/**
 	 * Indicates whether this message should increment the unread message count.
 	 *
@@ -117,11 +119,11 @@ public class MucMessage {
 	 * - retraction events
 	 */
 	private Boolean countable;
-	
-    /**
-     * Optional: MongoDB TTL (Time To Live) index.
-     * Automatically deletes messages after 12 months if never delivered.
-     */
-    @Indexed(expireAfterSeconds = 12 * 2592000) 
-    private Instant expireAt;
+
+	/**
+	 * Optional: MongoDB TTL (Time To Live) index.
+	 * Automatically deletes messages after 12 months if never delivered.
+	 */
+	@Indexed(expireAfterSeconds = 12 * 2592000) 
+	private Instant expireAt;
 }

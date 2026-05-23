@@ -61,9 +61,4 @@ public interface CallTrackerRepository extends ReactiveMongoRepository<CallSessi
      * Removes documents matching the SID.
      */
     Mono<Void> deleteBySid(String sid);
-
-    /**
-     * Returns the count of deleted documents.
-     */
-    Mono<Long> removeBySid(String sid);
 }

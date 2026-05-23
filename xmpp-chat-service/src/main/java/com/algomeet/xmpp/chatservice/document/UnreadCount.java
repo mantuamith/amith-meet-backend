@@ -4,6 +4,7 @@ import java.util.UUID;
 
 import org.springframework.data.annotation.Id; // Corrected Import
 import org.springframework.data.mongodb.core.index.CompoundIndex;
+import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
@@ -11,9 +12,27 @@ import lombok.Data;
 
 @Data
 @Document(collection = "unread_counts")
-@CompoundIndex(name = "user_inbox_idx", def = "{'user_key': 1, 'last_increment_at': -1}")
-// Index for UnreadCount class:
-@CompoundIndex(name = "user_sent_idx", def = "{'sender_key': 1, 'last_increment_at': -1}")
+@CompoundIndexes({
+	/**
+	 * Used for UnreadCountService.syncUnreadCount
+	 */
+	/**
+     * Covers: 
+     * - UnreadCountService.getTotalUnreadForUser(userKey)
+     * - UnreadCountService.getUnreadCountsForUser(recipientKey) [via index-bound range filtering]
+     * - Left-leg optimization of UnreadCountService.getRecentContactKeysReactive ($or clause matching user_key)
+     */
+	@CompoundIndex(name = "idx_unread_user_timeline", def = "{'user_key': 1, 'last_increment_at': -1}"),
+	
+	/**
+     * Covers:
+     * - Right-leg optimization of UnreadCountService.getRecentContactKeysReactive ($or clause matching sender_key)
+     * 
+     * Ensures that the parallel sorting on 'last_increment_at DESC' runs instantly 
+     * via index intersection with no in-memory sorting penalties.
+     */
+	@CompoundIndex(name = "idx_unread_sender_timeline", def = "{'sender_key': 1, 'last_increment_at': -1}")
+})
 public class UnreadCount {    
 	@Id
 	private String id; // format: <senderKey>_<recipientKey>
