@@ -84,7 +84,7 @@ public class MucMessage {
 	/**
 	 * Monotonically increasing UUIDv7 used as a synchronization cursor for this message record.
 	 *
-	 * Updated whenever the message state changes (e.g. hide, delete, edit, reaction).
+	 * Updated whenever the message state changes (e.g. hide, delete).
 	 *
 	 * Enables efficient incremental sync queries such as:
 	 * find records where updateCursorId > client's last known cursor.
