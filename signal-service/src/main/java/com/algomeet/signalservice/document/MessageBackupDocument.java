@@ -23,37 +23,58 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @Document(collection = "message_backups")
 @CompoundIndexes({
-	// 1. For Chat History: Fetching messages within a specific 1:1 chat
+    /**
+     * 1. The Core Engine Index (ESR Blueprint)
+     * Covers: findByConversationIdAndStanzaIdLessThan, findByConversationIdAndStanzaIdGreaterThan,
+     *         deleteByUserKeyAndConversationId, getConversationStorageStats,
+     *         and findFirstByUserKeyAndConversationIdOrderByStanzaIdAsc.
+     */
     @CompoundIndex(
-        name = "idx_conversation_stanza", 
-        def = "{'conversationId':1, 'stanzaId':-1}"
+        name = "idx_msg_history_esr", 
+        def = "{'userKey': 1, 'conversationId': 1, 'stanzaId': -1}"
     ),
     
-    // 2. For the Conversation List: Optimized for ESR (Equality, Sort, Range)
-    // By putting timestamp before conversationId, MongoDB can find the 
-    // latest unique conversations for a user with minimal index walking.
+    /**
+     * 2. The Incremental Sync & State Change Update Cursor
+     * Covers high-frequency background synchronization loops matching user modifications.
+     * MessageBackupService.getMessageUpdates
+     */
     @CompoundIndex(
-        name = "idx_user_latest_conversations_view", 
-        def = "{'userKey': 1, 'stanzaId': -1, 'conversationId': 1}"
+        name = "idx_user_sync_cursor", 
+        def = "{'userKey': 1, 'updateCursorId': 1, 'stanzaId': 1}"
     ),
     
-    // 3. Retrieve record updates
+    /**
+     * 3. Secure Target Point Lookups & Bulk Status Modifiers
+     * Covers: findByMessageIdAndUserKey, and any chronological receipt processing (Read/Delivered states).
+     */
     @CompoundIndex(
-         name = "idx_cid_sid_ucid", 
-         def = "{'conversationId': 1, 'stanzaId': 1, 'updateCursorId': 1}"
-    ),
-    @CompoundIndex(
-    		name = "idx_user_stanza_sync", 
-    		def = "{'userKey': 1, 'stanzaId': 1}"
-    		),
-    
-    // 4. Optimized for bulk-marking Delivery Statuses backward chronologically
-    @CompoundIndex(
-        name = "idx_user_msg_delivered_state", 
-        def = "{'userKey': 1, '_id': 1, 'deliveredAt': 1}"
+        name = "idx_user_message_direct", 
+        def = "{'userKey': 1, '_id': 1}"
     ),
     
-    // 5. Optimized for bulk-marking Read Statuses backward chronologically
+    /**
+     * 4. Complete Account Purge Cleanup Index
+     * Covers: deleteByUserKey(UUID userKey) during account offboarding or device un-pairing actions.
+     */
+    @CompoundIndex(
+        name = "idx_user_tombstone_cleanup", 
+        def = "{'userKey': 1}"
+    ),
+    
+    /**
+     * 5. Used for finding user conversations
+     * MessageBackupService.findUniqueConversationsWithFullDetails
+     */
+    @CompoundIndex(
+    	    name = "idx_user_inbox_pipeline", 
+    	    def = "{'userKey': 1, 'stanzaId': -1, 'conversationId': 1}"
+    	),
+    
+    /**
+     * 6. Optimized for bulk-marking Read Statuses backward chronologically
+     * MessageBackupService.updateStatus
+     */
     @CompoundIndex(
         name = "idx_user_msg_read_state", 
         def = "{'userKey': 1, '_id': 1, 'readAt': 1}"
