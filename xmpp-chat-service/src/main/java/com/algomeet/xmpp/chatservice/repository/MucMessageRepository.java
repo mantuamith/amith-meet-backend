@@ -73,10 +73,6 @@ public interface MucMessageRepository extends ReactiveMongoRepository<MucMessage
 			Pageable pageable
 			);
 
-	// For the very first load (no cursor)
-	@Query(value = "{ 'roomId': ?0, $or: [ { 'to': null }, { 'to': ?1 } ] }", 
-			sort = "{ 'id': -1 }")
-	Flux<MucMessage> findByRoomIdOrderByIdDesc(UUID roomId, UUID userKey, Pageable pageable);
 
 	Mono<MucMessage> findByMessageId(UUID messageId);
 
