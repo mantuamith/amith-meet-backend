@@ -22,6 +22,8 @@ public class MucMessageResponse {
 	private UUID to;
 	private String stanzaXml;
 	private Instant deletedAt;
+	
+	private Instant readAt;
 
 	@JsonIgnore
 	private Set<UUID> hiddenFromUserKeys = new HashSet<>();

@@ -30,6 +30,7 @@ public class MucMessageMapper {
 		// Map payload payloads
 		response.setStanzaXml(document.getStanzaXml());
 		response.setDeletedAt(document.getDeletedAt());
+		response.setReadAt(document.getReadAt());
 
 		// Safe collection mapping to prevent sharing internal mutable references
 		if (document.getHiddenFromUserKeys() != null) {

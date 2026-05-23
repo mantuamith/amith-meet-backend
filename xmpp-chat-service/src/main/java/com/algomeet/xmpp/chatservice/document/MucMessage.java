@@ -48,7 +48,15 @@ import lombok.NoArgsConstructor;
 	@CompoundIndex(
 			name = "idx_muc_conversations", 
 			def = "{ 'to': 1, 'roomId': 1, 'id': -1 }"
-			)
+			),
+	
+	/**
+	 * Used for Read status batch update MucMessageService.bulkMarkRoomMessagesAsRead()
+	 */
+	@CompoundIndex(
+		    name = "idx_muc_read_catchup", 
+		    def = "{ 'roomId': 1, 'readAt': 1, '_id': 1 }"
+		)
 })
 public class MucMessage {   
 	public static final String FIELD_ID = "id"; // StanzaId
@@ -75,6 +83,8 @@ public class MucMessage {
 	private String stanzaXml;
 
 	private Instant deletedAt;
+	
+	private Instant readAt;
 
 	private Set<UUID> hiddenFromUserKeys = new HashSet<>();
 

@@ -4,6 +4,8 @@ import com.algomeet.xmpp.chatservice.constant.Constants;
 import com.algomeet.xmpp.chatservice.document.MucMessage;
 import com.algomeet.xmpp.chatservice.document.MucRoomReadCursor;
 import com.algomeet.xmpp.chatservice.repository.MucMessageRepository;
+import com.algomeet.xmpp.chatservice.repository.projection.MucMessageMetadataProjection;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.mongodb.core.FindAndModifyOptions;
@@ -59,37 +61,41 @@ public class MucMessageReadCursorService {
      *
      * @param userKey     The user advancing their read timeline.
      * @param roomId      The target chat room identifier.
-     * @param lastReadMid The message ID (UUIDv7) up to which the user has read.
+     * @param lastReadMessageId The message ID (UUIDv7) up to which the user has read.
      * @return A {@link Mono} emitting the updated {@link MucRoomReadCursor} state.
      */
-    public Mono<MucRoomReadCursor> advanceReadCursor(final UUID userKey, final UUID roomId, final UUID lastReadMid) {
-        final String cursorId = String.format("%s_%s", userKey.toString(), roomId.toString());
+    public Mono<MucRoomReadCursor> advanceReadCursor(final UUID userKey, final UUID roomId, final UUID lastReadMessageId) {
+        final String cursorId = String.format("%s_%s", userKey, roomId);
         final long nowMs = Instant.now().toEpochMilli();
 
-        // 1. Fetch the message record reactively first
-        return mucMessageRepository.findByMessageId(lastReadMid)
-                // If it's a marker or missing message ID, fall back to an empty entity so the chain continues
-                .defaultIfEmpty(new MucMessage()) 
+        final Query query = new Query(Criteria.where("_id").is(cursorId));
+        final FindAndModifyOptions options = FindAndModifyOptions.options().returnNew(true).upsert(true);
+
+        // 1. Fetch the lightweight projection
+        return mucMessageRepository.findProjectedByMessageId(lastReadMessageId)
                 .flatMap(message -> {
-                    // Pull the stanza ID (or pass null/empty if the default fallback kicked in)
-                    UUID lastReadSid = message.getId(); 
-
-                    // 2. Construct your atomic update operations inside the pipeline context
-                    final Query query = new Query(Criteria.where("_id").is(cursorId));
-                    final Update update = new Update()
-                            .set("userKey", userKey)
-                            .set("roomId", roomId)                
-                            .set("lastReadMid", lastReadMid)
-                            .set("lastReadSid", lastReadSid)
-                            .set("lastReadAt", nowMs);
-
-                    final FindAndModifyOptions options = FindAndModifyOptions.options().returnNew(true).upsert(true);
-
-                    // 3. Execute the atomic update and return the resulting stream
+                    // Path A: Message exists -> Build update with the found stanzaId
+                    Update update = createBaseUpdate(userKey, roomId, lastReadMessageId, nowMs);
+                    update.set("lastReadSid", message.getId());
                     return reactiveMongoTemplate.findAndModify(query, update, options, MucRoomReadCursor.class);
                 })
-                // 4. Side-effect logging handles down at the root stream boundary
-                .doOnSuccess(cursor -> log.debug("Advanced read cursor for user {} in room {} to message {}", userKey, roomId, lastReadMid))
-                .doOnError(e -> log.error("Failed to advance read cursor for user {} in room {}", userKey, roomId, e));
+                .switchIfEmpty(Mono.defer(() -> {
+                    // Path B: Message is missing -> throw an exception
+                    throw new RuntimeException("MUC message not found with message ID: " + lastReadMessageId);
+                }))
+                // 2. Side-effect trace logging
+                .doOnSuccess(cursor -> log.debug("Advanced read cursor for user {} in room {} to message {}", userKey, roomId, lastReadMessageId))
+                .doOnError(e -> log.error("Failed to advance read cursor for user {} in room {} message ID {}", userKey, roomId, lastReadMessageId, e));
+    }
+
+    /**
+     * Helper to generate an isolated, fresh update builder state per pipeline branch.
+     */
+    private Update createBaseUpdate(UUID userKey, UUID roomId, UUID lastReadMid, long nowMs) {
+        return new Update()
+                .set("userKey", userKey)
+                .set("roomId", roomId)                
+                .set("lastReadMid", lastReadMid)
+                .set("lastReadAt", nowMs);
     }
 }

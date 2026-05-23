@@ -7,6 +7,7 @@ import org.springframework.data.mongodb.repository.Query;
 import org.springframework.data.mongodb.repository.ReactiveMongoRepository;
 
 import com.algomeet.xmpp.chatservice.document.MucMessage;
+import com.algomeet.xmpp.chatservice.repository.projection.MucMessageMetadataProjection;
 
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -106,4 +107,6 @@ public interface MucMessageRepository extends ReactiveMongoRepository<MucMessage
 			"  ]" +
 			"}", count = true)
 	Mono<Long> countUnreadMessages(UUID roomId, UUID lastReadStanzaId, UUID userKey);
+	
+	Mono<MucMessageMetadataProjection> findProjectedByMessageId(UUID messageId);
 }

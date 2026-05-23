@@ -129,7 +129,7 @@ public class UnreadCountService {
 	                Long capturedIncrementAt = currentUnread.getLastIncrementAt();
 	                
 	                // 2. Fetch the message first
-	                return offlineMessageRepository.findById(messageId)
+	                return offlineMessageRepository.findProjectedById(messageId)
 	                    .flatMap(message -> {
 	                        UUID stanzaId = message.getStanzaId();
 
