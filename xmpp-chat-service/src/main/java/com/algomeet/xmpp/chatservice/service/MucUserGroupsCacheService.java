@@ -28,7 +28,7 @@ public class MucUserGroupsCacheService {
     /** * Time-to-live for cached group metadata. 
      * Configured via {@code muc.user-groups.cache.ttl} in application.yml.
      */
-    @Value("${muc.user-groups.cache.ttl:5m}")
+    @Value("${muc.user-groups.cache.ttl:1m}")
     private Duration cacheTtl;
 
     public List<String> getCachedGroupIds(String userKey) {
