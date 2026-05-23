@@ -72,22 +72,8 @@ public class MucMessageService {
 			if (message.getIsHidden()) {             
 				message.setStanzaXml(null);         // Lighten the load
 			} 
-		}  
-
-		// Safe to access now that we proved the list is not empty
-		MucMessageResponse lastMessage = messages.get(messages.size() - 1);
-
-		List<UUID> readers = mucRoomReadCursorRepository.findByRoomIdAndLastReadMidGreaterThanEqual(
-				lastMessage.getRoomId(), lastMessage.getMessageId())
-				.collectList()
-				.blockOptional()
-				.orElse(Collections.emptyList())
-				.stream()
-				.map(MucRoomReadCursor::getUserKey)
-				.toList();
-
-		lastMessage.setReadByIds(readers);
-
+		} 
+		
 		// Lock it down before returning to the caller
 		return Collections.unmodifiableList(messages);
 	}
@@ -116,20 +102,6 @@ public class MucMessageService {
 				message.setStanzaXml(null);         // Lighten the load
 			} 
 		}  
-
-		// Safe to access now that we proved the list is not empty
-		MucMessageResponse lastMessage = messages.get(0);
-
-		List<UUID> readers = mucRoomReadCursorRepository.findByRoomIdAndLastReadMidGreaterThanEqual(
-				lastMessage.getRoomId(), lastMessage.getMessageId())
-				.collectList()
-				.blockOptional()
-				.orElse(Collections.emptyList())
-				.stream()
-				.map(MucRoomReadCursor::getUserKey)
-				.toList();
-
-		lastMessage.setReadByIds(readers);
 
 		// Lock it down before returning to the caller
 		return Collections.unmodifiableList(messages);
@@ -179,21 +151,7 @@ public class MucMessageService {
 			} 
 		}       
 
-		// 3. Process the readers list for the final message
-		MucMessageResponse lastMessage = modifiedMessages.get(modifiedMessages.size() - 1);
-
-		List<UUID> readers = mucRoomReadCursorRepository.findByRoomIdAndLastReadMidGreaterThanEqual(
-				lastMessage.getRoomId(), lastMessage.getMessageId())
-				.collectList()
-				.blockOptional()
-				.orElse(Collections.emptyList())
-				.stream()
-				.map(MucRoomReadCursor::getUserKey)
-				.toList();
-
-		lastMessage.setReadByIds(readers);
-
-		// 4. Combine into a defensively copied, unmodifiable result
+		// 3. Combine into a defensively copied, unmodifiable result
 		List<MucMessageResponse> result = new ArrayList<>(messages);
 		result.addAll(modifiedMessages);
 		return Collections.unmodifiableList(result);
@@ -280,10 +238,26 @@ public class MucMessageService {
 				);
 
 		// 5. Reactively map each document, collect them into a list, and block to return synchronously
-		return results
+		List<MucMessageResponse> resultDtos = results
 				.map(mucMessageMapper::toResponse)
 				.collectList()
 				.block(); // Blocks safely here to match your synchronous List<MucMessageResponse> return type
+		
+		// Retrieve readers
+		for(MucMessageResponse dto : resultDtos) {
+			List<UUID> readers = mucRoomReadCursorRepository.findByRoomIdAndLastReadSidGreaterThanEqual(
+					dto.getRoomId(), dto.getStanzaId())
+					.collectList()
+					.blockOptional()
+					.orElse(Collections.emptyList())
+					.stream()
+					.map(MucRoomReadCursor::getUserKey)
+					.toList();
+
+			dto.setReadByIds(readers);
+		}
+		
+		return resultDtos;
 	}
 
 	/**

@@ -28,9 +28,9 @@ import lombok.NoArgsConstructor;
 	@CompoundIndex(name = "idx_cursors_user_room", def = "{'userKey': 1, 'roomId': 1}"),
 
 	/**
-	 * Used for findByRoomIdAndLastReadMidGreaterThanEqual
+	 * Used for findByRoomIdAndLastReadSidGreaterThanEqual
 	 */
-	@CompoundIndex( name = "idx_room_last_read_mid", def = "{'roomId': 1, 'lastReadMid': 1}")
+	@CompoundIndex( name = "idx_room_last_read_sid", def = "{'roomId': 1, 'lastReadSid': 1}")
 })
 public class MucRoomReadCursor {
 	@Id

@@ -254,7 +254,7 @@ public class XmppArchiveService {
 	    String timestamp = XmppStanzaUtil.formatTimestamp(msg.getCreatedAt()); 
 	    
 	    // 1. Fetch all participants in this room who have read past this message's ID threshold
-	    return mucRoomReadCursorRepository.findByRoomIdAndLastReadMidGreaterThanEqual(msg.getRoomId(), msg.getMessageId())
+	    return mucRoomReadCursorRepository.findByRoomIdAndLastReadSidGreaterThanEqual(msg.getRoomId(), msg.getId())
 	            .map(rc -> rc.getRoomId().toString()) // Extract user keys
 	            .collectList()                      // Accumulate reactive items into a List<String>
 	            .flatMap(userKeys -> {              // Shift into the template string construction logic
@@ -458,7 +458,7 @@ public class XmppArchiveService {
 	
 	private Mono<String> buildSyncReadReceiptsXml(MucMessage msg, XmppPrincipal principal) {
 	    // 1. Fetch all participants in this room who have read past this message's ID threshold
-	    return mucRoomReadCursorRepository.findByRoomIdAndLastReadMidGreaterThanEqual(msg.getRoomId(), msg.getMessageId())
+	    return mucRoomReadCursorRepository.findByRoomIdAndLastReadSidGreaterThanEqual(msg.getRoomId(), msg.getId())
 	            .map(rc -> rc.getRoomId().toString()) // Extract user keys
 	            .collectList()                      // Accumulate reactive items into a List<String>
 	            .map(userKeys -> {                  // Use .map() since we return a synchronous String from this block

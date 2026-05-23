@@ -47,8 +47,8 @@ public interface MucRoomReadCursorRepository extends ReactiveMongoRepository<Muc
      * </p>
      *
      * @param roomId the room identifier
-     * @param messageId the reference message ID threshold
+     * @param stanzaId the reference stanza ID threshold
      * @return a reactive stream of matching room read cursors
      */
-    Flux<MucRoomReadCursor> findByRoomIdAndLastReadMidGreaterThanEqual(UUID roomId, UUID lastReadMid);
+    Flux<MucRoomReadCursor> findByRoomIdAndLastReadSidGreaterThanEqual(UUID roomId, UUID stanzaId);
 }

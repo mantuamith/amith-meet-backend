@@ -44,7 +44,9 @@ public class MucMessageMapper {
 			response.setCreatedAt(document.getCreatedAt().toEpochMilli());
 		}
 		
-		response.setExpireAt(document.getExpireAt());
+		if(document.getExpireAt() != null) {
+			response.setExpireAt(document.getExpireAt().toEpochMilli());
+		}
 
 		return response;
 	}

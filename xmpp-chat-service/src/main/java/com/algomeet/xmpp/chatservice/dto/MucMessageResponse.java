@@ -26,5 +26,5 @@ public class MucMessageResponse {
 
 	private List<UUID> readByIds;
 	private Long createdAt;
-	private Instant expireAt;
+	private Long expireAt;
 }
