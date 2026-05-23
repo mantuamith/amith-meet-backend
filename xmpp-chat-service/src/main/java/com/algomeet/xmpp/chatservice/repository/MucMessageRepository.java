@@ -100,10 +100,10 @@ public interface MucMessageRepository extends ReactiveMongoRepository<MucMessage
 	@Query(value = "{" +
 			"  '$and': [" +
 			"    { 'roomId': ?0 }," +
-			"    { 'messageId': { '$gt': ?1 } }," +
+			"    { 'id': { '$gt': ?1 } }," +
 			"    { 'countable': true }," + // <-- Added countable condition here
 			"    { '$or': [ { 'to': null }, { 'to': ?2 } ] }" +
 			"  ]" +
 			"}", count = true)
-	Mono<Long> countUnreadMessages(UUID roomId, UUID lastReadMessageId, UUID userKey);
+	Mono<Long> countUnreadMessages(UUID roomId, UUID lastReadStanzaId, UUID userKey);
 }

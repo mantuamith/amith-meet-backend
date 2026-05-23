@@ -134,8 +134,8 @@ public class UnreadCountService {
 	                        UUID stanzaId = message.getStanzaId();
 
 	                        // 3. Fetch the count, explicitly telling flatMap it will evaluate to an UnreadCount
-	                        return offlineMessageRepository.countByToAndFromAndIdGreaterThanAndCountableTrue(
-	                                UUID.fromString(recipientKey), UUID.fromString(senderKey), messageId)
+	                        return offlineMessageRepository.countByToAndFromAndStanzaIdGreaterThanAndCountableTrue(
+	                                UUID.fromString(recipientKey), UUID.fromString(senderKey), stanzaId)
 	                            .flatMap((Long count) -> { // Explicit lambda param type helps inference
 
 	                                Query query = new Query(

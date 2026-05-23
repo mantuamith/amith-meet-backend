@@ -42,7 +42,7 @@ public class MucMessageReadCursorService {
         return reactiveMongoTemplate.findById(cursorId, MucRoomReadCursor.class)
                 .flatMap(cursor -> mucMessageRepository.countUnreadMessages(
                         roomId, 
-                        cursor.getLastReadMid(), 
+                        cursor.getLastReadSid(), 
                         userKey
                 ))
                 // Cold fallback: If the user has never read a single message in this room before,

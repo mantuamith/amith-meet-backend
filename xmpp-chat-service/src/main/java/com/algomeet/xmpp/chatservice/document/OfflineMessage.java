@@ -34,9 +34,9 @@ import lombok.Data;
 	@CompoundIndex(name = "purge_soft_deleted_batch_idx", def = "{'to': 1, 'from': 1, 'deletedAt': 1, 'id': 1}"),
 
 	/**
-	 * Used for countByToAndFromAndIdGreaterThanAndCountableTrue
+	 * Used for countByToAndFromAndStanzaIdGreaterThanAndCountableTrue
 	 */
-	@CompoundIndex(name = "unread_count_idx", def = "{'to': 1, 'from': 1, 'id': 1}", partialFilter = "{'countable': true}"),
+	@CompoundIndex(name = "unread_count_idx", def = "{'to': 1, 'from': 1, 'stanzaId': 1}", partialFilter = "{'countable': true}"),
 
 	/**
 	 * Used for deleteByIdAndIsAckStanzaTrue

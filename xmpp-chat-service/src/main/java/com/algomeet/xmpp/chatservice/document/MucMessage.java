@@ -23,27 +23,27 @@ import lombok.NoArgsConstructor;
 @Document(collection = "muc_messages")
 @CompoundIndexes({
 	/**
-	 * Used for retrieving messages findByRoomIdAndIdGreaterThan... and findHistoricalMessages query
+	 * Used for retrieving messages findByRoomIdAndIdGreaterThan...() and findHistoricalMessages() query
 	 */
 	@CompoundIndex(name = "idx_muc_latest_and_old_msgs", def = "{'roomId': 1, 'to': 1, 'id': -1}"),
 
 	/**
 	 * Used for synchronization of local device copies.
-	 * <p>Crucial for maintaining high throughput in {@code findByRoomIdAndUpdateCursorIdGreaterThanAndIdLessThanEqualOrderByIdAsc}.</p>
+	 * findByRoomIdAndUpdateCursorIdGreaterThanAndIdLessThanEqualOrderByIdAsc()
 	 */
 	@CompoundIndex(name = "idx_muc_sync", def = "{'roomId': 1, 'updateCursorId': 1, 'id': 1}"),
 
 	/**
-	 * Used for unread counts MucMessageReadCursorService.advanceReadCursor
+	 * Used for unread counts countUnreadMessages()
 	 */
 	@CompoundIndex(
 			name = "idx_muc_unread_count", 
-			def = "{ 'roomId': 1, 'countable': 1, 'messageId': 1, 'to': 1 }",
+			def = "{ 'roomId': 1, 'countable': 1, 'id': 1, 'to': 1 }",
 			partialFilter = "{ 'deletedAt': null, 'countable': true }"
 			),
 
 	/**
-	 * Used for retrieving muc conversations MucMessageService.getConversations
+	 * Used for retrieving muc conversations MucMessageService.getConversations()
 	 */
 	@CompoundIndex(
 			name = "idx_muc_conversations", 
@@ -55,7 +55,7 @@ public class MucMessage {
 	public static final String FIELD_ROOM_ID = "roomId";
 
 	@Id
-	private UUID id;           // UUIDv7 or Sequential String
+	private UUID id;           // Stanza ID - UUID v7
 
 	// UNIQUE INDEX for Message ID
 	// Prevents duplicate messages if a client retries a send
