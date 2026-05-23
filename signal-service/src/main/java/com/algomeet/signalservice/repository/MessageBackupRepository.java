@@ -13,6 +13,7 @@ import org.springframework.data.mongodb.repository.Query;
 
 import com.algomeet.signalservice.document.MessageBackupDocument;
 import com.algomeet.signalservice.repository.projection.ConversationStorageStats;
+import com.algomeet.signalservice.repository.projection.MessageMetadataProjection;
 
 import jakarta.transaction.Transactional;
 
@@ -65,4 +66,6 @@ public interface MessageBackupRepository extends MongoRepository<MessageBackupDo
 	    UUID userKey, 
 	    String conversationId
 	);
+	
+	Optional<MessageMetadataProjection> findProjectedByMessageId(UUID messageId);
 }

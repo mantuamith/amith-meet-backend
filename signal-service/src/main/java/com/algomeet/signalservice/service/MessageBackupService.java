@@ -51,6 +51,7 @@ import com.algomeet.signalservice.exceptions.MessageUpdateStatusInProgressExcept
 import com.algomeet.signalservice.exceptions.RecordNotFoundException;
 import com.algomeet.signalservice.repository.MessageBackupRepository;
 import com.algomeet.signalservice.repository.projection.ConversationStorageStats;
+import com.algomeet.signalservice.repository.projection.MessageMetadataProjection;
 import com.algomeet.signalservice.util.ConversationUtil;
 import com.algomeet.signalservice.util.SecurityUtil;
 import com.github.f4b6a3.uuid.UuidCreator;
@@ -538,9 +539,8 @@ public class MessageBackupService {
 			// Uses .lte() to ensure the message ID is less than or equal to the threshold
 			// 1. Filter by User Key (Equality match)
 			// 2. Filter by Message ID threshold (Range match)
-			// 3. Apply the dynamic status timestamp null check last
-			
-			Optional<MessageBackupDocument> messageOpt = repository.findById(messageId);			
+			// 3. Apply the dynamic status timestamp null check last			
+			Optional<MessageMetadataProjection> messageOpt = repository.findProjectedByMessageId(messageId);			
 			
 			if(messageOpt.isPresent()) {
 				String conversationId = ConversationUtil.getConversationId(
