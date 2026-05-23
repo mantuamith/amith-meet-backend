@@ -5,6 +5,8 @@ import com.algomeet.xmpp.chatservice.document.MucRoomReadCursor;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.data.mongodb.repository.ReactiveMongoRepository;
@@ -51,4 +53,16 @@ public interface MucRoomReadCursorRepository extends ReactiveMongoRepository<Muc
      * @return a reactive stream of matching room read cursors
      */
     Flux<MucRoomReadCursor> findByRoomIdAndLastReadSidGreaterThanEqual(UUID roomId, UUID stanzaId);
+    
+    /**
+     * Executes a high-performance bulk fetch using an underlying MongoDB $in operator.
+     * 
+     * This method is critical for avoiding the N+1 query problem by pulling read cursors 
+     * for all targeted rooms in a single non-blocking network hop, allowing high-speed 
+     * group chat lists (50+ rooms, 500+ users per room) to be correlated in application memory.
+     *
+     * @param roomIds The collection of group chat Room UUIDs to query.
+     * @return A reactive Flux streaming all matching user read cursors across those rooms.
+     */
+    Flux<MucRoomReadCursor> findByRoomIdIn(Set<UUID> roomIds);
 }

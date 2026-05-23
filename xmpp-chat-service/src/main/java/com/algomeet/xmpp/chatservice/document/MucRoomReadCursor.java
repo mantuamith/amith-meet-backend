@@ -28,7 +28,8 @@ import lombok.NoArgsConstructor;
 	@CompoundIndex(name = "idx_cursors_user_room", def = "{'userKey': 1, 'roomId': 1}"),
 
 	/**
-	 * Used for findByRoomIdAndLastReadSidGreaterThanEqual
+	 * Used for findByRoomIdAndLastReadSidGreaterThanEqual()
+	 * and findByRoomIdIn(Set<UUID> roomIds)
 	 */
 	@CompoundIndex( name = "idx_room_last_read_sid", def = "{'roomId': 1, 'lastReadSid': 1}")
 })

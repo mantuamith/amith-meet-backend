@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -244,20 +245,37 @@ public class MucMessageService {
 				.block(); // Blocks safely here to match your synchronous List<MucMessageResponse> return type
 		
 		// Retrieve readers
-		for(MucMessageResponse dto : resultDtos) {
-			List<UUID> readers = mucRoomReadCursorRepository.findByRoomIdAndLastReadSidGreaterThanEqual(
-					dto.getRoomId(), dto.getStanzaId())
-					.collectList()
-					.blockOptional()
-					.orElse(Collections.emptyList())
-					.stream()
-					.map(MucRoomReadCursor::getUserKey)
-					.toList();
-
-			dto.setReadByIds(readers);
-		}
+		retrieveAndSetReaders(resultDtos);
 		
 		return resultDtos;
+	}
+	
+	private void retrieveAndSetReaders(List<MucMessageResponse> resultDtos) {
+		// 1. Batch extract all target room IDs to prevent multiple network hops
+        Set<UUID> roomIds = resultDtos.stream()
+                .map(MucMessageResponse::getRoomId)
+                .collect(Collectors.toSet());
+
+        // 2. Execute ONE single bulk query to pull all active cursors for these rooms
+        Map<UUID, List<MucRoomReadCursor>> cursorsByRoom = mucRoomReadCursorRepository.findByRoomIdIn(roomIds)
+                .collectList()
+                .blockOptional()
+                .orElse(Collections.emptyList())
+                .stream()
+                .collect(Collectors.groupingBy(MucRoomReadCursor::getRoomId));
+
+        // 3. Perform high-speed in-memory matching inside the loop (No DB access here)
+        for (MucMessageResponse dto : resultDtos) {
+            List<MucRoomReadCursor> roomCursors = cursorsByRoom.getOrDefault(dto.getRoomId(), Collections.emptyList());
+
+            List<UUID> readers = roomCursors.stream()
+                    .filter(cursor -> cursor.getLastReadSid() != null 
+                            && cursor.getLastReadSid().compareTo(dto.getStanzaId()) >= 0)
+                    .map(MucRoomReadCursor::getUserKey)
+                    .toList();
+
+            dto.setReadByIds(readers);
+        }
 	}
 
 	/**
