@@ -76,8 +76,8 @@ import lombok.NoArgsConstructor;
      * MessageBackupService.updateStatus
      */
     @CompoundIndex(
-        name = "idx_user_msg_read_state", 
-        def = "{'userKey': 1, '_id': 1, 'readAt': 1}"
+        name = "idx_conversation_msg_read_state", 
+        def = "{'conversationId': 1, 'stanzaId': 1, 'readAt': 1}"
     )
 })
 public class MessageBackupDocument {

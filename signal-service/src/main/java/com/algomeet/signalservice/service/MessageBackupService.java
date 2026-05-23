@@ -504,6 +504,7 @@ public class MessageBackupService {
 	}	
 
 	public void updateStatus(UUID messageId, String timestampField, UUID stanzaId, Long timestamp) {
+		UUID userKey = UUID.fromString(SecurityUtil.getUserKey());	
 		/**
 		 * Redis distributed lock key to prevent concurrent duplicate inserts
 		 * for the same messageId (idempotency + race-condition protection).
@@ -538,15 +539,25 @@ public class MessageBackupService {
 			// 1. Filter by User Key (Equality match)
 			// 2. Filter by Message ID threshold (Range match)
 			// 3. Apply the dynamic status timestamp null check last
-			query = new Query(
-					Criteria.where(FIELD_USER_KEY).is(SecurityUtil.getUserKey())
-					.and(FIELD_MESSAGE_ID).lte(messageId)
-					.and(timestampField).isNull()
-					);
+			
+			Optional<MessageBackupDocument> messageOpt = repository.findById(messageId);			
+			
+			if(messageOpt.isPresent()) {
+				String conversationId = ConversationUtil.getConversationId(
+						userKey.toString(),
+						messageOpt.get().getSenderKey().toString(),
+						messageOpt.get().getReceiverKey().toString());
+				
+				query = new Query(
+						Criteria.where(FIELD_CONVERSATION_ID).is(conversationId)
+						.and(FIELD_STANZA_ID).lte(messageOpt.get().getStanzaId())
+						.and(timestampField).isNull()
+						);
+			}
 
 		} else {			
 			query = new Query(Criteria.where(FIELD_MESSAGE_ID).is(messageId)
-					.and(FIELD_USER_KEY).is(SecurityUtil.getUserKey()));
+					.and(FIELD_USER_KEY).is(userKey));
 		}
 
 		Update update = new Update()
