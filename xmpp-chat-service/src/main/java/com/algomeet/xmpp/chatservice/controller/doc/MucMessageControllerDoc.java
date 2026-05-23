@@ -29,8 +29,8 @@ public interface MucMessageControllerDoc {
 					Retrieves paginated MUC (Multi-User Chat) messages for a group.
 
 					Supports cursor-based pagination using:
-					- beforeStanzaId → fetch older messages
-					- afterStanzaId → fetch newer messages
+					- before → fetch older messages
+					- after→ fetch newer messages
 
 					Only one cursor parameter should be provided per request.
 					"""
@@ -63,13 +63,13 @@ public interface MucMessageControllerDoc {
 					description = "Fetch messages before the specified stanza ID (older messages)",
 					example = "0196b2d7-4b84-7c10-b1d2-91ef4c1cfa11"
 			)
-			@RequestParam("beforeStanzaId") Optional<String> beforeStanzaId,
+			@RequestParam("before") Optional<String> beforeStanzaId,
 
 			@Parameter(
 					description = "Fetch messages after the specified stanza ID (newer messages)",
 					example = "0196b2d7-4b84-7c10-b1d2-91ef4c1cfa11"
 			)
-			@RequestParam("afterStanzaId") Optional<String> afterStanzaId,
+			@RequestParam("after") Optional<String> afterStanzaId,
 
 			@Parameter(
 					description = "Page index",
