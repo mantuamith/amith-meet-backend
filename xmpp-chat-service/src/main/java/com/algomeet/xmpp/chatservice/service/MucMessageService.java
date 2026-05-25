@@ -239,9 +239,7 @@ public class MucMessageService {
 				.collect(Collectors.toSet());
 
 		AggregationOptions options = AggregationOptions.
-				builder()
-				.hint("idxMuc_room_to_idDesc_createdAt") // Forces use of {'roomId': 1, 'to': 1, 'id': -1}
-				.build();
+				builder().build();
 
 		// 3. Build the aggregation pipeline with targeted MUC visibility and privacy constraints
 		Aggregation aggregation = Aggregation.newAggregation(
