@@ -83,54 +83,51 @@ public class MucMessageService {
 				message.setStanzaXml(null);         // Lighten the load
 			} 
 		} 
-		
+
 		// Lock it down before returning to the caller
 		return Collections.unmodifiableList(messages);
 	}
 
 	public List<MucMessageResponse> getMessagesBefore(UUID userKey, UUID groupId, UUID beforeStanzaId, int page, int size) {  
-	    Pageable pageable = PageRequest.of(page, size);
-	    
-	    try {
-	        // Used for delete group chat conversation for a particular user
-	        Instant historyCutoff = Instant.EPOCH; 
-	        
-	        List<MucMessageResponse> processedMessages = mucMessageRepository
-	                .findByRoomIdAndIdLessThanAndToIsNullOrEqualtoUserkeyAndNotHiddenOrderByIdDesc(
-	                        groupId, beforeStanzaId, userKey, historyCutoff, pageable)
-	                .collectList()              
-	                .blockOptional() 
-	                .orElse(Collections.emptyList())
-	                .stream()
-	                // 1. Map documents to Response DTOs safely passing your explicit userKey parameter
-	                .map(m -> mucMessageMapper.toResponse(m, userKey))
-	                // 2. Clear payload XML elements on the fly for hidden messages
-	                .peek(message -> {
-	                    if (Boolean.TRUE.equals(message.getIsHidden())) {
-	                        message.setStanzaXml(null);
-	                    }
-	                })
-	                // 3. Sort the stream cleanly by stanzaId (UUIDv7) in Ascending order
-	                .sorted(Comparator.comparing(MucMessageResponse::getStanzaId))
-	                // 4. Collect the finalized stream into your immutable list safely
-	                .toList();
+		Pageable pageable = PageRequest.of(page, size);
 
-	        return processedMessages;
+		// Used for delete group chat conversation for a particular user
+		Instant historyCutoff = Instant.EPOCH; 
 
-	    } catch(Exception ex) {
-	        log.error("Failed to retrieve chat message history context context for group {}", groupId, ex);
-	        return Collections.emptyList();
-	    }
+		List<MucMessageResponse> processedMessages = mucMessageRepository
+				.findByRoomIdAndIdLessThanAndToIsNullOrEqualtoUserkeyAndNotHiddenOrderByIdDesc(
+						groupId, beforeStanzaId, userKey, historyCutoff, pageable)
+				.collectList()              
+				.blockOptional() 
+				.orElse(Collections.emptyList())
+				.stream()
+				// 1. Map documents to Response DTOs safely passing your explicit userKey parameter
+				.map(m -> mucMessageMapper.toResponse(m, userKey))
+				// 2. Clear payload XML elements on the fly for hidden messages
+				.peek(message -> {
+					if (Boolean.TRUE.equals(message.getIsHidden())) {
+						message.setStanzaXml(null);
+					}
+				})
+				// 3. Sort the stream cleanly by stanzaId (UUIDv7) in Ascending order
+				.sorted(Comparator.comparing(MucMessageResponse::getStanzaId))
+				// 4. Collect the finalized stream into your immutable list safely
+				.toList();
+
+		return processedMessages;
 	}
 
 	public List<MucMessageResponse> getMessageUpdates(UUID userKey, UUID groupId, UUID untilStanzaId, int page, 
 			int size) {    
-		List<MucMessageResponse> messages = new ArrayList<>();
+		List<MucMessageResponse> resultList = new ArrayList<>();
 
 		if (page == 0) {
-			messages.add(getStartOfConversation(groupId));
-			size = size - 1;
-		}
+	        MucMessageResponse startMessage = getStartOfConversation(groupId);
+	        if (startMessage != null) {
+	            resultList.add(startMessage);
+	        }
+	        size = Math.max(1, size - 1); // Guard against size dropping below 1
+	    }
 
 		Pageable pageable = PageRequest.of(page, size);
 
@@ -147,35 +144,35 @@ public class MucMessageService {
 		 *
 		 * Results are ordered ascending by message ID to preserve chronological update order.
 		 */
-		List<MucMessageResponse> modifiedMessages = mucMessageRepository.findByRoomIdAndUpdateCursorIdGreaterThanAndIdLessThanEqualOrderByIdDesc(
-				groupId, untilStanzaId, untilStanzaId, pageable)
-				.collectList()              
-				.blockOptional() // Defensively handle an empty result safely
-				.orElse(Collections.emptyList())
-				.stream()
-				.map(mucMessageMapper::toResponse)
-				.toList(); // Returns an unmodifiable list
+		List<MucMessageResponse> modifiedMessages = mucMessageRepository
+	            .findByRoomIdAndUpdateCursorIdGreaterThanAndIdLessThanEqualOrderByIdDesc(
+	                    groupId, untilStanzaId, untilStanzaId, pageable)
+	            .collectList()              
+	            .blockOptional() 
+	            .orElse(Collections.emptyList())
+	            .stream()
+	            // Pass explicit userKey to bypass volatile ThreadLocal Security Context
+	            .map(m -> mucMessageMapper.toResponse(m, userKey)) 
+	            // Mutate properties inside the stream processing loop smoothly
+	            .peek(message -> {
+	                if (Boolean.TRUE.equals(message.getIsHidden())) {
+	                    message.setStanzaXml(null); 
+	                }
+	            })
+	            .toList(); 
 
-		if (modifiedMessages.isEmpty()) {
-			return messages; // Fast return if there are no updates
-		}
+	    // If no new modifications were found, return whatever placeholder structural headers we have
+	    if (modifiedMessages.isEmpty()) {
+	        return Collections.unmodifiableList(resultList); 
+	    }
 
-		// Map and process messages in a single clear pass
-		for (MucMessageResponse message : modifiedMessages) {         
-			if (message.getIsHidden()) {             
-				message.setStanzaXml(null);         // Lighten the load
-			} 
-		}       
+	    // 3. Combine safely into our confirmed mutable ArrayList workspace
+	    resultList.addAll(modifiedMessages);
 
-		// 3. Combine into a defensively copied, unmodifiable result
-		// Combine all elements into a mutable workspace list
-		List<MucMessageResponse> result = new ArrayList<>(messages);
-		result.addAll(modifiedMessages);
+	    // 4. Sort the unified collection by stanzaId (UUIDv7) in Ascending order
+	    resultList.sort(Comparator.comparing(MucMessageResponse::getStanzaId));
 
-		// Sort the entire combined list by stanzaId (UUIDv7) in Ascending order
-		result.sort(Comparator.comparing(MucMessageResponse::getStanzaId));
-
-		return Collections.unmodifiableList(result);
+	    return Collections.unmodifiableList(resultList);
 	}
 
 	private MucMessageResponse getStartOfConversation(UUID groupId) {
@@ -271,46 +268,46 @@ public class MucMessageService {
 				.map(m -> mucMessageMapper.toResponse(m, userKey))
 				.collectList()
 				.block(); // Blocks safely here to match your synchronous List<MucMessageResponse> return type
-		
+
 		// Retrieve readers
 		retrieveAndSetReaders(resultDtos, userKey);
-		
+
 		return resultDtos;
 	}
-	
+
 	private void retrieveAndSetReaders(List<MucMessageResponse> resultDtos, UUID userKey) {
-	    if (CollectionUtils.isEmpty(resultDtos)) {
-	        return;
-	    }
+		if (CollectionUtils.isEmpty(resultDtos)) {
+			return;
+		}
 
-	    // 1. Batch extract all target room IDs to prevent multiple network hops
-	    Set<UUID> roomIds = resultDtos.stream()
-	            .map(MucMessageResponse::getRoomId)
-	            .collect(Collectors.toSet());
+		// 1. Batch extract all target room IDs to prevent multiple network hops
+		Set<UUID> roomIds = resultDtos.stream()
+				.map(MucMessageResponse::getRoomId)
+				.collect(Collectors.toSet());
 
-	    // 2. Execute ONE single bulk query to pull all active cursors for these rooms
-	    Map<UUID, List<MucRoomReadCursor>> cursorsByRoom = mucRoomReadCursorRepository.findByRoomIdIn(roomIds)
-	            .collectList()
-	            .blockOptional()
-	            .orElse(Collections.emptyList())
-	            .stream()
-	            .collect(Collectors.groupingBy(MucRoomReadCursor::getRoomId));
+		// 2. Execute ONE single bulk query to pull all active cursors for these rooms
+		Map<UUID, List<MucRoomReadCursor>> cursorsByRoom = mucRoomReadCursorRepository.findByRoomIdIn(roomIds)
+				.collectList()
+				.blockOptional()
+				.orElse(Collections.emptyList())
+				.stream()
+				.collect(Collectors.groupingBy(MucRoomReadCursor::getRoomId));
 
-	    // 3. Perform high-speed in-memory matching inside the loop (No DB access here)
-	    for (MucMessageResponse dto : resultDtos) {
-	        List<MucRoomReadCursor> roomCursors = cursorsByRoom.getOrDefault(dto.getRoomId(), Collections.emptyList());
+		// 3. Perform high-speed in-memory matching inside the loop (No DB access here)
+		for (MucMessageResponse dto : resultDtos) {
+			List<MucRoomReadCursor> roomCursors = cursorsByRoom.getOrDefault(dto.getRoomId(), Collections.emptyList());
 
-	        List<UUID> readers = roomCursors.stream()
-	                .filter(cursor -> cursor.getLastReadSid() != null 
-	                        && cursor.getLastReadSid().compareTo(dto.getStanzaId()) >= 0)
-	                .map(MucRoomReadCursor::getUserKey)
-	                // Filter out user's own ID safely inside the stream pipeline
-	                .filter(id -> !id.equals(userKey)) 
-	                .toList(); // Safe to use toList() now since we don't call .remove() later
+			List<UUID> readers = roomCursors.stream()
+					.filter(cursor -> cursor.getLastReadSid() != null 
+					&& cursor.getLastReadSid().compareTo(dto.getStanzaId()) >= 0)
+					.map(MucRoomReadCursor::getUserKey)
+					// Filter out user's own ID safely inside the stream pipeline
+					.filter(id -> !id.equals(userKey)) 
+					.toList(); // Safe to use toList() now since we don't call .remove() later
 
-	        // Set the computed readers back onto your response DTO instead of an empty list
-	        dto.setReadByIds(readers);
-	    }
+			// Set the computed readers back onto your response DTO instead of an empty list
+			dto.setReadByIds(readers);
+		}
 	}
 
 	/**
