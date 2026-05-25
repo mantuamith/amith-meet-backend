@@ -278,37 +278,44 @@ public class MucMessageService {
 				.block(); // Blocks safely here to match your synchronous List<MucMessageResponse> return type
 		
 		// Retrieve readers
-		retrieveAndSetReaders(resultDtos);
+		retrieveAndSetReaders(resultDtos, userKey);
 		
 		return resultDtos;
 	}
 	
-	private void retrieveAndSetReaders(List<MucMessageResponse> resultDtos) {
-		// 1. Batch extract all target room IDs to prevent multiple network hops
-        Set<UUID> roomIds = resultDtos.stream()
-                .map(MucMessageResponse::getRoomId)
-                .collect(Collectors.toSet());
+	private void retrieveAndSetReaders(List<MucMessageResponse> resultDtos, UUID userKey) {
+	    if (CollectionUtils.isEmpty(resultDtos)) {
+	        return;
+	    }
 
-        // 2. Execute ONE single bulk query to pull all active cursors for these rooms
-        Map<UUID, List<MucRoomReadCursor>> cursorsByRoom = mucRoomReadCursorRepository.findByRoomIdIn(roomIds)
-                .collectList()
-                .blockOptional()
-                .orElse(Collections.emptyList())
-                .stream()
-                .collect(Collectors.groupingBy(MucRoomReadCursor::getRoomId));
+	    // 1. Batch extract all target room IDs to prevent multiple network hops
+	    Set<UUID> roomIds = resultDtos.stream()
+	            .map(MucMessageResponse::getRoomId)
+	            .collect(Collectors.toSet());
 
-        // 3. Perform high-speed in-memory matching inside the loop (No DB access here)
-        for (MucMessageResponse dto : resultDtos) {
-            List<MucRoomReadCursor> roomCursors = cursorsByRoom.getOrDefault(dto.getRoomId(), Collections.emptyList());
+	    // 2. Execute ONE single bulk query to pull all active cursors for these rooms
+	    Map<UUID, List<MucRoomReadCursor>> cursorsByRoom = mucRoomReadCursorRepository.findByRoomIdIn(roomIds)
+	            .collectList()
+	            .blockOptional()
+	            .orElse(Collections.emptyList())
+	            .stream()
+	            .collect(Collectors.groupingBy(MucRoomReadCursor::getRoomId));
 
-            List<UUID> readers = roomCursors.stream()
-                    .filter(cursor -> cursor.getLastReadSid() != null 
-                            && cursor.getLastReadSid().compareTo(dto.getStanzaId()) >= 0)
-                    .map(MucRoomReadCursor::getUserKey)
-                    .toList();
+	    // 3. Perform high-speed in-memory matching inside the loop (No DB access here)
+	    for (MucMessageResponse dto : resultDtos) {
+	        List<MucRoomReadCursor> roomCursors = cursorsByRoom.getOrDefault(dto.getRoomId(), Collections.emptyList());
 
-            dto.setReadByIds(readers);
-        }
+	        List<UUID> readers = roomCursors.stream()
+	                .filter(cursor -> cursor.getLastReadSid() != null 
+	                        && cursor.getLastReadSid().compareTo(dto.getStanzaId()) >= 0)
+	                .map(MucRoomReadCursor::getUserKey)
+	                // Filter out user's own ID safely inside the stream pipeline
+	                .filter(id -> !id.equals(userKey)) 
+	                .toList(); // Safe to use toList() now since we don't call .remove() later
+
+	        // Set the computed readers back onto your response DTO instead of an empty list
+	        dto.setReadByIds(readers);
+	    }
 	}
 
 	/**
