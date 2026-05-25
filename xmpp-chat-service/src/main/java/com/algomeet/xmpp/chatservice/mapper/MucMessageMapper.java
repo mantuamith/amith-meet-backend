@@ -33,7 +33,6 @@ public class MucMessageMapper {
 		response.setDeletedAt(document.getDeletedAt());
 		response.setReadAt(document.getReadAt());
 
-		System.out.println("--------->" + userKey);
 		if (document.getHiddenFromUserKeys() != null
 				&& document.getHiddenFromUserKeys().contains(
 					userKey)) {
