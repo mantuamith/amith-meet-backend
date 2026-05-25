@@ -11,4 +11,5 @@ public class MemberResponse {
     private String nickname;
     private GroupRole role;
     private Long memberStartDate;
+    private Long messageHistoryCutoff;
 }

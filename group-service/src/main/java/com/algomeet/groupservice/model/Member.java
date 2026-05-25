@@ -55,6 +55,15 @@ public class Member {
 
     @Column(name = "member_start_date")
     private Long memberStartDate;
+    
+    /**
+     * Unix epoch timestamp (in milliseconds) acting as a temporal deletion threshold for the user.
+     * * In-app or Multi-User Chat (MUC) historical messages with a generation timestamp falling 
+     * strictly prior to this cutoff value are treated as administratively deleted or cleared 
+     * for this specific context session and must be filtered out during synchronized timeline fetches.
+     */
+    @Column(name = "message_history_cutoff")
+    private Long messageHistoryCutoff;
 
     @Override
     public boolean equals(Object o) {

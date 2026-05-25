@@ -1,11 +1,13 @@
 package com.algomeet.xmpp.chatservice.controller;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -16,6 +18,7 @@ import com.algomeet.xmpp.chatservice.dto.CommonResponse;
 import com.algomeet.xmpp.chatservice.dto.MucMessageResponse;
 import com.algomeet.xmpp.chatservice.enums.ResponseCode;
 import com.algomeet.xmpp.chatservice.service.MucMessageService;
+import com.algomeet.xmpp.chatservice.service.MucRoomService;
 import com.algomeet.xmpp.chatservice.util.SecurityUtil;
 
 import io.swagger.v3.oas.annotations.Parameter;
@@ -28,6 +31,7 @@ import lombok.extern.slf4j.Slf4j;
 @RequestMapping("/api/chat/muc")
 public class MucMessageController implements MucMessageControllerDoc{
 	private final MucMessageService mucMessageService;
+	private final MucRoomService mucRoomService;
 
 	/**
 	 * Retrieves paginated messages for a specific MUC (group chat) conversation.
@@ -145,5 +149,33 @@ public class MucMessageController implements MucMessageControllerDoc{
 				ResponseCode.SUCCESS, 
 				mucMessageService.getConversations(UUID.fromString(userKey))
 				));
+	}
+	
+	
+	/**
+	 * Clears the calling user's personal view of the group chat conversation history timeline.
+	 * <p>
+	 * This self-serve endpoint captures the authenticated user's key from the security context
+	 * and registers the current server system time as their historical message visibility threshold.
+	 * Messages generated prior to this point are filtered out during subsequent sync or fetch operations.
+	 * </p>
+	 *
+	 * @param groupId the unique identifier of the target group chat
+	 * @return a response wrapper containing {@code true} if the database cutoff record was updated successfully
+	 */
+	@PatchMapping("/{groupId}/clear-history")
+	public ResponseEntity<CommonResponse<Boolean>> clearMemberHistoryTimeline(
+			@PathVariable UUID groupId) {
+
+		UUID userKey = UUID.fromString(SecurityUtil.getUserKey());        
+		long historyCutoff = Instant.now().toEpochMilli();
+
+		boolean cleared = mucRoomService.clearMemberHistoryTimeline(
+				groupId,
+				userKey,
+				historyCutoff);
+				
+		return ResponseEntity.ok(
+				CommonResponse.from(ResponseCode.SUCCESS, cleared));
 	}
 }

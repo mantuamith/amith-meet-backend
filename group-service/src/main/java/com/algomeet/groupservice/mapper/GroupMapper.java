@@ -79,6 +79,7 @@ public class GroupMapper {
 
 				memberResp.setRole(member.getRole());
 				memberResp.setMemberStartDate(member.getMemberStartDate());
+				memberResp.setMessageHistoryCutoff(member.getMessageHistoryCutoff());
 				members.add(memberResp);
 			}
 		}

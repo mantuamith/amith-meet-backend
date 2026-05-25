@@ -1,5 +1,6 @@
 package com.algomeet.groupservice.controller;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -88,7 +89,7 @@ public class GroupController implements GroupControllerDoc {
 					.body(CommonResponse.from(ResponseCode.GROUP_ID_NOT_FOUND));
 		}
 	}
-
+	
 	@DeleteMapping("/{groupId}")
 	public ResponseEntity<CommonResponse<?>> removeGroup(@PathVariable UUID groupId) {
 		try {
@@ -246,4 +247,7 @@ public class GroupController implements GroupControllerDoc {
 
 		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, groups));
 	}
+	
+	
+	
 }
