@@ -93,7 +93,7 @@ public interface MucMessageRepository extends ReactiveMongoRepository<MucMessage
 	        Pageable pageable
 	);
 
-	Mono<MucMessage> findByMessageId(UUID messageId);
+	Mono<MucMessage> findFirstByMessageId(UUID messageId);
 
 	/**
 	 * Retrieves the current first available group message in the conversation.

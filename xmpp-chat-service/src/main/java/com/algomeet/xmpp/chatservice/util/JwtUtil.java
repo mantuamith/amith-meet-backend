@@ -124,6 +124,10 @@ public class JwtUtil {
         return false;
     }
 
+    public String extractUsername(String token) {
+        return extractClaim(token, claims -> claims.get("username", String.class));
+    }
+    
     public String extractUserKey(String token) {
         return extractClaim(token, claims -> claims.get("user_key", String.class));
     }

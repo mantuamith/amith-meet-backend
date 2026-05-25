@@ -32,6 +32,7 @@ import com.algomeet.xmpp.chatservice.dto.MucMessageResponse;
 import com.algomeet.xmpp.chatservice.mapper.MucMessageMapper;
 import com.algomeet.xmpp.chatservice.repository.MucMessageRepository;
 import com.algomeet.xmpp.chatservice.repository.MucRoomReadCursorRepository;
+import com.algomeet.xmpp.chatservice.util.SecurityUtil;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -68,7 +69,7 @@ public class MucMessageService {
 				.blockOptional() 
 				.orElse(Collections.emptyList())
 				.stream()
-				.map(mucMessageMapper::toResponse)
+				.map(m -> mucMessageMapper.toResponse(m, UUID.fromString(SecurityUtil.getUserKey())))
 				.toList();
 
 		// Guard Clause: If there are no messages, return early and avoid IndexOutOfBoundsException
@@ -105,7 +106,7 @@ public class MucMessageService {
 				.blockOptional() 
 				.orElse(Collections.emptyList())
 				.stream()
-				.map(mucMessageMapper::toResponse)
+				.map(m -> mucMessageMapper.toResponse(m, UUID.fromString(SecurityUtil.getUserKey())))
 				.toList();
 
 		// Guard Clause: If there are no messages, return early and avoid IndexOutOfBoundsException
@@ -194,7 +195,7 @@ public class MucMessageService {
 
 		// Scenario A: The room has a history. Map the actual first message.
 		if (firstMessage != null) {
-			MucMessageResponse message = mucMessageMapper.toResponse(firstMessage);
+			MucMessageResponse message = mucMessageMapper.toResponse(firstMessage, UUID.fromString(SecurityUtil.getUserKey()));
 			// Empty the payload to lighten the load
 			message.setStanzaXml(null);
 			message.setStartOfRoomConversation(true);
@@ -272,7 +273,7 @@ public class MucMessageService {
 
 		// 5. Reactively map each document, collect them into a list, and block to return synchronously
 		List<MucMessageResponse> resultDtos = results
-				.map(mucMessageMapper::toResponse)
+				.map(m -> mucMessageMapper.toResponse(m, userKey))
 				.collectList()
 				.block(); // Blocks safely here to match your synchronous List<MucMessageResponse> return type
 		
@@ -333,7 +334,7 @@ public class MucMessageService {
 					}
 
 					// Lock obtained -> Proceed with DB fetch and updates
-					return mucMessageRepository.findByMessageId(lastReadMessageId)
+					return mucMessageRepository.findFirstByMessageId(lastReadMessageId)
 							.flatMap(message -> {
 								Query query = new Query(
 										Criteria.where("_id").lte(message.getId())

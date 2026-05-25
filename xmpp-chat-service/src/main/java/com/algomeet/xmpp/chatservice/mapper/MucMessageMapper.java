@@ -14,7 +14,7 @@ import com.algomeet.xmpp.chatservice.util.SecurityUtil;
 @Component
 public class MucMessageMapper {
 
-	public MucMessageResponse toResponse(MucMessage document) {
+	public MucMessageResponse toResponse(MucMessage document, UUID userKey) {
 		if (document == null) {
 			return null;
 		}
@@ -33,10 +33,10 @@ public class MucMessageMapper {
 		response.setDeletedAt(document.getDeletedAt());
 		response.setReadAt(document.getReadAt());
 
-		// Safe collection mapping to prevent sharing internal mutable references
+		System.out.println("--------->" + userKey);
 		if (document.getHiddenFromUserKeys() != null
 				&& document.getHiddenFromUserKeys().contains(
-					UUID.fromString(SecurityUtil.getUserKey()))) {
+					userKey)) {
 				response.setIsHidden(true);
 		}
 

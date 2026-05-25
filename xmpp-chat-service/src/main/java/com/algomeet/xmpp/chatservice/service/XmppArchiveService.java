@@ -318,7 +318,7 @@ public class XmppArchiveService {
 	}
 
 	public Mono<MucMessage> findByMessageId(UUID id) {
-		return repository.findByMessageId(id);
+		return repository.findFirstByMessageId(id);
 	}
 
 	public Mono<MucMessage> save(MucMessage message) {

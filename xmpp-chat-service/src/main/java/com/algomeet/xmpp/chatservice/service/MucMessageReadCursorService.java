@@ -80,7 +80,7 @@ public class MucMessageReadCursorService {
         final FindAndModifyOptions options = FindAndModifyOptions.options().returnNew(true).upsert(true);
 
         // 1. Fetch the lightweight projection
-        return mucMessageRepository.findByMessageId(lastReadMessageId)
+        return mucMessageRepository.findFirstByMessageId(lastReadMessageId)
                 .flatMap(message -> {
                     // Path A: Message exists -> Build update with the found stanzaId
                     Update update = createBaseUpdate(userKey, roomId, lastReadMessageId, nowMs);
