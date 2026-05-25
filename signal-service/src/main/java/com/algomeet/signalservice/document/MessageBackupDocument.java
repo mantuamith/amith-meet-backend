@@ -13,6 +13,7 @@ import org.springframework.data.mongodb.core.mapping.Field;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
@@ -22,41 +23,54 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @Document(collection = "message_backups")
 @CompoundIndexes({
-	// 1. For Chat History: Fetching messages within a specific 1:1 chat
+    /**
+     * 1. Message history + range queries per conversation (ESR pattern)
+     * Covers: findByConversationIdAndStanzaIdLessThan, findByConversationIdAndStanzaIdGreaterThan,
+     *         deleteByUserKeyAndConversationId, getConversationStorageStats,
+     *         and findFirstByUserKeyAndConversationIdOrderByStanzaIdAsc.
+     */
     @CompoundIndex(
-        name = "idx_conversation_stanza", 
-        def = "{'conversationId':1, 'stanzaId':-1}"
+        name = "idxMsg_userKey_updateCursorId_stanzaIdAsc", 
+        def = "{'userKey': 1, 'conversationId': 1, 'stanzaId': -1}"
     ),
     
-    // 2. For the Conversation List: Optimized for ESR (Equality, Sort, Range)
-    // By putting timestamp before conversationId, MongoDB can find the 
-    // latest unique conversations for a user with minimal index walking.
+    /**
+     * 2. Incremental sync cursor (update tracking + ordering)
+     * Covers high-frequency background synchronization loops matching user modifications.
+     * MessageBackupService.getMessageUpdates
+     */
     @CompoundIndex(
-        name = "idx_user_inbox_view", 
-        def = "{'userKey': 1, 'timestamp': -1, 'conversationId': 1}"
+    	    name = "idxMsg_conversationId_stanzaIdDesc_updateCursorId", 
+    	    def = "{'conversationId': 1, 'stanzaId': -1, 'updateCursorId': 1}"
+    	),
+    
+    /**
+     * 3. Direct message lookup + lightweight ordering
+     * Covers: findByMessageIdAndUserKey, and any chronological receipt processing (Read/Delivered states).
+     * deleteByUserKey(UUID userKey) during account offboarding or device un-pairing actions.
+     */
+    @CompoundIndex(
+        name = "idxMsg_userKey", 
+        def = "{'userKey': 1, '_id': 1}"
     ),
     
-    // 3. Retrieve record updates
+    /**
+     * 4. Inbox / conversation listing (latest-first scan). Used for finding user conversations 
+     * MessageBackupService.findUniqueConversationsWithFullDetails
+     */
     @CompoundIndex(
-         name = "idx_cid_sid_ucid", 
-         def = "{'conversationId': 1, 'stanzaId': 1, 'updateCursorId': 1}"
-    ),
-    @CompoundIndex(
-    		name = "idx_user_stanza_sync", 
-    		def = "{'userKey': 1, 'stanzaId': 1}"
-    		),
+    	    name = "idxMsg_userKey_stanzaIdDesc_conversationId", 
+    	    def = "{'userKey': 1, 'stanzaId': -1, 'conversationId': 1}"
+    	),
     
-    // 4. Optimized for bulk-marking Delivery Statuses backward chronologically
+    /**
+     * 5. Read-state bulk update per conversation
+     * MessageBackupService.updateStatus
+     */
     @CompoundIndex(
-        name = "idx_user_msg_delivered_state", 
-        def = "{'userKey': 1, '_id': 1, 'deliveredAt': 1}"
-    ),
-    
-    // 5. Optimized for bulk-marking Read Statuses backward chronologically
-    @CompoundIndex(
-        name = "idx_user_msg_read_state", 
-        def = "{'userKey': 1, '_id': 1, 'readAt': 1}"
-    )
+            name = "idxMsg_convId_senderKey_stanzaId_readAt", 
+            def = "{'conversationId': 1, 'senderKey': 1, 'stanzaId': -1, 'readAt': 1}"
+        )
 })
 public class MessageBackupDocument {
 	// These constants match the @Field names or the variable names
@@ -108,11 +122,11 @@ public class MessageBackupDocument {
 	@Field("userKey")
 	private UUID userKey;   
 
-	@NotEmpty
+    @NotNull
 	@Field("senderKey")
 	private UUID senderKey; 
 
-	@NotEmpty
+	@NotNull
 	@Field("receiverKey")
 	private UUID receiverKey;     
 
@@ -153,8 +167,8 @@ public class MessageBackupDocument {
         description = "Cursor used for incremental sync ordering. " +
                       "Set this to the stanza-id of the edit (replace) request when a message is updated; " +
                       "otherwise leave it blank." +
-                      "This field is monotonic and used for cursor-based lookup.",
-        example = "01kqs6j68dqtejmb653qhp35sz"
+                      "This field is UUID v7 and used for cursor-based lookup.",
+        example = "019e537d-31a0-7556-a160-7ac448312343"
     )
     private UUID updateCursorId;
 

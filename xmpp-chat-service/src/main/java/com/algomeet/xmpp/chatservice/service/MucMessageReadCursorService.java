@@ -1,20 +1,22 @@
 package com.algomeet.xmpp.chatservice.service;
 
-import com.algomeet.xmpp.chatservice.constant.Constants;
-import com.algomeet.xmpp.chatservice.document.MucRoomReadCursor;
-import com.algomeet.xmpp.chatservice.repository.MucMessageRepository;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import java.time.Instant;
+import java.util.UUID;
+
 import org.springframework.data.mongodb.core.FindAndModifyOptions;
 import org.springframework.data.mongodb.core.ReactiveMongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
-import reactor.core.publisher.Mono;
 
-import java.time.Instant;
-import java.util.UUID;
+import com.algomeet.xmpp.chatservice.constant.Constants;
+import com.algomeet.xmpp.chatservice.document.MucRoomReadCursor;
+import com.algomeet.xmpp.chatservice.repository.MucMessageRepository;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import reactor.core.publisher.Mono;
 
 @Slf4j
 @Service
@@ -38,15 +40,24 @@ public class MucMessageReadCursorService {
     public Mono<Long> getUnreadCount(final UUID userKey, final UUID roomId) {
         final String cursorId = String.format("%s_%s", userKey.toString(), roomId.toString());
 
+		/* TODO: Value should be coming from MucMember class, returned from Group-service API.
+		public class MucMember {		    
+		    // The magic field: Anything before this timestamp is "deleted" for this user
+		    private Instant historyCutoffAt; 
+		}*/
+		// Used for delete group chat conversation for a particular user
+		Instant historyCutoff = Instant.EPOCH;	
+		
         return reactiveMongoTemplate.findById(cursorId, MucRoomReadCursor.class)
                 .flatMap(cursor -> mucMessageRepository.countUnreadMessages(
                         roomId, 
-                        cursor.getLastReadMid(), 
-                        userKey
+                        cursor.getLastReadSid(), 
+                        userKey,
+                        historyCutoff
                 ))
                 // Cold fallback: If the user has never read a single message in this room before,
                 // we calculate unread messages starting from the absolute beginning ("") of time.
-                .switchIfEmpty(Mono.defer(() -> mucMessageRepository.countUnreadMessages(roomId, Constants.SMALLEST_UUID_V7, userKey)))
+                .switchIfEmpty(Mono.defer(() -> mucMessageRepository.countUnreadMessages(roomId, Constants.SMALLEST_UUID_V7, userKey, historyCutoff)))
                 .doOnError(e -> log.error("Failed to compute on-demand unread count for user {} in room {}", userKey, roomId, e));
     }
 
@@ -58,24 +69,41 @@ public class MucMessageReadCursorService {
      *
      * @param userKey     The user advancing their read timeline.
      * @param roomId      The target chat room identifier.
-     * @param lastReadMid The message ID (UUIDv7) up to which the user has read.
+     * @param lastReadMessageId The message ID (UUIDv7) up to which the user has read.
      * @return A {@link Mono} emitting the updated {@link MucRoomReadCursor} state.
      */
-    public Mono<MucRoomReadCursor> advanceReadCursor(final UUID userKey, final UUID roomId, final UUID lastReadMid) {
-        final String cursorId = String.format("%s_%s", userKey.toString(), roomId.toString());
+    public Mono<MucRoomReadCursor> advanceReadCursor(final UUID userKey, final UUID roomId, final UUID lastReadMessageId) {
+        final String cursorId = String.format("%s_%s", userKey, roomId);
         final long nowMs = Instant.now().toEpochMilli();
 
         final Query query = new Query(Criteria.where("_id").is(cursorId));
-        final Update update = new Update()
-                .set("userKey", userKey)
-                .set("roomId", roomId)
-                .set("lastReadMid", lastReadMid)
-                .set("lastReadAt", nowMs);
-
         final FindAndModifyOptions options = FindAndModifyOptions.options().returnNew(true).upsert(true);
 
-        return reactiveMongoTemplate.findAndModify(query, update, options, MucRoomReadCursor.class)
-                .doOnSuccess(cursor -> log.debug("Advanced read cursor for user {} in room {} to message {}", userKey, roomId, lastReadMid))
-                .doOnError(e -> log.error("Failed to advance read cursor for user {} in room {}", userKey, roomId, e));
+        // 1. Fetch the lightweight projection
+        return mucMessageRepository.findFirstByMessageId(lastReadMessageId)
+                .flatMap(message -> {
+                    // Path A: Message exists -> Build update with the found stanzaId
+                    Update update = createBaseUpdate(userKey, roomId, lastReadMessageId, nowMs);
+                    update.set("lastReadSid", message.getId());
+                    return reactiveMongoTemplate.findAndModify(query, update, options, MucRoomReadCursor.class);
+                })
+                .switchIfEmpty(Mono.defer(() -> {
+                    // Path B: Message is missing -> throw an exception
+                    throw new RuntimeException("MUC message not found with message ID: " + lastReadMessageId);
+                }))
+                // 2. Side-effect trace logging
+                .doOnSuccess(cursor -> log.debug("Advanced read cursor for user {} in room {} to message {}", userKey, roomId, lastReadMessageId))
+                .doOnError(e -> log.error("Failed to advance read cursor for user {} in room {} message ID {}", userKey, roomId, lastReadMessageId, e));
+    }
+
+    /**
+     * Helper to generate an isolated, fresh update builder state per pipeline branch.
+     */
+    private Update createBaseUpdate(UUID userKey, UUID roomId, UUID lastReadMid, long nowMs) {
+        return new Update()
+                .set("userKey", userKey)
+                .set("roomId", roomId)                
+                .set("lastReadMid", lastReadMid)
+                .set("lastReadAt", nowMs);
     }
 }

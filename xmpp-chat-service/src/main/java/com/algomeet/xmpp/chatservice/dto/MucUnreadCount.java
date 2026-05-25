@@ -17,4 +17,7 @@ public class MucUnreadCount {
      * Prevents "double-decrement" logic errors.
      */
     private String lastReadMid;
+    
+    /** Last read stanza ID */
+    private String lastReadSid;
 }

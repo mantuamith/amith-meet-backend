@@ -55,9 +55,10 @@ public class OfflineMessageService {
      * @param originalXml The raw XML payload to be stored.
      * @return A {@link Mono} emitting the saved {@link OfflineMessage}.
      */
-    public Mono<OfflineMessage> save(UUID id, String to, String from, String type, Boolean isAckStanza, boolean isCountable, String originalXml) {
+    public Mono<OfflineMessage> save(UUID id, UUID stanzaId, String to, String from, String type, Boolean isAckStanza, boolean isCountable, String originalXml) {
         OfflineMessage offlineMessage = OfflineMessage.builder()
                 .id(id)
+                .stanzaId(stanzaId)
                 .to(UUID.fromString(to))
                 .from(UUID.fromString(from))
                 .messageType(type)
@@ -79,9 +80,10 @@ public class OfflineMessageService {
      * @param originalXml The raw XML payload to be stored.
      * @return A {@link Mono} emitting the saved {@link OfflineMessage}.
      */
-    public Mono<OfflineMessage> save(UUID id, String to, String from, String type, String originalXml) {
+    public Mono<OfflineMessage> save(UUID id, UUID stanzaId, String to, String from, String type, String originalXml) {
         OfflineMessage offlineMessage = OfflineMessage.builder()
                 .id(id)
+                .stanzaId(stanzaId)
                 .to(UUID.fromString(to))
                 .from(UUID.fromString(from))
                 .messageType(type)
@@ -170,7 +172,7 @@ public class OfflineMessageService {
      * @param id The upper bound message checkpoint ID (exclusive boundary; only IDs less than this are purged).
      * @return A {@code Mono<Void>} that signals completion when the matching records have been permanently deleted from MongoDB.
      */
-    public Mono<Void> purgeDeletedMessagesUpToCheckpoint(UUID to, UUID from, UUID id){
-    	return offlineMessageRepository.deleteByToAndFromAndIdLessThanEqualAndDeletedAtIsNotNull(to, from, id);
+    public Mono<Void> purgeDeletedMessagesUpToCheckpoint(UUID to, UUID from, UUID stanzaId){
+    	return offlineMessageRepository.deleteByToAndFromAndStanzaIdLessThanEqualAndDeletedAtIsNotNull(to, from, stanzaId);
     }
 }

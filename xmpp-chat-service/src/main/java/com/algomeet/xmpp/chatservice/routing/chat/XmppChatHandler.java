@@ -88,9 +88,9 @@ public class XmppChatHandler {
 	         *
 	         * Note: Lowercasing ensures consistency across storage/query layers.
 	         */
-	        String stanzaId = UuidCreator.getTimeOrderedEpoch().toString();
+	        UUID stanzaId = UuidCreator.getTimeOrderedEpoch();
 			// Insert stanza ID
-			forArchiveXml = XmppStanzaUtil.insertStanzaId(originalXml, stanzaId, principal.getDomain());
+			forArchiveXml = XmppStanzaUtil.insertStanzaId(originalXml, stanzaId.toString(), principal.getDomain());
 			
 			UUID messageId = StringUtils.hasText(id) 
 				    ? UUID.fromString(id.trim()) 
@@ -100,7 +100,7 @@ public class XmppChatHandler {
 			
 			// Determine if message is ACK stanza
 			isAckStanza = XmppStanzaUtil.isMessageAckStanza(originalXml);
-			offlineMessageService.save(messageId, toUserKey, fromUserKey, type, isAckStanza, isCountable, forArchiveXml)
+			offlineMessageService.save(messageId, stanzaId, toUserKey, fromUserKey, type, isAckStanza, isCountable, forArchiveXml)
 		            .doOnSuccess(saved -> {
 		            	// Send an immediate server-level acknowledgment to the sender.
 		            	//
@@ -155,7 +155,8 @@ public class XmppChatHandler {
 					            unreadCountService.syncUnreadCount(toUserKey, fromUserKey, UUID.fromString(ackMessageId), principal)
 					            .doOnSuccess(success -> {
 					            	// Trigger a fire-and-forget background purge of processed/soft-deleted messages.
-					            	offlineMessageService.purgeDeletedMessagesUpToCheckpoint(UUID.fromString(fromUserKey), UUID.fromString(toUserKey), messageId).subscribe();
+					            	offlineMessageService.purgeDeletedMessagesUpToCheckpoint(
+					            			UUID.fromString(fromUserKey), UUID.fromString(toUserKey), success.getLastReadSid()).subscribe();
 					            })
 					            .subscribe();
 					        }

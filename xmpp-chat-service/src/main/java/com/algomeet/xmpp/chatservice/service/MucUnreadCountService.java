@@ -1,5 +1,6 @@
 package com.algomeet.xmpp.chatservice.service;
 
+import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -7,11 +8,10 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
+import org.springframework.util.CollectionUtils;
 
-import com.algomeet.xmpp.chatservice.client.GroupClient;
 import com.algomeet.xmpp.chatservice.constant.Constants;
 import com.algomeet.xmpp.chatservice.document.MucRoomReadCursor;
-import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
 import com.algomeet.xmpp.chatservice.dto.MucUnreadCount;
 import com.algomeet.xmpp.chatservice.repository.MucMessageRepository;
 import com.algomeet.xmpp.chatservice.repository.MucRoomReadCursorRepository;
@@ -24,10 +24,10 @@ import reactor.core.publisher.Mono;
 @Service
 @AllArgsConstructor
 public class MucUnreadCountService {
-	private final GroupClient groupClient;
 	private final MucRoomReadCursorRepository mucRoomReadCursorRepository;
 	private final MucMessageRepository mucMessageRepository;
-
+	private final MucUserGroupsCacheService mucUserGroupsCacheService;
+	
 	/**
 	 * Aggregates and returns the active unread counts across all rooms for a specific user as a standard list.
 	 * 
@@ -39,10 +39,19 @@ public class MucUnreadCountService {
 	 */
 	public List<MucUnreadCount> getUnreadCountsByUser(UUID userKey) {
 		// Step 1: Fetch the user's groups from your external client service
-		List<MucRoomDto> rooms = groupClient.getGroupsForUserKey(userKey.toString());
-		if (rooms == null || rooms.isEmpty()) {
+		
+		List<String> roomIds = mucUserGroupsCacheService.getCachedGroupIds(userKey.toString());
+		if (CollectionUtils.isEmpty(roomIds)) {
 			return Collections.emptyList();
 		}
+		
+		/* TODO: Value should be coming from MucMember class, returned from Group-service API.
+		public class MucMember {		    
+		    // The magic field: Anything before this timestamp is "deleted" for this user
+		    private Instant historyCutoffAt; 
+		}*/
+		// Used for delete group chat conversation for a particular user
+		Instant historyCutoff = Instant.EPOCH;	
 
 		// Step 2: Assemble the reactive data pipeline
 		return mucRoomReadCursorRepository.findByUserKey(userKey)
@@ -57,23 +66,24 @@ public class MucUnreadCountService {
 									));
 
 					// Pair each room with its respective read cursor context
-					return rooms.stream()
-							.map(room -> new RoomWithCursorContext(room, cursorMap.get(room.getId())))
+					return roomIds.stream()
+							.map(roomId -> new RoomWithCursorContext(roomId, cursorMap.get(UUID.fromString(roomId))))
 							.collect(Collectors.toList());
 				})
 				// Step 3: Concurrently execute the covered index scans across the room batch
 				.flatMap(context -> {
-					String roomId = context.room.getId();
+					String roomId = context.roomId;
 					UUID lastReadMid = context.cursor != null ? context.cursor.getLastReadMid() : Constants.SMALLEST_UUID_V7;
 
-					return mucMessageRepository.countUnreadMessages(UUID.fromString(roomId), lastReadMid, userKey)
+					return mucMessageRepository.countUnreadMessages(UUID.fromString(roomId), lastReadMid, userKey, historyCutoff)
 							.map(count -> {
 								MucUnreadCount unreadCountDto = new MucUnreadCount();
 								unreadCountDto.setId(String.format("%s_%s", userKey, roomId));
 								unreadCountDto.setUserKey(userKey.toString());
 								unreadCountDto.setRoomId(roomId);
 								unreadCountDto.setUnreadCount(count.intValue());
-								unreadCountDto.setLastReadMid(lastReadMid.toString());
+								unreadCountDto.setLastReadMid(context.cursor != null ? context.cursor.getLastReadMid().toString() : null);
+								unreadCountDto.setLastReadSid(context.cursor != null ? context.cursor.getLastReadSid().toString() : null);
 								return unreadCountDto;
 							});
 				})
@@ -88,11 +98,11 @@ public class MucUnreadCountService {
 	 * across the reactive functional boundaries.
 	 */
 	private static class RoomWithCursorContext {
-		final MucRoomDto room;
+		final String roomId;
 		final MucRoomReadCursor cursor;
 
-		RoomWithCursorContext(MucRoomDto room, MucRoomReadCursor cursor) {
-			this.room = room;
+		RoomWithCursorContext(String roomId, MucRoomReadCursor cursor) {
+			this.roomId = roomId;
 			this.cursor = cursor;
 		}
 	}
@@ -110,6 +120,14 @@ public class MucUnreadCountService {
 	 */
 	public Integer getUnreadCount(UUID userKey, UUID roomId) {
 
+		/* TODO: Value should be coming from MucMember class, returned from Group-service API.
+		public class MucMember {		    
+		    // The magic field: Anything before this timestamp is "deleted" for this user
+		    private Instant historyCutoffAt; 
+		}*/
+		// Used for delete group chat conversation for a particular user
+		Instant historyCutoff = Instant.EPOCH;	
+		
 		// Step 1: Look up the single cursor document for this specific user and room
 		return mucRoomReadCursorRepository.findByUserKeyAndRoomId(userKey, roomId)
 				// Step 2: Extract the last read message ID if the cursor exists
@@ -117,7 +135,7 @@ public class MucUnreadCountService {
 				// Step 3: Fall back to an empty string (beginning of time) if no cursor is found
 				.defaultIfEmpty(Constants.SMALLEST_UUID_V7)
 				// Step 4: Switch to the asynchronous index-covered count query
-				.flatMap(lastReadMid -> mucMessageRepository.countUnreadMessages(roomId, lastReadMid, userKey))
+				.flatMap(lastReadMid -> mucMessageRepository.countUnreadMessages(roomId, lastReadMid, userKey, historyCutoff))
 				// Step 5: Downcast the Long count from MongoDB cleanly to an Integer
 				.map(Long::intValue)
 				.block();

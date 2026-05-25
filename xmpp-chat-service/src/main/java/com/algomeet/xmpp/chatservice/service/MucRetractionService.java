@@ -88,7 +88,7 @@ public class MucRetractionService {
                     UUID updateCursorId = UuidCreator.getTimeOrderedEpoch();
                     
                     // Soft delete from MAM archive so the message is not returned in future history fetches
-                    message.setDeletedAt(Instant.now());
+                    message.setDeletedAt(Instant.now().toEpochMilli());
                     message.setUpdateCursorId(updateCursorId);
                     message.setCountable(false);
                     message.setStanzaXml(XmppStanzaUtil.markAsRetractedStanza(message.getStanzaXml(), newString));

@@ -184,11 +184,11 @@ public class DirectMissedCallService {
 						fromJid, toJid, id, type, type, type, timestamp, sid
 				);			
 
-		String stanzaId = UuidCreator.getTimeOrderedEpoch().toString();
+		UUID stanzaId = UuidCreator.getTimeOrderedEpoch();
 		// Insert stanza ID
-		String forArchiveXml = XmppStanzaUtil.insertStanzaId(xml, stanzaId, domainProperties.getDomain());	
+		String forArchiveXml = XmppStanzaUtil.insertStanzaId(xml, stanzaId.toString(), domainProperties.getDomain());	
 			
-		offlineMessageService.save(id, toUserKey, fromUserKey, XmppMessageType.HEADLINE.getXmlValue(), forArchiveXml)
+		offlineMessageService.save(id, stanzaId, toUserKey, fromUserKey, XmppMessageType.HEADLINE.getXmlValue(), forArchiveXml)
 		.doOnSuccess(success -> {
 			// Publish after successfully saved
 			clusterMessagePublisher.convertAndSendToUser(id.toString(), toUserKey, fromUserKey, ChatType.CHAT, forArchiveXml);

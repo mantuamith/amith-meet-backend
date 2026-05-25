@@ -368,11 +368,11 @@ public class CallTrackerService {
 				status,
 				ts);
 
-        String stanzaId = UuidCreator.getTimeOrderedEpoch().toString();
+        UUID stanzaId = UuidCreator.getTimeOrderedEpoch();
 		// Insert stanza ID
-		String forArchiveCallerMsg = XmppStanzaUtil.insertStanzaId(callerMsg, stanzaId, domainProperties.getDomain());
+		String forArchiveCallerMsg = XmppStanzaUtil.insertStanzaId(callerMsg, stanzaId.toString(), domainProperties.getDomain());
 		
-		publish(callerMsgId, session.getCaller().toString(), session.getCallee().toString(), ChatType.CHAT, forArchiveCallerMsg);
+		publish(callerMsgId, stanzaId, session.getCaller().toString(), session.getCallee().toString(), ChatType.CHAT, forArchiveCallerMsg);
 
 		// Send compose and send call logs to responder/callee
 		String calleeMsg = composeCallLogStanza(
@@ -389,7 +389,7 @@ public class CallTrackerService {
 		// Insert stanza ID
 		String forArchiveCalleeMsg = XmppStanzaUtil.insertStanzaId(calleeMsg, stanzaIdCallee, domainProperties.getDomain());
 
-		publish(calleeMsgId, session.getCallee().toString(), session.getCaller().toString(), ChatType.CHAT, forArchiveCalleeMsg);
+		publish(calleeMsgId, stanzaId, session.getCallee().toString(), session.getCaller().toString(), ChatType.CHAT, forArchiveCalleeMsg);
 	}
 
 	/**
@@ -402,12 +402,13 @@ public class CallTrackerService {
 	 */
 	private void publish(
 			UUID id,
+			UUID stanzaId,
 			String to,
 			String from,
 			ChatType chatType,
 			String payload) {
 
-		offlineMessageService.save(id, to, from, XmppMessageType.CHAT.getXmlValue(), payload)
+		offlineMessageService.save(id, stanzaId, to, from, XmppMessageType.CHAT.getXmlValue(), payload)
 		.doOnSuccess(success -> {
 			// Increment unread message counter
 			unreadCountService.incrementUnreadCount(from, to);

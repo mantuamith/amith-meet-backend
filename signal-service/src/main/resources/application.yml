@@ -30,6 +30,7 @@ spring:
     mongodb:
       uri: mongodb://chatadmin:securePass123@192.168.0.156:27017/chatdb?authSource=admin
       auto-index-creation: true
+      uuid-representation: standard
 
     redis:
       host: ${REDIS_HOST:localhost}

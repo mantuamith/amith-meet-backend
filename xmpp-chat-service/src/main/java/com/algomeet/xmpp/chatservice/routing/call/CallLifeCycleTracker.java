@@ -261,12 +261,12 @@ public class CallLifeCycleTracker {
 		String toUserKey = XmppUtil.getUserKey(toJid);
 		String fromUserKey = XmppUtil.getUserKey(fromJid);
 
-        String stanzaId = UuidCreator.getTimeOrderedEpoch().toString();
+        UUID stanzaId = UuidCreator.getTimeOrderedEpoch();
 		// Insert stanza ID
-		String forArchiveXml = XmppStanzaUtil.insertStanzaId(xml.toString(), stanzaId, domainProperties.getDomain());
+		String forArchiveXml = XmppStanzaUtil.insertStanzaId(xml.toString(), stanzaId.toString(), domainProperties.getDomain());
 		
 		// Persist to MongoDB for offline retrieval
-		offlineMessageService.save(messageId, toUserKey, fromUserKey, XmppMessageType.CHAT.getXmlValue(), forArchiveXml)
+		offlineMessageService.save(messageId, stanzaId, toUserKey, fromUserKey, XmppMessageType.CHAT.getXmlValue(), forArchiveXml)
 		.doOnSuccess(saved -> {
 			// Increment user unread message
 			unreadCountService.incrementUnreadCount(fromUserKey, toUserKey);

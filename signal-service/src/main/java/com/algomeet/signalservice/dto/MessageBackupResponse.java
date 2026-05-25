@@ -1,7 +1,10 @@
 package com.algomeet.signalservice.dto;
 
 import java.time.Instant;
+import java.util.UUID;
+
 import com.algomeet.signalservice.document.MessageBackupDocument;
+
 import lombok.Builder;
 import lombok.Data;
 
@@ -32,11 +35,11 @@ public class MessageBackupResponse {
         }
 
         return MessageBackupResponse.builder()        		
-                .messageId(doc.getMessageId().toString())  
-                .stanzaId(doc.getStanzaId().toString())
-                .userKey(doc.getUserKey().toString())
-                .senderKey(doc.getSenderKey().toString())
-                .receiverKey(doc.getReceiverKey().toString())
+                .messageId(getStringValue(doc.getMessageId()))  
+                .stanzaId(getStringValue(doc.getStanzaId()))
+                .userKey(getStringValue(doc.getUserKey()))
+                .senderKey(getStringValue(doc.getSenderKey()))
+                .receiverKey(getStringValue(doc.getReceiverKey()))
                 .encryptedMessage(doc.getEncryptedMessage())
                 
                 // Fields that were missing in your snippet:
@@ -53,5 +56,13 @@ public class MessageBackupResponse {
                 .salt(doc.getSalt())
                 .timestamp(doc.getTimestamp())
                 .build();
+    }
+    
+    private static String getStringValue(UUID uuid) {
+    	if(uuid == null) {
+    		return null;
+    	}
+    	
+    	return uuid.toString();
     }
 }

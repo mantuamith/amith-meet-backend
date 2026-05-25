@@ -536,17 +536,17 @@ public class MucCallLifeCycleTracker {
 		.append("</message>");
 
 		String toUserKey = XmppUtil.getUserKey(toJid);
-		String roomId = XmppUtil.getRoomId(fromRoomJid);
 		String fromUserKey = XmppUtil.getResourceFromRoomFullJid(fromRoomJid);
 		
-        String stanzaId = UuidCreator.getTimeOrderedEpoch().toString();
+        UUID stanzaId = UuidCreator.getTimeOrderedEpoch();
 		// Insert stanza ID
-		String forArchiveXml = XmppStanzaUtil.insertStanzaId(xml.toString(), stanzaId, domainProperties.getDomain());		
+		String forArchiveXml = XmppStanzaUtil.insertStanzaId(xml.toString(), stanzaId.toString(), domainProperties.getDomain());		
 		/**
 		 * Persist for offline retrieval.
 		 */
 		offlineMessageService.save(
 				messageId,
+				stanzaId,
 				toUserKey,
 				fromUserKey,
 				XmppMessageType.GROUPCHAT.getXmlValue(),

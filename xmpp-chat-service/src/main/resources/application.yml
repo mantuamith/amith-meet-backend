@@ -20,6 +20,7 @@ spring:
     mongodb:
       uri: mongodb://admin:yoursecurepassword@localhost:27017/chatdb?authSource=admin
       auto-index-creation: true
+      uuid-representation: standard
 
     redis:
       host: localhost

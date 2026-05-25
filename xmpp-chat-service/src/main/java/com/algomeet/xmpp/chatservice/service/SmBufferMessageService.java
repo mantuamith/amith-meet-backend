@@ -67,14 +67,4 @@ public class SmBufferMessageService {
 		return repository.deleteBySmSid(smSid)
 				.doOnSuccess(v -> log.debug("Cleared SM buffer for session [{}]", smSid));
 	}
-
-	/**
-	 * Removes a single acknowledged stanza from the buffer.
-	 * * @param stanzaId The unique ID of the stanza to remove.
-	 * @return A Mono indicating completion.
-	 */
-	public Mono<Void> acknowledgeStanza(UUID stanzaId) {
-		return repository.deleteById(stanzaId)
-				.doOnSuccess(v -> log.trace("Acknowledged and removed stanza [{}] from buffer", stanzaId));
-	}	
 }

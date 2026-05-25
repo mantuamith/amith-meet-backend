@@ -1,5 +1,6 @@
 package com.algomeet.xmpp.chatservice.service;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -72,6 +73,34 @@ public class XmppArchiveService {
 	 * @param stanzaId The unique internal ID (UUIDv7) for database indexing.
 	 * @return A {@link Mono} containing the saved {@link MucMessage}.
 	 */
+	public Mono<MucMessage> archiveEvent(String xml, String id, String toRoomId, String toMucMember, String from, UUID stanzaId, Boolean isCountable) {	
+		UUID messageId = StringUtils.hasText(id) 
+			    ? UUID.fromString(id) 
+			    : UuidCreator.getTimeOrderedEpoch();
+		
+		MucMessage event = new MucMessage();
+		event.setId(stanzaId);
+		event.setMessageId(messageId);
+		event.setRoomId(UUID.fromString(toRoomId));
+		event.setFrom(UUID.fromString(from));
+		event.setTo(StringUtils.hasText(toMucMember) ? UUID.fromString(toMucMember) : null);
+		event.setCountable(isCountable);
+		event.setStanzaXml(xml);
+
+		return repository.save(event);
+	}
+	
+	/**
+	 * Persists a room event (message or signaling) to the archive.
+	 *
+	 * @param xml        The raw XML stanza content.
+	 * @param info       Metadata extracted from the stanza (ID, Category, Encryption status).
+	 * @param toRoomId   The internal ID of the room destination.
+	 * @param toMucMember The specific recipient (for private MUC messages) User Key.
+	 * @param from       The sender's User Key.
+	 * @param stanzaId The unique internal ID (UUIDv7) for database indexing.
+	 * @return A {@link Mono} containing the saved {@link MucMessage}.
+	 */
 	public Mono<MucMessage> archiveEvent(String xml, String id, String toRoomId, String toMucMember, String from, UUID stanzaId) {	
 		UUID messageId = StringUtils.hasText(id) 
 			    ? UUID.fromString(id) 
@@ -120,10 +149,10 @@ public class XmppArchiveService {
 				afterId = Constants.SMALLEST_UUID_V7.toString();
 			}
 			// Synchronize the current conversation starting point across local devices.
-			syncRoomDeletedMessages(roomId, principal);
+			syncRoomDeletedMessages(roomId, principal).subscribe();
 			
 			// Sync recent updates
-			syncRoomRecentUpdates(roomId, UUID.fromString(afterId), principal);
+//			syncRoomRecentUpdates(roomId, UUID.fromString(afterId), principal);
 
 			loadAfterWithRetry(roomId, UUID.fromString(afterId), principal, queryId, maxResults);
 		} else {
@@ -142,8 +171,10 @@ public class XmppArchiveService {
 	private void loadAfterWithRetry(UUID roomId, UUID currentAfterId, XmppPrincipal principal, String queryId, int maxResults) {
 		Pageable pageRequest = PageRequest.of(0, maxResults);
 
-		repository.findByRoomIdAndIdGreaterThanAndToIsNullOrEqualtoUserkeyOrderByIdAsc(
-				roomId, currentAfterId, UUID.fromString(principal.getUserKey()), pageRequest)
+		// Used for delete group chat conversation for a particular user
+		Instant historyCutoff = Instant.EPOCH;
+		repository.findByRoomIdAndIdGreaterThanAndToIsNullOrEqualtoUserkeyAndNotHiddenOrderByIdAsc(
+				roomId, currentAfterId, UUID.fromString(principal.getUserKey()), historyCutoff, pageRequest)
 		.collectList()
 		// Explicitly define the generic type <Void> for flatMap
 		.<Void>flatMap(list -> {
@@ -184,8 +215,15 @@ public class XmppArchiveService {
 
 		PageRequest pageRequest = PageRequest.of(0, maxResults);
 
+		// Used for delete group chat conversation for a particular user
+		Instant historyCutoff = Instant.EPOCH;
 		// 1. Define the source Flux
-		Flux<MucMessage> messageFlux = repository.findHistoricalMessages(roomId, beforeId, UUID.fromString(principal.getUserKey()), pageRequest);
+		Flux<MucMessage> messageFlux = repository.findByRoomIdAndIdLessThanAndToIsNullOrEqualtoUserkeyAndNotHiddenOrderByIdDesc(
+				roomId, 
+				beforeId, 
+				UUID.fromString(principal.getUserKey()), 
+				historyCutoff,
+				pageRequest);
 
 		messageFlux
 		.collectList()
@@ -225,7 +263,7 @@ public class XmppArchiveService {
 	    String timestamp = XmppStanzaUtil.formatTimestamp(msg.getCreatedAt()); 
 	    
 	    // 1. Fetch all participants in this room who have read past this message's ID threshold
-	    return mucRoomReadCursorRepository.findByRoomIdAndLastReadMidGreaterThanEqual(msg.getRoomId(), msg.getMessageId())
+	    return mucRoomReadCursorRepository.findByRoomIdAndLastReadSidGreaterThanEqual(msg.getRoomId(), msg.getId())
 	            .map(rc -> rc.getRoomId().toString()) // Extract user keys
 	            .collectList()                      // Accumulate reactive items into a List<String>
 	            .flatMap(userKeys -> {              // Shift into the template string construction logic
@@ -280,14 +318,14 @@ public class XmppArchiveService {
 	}
 
 	public Mono<MucMessage> findByMessageId(UUID id) {
-		return repository.findByMessageId(id);
+		return repository.findFirstByMessageId(id);
 	}
 
 	public Mono<MucMessage> save(MucMessage message) {
 		return repository.save(message);
 	}
 
-	public Mono<Void> hideMessageForUser(UUID messageId, String userKey) {
+	public Mono<Void> hideMessageForUser(UUID messageId, UUID userKey) {
 		// 1. Locate the document by ID
 		Query query = new Query(Criteria.where("messageId").is(messageId));
 
@@ -309,52 +347,56 @@ public class XmppArchiveService {
 	 * @param afterId   The UUIDv7 cursor used to resume the update stream.
 	 * @param principal The session context of the user requesting the updates.
 	 */
-	private void syncRoomRecentUpdates(UUID roomId, UUID afterId, XmppPrincipal principal) {
-		log.info("Syncing updates for Room {}: starting from cursor {}", roomId, afterId);
-
-		// 1. Query the repository for all message changes in this room newer than the provided ULUUIDv7ID.
-		// OrderByIdAsc ensures we process and dispatch updates in the exact order they occurred.
-		repository.findByRoomIdAndUpdateCursorIdGreaterThanAndIdLessThanEqualOrderByIdAsc(roomId, afterId, afterId)
-
-		// 2. Filter: Ensure the update is relevant to the requesting principal.
-		// This prevents leaking "Delete for Me" events or private stanzas to the wrong users.
-		.filter(msg -> MamUtil.isPrincipalRecipient(msg, principal))
-
-		// 3. Sequential Dispatch: Use concatMap to ensure stanzas are sent to the local 
-		// dispatcher in order. This maintains protocol consistency for the client.
-		.concatMap(msg -> dispatchRecentUpdatesResult(msg, principal))
-
-		// 4. Subscription: Since this is a void-returning fire-and-forget background task,
-		// we subscribe to trigger the reactive pipeline. 
-		// NOTE: In a production environment, consider adding error logging inside .subscribe().
-		.subscribe(
-				null, 
-				error -> log.error("Failed to sync updates for user {} in room {}: {}", 
-						principal.getUserKey(), roomId, error.getMessage(), error)
-				);
-	}
+//	private void syncRoomRecentUpdates(UUID roomId, UUID afterId, XmppPrincipal principal) {
+//		log.info("Syncing updates for Room {}: starting from cursor {}", roomId, afterId);
+//
+//		// 1. Query the repository for all message changes in this room newer than the provided ULUUIDv7ID.
+//		// OrderByIdAsc ensures we process and dispatch updates in the exact order they occurred.
+//		Pageable pageable = PageRequest.of(0, 10000);
+//		repository.findByRoomIdAndUpdateCursorIdGreaterThanAndIdLessThanEqualOrderByIdAsc(roomId, afterId, afterId, pageable)
+//
+//		// 2. Filter: Ensure the update is relevant to the requesting principal.
+//		// This prevents leaking "Delete for Me" events or private stanzas to the wrong users.
+//		.filter(msg -> MamUtil.isPrincipalRecipient(msg, principal))
+//
+//		// 3. Sequential Dispatch: Use concatMap to ensure stanzas are sent to the local 
+//		// dispatcher in order. This maintains protocol consistency for the client.
+//		.concatMap(msg -> dispatchRecentUpdatesResult(msg, principal))
+//
+//		// 4. Subscription: Since this is a void-returning fire-and-forget background task,
+//		// we subscribe to trigger the reactive pipeline. 
+//		// NOTE: In a production environment, consider adding error logging inside .subscribe().
+//		.subscribe(
+//				null, 
+//				error -> log.error("Failed to sync updates for user {} in room {}: {}", 
+//						principal.getUserKey(), roomId, error.getMessage(), error)
+//				);
+//	}
 	
-	private void syncRoomDeletedMessages(UUID roomId, XmppPrincipal principal) {
-		log.info("Syncing deletes for Room {}", roomId);
+	private Mono<Void> syncRoomDeletedMessages(UUID roomId, XmppPrincipal principal) {
+	    log.info("Syncing deletes for Room {}", roomId);
 
-		repository.findFirstByRoomIdOrderByIdAsc(roomId)
-	    .switchIfEmpty(Mono.defer(() -> {
-	        log.info("No messages found in room");
-	        // Explicitly instantiate 'MucMessage'
-	        MucMessage msg = new MucMessage();
-	        msg.setRoomId(roomId);
-	        msg.setId(Constants.SMALLEST_UUID_V7); // indicator of empty room conversation
-	        msg.setStartOfRoomConversation(true);
-	        // pass an empty message
-	        dispatchRecentUpdatesResult(msg, principal).subscribe();
-	        
-	        return Mono.empty();
-	    }))
-	    .flatMap(msg -> { // Explicitly typed 'MucMessage'
-	        msg.setStartOfRoomConversation(true);
-	        return dispatchRecentUpdatesResult(msg, principal);
-	    })
-	    .subscribe();
+	    Instant historyCutoff = Instant.EPOCH;
+	    
+	    return repository
+	            .findFirstByRoomIdAndCreatedAtGreaterThanOrderByCreatedAtAsc(roomId, historyCutoff)
+	            .switchIfEmpty(Mono.defer(() -> {
+	                log.info("No messages found in room {}", roomId);
+	                
+	                MucMessage emptyAnchorMsg = new MucMessage();
+	                emptyAnchorMsg.setRoomId(roomId);
+	                emptyAnchorMsg.setId(Constants.NIL_UUID); 
+	                emptyAnchorMsg.setStartOfRoomConversation(true);
+	                
+	                // FIX: Execute the dispatch, then return the anchor object to satisfy the Mono<MucMessage> type restriction
+	                return dispatchRecentUpdatesResult(emptyAnchorMsg, principal)
+	                        .thenReturn(emptyAnchorMsg); 
+	            }))
+	            .flatMap(msg -> { 
+	                msg.setStartOfRoomConversation(true);
+	                return dispatchRecentUpdatesResult(msg, principal);
+	            })
+	            .then(); // Safely squashes the final stream back into Mono<Void> for the method signature
 	}
 
 	/**
@@ -428,7 +470,7 @@ public class XmppArchiveService {
 	
 	private Mono<String> buildSyncReadReceiptsXml(MucMessage msg, XmppPrincipal principal) {
 	    // 1. Fetch all participants in this room who have read past this message's ID threshold
-	    return mucRoomReadCursorRepository.findByRoomIdAndLastReadMidGreaterThanEqual(msg.getRoomId(), msg.getMessageId())
+	    return mucRoomReadCursorRepository.findByRoomIdAndLastReadSidGreaterThanEqual(msg.getRoomId(), msg.getId())
 	            .map(rc -> rc.getRoomId().toString()) // Extract user keys
 	            .collectList()                      // Accumulate reactive items into a List<String>
 	            .map(userKeys -> {                  // Use .map() since we return a synchronous String from this block
@@ -458,40 +500,5 @@ public class XmppArchiveService {
 	                // 3. Serialize the synchronization stanza into XML format.
 	                return syncConversationStanza.toXml();
 	            });
-	}
-		
-	/**
-	 * Advances the message synchronization cursor to indicate that the message has
-	 * been acknowledged via a Read Receipt (Read ACK).
-	 *
-	 * <p>This method is used as a lightweight state marker for read tracking in
-	 * distributed chat synchronization flows. When a client sends a Read ACK for
-	 * a message, this operation updates the {@code updateCursorId} field with a
-	 * new monotonic UUIDv7 to reflect that the message has been processed and read
-	 * by the recipient.</p>
-	 *
-	 * <p>This cursor is primarily used for:
-	 * <ul>
-	 *   <li>Cross-device read state synchronization</li>
-	 *   <li>Incremental MAM / delta polling</li>
-	 *   <li>Efficient batch read acknowledgment tracking</li>
-	 * </ul>
-	 * </p>
-	 *
-	 * @param messageId The unique identifier of the message that has been read.
-	 * @return A {@link Mono<Void>} signaling asynchronous completion of the update operation.
-	 */
-	public Mono<Void> advanceMessageSyncCursor(UUID messageId) {
-
-	    // 1. Locate the document by message ID
-	    Query query = new Query(Criteria.where("messageId").is(messageId));
-
-	    // 2. Update cursor to a new monotonic UUIDv7 to mark Read ACK progression
-	    Update update = new Update()
-	            .set("updateCursorId", UuidCreator.getTimeOrderedEpoch());
-
-	    // 3. Apply atomic update to ensure consistency in concurrent environments
-	    return reactiveMongoTemplate.updateFirst(query, update, MucMessage.class)
-	            .then();
-	}
+	}	
 }

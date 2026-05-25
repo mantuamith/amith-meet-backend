@@ -1,15 +1,21 @@
 package com.algomeet.xmpp.chatservice.service;
 
-import com.algomeet.xmpp.chatservice.client.GroupClient;
-import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import java.time.Duration;
+import java.util.List;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.redis.core.ReactiveRedisTemplate;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.util.CollectionUtils;
 
-import java.time.Duration;
+import com.algomeet.xmpp.chatservice.client.GroupClient;
+import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 /**
  * Service responsible for managing Multi-User Chat (MUC) room metadata via a distributed cache.
@@ -36,6 +42,7 @@ public class GroupCacheService {
 
     private final GroupClient groupClient;
     private final RedisTemplate<String, Object> redisTemplate;
+    private final ReactiveRedisTemplate<String, Object> reactiveRedisTemplate;
 
     /** Prefix for all group-related keys in Redis to prevent namespace collisions. */
     private static final String CACHE_KEY_PREFIX = "xmpp:group:";
@@ -74,7 +81,7 @@ public class GroupCacheService {
      * @return The {@link MucRoomDto} retrieved from cache or the source service.
      */
     public MucRoomDto getCachedGroup(String groupId) {
-        String key = CACHE_KEY_PREFIX + groupId;
+        String key = getCacheKey(groupId);
 
         // 1. Try to get from Redis
             try {
@@ -115,10 +122,61 @@ public class GroupCacheService {
      */
     public void evictGroup(String groupId) {
         try {
-            redisTemplate.delete(CACHE_KEY_PREFIX + groupId);
+            redisTemplate.delete(getCacheKey(groupId));
             log.info("Evicted group ID: {} from cache successfully.", groupId);
         } catch (Exception e) {
             log.error("Failed to evict group ID: {} from cache.", groupId, e);
         }
+    }
+    
+    /**
+     * Caches a list of MUC (Multi-User Chat) rooms in Redis using their unique IDs.
+     * Iterates through each room, generates a dedicated cache key, and stores the 
+     * room object with the configured Time-To-Live (TTL).
+     *
+     * @param rooms The list of {@link MucRoomDto} objects to be cached.
+     */
+    /**
+     * Reactively caches a list of MUC rooms, skipping any rooms whose 
+     * keys already exist in the cache.
+     *
+     * @param rooms The list of {@link MucRoomDto} objects to be cached.
+     * @return A {@link Mono<Void>} that completes when the operation finishes.
+     */
+    public Mono<Void> addToCache(List<MucRoomDto> rooms) {  
+        if (CollectionUtils.isEmpty(rooms)) {
+            return Mono.empty();
+        }
+
+        return Flux.fromIterable(rooms)
+                .flatMap(room -> {
+                    String key = getCacheKey(room.getId());
+                    
+                    return reactiveRedisTemplate.hasKey(key)
+                            .flatMap(exists -> {
+                                // Explicitly casting the pipeline branches to Mono<Boolean>
+                                Mono<Boolean> action = Boolean.TRUE.equals(exists) 
+                                        ? reactiveRedisTemplate.expire(key, cacheTtl)
+                                        : reactiveRedisTemplate.opsForValue().set(key, room, cacheTtl);
+                                return action;
+                            });
+                })
+                .then(); 
+    }
+    
+    /**
+     * Constructs a standardized Redis cache key for a specific group/room.
+     * Combines the configured application prefix with the unique group identifier.
+     *
+     * @param groupId The unique identifier of the group/room. Must not be null.
+     * @return The fully formatted Redis cache key string.
+     * @throws IllegalArgumentException If the provided groupId is null.
+     */
+    private String getCacheKey(String groupId) {
+        if (groupId == null) {
+            throw new IllegalArgumentException("Group ID cannot be null");
+        }
+        
+        return CACHE_KEY_PREFIX + groupId;
     }
 }

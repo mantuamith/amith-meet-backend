@@ -1,14 +1,16 @@
 package com.algomeet.xmpp.chatservice.exceptions;
 
-import com.algomeet.xmpp.chatservice.enums.ResponseCode;
-import com.fasterxml.jackson.databind.exc.InvalidFormatException;
-import feign.FeignException;
-import jakarta.servlet.http.HttpServletRequest;
-import lombok.extern.slf4j.Slf4j;
-import org.hibernate.exception.ConstraintViolationException;
-import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.http.*;
-import org.springframework.http.converter.HttpMessageNotReadableException;
+import java.time.Instant;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.Map;
+
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -19,8 +21,11 @@ import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
-import java.time.Instant;
-import java.util.*;
+import com.fasterxml.jackson.databind.exc.InvalidFormatException;
+
+import feign.FeignException;
+import jakarta.servlet.http.HttpServletRequest;
+import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @RestControllerAdvice
@@ -118,7 +123,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         if (status >= 500) {
             // concise
             log.error("Feign {} downstreamError path={} method={} msg={} (enable DEBUG for stacktrace)",
-                    status, req.getRequestURI(), req.getMethod(), ex.getMessage());
+                    status, req.getRequestURI(), req.getMethod(), ex.getMessage(), ex);
             // detailed only at DEBUG
             if (log.isDebugEnabled()) log.debug("Feign exception stacktrace", ex);
         } else {
@@ -143,7 +148,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     public ResponseEntity<Map<String, Object>> handleGeneric(Exception ex, HttpServletRequest req) {
         // concise one-liner at ERROR (no stack trace)
         log.error("500 Unexpected error path={} method={} err={} (enable DEBUG for stacktrace)",
-                req.getRequestURI(), req.getMethod(), ex.toString());
+                req.getRequestURI(), req.getMethod(), ex.toString(), ex);
 
         // full stack trace only when DEBUG is on
         if (log.isDebugEnabled()) {

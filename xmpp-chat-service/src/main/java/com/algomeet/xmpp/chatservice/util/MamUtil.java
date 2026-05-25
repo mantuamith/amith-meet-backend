@@ -1,5 +1,6 @@
 package com.algomeet.xmpp.chatservice.util;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import java.util.regex.Pattern;
@@ -10,6 +11,7 @@ import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.constant.Constants;
 import com.algomeet.xmpp.chatservice.document.MucMessage;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
+import com.algomeet.xmpp.chatservice.repository.projection.MucMessageView;
 import com.algomeet.xmpp.chatservice.stanza.MessageRetractStanza;
 import com.algomeet.xmpp.chatservice.stanza.MessageSyncConversationStanza;
 import com.algomeet.xmpp.chatservice.stanza.ViewManagementSyncStanza;
@@ -26,18 +28,26 @@ public class MamUtil {
 	// Pre-compile patterns outside the method to save CPU
 	private static final Pattern TO_ATTR_PATTERN = Pattern.compile("\\s+to='[^']*'");
 	private static final Pattern FROM_ATTR_PATTERN = Pattern.compile("from='[^']*'");
-	
-	
-
+		
 	/**
 	 * Filters messages to ensure Private Messages within a MUC are only visible to the recipient.
 	 */
 	public static boolean isAuthorized(MucMessage msg, XmppPrincipal principal) {
-		return !(msg.getHiddenFromUserKeys() != null && msg.getHiddenFromUserKeys().contains(principal.getUserKey()));
+		return !(msg.getHiddenFromUserKeys() != null && msg.getHiddenFromUserKeys()
+				.contains(UUID.fromString(principal.getUserKey())));
+	}
+	
+	public static boolean isAuthorized(MucMessageView msg, XmppPrincipal principal) {
+		return !(msg.getHiddenFromUserKeys() != null && msg.getHiddenFromUserKeys()
+				.contains(UUID.fromString(principal.getUserKey())));
 	}
 
 
 	public static boolean isPrincipalRecipient(MucMessage msg, XmppPrincipal principal) {
+		return (msg.getTo() == null || msg.getTo().compareTo(UUID.fromString(principal.getUserKey())) == 0);
+	}
+	
+	public static boolean isPrincipalRecipient(MucMessageView msg, XmppPrincipal principal) {
 		return (msg.getTo() == null || msg.getTo().compareTo(UUID.fromString(principal.getUserKey())) == 0);
 	}
 	
@@ -110,7 +120,7 @@ public class MamUtil {
 
 	            // Indicates the current starting point of the conversation.
 	            // All messages before this stanzaId are considered hard deleted.
-	            .startOfConversationStanzaId((msg.getId() == Constants.SMALLEST_UUID_V7)
+	            .startOfConversationStanzaId((msg.getId() == Constants.NIL_UUID)
 	            ? Constants.EMPTY_CONVERSATION_STANZA_ID 
 	            		: msg.getId().toString())
 
@@ -152,7 +162,7 @@ public class MamUtil {
 	 * Builds a XEP-0424 Message Retraction stanza for MUC groupchat.
 	 */
 	public String buildRetractionXml(MucMessage msg, XmppPrincipal principal) {
-		String timestamp = XmppStanzaUtil.formatTimestamp(msg.getDeletedAt());
+		String timestamp = XmppStanzaUtil.formatTimestamp(Instant.ofEpochMilli(msg.getDeletedAt()));
 		// Construct the Occupant JID (room@service/nick)
 		String groupJid = jidUtil.getGroupBareJid(msg.getRoomId().toString()) + "/" + msg.getFrom();
 

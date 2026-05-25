@@ -18,6 +18,7 @@ import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.service.GroupCacheService;
 import com.algomeet.xmpp.chatservice.service.MucMessageReadCursorService;
+import com.algomeet.xmpp.chatservice.service.MucMessageService;
 import com.algomeet.xmpp.chatservice.service.MucRetractionService;
 import com.algomeet.xmpp.chatservice.service.XmppArchiveService;
 import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
@@ -61,6 +62,7 @@ public class XmppMucHandler {
 	private final XmppUtil xmppUtil;
 	private final MucRetractionService mucRetractionService;
 	private final MucMessageReadCursorService mucMessageReadService;
+	private final MucMessageService mucMessageService;
 
 	/**
 	 * Main entry point for MUC stanza processing.
@@ -154,17 +156,18 @@ public class XmppMucHandler {
 						mucMessageReadService.advanceReadCursor(UUID.fromString(principal.getUserKey()), UUID.fromString(group.getId()), messageId)
 						.subscribe();
 						
-						// Read message
-						xmppArchiveService.advanceMessageSyncCursor(messageId).subscribe();
+						// Read status batch update
+						mucMessageService.bulkMarkRoomMessagesAsRead(messageId).subscribe();
 					}					
 				}
 			} else if ((msgType.supportsOfflineStorage() && isArchivable)) {
 								
 				// Insert stanza ID
 				forArchiveXml = XmppStanzaUtil.insertStanzaId(originalXml, stanzaId.toString(), principal.getDomain());		
+				Boolean isCountable = XmppStanzaUtil.isCountableMessage(originalXml);
 				
 				xmppArchiveService.archiveEvent(forArchiveXml, id, XmppUtil.getRoomId(toRoomJid), (pmToMucMember != null ? pmToMucMember.getUserKey() : null), 
-						XmppUtil.getUserKey(fromJid), stanzaId)
+						XmppUtil.getUserKey(fromJid), stanzaId, isCountable)
 				.doOnSuccess(saved -> {
 
 					// Send an immediate server-level acknowledgment to the sender.
@@ -177,6 +180,12 @@ public class XmppMucHandler {
 					// This is a custom acknowledgment (not client XEP-0198 ack),
 					// used to provide early delivery assurance back to the sender.
 					XmppServerAckUtil.send(ctx, id, domainProperties.getDomain(), fromJid);
+					
+					// Move cursor for the message sender
+					if (isCountable) {
+						mucMessageReadService.advanceReadCursor(UUID.fromString(principal.getUserKey()), UUID.fromString(group.getId()), UUID.fromString(id))
+						.subscribe();
+					}
 
 					log.debug("MAM Archive Success: ID={} Room={}", stanzaId, toRoomId);
 				})
