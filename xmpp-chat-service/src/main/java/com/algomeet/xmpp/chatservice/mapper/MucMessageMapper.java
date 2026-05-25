@@ -51,7 +51,7 @@ public class MucMessageMapper {
 		return response;
 	}
 	
-	public MucMessageResponse toResponse(MucMessageView summary) {
+	public MucMessageResponse toResponse(MucMessageView summary, UUID userKey) {
 		if (summary == null) {
 			return null;
 		}
@@ -72,7 +72,7 @@ public class MucMessageMapper {
 		// Safe collection mapping to prevent sharing internal mutable references
 		if (summary.getHiddenFromUserKeys() != null
 				&& summary.getHiddenFromUserKeys().contains(
-					UUID.fromString(SecurityUtil.getUserKey()))) {
+						userKey)) {
 				response.setIsHidden(true);
 		}
 

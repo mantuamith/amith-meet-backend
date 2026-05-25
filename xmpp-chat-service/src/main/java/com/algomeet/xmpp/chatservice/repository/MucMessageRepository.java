@@ -103,8 +103,7 @@ public interface MucMessageRepository extends ReactiveMongoRepository<MucMessage
 	 * @param roomId
 	 */
 	
-	@Query(value = "{ 'roomId': ?0, 'createdAt': { '$gt': ?1 } }", sort = "{ 'id': 1 }")
-	Mono<MucMessage> findFirstByRoomIdAndCreatedAtGreaterThanAsc(UUID roomId, Instant historyCutoff);
+	Mono<MucMessage> findFirstByRoomIdAndCreatedAtGreaterThanOrderByCreatedAtAsc(UUID roomId, Instant createdAt);
 
 	/**
 	 * Counts unread messages by isolating the room and checking the ID timeline first,

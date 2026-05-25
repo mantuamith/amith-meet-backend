@@ -149,7 +149,7 @@ public class XmppArchiveService {
 				afterId = Constants.SMALLEST_UUID_V7.toString();
 			}
 			// Synchronize the current conversation starting point across local devices.
-			syncRoomDeletedMessages(roomId, principal);
+			syncRoomDeletedMessages(roomId, principal).subscribe();
 			
 			// Sync recent updates
 //			syncRoomRecentUpdates(roomId, UUID.fromString(afterId), principal);
@@ -373,35 +373,30 @@ public class XmppArchiveService {
 //				);
 //	}
 	
-	private void syncRoomDeletedMessages(UUID roomId, XmppPrincipal principal) {
-		log.info("Syncing deletes for Room {}", roomId);
+	private Mono<Void> syncRoomDeletedMessages(UUID roomId, XmppPrincipal principal) {
+	    log.info("Syncing deletes for Room {}", roomId);
 
-		/* TODO: Value should be coming from MucMember class, returned from Group-service API.
-		public class MucMember {		    
-		    // The magic field: Anything before this timestamp is "deleted" for this user
-		    private Instant historyCutoffAt; 
-		}*/
-		// Used for delete group chat conversation for a particular user
-		Instant historyCutoff = Instant.EPOCH;
-		
-		repository.findFirstByRoomIdAndCreatedAtGreaterThanAsc(roomId, historyCutoff)
-	    .switchIfEmpty(Mono.defer(() -> {
-	        log.info("No messages found in room");
-	        // Explicitly instantiate 'MucMessage'
-	        MucMessage msg = new MucMessage();
-	        msg.setRoomId(roomId);
-	        msg.setId(Constants.NIL_UUID); // indicator of empty room conversation
-	        msg.setStartOfRoomConversation(true);
-	        // pass an empty message
-	        dispatchRecentUpdatesResult(msg, principal).subscribe();
-	        
-	        return Mono.empty();
-	    }))
-	    .flatMap(msg -> { // Explicitly typed 'MucMessage'
-	        msg.setStartOfRoomConversation(true);
-	        return dispatchRecentUpdatesResult(msg, principal);
-	    })
-	    .subscribe();
+	    Instant historyCutoff = Instant.EPOCH;
+	    
+	    return repository
+	            .findFirstByRoomIdAndCreatedAtGreaterThanOrderByCreatedAtAsc(roomId, historyCutoff)
+	            .switchIfEmpty(Mono.defer(() -> {
+	                log.info("No messages found in room {}", roomId);
+	                
+	                MucMessage emptyAnchorMsg = new MucMessage();
+	                emptyAnchorMsg.setRoomId(roomId);
+	                emptyAnchorMsg.setId(Constants.NIL_UUID); 
+	                emptyAnchorMsg.setStartOfRoomConversation(true);
+	                
+	                // FIX: Execute the dispatch, then return the anchor object to satisfy the Mono<MucMessage> type restriction
+	                return dispatchRecentUpdatesResult(emptyAnchorMsg, principal)
+	                        .thenReturn(emptyAnchorMsg); 
+	            }))
+	            .flatMap(msg -> { 
+	                msg.setStartOfRoomConversation(true);
+	                return dispatchRecentUpdatesResult(msg, principal);
+	            })
+	            .then(); // Safely squashes the final stream back into Mono<Void> for the method signature
 	}
 
 	/**

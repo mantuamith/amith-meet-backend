@@ -183,7 +183,9 @@ public class MucMessageService {
 		}*/
 		// Used for delete group chat conversation for a particular user
 		Instant historyCutoff = Instant.EPOCH;
-		MucMessage firstMessage = mucMessageRepository.findFirstByRoomIdAndCreatedAtGreaterThanAsc(groupId, historyCutoff).block();		
+		MucMessage firstMessage = mucMessageRepository
+                .findFirstByRoomIdAndCreatedAtGreaterThanOrderByCreatedAtAsc(groupId, historyCutoff)
+                .block();		
 
 		// Scenario A: The room has a history. Map the actual first message.
 		if (firstMessage != null) {
