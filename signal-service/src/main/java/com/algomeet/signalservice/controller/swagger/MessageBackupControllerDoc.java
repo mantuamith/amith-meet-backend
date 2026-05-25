@@ -66,7 +66,7 @@ public interface MessageBackupControllerDoc {
         summary = "Get conversation messages",
         description = "Retrieve paginated conversation messages (oldest → newest). Supports cursor-based pagination using 'after'."
     )
-    ResponseEntity<CommonResponse<Page<MessageBackupResponse>>> getConversationMessages(
+    ResponseEntity<CommonResponse<List<MessageBackupResponse>>> getConversationMessages(
         @Parameter(description = "Peer user key", example = "9640b033-3c2a-...") UUID peerKey,
         @Parameter(description = "Cursor (stanzaId). Fetch messages BEFORE this ID", example = "019e4c0a...") Optional<String> before,
         @Parameter(description = "Cursor (stanzaId). Fetch messages AFTER this ID", example = "019e4c0a...") Optional<String> after,

@@ -40,13 +40,14 @@ import lombok.NoArgsConstructor;
      * MessageBackupService.getMessageUpdates
      */
     @CompoundIndex(
-        name = "idxMsg_userKey_messageId", 
-        def = "{'userKey': 1, 'updateCursorId': 1, 'stanzaId': 1}"
-    ),
+    	    name = "idxMsg_conversationId_stanzaIdDesc_updateCursorId", 
+    	    def = "{'conversationId': 1, 'stanzaId': -1, 'updateCursorId': 1}"
+    	),
     
     /**
      * 3. Direct message lookup + lightweight ordering
      * Covers: findByMessageIdAndUserKey, and any chronological receipt processing (Read/Delivered states).
+     * deleteByUserKey(UUID userKey) during account offboarding or device un-pairing actions.
      */
     @CompoundIndex(
         name = "idxMsg_userKey", 
@@ -54,16 +55,7 @@ import lombok.NoArgsConstructor;
     ),
     
     /**
-     * 4. Account deletion / cleanup by owner
-     * Covers: deleteByUserKey(UUID userKey) during account offboarding or device un-pairing actions.
-     */
-    @CompoundIndex(
-        name = "idxMsg_userKey", 
-        def = "{'userKey': 1}"
-    ),
-    
-    /**
-     * 5. Inbox / conversation listing (latest-first scan). Used for finding user conversations 
+     * 4. Inbox / conversation listing (latest-first scan). Used for finding user conversations 
      * MessageBackupService.findUniqueConversationsWithFullDetails
      */
     @CompoundIndex(
@@ -72,13 +64,13 @@ import lombok.NoArgsConstructor;
     	),
     
     /**
-     * 6. Read-state bulk update per conversation
+     * 5. Read-state bulk update per conversation
      * MessageBackupService.updateStatus
      */
     @CompoundIndex(
-        name = "idxMsg_conversationId_stanzaId_readAt", 
-        def = "{'conversationId': 1, 'stanzaId': 1, 'readAt': 1}"
-    )
+            name = "idxMsg_convId_senderKey_stanzaId_readAt", 
+            def = "{'conversationId': 1, 'senderKey': 1, 'stanzaId': -1, 'readAt': 1}"
+        )
 })
 public class MessageBackupDocument {
 	// These constants match the @Field names or the variable names

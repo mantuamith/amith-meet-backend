@@ -8,6 +8,7 @@ import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_SE
 
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -98,7 +99,7 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 	 * @return a paginated list of conversation messages wrapped in a standard response format
 	 */
 	@GetMapping("/{peerKey}/conversation")
-	public ResponseEntity<CommonResponse<Page<MessageBackupResponse>>> getConversationMessages(
+	public ResponseEntity<CommonResponse<List<MessageBackupResponse>>> getConversationMessages(
 			@PathVariable UUID peerKey,
 			@RequestParam("before") Optional<String> beforeStanzaId,
 			@RequestParam("after") Optional<String> afterStanzaId,
@@ -107,9 +108,9 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 
 		// Fetch paginated message backups for the conversation between the current user and the peer.
 		// NOTE: The "after" cursor is not yet applied in the query and should be integrated at the service level.
-		Page<MessageBackupDocument> backupsPage = null;
+		List<MessageBackupDocument> messages = null;
 		if (afterStanzaId.isPresent()) {			
-			backupsPage =
+			messages =
 					messageBackupService.getConversationMessagesAfter(
 							UUID.fromString(SecurityUtil.getUserKey()), peerKey, UUID.fromString(afterStanzaId.get()), page, size);    		
 
@@ -118,23 +119,23 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 				beforeStanzaId = Optional.ofNullable(UuidCreator.getTimeOrderedEpoch().toString());
 			}
 			
-			backupsPage =
+			messages =
 					messageBackupService.getConversationMessagesBefore(
 							UUID.fromString(SecurityUtil.getUserKey()), peerKey, UUID.fromString(beforeStanzaId.get()), page, size);
+			
+			// Sort the entire combined list by stanzaId (UUIDv7) in Ascending order
+			messages.sort(Comparator.comparing(MessageBackupDocument::getStanzaId));
+			
 		}
 
 		// Transform database documents into API response DTOs.
-		List<MessageBackupResponse> responseList = backupsPage.getContent()
+		List<MessageBackupResponse> responseList = messages
 				.stream()
 				.map(MessageBackupResponse::from)
 				.collect(Collectors.toList());
 
-		// Wrap transformed results into a new Page object while preserving pagination metadata.
-		Page<MessageBackupResponse> responsePage =
-				new PageImpl<>(responseList, PageRequest.of(page, size), backupsPage.getTotalElements());
-
 		// Return standardized success response with paginated data.
-		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, responsePage));
+		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, responseList));
 	}  
 	
 	@GetMapping("/{peerKey}/conversation/updates")
@@ -142,7 +143,7 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 			@PathVariable UUID peerKey,
 			@RequestParam("untilStanzaId") UUID untilStanzaId,
 			@RequestParam(defaultValue = "0") int page,
-			@RequestParam(defaultValue = "1000") int size) {
+			@RequestParam(defaultValue = "20") int size) {
 
 		List<MessageBackupDocument> backupsPage =
 				messageBackupService.getMessageUpdates(
@@ -157,7 +158,9 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 				.stream() 
 				.map(MessageBackupResponse::from)
 				.collect(Collectors.toList());
-
+		
+		// Sort in ascending order
+		responseList.sort(Comparator.comparing(MessageBackupResponse::getStanzaId));
 		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, responseList));
 	}
 	

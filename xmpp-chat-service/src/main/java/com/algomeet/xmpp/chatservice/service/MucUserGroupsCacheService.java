@@ -20,7 +20,8 @@ import lombok.extern.slf4j.Slf4j;
 public class MucUserGroupsCacheService {
 
     private final GroupClient groupClient;
-    private final RedisTemplate<String, Object> redisTemplate;
+    private final RedisTemplate<String, Object> redisTemplate;  
+    private final GroupCacheService groupCacheService;
 
     /** Prefix for all group-related keys in Redis to prevent namespace collisions. */
     private static final String CACHE_KEY_PREFIX = "xmpp:muc:user:%s:groups";
@@ -49,6 +50,9 @@ public class MucUserGroupsCacheService {
         // 2. Cache miss - Call Feign Client
         log.debug("Cache miss. Fetching user groups for: {} from MUC user-group-service", userKey);
         List<MucRoomDto> roomDtos = groupClient.getGroupsForUserKey(userKey);
+        
+        // Add group all group objects to cache
+        groupCacheService.addToCache(roomDtos).subscribe();
 
         // 3. Process results and extract IDs
         List<String> groupIdList = Optional.ofNullable(roomDtos)

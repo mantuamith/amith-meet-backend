@@ -111,7 +111,7 @@ public class MucMessageController implements MucMessageControllerDoc{
 			@PathVariable UUID groupId,
 			@RequestParam("untilStanzaId") UUID untilStanzaId,
 			@Parameter(description = "Page index", example = "0") int page,
-			@Parameter(description = "Page size", example = "50") int size) {
+			@Parameter(description = "Page size", example = "20") int size) {
 
 		// Get the authenticated user's key
 		String userKey = SecurityUtil.getUserKey();                  

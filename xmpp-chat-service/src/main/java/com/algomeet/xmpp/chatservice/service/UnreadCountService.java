@@ -40,7 +40,7 @@ public class UnreadCountService {
 	 * Non-blocking increment of the unread count.
 	 */
 	public Mono<UnreadCount> incrementUnreadCount(String senderKey, String recipientKey) {
-		String id = String.format("%s_%s", senderKey, recipientKey);
+		String id = getConversationId(senderKey, recipientKey);
 
 		Query query = new Query(Criteria.where("_id").is(id));
 		Update update = new Update()
@@ -73,7 +73,7 @@ public class UnreadCountService {
 	 */
 	public Mono<UnreadCount> decrementUnreadCount(String senderKey, String recipientKey, UUID messageId, XmppPrincipal principal) {
 		// Generate the unique composite document ID for this specific sender-recipient boundary
-		String id = String.format("%s_%s", senderKey, recipientKey);
+		String id = getConversationId(senderKey, recipientKey);
 
 		// Construct an atomic guard query: only match and update if the counter is currently > 0
 		Query query = new Query(Criteria.where("_id").is(id).and("unread_count").gt(0));
@@ -120,7 +120,7 @@ public class UnreadCountService {
 	 * @throws ConcurrentModificationException if the unread count state remains unstable after 3 retry attempts due to heavy concurrent writes.
 	 */
 	public Mono<UnreadCount> syncUnreadCount(String senderKey, String recipientKey, UUID messageId, XmppPrincipal principal) {
-	    String id = String.format("%s_%s", senderKey, recipientKey);
+	    String id = getConversationId(senderKey, recipientKey);
 
 	    // 1. Explicitly type Mono.<UnreadCount>defer so the compiler knows the final target type
 	    return Mono.<UnreadCount>defer(() -> 
@@ -129,7 +129,7 @@ public class UnreadCountService {
 	                Long capturedIncrementAt = currentUnread.getLastIncrementAt();
 	                
 	                // 2. Fetch the message first
-	                return offlineMessageRepository.findProjectedById(messageId)
+	                return offlineMessageRepository.findOfflineMessageViewById(messageId)
 	                    .flatMap(message -> {
 	                        UUID stanzaId = message.getStanzaId();
 
@@ -171,7 +171,7 @@ public class UnreadCountService {
 	 * Non-blocking reset of the unread count.
 	 */
 	public Mono<Void> resetUnreadCount(String senderKey, String recipientKey) {
-		String id = String.format("%s_%s", senderKey, recipientKey);
+		String id = getConversationId(senderKey, recipientKey);
 
 		Query query = new Query(Criteria.where("_id").is(id));
 		Update update = new Update()
@@ -221,7 +221,7 @@ public class UnreadCountService {
 	 * Get unread count for a specific sender-recipient relationship.
 	 */
 	public Mono<Integer> getUnreadCount(String senderKey, String recipientKey) {
-		String id = String.format("%s_%s", senderKey, recipientKey);
+		String id = getConversationId(senderKey, recipientKey);
 
 		return reactiveMongoTemplate.findById(id, UnreadCount.class)
 				.map(UnreadCount::getUnreadCount)
@@ -253,4 +253,18 @@ public class UnreadCountService {
 				.map(UnreadCount::getId)
 				.distinct(); 
 	}
+	
+	/**
+    * Generates a deterministic conversation identifier from two keys.
+    * 
+    * @param senderKey The UUID of the sender
+    * @param recipientKey The UUID of the recipient
+    * @return A formatted String "senderKey_recipientKey"
+    */
+   public static String getConversationId(String senderKey, String recipientKey) {
+       if (senderKey == null || recipientKey == null) {
+           throw new IllegalArgumentException("Sender and recipient keys must not be null");
+       }
+       return String.join("_", senderKey, recipientKey);
+   }
 }

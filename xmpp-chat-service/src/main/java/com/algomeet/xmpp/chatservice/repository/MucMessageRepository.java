@@ -1,5 +1,6 @@
 package com.algomeet.xmpp.chatservice.repository;
 
+import java.time.Instant;
 import java.util.UUID;
 
 import org.springframework.data.domain.Pageable;
@@ -7,7 +8,7 @@ import org.springframework.data.mongodb.repository.Query;
 import org.springframework.data.mongodb.repository.ReactiveMongoRepository;
 
 import com.algomeet.xmpp.chatservice.document.MucMessage;
-import com.algomeet.xmpp.chatservice.repository.projection.MucMessageMetadataProjection;
+import com.algomeet.xmpp.chatservice.repository.projection.MucMessageView;
 
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -20,10 +21,21 @@ public interface MucMessageRepository extends ReactiveMongoRepository<MucMessage
 	 * 
 	 * Version with a limit to satisfy MAM 'max' requests (XEP-0059)
 	 */
-	@Query("{ 'roomId': ?0, 'id': { $gt: ?1 }, $or: [ { 'to': null }, { 'to': ?2 } ] }")
-	Flux<MucMessage> findByRoomIdAndIdGreaterThanAndToIsNullOrEqualtoUserkeyOrderByIdAsc(
-			UUID roomId, UUID afterId, UUID userKey, Pageable pageable
-			);
+	@Query(value = "{"
+	        + "  'roomId': ?0,"
+	        + "  'id': { $gt: ?1 },"
+	        + "  $or: [ { 'to': null }, { 'to': ?2 } ],"
+	        + "  'hiddenFromUserKeys': { $ne: ?2 },"
+	        + "  'createdAt': { $gt: ?3 }"
+	        + "}", 
+	       sort = "{ 'id': 1 }")
+	Flux<MucMessage> findByRoomIdAndIdGreaterThanAndToIsNullOrEqualtoUserkeyAndNotHiddenOrderByIdAsc(
+	        UUID roomId, 
+	        UUID afterId, 
+	        UUID userKey, 
+	        Instant historyCutoff,
+	        Pageable pageable
+	);
 
 	/**
 	 * Performs a range-based synchronization query for Multi-User Chat (MUC) messages.
@@ -50,9 +62,9 @@ public interface MucMessageRepository extends ReactiveMongoRepository<MucMessage
 	 *                             messages with a higher cursor will be returned.
 	 * @param limitId              The upper bound message ID (usually the current 
 	 *                             max ID known to the server) to cap the result set.
-	 * @return A {@link Flux} of {@link MucMessage} sorted chronologically by their primary ID.
+	 * @return A {@link Flux} of {@link MucMessageView} sorted chronologically by their primary ID.
 	 */
-	Flux<MucMessage> findByRoomIdAndUpdateCursorIdGreaterThanAndIdLessThanEqualOrderByIdAsc(
+	Flux<MucMessageView> findByRoomIdAndUpdateCursorIdGreaterThanAndIdLessThanEqualOrderByIdDesc(
 			UUID roomId, 
 			UUID afterUpdateCursorId, 
 			UUID limitId,
@@ -65,15 +77,21 @@ public interface MucMessageRepository extends ReactiveMongoRepository<MucMessage
 	 * If beforeId is null/empty, you get the most recent messages.
 	 * If beforeId is provided, you get the page preceding that ID.
 	 */
-	@Query(value = "{ 'roomId': ?0, 'id': { $lt: ?1 }, $or: [ { 'to': null }, { 'to': ?2 } ] }", 
-			sort = "{ 'id': -1 }")
-	Flux<MucMessage> findHistoricalMessages(
-			UUID roomId, 
-			UUID beforeId, 
-			UUID userKey, 
-			Pageable pageable
-			);
-
+	@Query(value = "{"
+	        + "  'roomId': ?0,"
+	        + "  'id': { $lt: ?1 },"
+	        + "  $or: [ { 'to': null }, { 'to': ?2 } ],"
+	        + "  'hiddenFromUserKeys': { $ne: ?2 },"
+	        + "  'createdAt': { $gt: ?3 }"
+	        + "}", 
+	       sort = "{ 'id': -1 }")
+	Flux<MucMessage> findByRoomIdAndIdLessThanAndToIsNullOrEqualtoUserkeyAndNotHiddenOrderByIdDesc(
+	        UUID roomId, 
+	        UUID beforeId, 
+	        UUID userKey, 
+	        Instant historyCutoff, 
+	        Pageable pageable
+	);
 
 	Mono<MucMessage> findByMessageId(UUID messageId);
 
@@ -84,7 +102,9 @@ public interface MucMessageRepository extends ReactiveMongoRepository<MucMessage
 	 *
 	 * @param roomId
 	 */
-	Mono<MucMessage> findFirstByRoomIdOrderByIdAsc(UUID roomId);
+	
+	@Query(value = "{ 'roomId': ?0, 'createdAt': { '$gt': ?1 } }", sort = "{ 'id': 1 }")
+	Mono<MucMessage> findFirstByRoomIdAndCreatedAtGreaterThanAsc(UUID roomId, Instant historyCutoff);
 
 	/**
 	 * Counts unread messages by isolating the room and checking the ID timeline first,
@@ -102,11 +122,12 @@ public interface MucMessageRepository extends ReactiveMongoRepository<MucMessage
 			"  '$and': [" +
 			"    { 'roomId': ?0 }," +
 			"    { 'id': { '$gt': ?1 } }," +
-			"    { 'countable': true }," + // <-- Added countable condition here
+			"    { 'countable': true }," + 
+			"    { 'createdAt': { '$gt': ?3 } }," + 
 			"    { '$or': [ { 'to': null }, { 'to': ?2 } ] }" +
 			"  ]" +
 			"}", count = true)
-	Mono<Long> countUnreadMessages(UUID roomId, UUID lastReadStanzaId, UUID userKey);
+	Mono<Long> countUnreadMessages(UUID roomId, UUID lastReadStanzaId, UUID userKey, Instant historyCutoff);
 	
-	Mono<MucMessageMetadataProjection> findProjectedByMessageId(UUID messageId);
+	Mono<MucMessageView> findMucMessageViewByMessageId(UUID messageId);
 }

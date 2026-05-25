@@ -3,9 +3,8 @@ package com.algomeet.signalservice.dto;
 import java.time.Instant;
 import java.util.UUID;
 
-import org.springframework.util.StringUtils;
-
 import com.algomeet.signalservice.document.MessageBackupDocument;
+
 import lombok.Builder;
 import lombok.Data;
 

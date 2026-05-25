@@ -25,20 +25,27 @@ import lombok.NoArgsConstructor;
 	/**
 	 * Latest messages, history pagination, conversation feed.
 	 * 
-	 * Used for retrieving messages findByRoomIdAndIdGreaterThan...(), findHistoricalMessages() 
-	 *  MucMessageService.getConversations() queries
-	 *  
-	 *  Important Notice: Be careful on changing the name of this index it's hard coded inside MucMessageService.getConversations().
+	 * Used for retrieving messages findByRoomIdAndIdGreaterThan...Asc(), findByRoomIdAndIdLessThan...Desc() 
+	 * queries
 	 */
-	@CompoundIndex(name = "idxMuc_room_to_idDesc", def = "{'roomId': 1, 'to': 1, 'id': -1}"),
+	// Index A: For public/room-wide messages
+	@CompoundIndex(name = "idxMuc_roomId_idDesc_createdA_public", def = "{'roomId': 1, 'id': -1, 'createdAt': 1}"),
+	// Index B: For direct private messages inside the room
+	@CompoundIndex(name = "idxMuc_room_to_idDesc_createdAt_private", def = "{'roomId': 1, 'to': 1, 'id': -1, 'createdAt': 1}"),
+	
+	/**
+	 * Used for MucMessageService.getConversations() 
+	 * Important Notice: Be careful on changing the name of this index it's hard coded inside MucMessageService.getConversations().
+	 */
+	@CompoundIndex(name = "idxMuc_room_to_idDesc_createdAt_private", def = "{'roomId': 1, 'to': 1, 'id': -1, 'createdAt': 1}"),
 
 	/**
-	 * Incremental synchronization cursor.
-	 * 
-	 * Used for synchronization of local device copies.
+	 * Incremental message update synchronization.
+	 *
+	 * Used to synchronize updates to the local device's message copy.
 	 * findByRoomIdAndUpdateCursorIdGreaterThanAndIdLessThanEqualOrderByIdAsc()
 	 */
-	@CompoundIndex(name = "idxMuc_room_updateCursorId_idAsc", def = "{'roomId': 1, 'updateCursorId': 1, 'id': 1}"),
+	@CompoundIndex(name = "idxMuc_roomId_idDesc_updateCursorId", def = "{ 'roomId': 1, 'id': -1, 'updateCursorId': 1 }"),
 
 	/**
 	 * Unread message counting.
@@ -46,10 +53,10 @@ import lombok.NoArgsConstructor;
 	 * Used for unread counts countUnreadMessages()
 	 */
 	@CompoundIndex(
-			name = "idxMuc_room_countable_id_to", 
-			def = "{ 'roomId': 1, 'countable': 1, 'id': 1, 'to': 1 }",
-			partialFilter = "{ 'deletedAt': null, 'countable': true }"
-			),
+		    name = "idxMuc_room_to_id_createdAt", 
+		    def = "{ 'roomId': 1, 'to': 1, 'id': 1, 'createdAt': 1 }",
+		    partialFilter = "{ 'deletedAt': null, 'countable': true }"
+		),
 	
 	/**
 	 * Read state catch-up updates.
@@ -59,7 +66,18 @@ import lombok.NoArgsConstructor;
 	@CompoundIndex(
 		    name = "idxMuc_room_readAt_id", 
 		    def = "{ 'roomId': 1, 'readAt': 1, '_id': 1 }"
-		)
+		),
+	
+	/**
+	 * Find the first message visible to the user in the room.
+	 * 
+	 * Used for retrieving the earliest room message created after
+	 * the user's join time via:
+	 * findFirstByRoomIdAndCreatedAtGreaterThanOrderByCreatedAtAsc()
+	 */
+	@CompoundIndex(
+			name = "idxMuc_roomId_idAsc_createdAt", 
+			def = "{ 'roomId': 1, 'id': 1, 'createdAt': 1 }")
 })
 public class MucMessage {   
 	public static final String FIELD_ID = "id"; // StanzaId

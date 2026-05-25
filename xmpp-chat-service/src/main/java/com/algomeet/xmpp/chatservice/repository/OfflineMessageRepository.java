@@ -5,7 +5,7 @@ import java.util.UUID;
 import org.springframework.data.mongodb.repository.ReactiveMongoRepository;
 
 import com.algomeet.xmpp.chatservice.document.OfflineMessage;
-import com.algomeet.xmpp.chatservice.repository.projection.OfflineMessageMetadataProjection;
+import com.algomeet.xmpp.chatservice.repository.projection.OfflineMessageView;
 
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -37,5 +37,5 @@ public interface OfflineMessageRepository extends ReactiveMongoRepository<Offlin
      */
     Mono<Void> deleteByIdAndIsAckStanzaTrue(UUID id);
     
-    Mono<OfflineMessageMetadataProjection> findProjectedById(UUID id);
+    Mono<OfflineMessageView> findOfflineMessageViewById(UUID id);
 }

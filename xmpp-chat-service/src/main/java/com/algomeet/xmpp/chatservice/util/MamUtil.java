@@ -11,6 +11,7 @@ import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.constant.Constants;
 import com.algomeet.xmpp.chatservice.document.MucMessage;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
+import com.algomeet.xmpp.chatservice.repository.projection.MucMessageView;
 import com.algomeet.xmpp.chatservice.stanza.MessageRetractStanza;
 import com.algomeet.xmpp.chatservice.stanza.MessageSyncConversationStanza;
 import com.algomeet.xmpp.chatservice.stanza.ViewManagementSyncStanza;
@@ -35,9 +36,18 @@ public class MamUtil {
 		return !(msg.getHiddenFromUserKeys() != null && msg.getHiddenFromUserKeys()
 				.contains(UUID.fromString(principal.getUserKey())));
 	}
+	
+	public static boolean isAuthorized(MucMessageView msg, XmppPrincipal principal) {
+		return !(msg.getHiddenFromUserKeys() != null && msg.getHiddenFromUserKeys()
+				.contains(UUID.fromString(principal.getUserKey())));
+	}
 
 
 	public static boolean isPrincipalRecipient(MucMessage msg, XmppPrincipal principal) {
+		return (msg.getTo() == null || msg.getTo().compareTo(UUID.fromString(principal.getUserKey())) == 0);
+	}
+	
+	public static boolean isPrincipalRecipient(MucMessageView msg, XmppPrincipal principal) {
 		return (msg.getTo() == null || msg.getTo().compareTo(UUID.fromString(principal.getUserKey())) == 0);
 	}
 	

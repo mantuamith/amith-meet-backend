@@ -26,7 +26,6 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -166,7 +165,7 @@ public class MessageBackupService {
 		return repository.save(backup);
 	}
 
-	public Page<MessageBackupDocument> getConversationMessagesBefore(UUID userKey, UUID peerKey, UUID stanzaId, int page, int size) {
+	public List<MessageBackupDocument> getConversationMessagesBefore(UUID userKey, UUID peerKey, UUID stanzaId, int page, int size) {
 		Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, FIELD_STANZA_ID));
 
 		// Get converation ID
@@ -174,7 +173,7 @@ public class MessageBackupService {
 		return repository.findByConversationIdAndStanzaIdLessThan(converationId, stanzaId, pageable);
 	}
 
-	public Page<MessageBackupDocument> getConversationMessagesAfter(UUID userKey, UUID peerKey, UUID stanzaId, int page, int size) {
+	public List<MessageBackupDocument> getConversationMessagesAfter(UUID userKey, UUID peerKey, UUID stanzaId, int page, int size) {
 		Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.ASC, FIELD_STANZA_ID));
 
 		// Get converation ID
@@ -224,7 +223,7 @@ public class MessageBackupService {
 		.include(FIELD_EDIT_COUNT);
 
 		// 2. Attach Sort and Pagination Bounds to Query
-		query.with(Sort.by(Sort.Direction.ASC, FIELD_STANZA_ID));
+		query.with(Sort.by(Sort.Direction.DESC, FIELD_STANZA_ID));
 		query.with(pageable);
 
 		// 3. Collect to standard ArrayList for significantly faster processing and serialization
@@ -261,7 +260,7 @@ public class MessageBackupService {
 		return modifiedRecords;
 	}
 
-	public Page<MessageBackupDocument> getSyncConversationMessages(UUID userKey, UUID peerKey, UUID stanzaId, int page, int size) {
+	public List<MessageBackupDocument> getSyncConversationMessages(UUID userKey, UUID peerKey, UUID stanzaId, int page, int size) {
 		Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.ASC, FIELD_STANZA_ID));
 
 		// Get converation ID
@@ -550,8 +549,9 @@ public class MessageBackupService {
 				
 				query = new Query(
 						Criteria.where(FIELD_CONVERSATION_ID).is(conversationId)
+						.and(FIELD_SENDER_KEY).is(messageOpt.get().getSenderKey())
 						.and(FIELD_STANZA_ID).lte(messageOpt.get().getStanzaId())
-						.and(timestampField).isNull()
+						.and(FIELD_READ_AT).isNull()
 						);
 			}
 

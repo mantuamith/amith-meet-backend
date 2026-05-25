@@ -152,7 +152,7 @@ public class XmppArchiveService {
 			syncRoomDeletedMessages(roomId, principal);
 			
 			// Sync recent updates
-			syncRoomRecentUpdates(roomId, UUID.fromString(afterId), principal);
+//			syncRoomRecentUpdates(roomId, UUID.fromString(afterId), principal);
 
 			loadAfterWithRetry(roomId, UUID.fromString(afterId), principal, queryId, maxResults);
 		} else {
@@ -171,8 +171,10 @@ public class XmppArchiveService {
 	private void loadAfterWithRetry(UUID roomId, UUID currentAfterId, XmppPrincipal principal, String queryId, int maxResults) {
 		Pageable pageRequest = PageRequest.of(0, maxResults);
 
-		repository.findByRoomIdAndIdGreaterThanAndToIsNullOrEqualtoUserkeyOrderByIdAsc(
-				roomId, currentAfterId, UUID.fromString(principal.getUserKey()), pageRequest)
+		// Used for delete group chat conversation for a particular user
+		Instant historyCutoff = Instant.EPOCH;
+		repository.findByRoomIdAndIdGreaterThanAndToIsNullOrEqualtoUserkeyAndNotHiddenOrderByIdAsc(
+				roomId, currentAfterId, UUID.fromString(principal.getUserKey()), historyCutoff, pageRequest)
 		.collectList()
 		// Explicitly define the generic type <Void> for flatMap
 		.<Void>flatMap(list -> {
@@ -213,8 +215,15 @@ public class XmppArchiveService {
 
 		PageRequest pageRequest = PageRequest.of(0, maxResults);
 
+		// Used for delete group chat conversation for a particular user
+		Instant historyCutoff = Instant.EPOCH;
 		// 1. Define the source Flux
-		Flux<MucMessage> messageFlux = repository.findHistoricalMessages(roomId, beforeId, UUID.fromString(principal.getUserKey()), pageRequest);
+		Flux<MucMessage> messageFlux = repository.findByRoomIdAndIdLessThanAndToIsNullOrEqualtoUserkeyAndNotHiddenOrderByIdDesc(
+				roomId, 
+				beforeId, 
+				UUID.fromString(principal.getUserKey()), 
+				historyCutoff,
+				pageRequest);
 
 		messageFlux
 		.collectList()
@@ -338,36 +347,44 @@ public class XmppArchiveService {
 	 * @param afterId   The UUIDv7 cursor used to resume the update stream.
 	 * @param principal The session context of the user requesting the updates.
 	 */
-	private void syncRoomRecentUpdates(UUID roomId, UUID afterId, XmppPrincipal principal) {
-		log.info("Syncing updates for Room {}: starting from cursor {}", roomId, afterId);
-
-		// 1. Query the repository for all message changes in this room newer than the provided ULUUIDv7ID.
-		// OrderByIdAsc ensures we process and dispatch updates in the exact order they occurred.
-		Pageable pageable = PageRequest.of(0, 10000);
-		repository.findByRoomIdAndUpdateCursorIdGreaterThanAndIdLessThanEqualOrderByIdAsc(roomId, afterId, afterId, pageable)
-
-		// 2. Filter: Ensure the update is relevant to the requesting principal.
-		// This prevents leaking "Delete for Me" events or private stanzas to the wrong users.
-		.filter(msg -> MamUtil.isPrincipalRecipient(msg, principal))
-
-		// 3. Sequential Dispatch: Use concatMap to ensure stanzas are sent to the local 
-		// dispatcher in order. This maintains protocol consistency for the client.
-		.concatMap(msg -> dispatchRecentUpdatesResult(msg, principal))
-
-		// 4. Subscription: Since this is a void-returning fire-and-forget background task,
-		// we subscribe to trigger the reactive pipeline. 
-		// NOTE: In a production environment, consider adding error logging inside .subscribe().
-		.subscribe(
-				null, 
-				error -> log.error("Failed to sync updates for user {} in room {}: {}", 
-						principal.getUserKey(), roomId, error.getMessage(), error)
-				);
-	}
+//	private void syncRoomRecentUpdates(UUID roomId, UUID afterId, XmppPrincipal principal) {
+//		log.info("Syncing updates for Room {}: starting from cursor {}", roomId, afterId);
+//
+//		// 1. Query the repository for all message changes in this room newer than the provided ULUUIDv7ID.
+//		// OrderByIdAsc ensures we process and dispatch updates in the exact order they occurred.
+//		Pageable pageable = PageRequest.of(0, 10000);
+//		repository.findByRoomIdAndUpdateCursorIdGreaterThanAndIdLessThanEqualOrderByIdAsc(roomId, afterId, afterId, pageable)
+//
+//		// 2. Filter: Ensure the update is relevant to the requesting principal.
+//		// This prevents leaking "Delete for Me" events or private stanzas to the wrong users.
+//		.filter(msg -> MamUtil.isPrincipalRecipient(msg, principal))
+//
+//		// 3. Sequential Dispatch: Use concatMap to ensure stanzas are sent to the local 
+//		// dispatcher in order. This maintains protocol consistency for the client.
+//		.concatMap(msg -> dispatchRecentUpdatesResult(msg, principal))
+//
+//		// 4. Subscription: Since this is a void-returning fire-and-forget background task,
+//		// we subscribe to trigger the reactive pipeline. 
+//		// NOTE: In a production environment, consider adding error logging inside .subscribe().
+//		.subscribe(
+//				null, 
+//				error -> log.error("Failed to sync updates for user {} in room {}: {}", 
+//						principal.getUserKey(), roomId, error.getMessage(), error)
+//				);
+//	}
 	
 	private void syncRoomDeletedMessages(UUID roomId, XmppPrincipal principal) {
 		log.info("Syncing deletes for Room {}", roomId);
 
-		repository.findFirstByRoomIdOrderByIdAsc(roomId)
+		/* TODO: Value should be coming from MucMember class, returned from Group-service API.
+		public class MucMember {		    
+		    // The magic field: Anything before this timestamp is "deleted" for this user
+		    private Instant historyCutoffAt; 
+		}*/
+		// Used for delete group chat conversation for a particular user
+		Instant historyCutoff = Instant.EPOCH;
+		
+		repository.findFirstByRoomIdAndCreatedAtGreaterThanAsc(roomId, historyCutoff)
 	    .switchIfEmpty(Mono.defer(() -> {
 	        log.info("No messages found in room");
 	        // Explicitly instantiate 'MucMessage'

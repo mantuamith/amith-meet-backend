@@ -3,6 +3,7 @@ package com.algomeet.xmpp.chatservice.service;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -52,10 +53,17 @@ public class MucMessageService {
 	public List<MucMessageResponse> getMessagesAfter(UUID userKey, UUID groupId, UUID afterStanzaId, int page, int size) { 
 		Pageable pageable = PageRequest.of(page, size);
 
+		/* TODO: Value should be coming from MucMember class, returned from Group-service API.
+		public class MucMember {		    
+		    // The magic field: Anything before this timestamp is "deleted" for this user
+		    private Instant historyCutoffAt; 
+		}*/
+		// Used for delete group chat conversation for a particular user
+		Instant historyCutoff = Instant.EPOCH;		
 		// Collect into a standard ArrayList so it is safe to interact with during processing
 		List<MucMessageResponse> messages = 
-				mucMessageRepository.findByRoomIdAndIdGreaterThanAndToIsNullOrEqualtoUserkeyOrderByIdAsc(
-						groupId, afterStanzaId, userKey, pageable)
+				mucMessageRepository.findByRoomIdAndIdGreaterThanAndToIsNullOrEqualtoUserkeyAndNotHiddenOrderByIdAsc(
+						groupId, afterStanzaId, userKey, historyCutoff, pageable)
 				.collectList()              
 				.blockOptional() 
 				.orElse(Collections.emptyList())
@@ -81,10 +89,18 @@ public class MucMessageService {
 
 	public List<MucMessageResponse> getMessagesBefore(UUID userKey, UUID groupId, UUID beforeStanzaId, int page, int size) {  
 		Pageable pageable = PageRequest.of(page, size);
-
+		
+		/* TODO: Value should be coming from MucMember class, returned from Group-service API.
+		public class MucMember {		    
+		    // The magic field: Anything before this timestamp is "deleted" for this user
+		    private Instant historyCutoffAt; 
+		}*/
+		// Used for delete group chat conversation for a particular user
+		Instant historyCutoff = Instant.EPOCH;
 		// Collect into a standard ArrayList so it is safe to interact with during processing
 		List<MucMessageResponse> messages = 
-				mucMessageRepository.findHistoricalMessages(groupId, beforeStanzaId, userKey, pageable)
+				mucMessageRepository.findByRoomIdAndIdLessThanAndToIsNullOrEqualtoUserkeyAndNotHiddenOrderByIdDesc(
+						groupId, beforeStanzaId, userKey, historyCutoff, pageable)
 				.collectList()              
 				.blockOptional() 
 				.orElse(Collections.emptyList())
@@ -104,6 +120,9 @@ public class MucMessageService {
 			} 
 		}  
 
+		// Sort the entire combined list by stanzaId (UUIDv7) in Ascending order
+		messages.sort(Comparator.comparing(MucMessageResponse::getStanzaId));
+		
 		// Lock it down before returning to the caller
 		return Collections.unmodifiableList(messages);
 	}
@@ -132,7 +151,7 @@ public class MucMessageService {
 		 *
 		 * Results are ordered ascending by message ID to preserve chronological update order.
 		 */
-		List<MucMessageResponse> modifiedMessages = mucMessageRepository.findByRoomIdAndUpdateCursorIdGreaterThanAndIdLessThanEqualOrderByIdAsc(
+		List<MucMessageResponse> modifiedMessages = mucMessageRepository.findByRoomIdAndUpdateCursorIdGreaterThanAndIdLessThanEqualOrderByIdDesc(
 				groupId, untilStanzaId, untilStanzaId, pageable)
 				.collectList()              
 				.blockOptional() // Defensively handle an empty result safely
@@ -153,13 +172,25 @@ public class MucMessageService {
 		}       
 
 		// 3. Combine into a defensively copied, unmodifiable result
+		// Combine all elements into a mutable workspace list
 		List<MucMessageResponse> result = new ArrayList<>(messages);
 		result.addAll(modifiedMessages);
+
+		// Sort the entire combined list by stanzaId (UUIDv7) in Ascending order
+		result.sort(Comparator.comparing(MucMessageResponse::getStanzaId));
+
 		return Collections.unmodifiableList(result);
 	}
 
 	private MucMessageResponse getStartOfConversation(UUID groupId) {
-		MucMessage firstMessage = mucMessageRepository.findFirstByRoomIdOrderByIdAsc(groupId).block();		
+		/* TODO: Value should be coming from MucMember class, returned from Group-service API.
+		public class MucMember {		    
+		    // The magic field: Anything before this timestamp is "deleted" for this user
+		    private Instant historyCutoffAt; 
+		}*/
+		// Used for delete group chat conversation for a particular user
+		Instant historyCutoff = Instant.EPOCH;
+		MucMessage firstMessage = mucMessageRepository.findFirstByRoomIdAndCreatedAtGreaterThanAsc(groupId, historyCutoff).block();		
 
 		// Scenario A: The room has a history. Map the actual first message.
 		if (firstMessage != null) {
@@ -173,7 +204,8 @@ public class MucMessageService {
 		// Scenario B: The room is brand new / completely empty. Return a structural anchor.
 		MucMessageResponse emptyRoomAnchor = new MucMessageResponse();
 		emptyRoomAnchor.setStanzaId(Constants.NIL_UUID);
-		emptyRoomAnchor.setMessageId(groupId);
+		emptyRoomAnchor.setMessageId(Constants.NIL_UUID);
+		emptyRoomAnchor.setRoomId(groupId);
 		emptyRoomAnchor.setStartOfRoomConversation(true);
 		return emptyRoomAnchor;
 	}
@@ -208,7 +240,7 @@ public class MucMessageService {
 
 		AggregationOptions options = AggregationOptions.
 				builder()
-				.hint("idxMuc_room_to_idDesc") // Forces use of {'roomId': 1, 'to': 1, 'id': -1}
+				.hint("idxMuc_room_to_idDesc_createdAt") // Forces use of {'roomId': 1, 'to': 1, 'id': -1}
 				.build();
 
 		// 3. Build the aggregation pipeline with targeted MUC visibility and privacy constraints
@@ -303,7 +335,7 @@ public class MucMessageService {
 					}
 
 					// Lock obtained -> Proceed with DB fetch and updates
-					return mucMessageRepository.findProjectedByMessageId(lastReadMessageId)
+					return mucMessageRepository.findByMessageId(lastReadMessageId)
 							.flatMap(message -> {
 								Query query = new Query(
 										Criteria.where("_id").lte(message.getId())

@@ -1,6 +1,6 @@
 package com.algomeet.xmpp.chatservice.repository.projection;
 import java.util.UUID;
 
-public interface OfflineMessageMetadataProjection {
+public interface OfflineMessageView {
     UUID getStanzaId();
 }

@@ -4,7 +4,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.mongodb.repository.Aggregation;
@@ -18,10 +17,10 @@ import com.algomeet.signalservice.repository.projection.MessageMetadataProjectio
 import jakarta.transaction.Transactional;
 
 public interface MessageBackupRepository extends MongoRepository<MessageBackupDocument, UUID> {	
-	Page<MessageBackupDocument> findByConversationIdAndStanzaIdLessThan(
+	List<MessageBackupDocument> findByConversationIdAndStanzaIdLessThan(
 			String conversationId, UUID stanzaId, Pageable pageable);
 
-	Page<MessageBackupDocument> findByConversationIdAndStanzaIdGreaterThan(
+	List<MessageBackupDocument> findByConversationIdAndStanzaIdGreaterThan(
 			String conversationId, UUID stanzaId, Pageable pageable);
 
 	// Custom delete query for both sides of conversation
