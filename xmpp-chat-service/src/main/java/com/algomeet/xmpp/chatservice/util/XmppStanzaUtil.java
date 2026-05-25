@@ -247,6 +247,7 @@ public class XmppStanzaUtil {
     }
     
 
+
 	/**
 	 * Extracts the text content of a direct child tag.
 	 * Example: getTagContent(xml, "reason") returns "Avaunt, you cullion!"
