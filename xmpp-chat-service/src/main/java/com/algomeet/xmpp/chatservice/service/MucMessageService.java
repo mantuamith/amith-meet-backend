@@ -89,43 +89,38 @@ public class MucMessageService {
 	}
 
 	public List<MucMessageResponse> getMessagesBefore(UUID userKey, UUID groupId, UUID beforeStanzaId, int page, int size) {  
-		Pageable pageable = PageRequest.of(page, size);
-		
-		/* TODO: Value should be coming from MucMember class, returned from Group-service API.
-		public class MucMember {		    
-		    // The magic field: Anything before this timestamp is "deleted" for this user
-		    private Instant historyCutoffAt; 
-		}*/
-		// Used for delete group chat conversation for a particular user
-		Instant historyCutoff = Instant.EPOCH;
-		// Collect into a standard ArrayList so it is safe to interact with during processing
-		List<MucMessageResponse> messages = 
-				mucMessageRepository.findByRoomIdAndIdLessThanAndToIsNullOrEqualtoUserkeyAndNotHiddenOrderByIdDesc(
-						groupId, beforeStanzaId, userKey, historyCutoff, pageable)
-				.collectList()              
-				.blockOptional() 
-				.orElse(Collections.emptyList())
-				.stream()
-				.map(m -> mucMessageMapper.toResponse(m, UUID.fromString(SecurityUtil.getUserKey())))
-				.toList();
+	    Pageable pageable = PageRequest.of(page, size);
+	    
+	    try {
+	        // Used for delete group chat conversation for a particular user
+	        Instant historyCutoff = Instant.EPOCH; 
+	        
+	        List<MucMessageResponse> processedMessages = mucMessageRepository
+	                .findByRoomIdAndIdLessThanAndToIsNullOrEqualtoUserkeyAndNotHiddenOrderByIdDesc(
+	                        groupId, beforeStanzaId, userKey, historyCutoff, pageable)
+	                .collectList()              
+	                .blockOptional() 
+	                .orElse(Collections.emptyList())
+	                .stream()
+	                // 1. Map documents to Response DTOs safely passing your explicit userKey parameter
+	                .map(m -> mucMessageMapper.toResponse(m, userKey))
+	                // 2. Clear payload XML elements on the fly for hidden messages
+	                .peek(message -> {
+	                    if (Boolean.TRUE.equals(message.getIsHidden())) {
+	                        message.setStanzaXml(null);
+	                    }
+	                })
+	                // 3. Sort the stream cleanly by stanzaId (UUIDv7) in Ascending order
+	                .sorted(Comparator.comparing(MucMessageResponse::getStanzaId))
+	                // 4. Collect the finalized stream into your immutable list safely
+	                .toList();
 
-		// Guard Clause: If there are no messages, return early and avoid IndexOutOfBoundsException
-		if (messages.isEmpty()) {
-			return Collections.emptyList();
-		}
+	        return processedMessages;
 
-		// Map and process messages in a single clear pass
-		for (MucMessageResponse message : messages) {         
-			if (message.getIsHidden()) {             
-				message.setStanzaXml(null);         // Lighten the load
-			} 
-		}  
-
-		// Sort the entire combined list by stanzaId (UUIDv7) in Ascending order
-		messages.sort(Comparator.comparing(MucMessageResponse::getStanzaId));
-		
-		// Lock it down before returning to the caller
-		return Collections.unmodifiableList(messages);
+	    } catch(Exception ex) {
+	        log.error("Failed to retrieve chat message history context context for group {}", groupId, ex);
+	        return Collections.emptyList();
+	    }
 	}
 
 	public List<MucMessageResponse> getMessageUpdates(UUID userKey, UUID groupId, UUID untilStanzaId, int page, 
