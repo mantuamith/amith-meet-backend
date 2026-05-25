@@ -179,7 +179,7 @@ public class XmppMucHandler {
 					//
 					// This is a custom acknowledgment (not client XEP-0198 ack),
 					// used to provide early delivery assurance back to the sender.
-					XmppServerAckUtil.send(ctx, id, domainProperties.getDomain(), fromJid);
+					XmppServerAckUtil.send(ctx, id, domainProperties.getDomain(), stanzaId.toString());
 					
 					// Move cursor for the message sender
 					if (isCountable) {
