@@ -18,7 +18,7 @@ public class XmppServerAckSender {
 		
 		return String.format(
 				"<message from='%s'>" +
-						"<server-ack xmlns='%s' id='%s' stanzaId='%s' status='success'/>" +
+						"<server-ack xmlns='%s' id='%s' stanza-id='%s' status='success'/>" +
 						"</message>",
 						fromJid,
 						NS,

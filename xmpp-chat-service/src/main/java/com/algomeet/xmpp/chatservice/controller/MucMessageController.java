@@ -7,8 +7,8 @@ import java.util.UUID;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -163,7 +163,7 @@ public class MucMessageController implements MucMessageControllerDoc{
 	 * @param groupId the unique identifier of the target group chat
 	 * @return a response wrapper containing {@code true} if the database cutoff record was updated successfully
 	 */
-	@PatchMapping("/{groupId}/clear-history")
+	@PostMapping("/{groupId}/clear-history")
 	public ResponseEntity<CommonResponse<Boolean>> clearMemberHistoryTimeline(
 			@PathVariable UUID groupId) {
 

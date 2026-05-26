@@ -45,7 +45,16 @@ import lombok.Data;
 			name = "idxOffline_id", 
 			def = "{'id': 1}", 
 			partialFilter = "{'isAck': true}"
-			)
+			),
+	
+	/**
+	 * Used for findByFromOrderByStanzaIdDesc
+	 * Satisfies Equality (from) and Sort (stanzaId DESC) cleanly.
+	 */
+	@CompoundIndex(
+	    name = "idxOffline_from_stanzaIdDesc", 
+	    def = "{'from': 1, 'stanzaId': -1}"
+	)
 })
 public class OfflineMessage {
 	@Id
