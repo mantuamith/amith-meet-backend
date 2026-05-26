@@ -43,9 +43,12 @@ import lombok.NoArgsConstructor;
 	 * Incremental message update synchronization.
 	 *
 	 * Used to synchronize updates to the local device's message copy.
-	 * findByRoomIdAndUpdateCursorIdGreaterThanAndIdLessThanEqualOrderByIdAsc()
+	 * findByRoomIdAndUpdateCursorIdGreaterThanAndIdLessThanEqualAndCreatedAtGreaterThanOrderByIdDesc()
 	 */
-	@CompoundIndex(name = "idxMuc_roomId_idDesc_updateCursorId", def = "{ 'roomId': 1, 'id': -1, 'updateCursorId': 1 }"),
+	@CompoundIndex(
+		    name = "idxMuc_roomId_updateCursorId_idDesc_createdAt", 
+		    def = "{ 'roomId': 1, 'updateCursorId': 1, 'id': -1, 'createdAt': 1 }"
+		),
 
 	/**
 	 * Unread message counting.

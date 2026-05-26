@@ -6,6 +6,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -28,10 +29,14 @@ import org.springframework.util.CollectionUtils;
 import com.algomeet.xmpp.chatservice.constant.Constants;
 import com.algomeet.xmpp.chatservice.document.MucMessage;
 import com.algomeet.xmpp.chatservice.document.MucRoomReadCursor;
+import com.algomeet.xmpp.chatservice.dto.MucMember;
 import com.algomeet.xmpp.chatservice.dto.MucMessageResponse;
+import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
 import com.algomeet.xmpp.chatservice.mapper.MucMessageMapper;
 import com.algomeet.xmpp.chatservice.repository.MucMessageRepository;
 import com.algomeet.xmpp.chatservice.repository.MucRoomReadCursorRepository;
+import com.algomeet.xmpp.chatservice.util.MucMemberUtil;
+import com.algomeet.xmpp.chatservice.util.SearchUtil;
 import com.algomeet.xmpp.chatservice.util.SecurityUtil;
 
 import lombok.RequiredArgsConstructor;
@@ -50,17 +55,18 @@ public class MucMessageService {
 	private final MucMessageRepository mucMessageRepository;
 	private final ReactiveMongoTemplate reactiveMongoTemplate;
 	private final RedissonReactiveClient redissonReactiveClient;
+	private final GroupCacheService groupCacheService;
 
 	public List<MucMessageResponse> getMessagesAfter(UUID userKey, UUID groupId, UUID afterStanzaId, int page, int size) { 
 		Pageable pageable = PageRequest.of(page, size);
 
-		/* TODO: Value should be coming from MucMember class, returned from Group-service API.
-		public class MucMember {		    
-		    // The magic field: Anything before this timestamp is "deleted" for this user
-		    private Instant historyCutoffAt; 
-		}*/
-		// Used for delete group chat conversation for a particular user
-		Instant historyCutoff = Instant.EPOCH;		
+		// Retrieve group info
+		Optional<MucMember>  member = SearchUtil.findMember(groupCacheService.getCachedGroup(groupId.toString()), userKey.toString());
+		if (member.isEmpty()) {
+			return List.of();
+		}
+		
+		Instant historyCutoff = MucMemberUtil.getHistoryCutoff(member.get());
 		// Collect into a standard ArrayList so it is safe to interact with during processing
 		List<MucMessageResponse> messages = 
 				mucMessageRepository.findByRoomIdAndIdGreaterThanAndToIsNullOrEqualtoUserkeyAndNotHiddenOrderByIdAsc(
@@ -91,9 +97,13 @@ public class MucMessageService {
 	public List<MucMessageResponse> getMessagesBefore(UUID userKey, UUID groupId, UUID beforeStanzaId, int page, int size) {  
 		Pageable pageable = PageRequest.of(page, size);
 
-		// Used for delete group chat conversation for a particular user
-		Instant historyCutoff = Instant.EPOCH; 
+		// Retrieve group info
+		Optional<MucMember>  member = SearchUtil.findMember(groupCacheService.getCachedGroup(groupId.toString()), userKey.toString());
+		if (member.isEmpty()) {
+			return List.of();
+		}
 
+		Instant historyCutoff = MucMemberUtil.getHistoryCutoff(member.get());
 		List<MucMessageResponse> processedMessages = mucMessageRepository
 				.findByRoomIdAndIdLessThanAndToIsNullOrEqualtoUserkeyAndNotHiddenOrderByIdDesc(
 						groupId, beforeStanzaId, userKey, historyCutoff, pageable)
@@ -122,7 +132,7 @@ public class MucMessageService {
 		List<MucMessageResponse> resultList = new ArrayList<>();
 
 		if (page == 0) {
-	        MucMessageResponse startMessage = getStartOfConversation(groupId);
+	        MucMessageResponse startMessage = getStartOfConversation(userKey, groupId);
 	        if (startMessage != null) {
 	            resultList.add(startMessage);
 	        }
@@ -131,6 +141,14 @@ public class MucMessageService {
 
 		Pageable pageable = PageRequest.of(page, size);
 
+		// Retrieve group info
+		Optional<MucMember>  member = SearchUtil.findMember(groupCacheService.getCachedGroup(groupId.toString()), userKey.toString());
+		if (member.isEmpty()) {
+			return List.of();
+		}
+
+		Instant historyCutoff = MucMemberUtil.getHistoryCutoff(member.get());
+		
 		/**
 		 * Retrieves message state updates (edit, delete, read, etc.)
 		 * for the specified room up to and including the given stanza ID.
@@ -145,8 +163,8 @@ public class MucMessageService {
 		 * Results are ordered ascending by message ID to preserve chronological update order.
 		 */
 		List<MucMessageResponse> modifiedMessages = mucMessageRepository
-	            .findByRoomIdAndUpdateCursorIdGreaterThanAndIdLessThanEqualOrderByIdDesc(
-	                    groupId, untilStanzaId, untilStanzaId, pageable)
+	            .findByRoomIdAndUpdateCursorIdGreaterThanAndIdLessThanEqualAndCreatedAtGreaterThanOrderByIdDesc(
+	                    groupId, untilStanzaId, untilStanzaId, historyCutoff, pageable)
 	            .collectList()              
 	            .blockOptional() 
 	            .orElse(Collections.emptyList())
@@ -175,14 +193,22 @@ public class MucMessageService {
 	    return Collections.unmodifiableList(resultList);
 	}
 
-	private MucMessageResponse getStartOfConversation(UUID groupId) {
-		/* TODO: Value should be coming from MucMember class, returned from Group-service API.
-		public class MucMember {		    
-		    // The magic field: Anything before this timestamp is "deleted" for this user
-		    private Instant historyCutoffAt; 
-		}*/
-		// Used for delete group chat conversation for a particular user
-		Instant historyCutoff = Instant.EPOCH;
+	private MucMessageResponse getStartOfConversation(UUID userKey, UUID groupId) {
+		// Scenario B: The room is brand new / completely empty. Return a structural anchor.
+		MucMessageResponse emptyRoomAnchor = new MucMessageResponse();
+		emptyRoomAnchor.setStanzaId(Constants.NIL_UUID);
+		emptyRoomAnchor.setMessageId(Constants.NIL_UUID);
+		emptyRoomAnchor.setRoomId(groupId);
+		emptyRoomAnchor.setStartOfRoomConversation(true);
+		
+		// Retrieve group info
+		Optional<MucMember>  member = SearchUtil.findMember(groupCacheService.getCachedGroup(groupId.toString()), userKey.toString());
+		if (member.isEmpty()) {
+			return emptyRoomAnchor;
+		}
+
+		Instant historyCutoff = MucMemberUtil.getHistoryCutoff(member.get());
+		
 		MucMessage firstMessage = mucMessageRepository
                 .findFirstByRoomIdAndCreatedAtGreaterThanOrderByCreatedAtAsc(groupId, historyCutoff)
                 .block();		
@@ -196,12 +222,6 @@ public class MucMessageService {
 			return message;
 		}
 
-		// Scenario B: The room is brand new / completely empty. Return a structural anchor.
-		MucMessageResponse emptyRoomAnchor = new MucMessageResponse();
-		emptyRoomAnchor.setStanzaId(Constants.NIL_UUID);
-		emptyRoomAnchor.setMessageId(Constants.NIL_UUID);
-		emptyRoomAnchor.setRoomId(groupId);
-		emptyRoomAnchor.setStartOfRoomConversation(true);
 		return emptyRoomAnchor;
 	}
 
@@ -270,20 +290,127 @@ public class MucMessageService {
 				.map(m -> mucMessageMapper.toResponse(m, userKey))
 				.collectList()
 				.block(); // Blocks safely here to match your synchronous List<MucMessageResponse> return type
-
-		// Retrieve readers
-		retrieveAndSetReaders(resultDtos, userKey);
+		
+		if (!CollectionUtils.isEmpty(resultDtos)) {
+			// Remove hidden/cutoff conversations
+			filterConversationsByVisibilityAndCutoff(userKey, resultDtos, groupIds);
+			
+			// Retrieve readers
+			if(!CollectionUtils.isEmpty(resultDtos)) {
+				retrieveAndSetReaders(resultDtos);
+			}
+		}
+		
 
 		return resultDtos;
 	}
+	
+	/**
+     * Filters a list of active group conversations in-place, removing entries belonging to 
+     * deleted rooms or messages that fall behind the member's historical visibility threshold.
+     * <p>
+     * <b>Operational Workflow:</b>
+     * <ol>
+     * <li>Gathers and deduplicates all potential room IDs to perform a high-performance batch cache lookup.</li>
+     * <li>Constructs an in-memory lookup map to isolate processing from repetitive infrastructure calls.</li>
+     * <li>Evaluates each conversation thread against the member's dynamic {@code messageHistoryCutoff} timestamp.</li>
+     * </ol>
+     * </p>
+     * <p>
+     * <i>Performance Note:</i> If a room target is completely absent from the bulk reactive pipeline payload, 
+     * the logic gracefully falls back to a singular synchronous cache lookup as an absolute fail-safe.
+     * </p>
+     *
+     * @param userKey          The unique business identifier (UUID) of the member requesting the timeline view.
+     * @param mucConversations The mutable collection of user conversation records to filter in-place.
+     * @param groupIds         An auxiliary list of verified active group IDs to seed the primary lookup phase.
+     */
+    private void filterConversationsByVisibilityAndCutoff(
+            UUID userKey, 
+            List<MucMessageResponse> mucConversations, 
+            List<String> groupIds) {
+        
+        if (CollectionUtils.isEmpty(mucConversations)) {
+            return;
+        }
 
-	private void retrieveAndSetReaders(List<MucMessageResponse> resultDtos, UUID userKey) {
-		if (CollectionUtils.isEmpty(resultDtos)) {
+        // 1. Deduplicate and collect ALL room IDs present across conversations to ensure complete batch coverage
+        java.util.Set<String> allTargetGroupIds = new java.util.HashSet<>();
+        if (!CollectionUtils.isEmpty(groupIds)) {
+            allTargetGroupIds.addAll(groupIds);
+        }
+        for (MucMessageResponse conversation : mucConversations) {
+            if (conversation.getRoomId() != null) {
+                allTargetGroupIds.add(conversation.getRoomId().toString());
+            }
+        }
+
+        // Evict all if there are no structural room markers available to parse
+        if (allTargetGroupIds.isEmpty()) {
+            mucConversations.clear();
+            return;
+        }
+
+        // 2. Fetch ALL required groups in ONE non-blocking pipeline operation
+        List<MucRoomDto> groups = groupCacheService.getGroups(new java.util.ArrayList<>(allTargetGroupIds))
+                .collectList()
+                .block(); // Bridging reactive to imperative layer safely
+
+        if (CollectionUtils.isEmpty(groups)) {
+            mucConversations.clear();
+            return;
+        }
+
+        // 3. Build the O(1) Lookup Map for high-speed node pairing
+        java.util.Map<String, MucRoomDto> activeGroupMap = groups.stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        room -> room.getId().toString(),
+                        group -> group,
+                        (existing, replacement) -> existing
+                ));
+
+        // 4. Optimize variables: Convert UUID string representation once before loop entry to reduce GC strain
+        String targetUserKeyStr = userKey.toString();
+
+        // 5. In-place filtering using localized memory references (with localized fail-safe lookups)
+        mucConversations.removeIf(conversation -> {
+            if (conversation.getRoomId() == null) {
+                return true; // Drop corrupt conversation entries without room targets
+            }
+
+            String roomIdStr = conversation.getRoomId().toString();
+            MucRoomDto group = activeGroupMap.get(roomIdStr);
+            
+            // Fail-safe fallback: If the group was missing from the batch payload, try an isolated point lookup
+            if (group == null) {
+                group = groupCacheService.getCachedGroup(roomIdStr);
+                if (group == null) {
+                    return true; // Evict conversation if the room configuration target is totally dead or purged
+                }
+            }
+
+            // Fast O(log N) balanced tree traversal to extract member configuration profile
+            Optional<MucMember> memberOpt = SearchUtil.findMember(group, targetUserKeyStr);
+            
+            if (memberOpt.isPresent()) {
+                MucMember member = memberOpt.get();
+                long historyCutoff = MucMemberUtil.getHistoryCutoffLong(member);
+                
+                // Evict conversation if the message timestamp falls strictly behind the user's timeline clearance point
+                return historyCutoff >= conversation.getCreatedAt();
+            }       
+            
+            return false;
+        });
+    }
+
+	private void retrieveAndSetReaders(List<MucMessageResponse> messageDtos) {
+		if (CollectionUtils.isEmpty(messageDtos)) {
 			return;
 		}
 
 		// 1. Batch extract all target room IDs to prevent multiple network hops
-		Set<UUID> roomIds = resultDtos.stream()
+		Set<UUID> roomIds = messageDtos.stream()
 				.map(MucMessageResponse::getRoomId)
 				.collect(Collectors.toSet());
 
@@ -296,7 +423,7 @@ public class MucMessageService {
 				.collect(Collectors.groupingBy(MucRoomReadCursor::getRoomId));
 
 		// 3. Perform high-speed in-memory matching inside the loop (No DB access here)
-		for (MucMessageResponse dto : resultDtos) {
+		for (MucMessageResponse dto : messageDtos) {
 			List<MucRoomReadCursor> roomCursors = cursorsByRoom.getOrDefault(dto.getRoomId(), Collections.emptyList());
 
 			List<UUID> readers = roomCursors.stream()
@@ -304,7 +431,7 @@ public class MucMessageService {
 					&& cursor.getLastReadSid().compareTo(dto.getStanzaId()) >= 0)
 					.map(MucRoomReadCursor::getUserKey)
 					// Filter out user's own ID safely inside the stream pipeline
-					.filter(id -> !id.equals(userKey)) 
+					.filter(id -> !id.equals(dto.getFrom())) 
 					.toList(); // Safe to use toList() now since we don't call .remove() later
 
 			// Set the computed readers back onto your response DTO instead of an empty list

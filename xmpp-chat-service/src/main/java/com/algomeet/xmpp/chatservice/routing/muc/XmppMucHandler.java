@@ -153,7 +153,7 @@ public class XmppMucHandler {
 					if (StringUtils.hasText(ackMessageId)) {	
 						UUID messageId = UUID.fromString(ackMessageId);
 						// Save read MUC message ACK
-						mucMessageReadService.advanceReadCursor(UUID.fromString(principal.getUserKey()), UUID.fromString(group.getId()), messageId)
+						mucMessageReadService.advanceReadCursor(UUID.fromString(principal.getUserKey()), group.getId(), messageId)
 						.subscribe();
 						
 						// Read status batch update
@@ -183,7 +183,7 @@ public class XmppMucHandler {
 					
 					// Move cursor for the message sender
 					if (isCountable) {
-						mucMessageReadService.advanceReadCursor(UUID.fromString(principal.getUserKey()), UUID.fromString(group.getId()), UUID.fromString(id))
+						mucMessageReadService.advanceReadCursor(UUID.fromString(principal.getUserKey()), group.getId(), UUID.fromString(id))
 						.subscribe();
 					}
 

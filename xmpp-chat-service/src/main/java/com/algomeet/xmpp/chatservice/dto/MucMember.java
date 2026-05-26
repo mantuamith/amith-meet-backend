@@ -1,29 +1,54 @@
 package com.algomeet.xmpp.chatservice.dto;
 
+import java.util.Objects;
+
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 import lombok.Data;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @Data
-public class MucMember { // or ChatMember
+public class MucMember implements Comparable<MucMember> {
+
     private String userKey;
     private String username;
     private String nickname;
     private String role;
-    private boolean isMuted;
-    
-    /**
-     * Unix epoch timestamp (in milliseconds) indicating when the user joined the group.
-     * Used as a structural baseline to prevent members from accessing legacy historical 
-     * messages exchanged prior to their active room affiliation date.
-     */
+    private boolean muted;
+
     private Long memberStartDate;
 
-    /**
-     * Unix epoch timestamp (in milliseconds) acting as a moving temporal clearance threshold.
-     * Messages generated strictly prior to this timestamp are treated as cleared or deleted 
-     * for this specific member, allowing them to wipe their visibility timeline on demand.
-     */
     private Long messageHistoryCutoff;
+
+    @Override
+    public int hashCode() {
+        return userKey != null ? userKey.hashCode() : 0;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+
+        MucMember other = (MucMember) obj;
+
+        return Objects.equals(this.userKey, other.userKey);
+    }
+
+    @Override
+    public int compareTo(MucMember other) {
+        if (this == other) return 0;
+        if (other == null) return 1;
+
+        if (this.userKey == null && other.userKey == null) return 0;
+        if (this.userKey == null) return -1;
+        if (other.userKey == null) return 1;
+
+        return this.userKey.compareTo(other.userKey);
+    }
 }

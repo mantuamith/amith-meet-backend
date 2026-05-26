@@ -64,10 +64,11 @@ public interface MucMessageRepository extends ReactiveMongoRepository<MucMessage
 	 *                             max ID known to the server) to cap the result set.
 	 * @return A {@link Flux} of {@link MucMessageView} sorted chronologically by their primary ID.
 	 */
-	Flux<MucMessageView> findByRoomIdAndUpdateCursorIdGreaterThanAndIdLessThanEqualOrderByIdDesc(
+	Flux<MucMessageView> findByRoomIdAndUpdateCursorIdGreaterThanAndIdLessThanEqualAndCreatedAtGreaterThanOrderByIdDesc(
 			UUID roomId, 
 			UUID afterUpdateCursorId, 
 			UUID limitId,
+			Instant createdAt,
 			Pageable pageable
 			);
 

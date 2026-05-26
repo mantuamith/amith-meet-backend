@@ -81,7 +81,7 @@ public class MucPresenceService {
 	 */
 	public void broadcastPresenceToGroupParticipants(ChannelHandlerContext ctx, String userkey, MucRoomDto group, UserState newState) {    
 		try {
-			String roomJid = jidUtil.getGroupBareJid(group.getId());
+			String roomJid = jidUtil.getGroupBareJid(group.getId().toString());
 
 			// 2. Identify the sender's membership details for specific room metadata (nickname/role)
 			Optional<MucMember> senderMucMember = group.getMembers().stream()
@@ -143,7 +143,7 @@ public class MucPresenceService {
 				return;
 			}
 
-			String roomJid = jidUtil.getGroupBareJid(group.getId());
+			String roomJid = jidUtil.getGroupBareJid(group.getId().toString());
 
 			// 2. Collect all keys for batch fetching from Redis (Performance Optimization)
 			List<String> memberKeys = group.getMembers().stream()
