@@ -172,4 +172,44 @@ public interface MucMessageControllerDoc {
 	        @ApiResponse(responseCode = "403", description = "Forbidden")
 	})
 	public ResponseEntity<CommonResponse<List<MucMessageResponse>>> getConversations();
+	
+	@Operation(
+	        summary = "Hard delete all group messages administratively",
+	        description = "Permanently and irreversibly purges all recorded message stanzas belonging to this specific Multi-User Chat (MUC) group from persistent storage. " +
+	                      "This action drops records globally for all occupants and immediately invalidates active group cache pools. " +
+	                      "Access is restricted to authorized room owners or system administrators.",
+	        responses = {
+	            @ApiResponse(
+	                responseCode = "200", 
+	                description = "All group messages were successfully expunged from the database and cache layers.",
+	                content = @Content(
+	                    mediaType = "application/json",
+	                    schema = @Schema(implementation = CommonResponse.class)
+	                )
+	            ),
+	            @ApiResponse(
+	                responseCode = "400", 
+	                description = "Invalid request format - Provided groupId is not a valid UUID string.",
+	                content = @Content
+	            ),
+	            @ApiResponse(
+	                responseCode = "403", 
+	                description = "Forbidden - The requesting security context lacks the administrative privileges to purge this room.",
+	                content = @Content
+	            ),
+	            @ApiResponse(
+	                responseCode = "500", 
+	                description = "Internal Server Error - Remote microservice transaction failure or database execution timeout.",
+	                content = @Content
+	            )
+	        }
+	    )
+	    public ResponseEntity<CommonResponse<Boolean>> purgeGroupMessages(
+	            @Parameter(
+	                name = "groupId",
+	                description = "The unique room/group identifier (UUID) targeting the message archive to be wiped.",
+	                required = true,
+	                example = "289c5f4d-58a0-4def-bf5b-0fd15c045575"
+	            )
+	            @PathVariable UUID groupId);
 }

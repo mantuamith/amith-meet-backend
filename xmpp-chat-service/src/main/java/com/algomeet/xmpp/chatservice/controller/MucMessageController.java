@@ -6,6 +6,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -163,7 +164,7 @@ public class MucMessageController implements MucMessageControllerDoc{
 	 * @param groupId the unique identifier of the target group chat
 	 * @return a response wrapper containing {@code true} if the database cutoff record was updated successfully
 	 */
-	@PostMapping("/{groupId}/clear-history")
+	@PostMapping("/{groupId}/timeline-cutoff")
 	public ResponseEntity<CommonResponse<Boolean>> clearMemberHistoryTimeline(
 			@PathVariable UUID groupId) {
 
@@ -178,4 +179,17 @@ public class MucMessageController implements MucMessageControllerDoc{
 		return ResponseEntity.ok(
 				CommonResponse.from(ResponseCode.SUCCESS, cleared));
 	}
+	
+	@DeleteMapping("/{groupId}/messages")
+    public ResponseEntity<CommonResponse<Boolean>> purgeGroupMessages(
+            @Parameter(description = "The unique group/room UUID", required = true)
+            @PathVariable UUID groupId) {
+        
+        log.warn("Administrative trigger: Hard purging all message records for group {}", groupId);
+
+        boolean purged = mucRoomService.purgeAllGroupMessages(groupId);
+                
+        return ResponseEntity.ok(
+                CommonResponse.from(ResponseCode.SUCCESS, purged));
+    }
 }
