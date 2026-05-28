@@ -218,7 +218,7 @@ class MessageBackupControllerTest {
     @Test
     void deleteMessage_success() throws Exception {
     	UUID messageId = UuidCreator.getTimeOrderedEpoch();
-        doNothing().when(messageBackupService).delete(userKey, eq(messageId));
+        doNothing().when(messageBackupService).delete(userKey, eq(List.of(messageId)));
 
         mockMvc.perform(delete("/signal/backup/chat-messages/msg-1")
                 .with(csrf()))
@@ -230,7 +230,7 @@ class MessageBackupControllerTest {
     void deleteMessage_notFound() throws Exception {
     	UUID messageId = UuidCreator.getTimeOrderedEpoch();
         doThrow(new RecordNotFoundException("not found"))
-                .when(messageBackupService).delete(userKey, eq(messageId));
+                .when(messageBackupService).delete(userKey, eq(List.of(messageId)));
 
         mockMvc.perform(delete("/signal/backup/chat-messages/msg-1")
                 .with(csrf()))
