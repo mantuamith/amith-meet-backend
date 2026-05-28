@@ -12,7 +12,7 @@ import org.springframework.data.mongodb.repository.Query;
 
 import com.algomeet.signalservice.document.MessageBackupDocument;
 import com.algomeet.signalservice.repository.projection.ConversationStorageStats;
-import com.algomeet.signalservice.repository.projection.MessageMetadataProjection;
+import com.algomeet.signalservice.repository.projection.MessageBackupView;
 
 import jakarta.transaction.Transactional;
 
@@ -51,6 +51,20 @@ public interface MessageBackupRepository extends MongoRepository<MessageBackupDo
 	 * Use this instead of findById for better security and index locality.
 	 */
 	Optional<MessageBackupDocument> findByMessageIdAndUserKey(UUID messageId, UUID userKey);
+	
+	/**
+     * Finds a list of message backup documents matching a collection of message IDs 
+     * and a specific user key.
+     * <p>
+     * This method utilizes Spring Data's method-name derivation to generate a MongoDB 
+     * {@code $in} query under the hood.
+     * </p>
+     *
+     * @param messageIds a {@link List} of {@link UUID}s representing the target messages
+     * @param userKey    the {@link UUID} of the user who owns or is authorized to access these backups
+     * @return a {@link List} of matching {@link MessageBackupView}s, or an empty list if no matches are found
+     */
+    List<MessageBackupView> findByMessageIdInAndUserKey(List<UUID> messageIds, UUID userKey);
 
 
 	/**
@@ -66,5 +80,5 @@ public interface MessageBackupRepository extends MongoRepository<MessageBackupDo
 	    String conversationId
 	);
 	
-	Optional<MessageMetadataProjection> findProjectedByMessageId(UUID messageId);
+	Optional<MessageBackupView> findProjectedByMessageId(UUID messageId);
 }

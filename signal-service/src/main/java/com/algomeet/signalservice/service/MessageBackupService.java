@@ -9,7 +9,6 @@ import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_EN
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_MESSAGE_ID;
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_READ_AT;
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_RECEIVER_KEY;
-import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_RETRACTED_AT;
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_SALT;
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_SENDER_KEY;
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_SENT_AT;
@@ -50,7 +49,7 @@ import com.algomeet.signalservice.exceptions.MessageUpdateStatusInProgressExcept
 import com.algomeet.signalservice.exceptions.RecordNotFoundException;
 import com.algomeet.signalservice.repository.MessageBackupRepository;
 import com.algomeet.signalservice.repository.projection.ConversationStorageStats;
-import com.algomeet.signalservice.repository.projection.MessageMetadataProjection;
+import com.algomeet.signalservice.repository.projection.MessageBackupView;
 import com.algomeet.signalservice.util.ConversationUtil;
 import com.algomeet.signalservice.util.SecurityUtil;
 import com.github.f4b6a3.uuid.UuidCreator;
@@ -458,19 +457,22 @@ public class MessageBackupService {
 		}).get());
 	}
 
-	public void delete(UUID userKey, UUID messageId) {
-		Optional<MessageBackupDocument> updateOpt = repository.findByMessageIdAndUserKey(messageId, userKey);	
-		if (updateOpt.isEmpty()) {
-			throw new RecordNotFoundException("Message ID not found");
+	public void delete(UUID userKey, List<UUID> messageIds) {
+		List<MessageBackupView> forDeleteList = repository.findByMessageIdInAndUserKey(messageIds, userKey);	
+		if (forDeleteList.isEmpty()) {
+			throw new RecordNotFoundException("Message IDs not found");
 		}
 
 		// Update user storage usage 
 		StorageUsageAdjustmentRequest req = new StorageUsageAdjustmentRequest();
-		req.setChatMessageCountDelta(-1L);
-		req.setChatStorageBytesDelta(-updateOpt.get().getSize());
-		mediaService.adjustStorageUsage(updateOpt.get().getUserKey().toString(), req);
+		req.setChatMessageCountDelta(-1L * forDeleteList.size());
+		long totalSize = forDeleteList.stream()
+			    .mapToLong(doc -> doc.getSize() != null ? doc.getSize() : 0L)
+			    .sum();
+		req.setChatStorageBytesDelta(-1 * totalSize);
+		mediaService.adjustStorageUsage(forDeleteList.get(0).getUserKey().toString(), req);
 
-		repository.deleteById(messageId);
+		repository.deleteAllById(forDeleteList.stream().map(msg -> msg.getMessageId()).toList());
 	}	
 
 	@Transactional
@@ -503,7 +505,11 @@ public class MessageBackupService {
 		mediaService.deleteStorage(userKey.toString());
 	}	
 
-	public void updateStatus(UUID messageId, String timestampField, UUID stanzaId, Long timestamp) {
+	public void updateStatus(List<UUID> messageIds, String timestampField, Long timestamp) {
+		if (CollectionUtils.isEmpty(messageIds)) {
+			return;
+		}
+		
 		UUID userKey = UUID.fromString(SecurityUtil.getUserKey());	
 		/**
 		 * Redis distributed lock key to prevent concurrent duplicate inserts
@@ -512,7 +518,7 @@ public class MessageBackupService {
 		 * Format:
 		 * signal:lock:message-backup:insert:{messageId}
 		 */
-		String lockKey = "signal:lock:mb:update-status:" + stanzaId;
+		String lockKey = "signal:lock:mb:update-status:" + messageIds.get(0);
 
 		/**
 		 * Lock value used for safe release verification.
@@ -539,7 +545,7 @@ public class MessageBackupService {
 			// 1. Filter by User Key (Equality match)
 			// 2. Filter by Message ID threshold (Range match)
 			// 3. Apply the dynamic status timestamp null check last			
-			Optional<MessageMetadataProjection> messageOpt = repository.findProjectedByMessageId(messageId);			
+			Optional<MessageBackupView> messageOpt = repository.findProjectedByMessageId(messageIds.get(0));			
 			
 			if(messageOpt.isPresent()) {
 				String conversationId = ConversationUtil.getConversationId(
@@ -556,23 +562,23 @@ public class MessageBackupService {
 			}
 
 		} else {			
-			query = new Query(Criteria.where(FIELD_MESSAGE_ID).is(messageId)
+			query = new Query(Criteria.where(FIELD_MESSAGE_ID).in(messageIds)
 					.and(FIELD_USER_KEY).is(userKey));
 		}
 
 		Update update = new Update()
 				.set(timestampField, timestamp)
-				.set(FIELD_UPDATE_CURSOR_ID, stanzaId);
+				.set(FIELD_UPDATE_CURSOR_ID, UuidCreator.getTimeOrderedEpoch());
 
 		// Clean up message
-		if (FIELD_DELETED_AT.equals(timestampField) || FIELD_RETRACTED_AT.equals(timestampField)) {
+		if (FIELD_DELETED_AT.equals(timestampField)) {
 			update.set(FIELD_ENCRYPTED_MSG, null);
 		}
 
 		UpdateResult result = mongoTemplate.updateMulti(query, update, MessageBackupDocument.class);
 
 		if (result.getMatchedCount() == 0) {
-			log.warn("Message backup not found: " + messageId);
+			log.warn("Message backup message IDs not found: {} " + messageIds);
 		}
 	}
 }

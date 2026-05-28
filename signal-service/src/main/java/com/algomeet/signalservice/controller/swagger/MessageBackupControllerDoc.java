@@ -4,10 +4,11 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 
 import com.algomeet.signalservice.document.MessageBackupDocument;
 import com.algomeet.signalservice.dto.CommonResponse;
@@ -16,11 +17,11 @@ import com.algomeet.signalservice.dto.MessageStatusUpdateRequest;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import io.swagger.v3.oas.annotations.media.Content;
-import io.swagger.v3.oas.annotations.media.Schema;
 
 @Tag(name = "Chat Message Backup", description = "APIs for managing encrypted chat message backups and synchronization")
 public interface MessageBackupControllerDoc {
@@ -68,8 +69,8 @@ public interface MessageBackupControllerDoc {
     )
     ResponseEntity<CommonResponse<List<MessageBackupResponse>>> getConversationMessages(
         @Parameter(description = "Peer user key", example = "9640b033-3c2a-...") UUID peerKey,
-        @Parameter(description = "Cursor (stanzaId). Fetch messages BEFORE this ID", example = "019e4c0a...") Optional<String> before,
-        @Parameter(description = "Cursor (stanzaId). Fetch messages AFTER this ID", example = "019e4c0a...") Optional<String> after,
+        @Parameter(description = "Cursor (stanzaId). Fetch messages BEFORE this ID", example = "019e4c0a...") UUID before,
+        @Parameter(description = "Cursor (stanzaId). Fetch messages AFTER this ID", example = "019e4c0a...") UUID after,
         @Parameter(description = "Page index", example = "0") int page,
         @Parameter(description = "Page size", example = "50") int size
     );
@@ -128,8 +129,8 @@ public interface MessageBackupControllerDoc {
         @RequestBody MessageBackupDocument request
     );
 
-    @Operation(summary = "Delete message")
-    ResponseEntity<CommonResponse<?>> deleteMessage(UUID messageId);
+    @Operation(summary = "Delete one or more messages")
+    ResponseEntity<CommonResponse<?>> deleteMessages(List<UUID> messageIds);
 
     @Operation(summary = "Delete entire conversation")
     ResponseEntity<CommonResponse<?>> deleteByConversation(UUID peerKey);
@@ -137,18 +138,44 @@ public interface MessageBackupControllerDoc {
     @Operation(summary = "Delete all messages of current user")
     ResponseEntity<CommonResponse<?>> deleteByUserKey();
 
-    @Operation(summary = "Mark message as sent")
-    ResponseEntity<CommonResponse<?>> markAsSent(UUID messageId, MessageStatusUpdateRequest request);
+    @Operation(summary = "Mark message(s) as sent")
+    ResponseEntity<CommonResponse<?>> markAsSent(MessageStatusUpdateRequest request);
 
-    @Operation(summary = "Mark message as delivered")
-    ResponseEntity<CommonResponse<?>> markAsDelivered(UUID messageId, MessageStatusUpdateRequest request);
+    @Operation(summary = "Mark message(s) as delivered")
+    ResponseEntity<CommonResponse<?>> markAsDelivered(MessageStatusUpdateRequest request);
 
-    @Operation(summary = "Mark message as read")
-    ResponseEntity<CommonResponse<?>> markAsRead(UUID messageId, MessageStatusUpdateRequest request);
-
-    @Operation(summary = "Mark message as deleted (soft delete)")
-    ResponseEntity<CommonResponse<?>> markAsDeleted(UUID messageId, MessageStatusUpdateRequest request);
+    @Operation(
+    	    summary = "Mark a message as read",
+    	    description = "Updates the status of a specific message to 'read', with an optional timestamp.",
+    	    responses = {
+    	        @ApiResponse(
+    	            responseCode = "200", 
+    	            description = "Message successfully marked as read",
+    	            content = @Content(schema = @Schema(implementation = CommonResponse.class))
+    	        ),
+    	        @ApiResponse(
+    	            responseCode = "404", 
+    	            description = "Message not found",
+    	            content = @Content(schema = @Schema(implementation = CommonResponse.class))
+    	        )
+    	    }
+    	)
+    	public ResponseEntity<CommonResponse<?>> markAsRead(
+    	        @Parameter(
+    	            description = "The unique UUID of the message to be marked as read. "
+    	            		+ "It can mark multiple messages as read if the current message ID is greater than the previously acknowledged message ID.", 
+    	            required = true, 
+    	            example = "123e4567-e89b-12d3-a456-426614174000"
+    	        )
+    	        @PathVariable UUID messageId,
+    	        
+    	        @Parameter(
+    	            description = "Optional epoch timestamp (in milliseconds) when the message was read. If omitted, the current server time is used.", 
+    	            required = false, 
+    	            example = "1717000000000"
+    	        )
+    	        @RequestParam(value = "date", required = false) Long date);
     
-    @Operation(summary = "Mark message as retracted (soft delete by sender)")
-    ResponseEntity<CommonResponse<?>> markAsRetracted(UUID messageId, MessageStatusUpdateRequest request);
+    @Operation(summary = "Mark message(s) as retracted (soft delete by sender)")
+    ResponseEntity<CommonResponse<?>> markAsRetracted(MessageStatusUpdateRequest request);
 }

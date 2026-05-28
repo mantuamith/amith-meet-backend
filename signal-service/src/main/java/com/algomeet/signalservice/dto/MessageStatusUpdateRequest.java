@@ -1,20 +1,20 @@
 package com.algomeet.signalservice.dto;
 
+import java.util.List;
+import java.util.UUID;
+
 import io.swagger.v3.oas.annotations.media.Schema;
-import jakarta.validation.constraints.Pattern;
-import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.NotEmpty;
 import lombok.Data;
 
 @Data
-public class MessageStatusUpdateRequest {
-    @Size(max = 45)
-    @Schema(description = "The stanzaId from the XMPP receipt to be used as the updateCursorId", example = "01JKH...")
-    private String stanzaId;
+public class MessageStatusUpdateRequest {   
+	@NotEmpty(message = "The messageIds list must contain at least one ID.")
+    private List<UUID> messageIds;
 
-    @Pattern(
-        regexp = "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$", 
-        message = "Date must be in ISO 8601 format (YYYY-MM-DDThh:mm:ssZ)"
-    )
-    @Schema(description = "UTC timestamp in ISO 8601 format", example = "2026-05-02T19:10:31Z")
-    private String date;
+	@Schema(
+			description = "Optional UTC timestamp in milliseconds since the epoch", 
+			example = "1777749031000"
+			)
+	private Long date;
 }

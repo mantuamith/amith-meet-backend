@@ -3,10 +3,8 @@ package com.algomeet.signalservice.controller;
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_DELETED_AT;
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_DELIVERED_AT;
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_READ_AT;
-import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_RETRACTED_AT;
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_SENT_AT;
 
-import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.Comparator;
 import java.util.List;
@@ -14,12 +12,8 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.util.StringUtils;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -100,43 +94,36 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 	 */
 	@GetMapping("/{peerKey}/conversation")
 	public ResponseEntity<CommonResponse<List<MessageBackupResponse>>> getConversationMessages(
-			@PathVariable UUID peerKey,
-			@RequestParam("before") Optional<String> beforeStanzaId,
-			@RequestParam("after") Optional<String> afterStanzaId,
-			@RequestParam(defaultValue = "0") int page,
-			@RequestParam(defaultValue = "50") int size) {
+	        @PathVariable UUID peerKey,
+	        @RequestParam(value = "before", required = false) UUID beforeStanzaId,
+	        @RequestParam(value = "after", required = false) UUID afterStanzaId,
+	        @RequestParam(defaultValue = "0") int page,
+	        @RequestParam(defaultValue = "50") int size) {
 
-		// Fetch paginated message backups for the conversation between the current user and the peer.
-		// NOTE: The "after" cursor is not yet applied in the query and should be integrated at the service level.
-		List<MessageBackupDocument> messages = null;
-		if (afterStanzaId.isPresent()) {			
-			messages =
-					messageBackupService.getConversationMessagesAfter(
-							UUID.fromString(SecurityUtil.getUserKey()), peerKey, UUID.fromString(afterStanzaId.get()), page, size);    		
+	    UUID userKey = UUID.fromString(SecurityUtil.getUserKey());
+	    List<MessageBackupDocument> messages;
 
-		} else {    
-			if (beforeStanzaId.isEmpty()) {
-				beforeStanzaId = Optional.ofNullable(UuidCreator.getTimeOrderedEpoch().toString());
-			}
-			
-			messages =
-					messageBackupService.getConversationMessagesBefore(
-							UUID.fromString(SecurityUtil.getUserKey()), peerKey, UUID.fromString(beforeStanzaId.get()), page, size);
-			
-			// Sort the entire combined list by stanzaId (UUIDv7) in Ascending order
-			messages.sort(Comparator.comparing(MessageBackupDocument::getStanzaId));
-			
-		}
+	    if (afterStanzaId != null) {			
+	        messages = messageBackupService.getConversationMessagesAfter(
+	                userKey, peerKey, afterStanzaId, page, size);    		
+	    } else {    
+	        // Fallback to a new time-ordered UUID if 'before' is completely absent
+	        UUID targetBeforeId = (beforeStanzaId != null) ? beforeStanzaId : UuidCreator.getTimeOrderedEpoch();
+	        
+	        messages = messageBackupService.getConversationMessagesBefore(
+	                userKey, peerKey, targetBeforeId, page, size);
+	        
+	        // Sort ascending by stanzaId
+	        messages.sort(Comparator.comparing(MessageBackupDocument::getStanzaId));
+	    }
 
-		// Transform database documents into API response DTOs.
-		List<MessageBackupResponse> responseList = messages
-				.stream()
-				.map(MessageBackupResponse::from)
-				.collect(Collectors.toList());
+	    // Transform and map to response DTOs
+	    List<MessageBackupResponse> responseList = messages.stream()
+	            .map(MessageBackupResponse::from)
+	            .toList(); // Modern Java 16+ syntax
 
-		// Return standardized success response with paginated data.
-		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, responseList));
-	}  
+	    return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, responseList));
+	}
 	
 	@GetMapping("/{peerKey}/conversation/updates")
 	public ResponseEntity<CommonResponse<List<MessageBackupResponse>>> getMessageUpdates(
@@ -301,23 +288,7 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.MESSAGE_BACKUP_NOT_FOUND));
 		}
 	}
-
-	/**
-	 * Deletes a single message backup by its message ID.
-	 *
-	 * @param messageId the ID of the message to delete
-	 * @return success response or HTTP 404 if not found
-	 */
-	@DeleteMapping("/{messageId}")
-	public ResponseEntity<CommonResponse<?>> deleteMessage(@PathVariable UUID messageId) {
-		try {
-			messageBackupService.delete(UUID.fromString(SecurityUtil.getUserKey()), messageId);        
-			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
-		} catch (RecordNotFoundException ex) {
-			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.MESSAGE_BACKUP_NOT_FOUND));
-		}
-	}
-
+	
 	/**
 	 * Deletes all messages in a conversation between the authenticated user and the given peer.
 	 *
@@ -331,11 +302,27 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 	}
 
 	/**
-	 * Deletes all chat message backups belonging to the currently authenticated user.
-	 *
-	 * @return success response
-	 */
-	@DeleteMapping
+     * Deletes one or more message backups by their message IDs.
+     *
+     * @param messageIds the list of IDs of the messages to delete
+     * @return success response or HTTP 404 if not found
+     */
+    @DeleteMapping("/messages")
+	public ResponseEntity<CommonResponse<?>> deleteMessages(@PathVariable List<UUID> messageIds) {
+		try {
+			messageBackupService.delete(UUID.fromString(SecurityUtil.getUserKey()), messageIds);        
+			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
+		} catch (RecordNotFoundException ex) {
+			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.MESSAGE_BACKUP_NOT_FOUND));
+		}
+	}
+	
+	/**
+     * Deletes all chat message backups belonging to the currently authenticated user.
+     *
+     * @return success response
+     */
+    @DeleteMapping("/purge")
 	public ResponseEntity<CommonResponse<?>> deleteByUserKey() {
 		messageBackupService.deleteByUserKey(UUID.fromString(SecurityUtil.getUserKey()));        
 		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
@@ -346,19 +333,17 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 	 */
 	@PatchMapping("/{messageId}/mark-as-sent")
 	public ResponseEntity<CommonResponse<?>> markAsSent(
-			@PathVariable UUID messageId,
 			@Validated @RequestBody MessageStatusUpdateRequest request) {
-		return processStatusUpdate(messageId, FIELD_SENT_AT, request);
+		return processStatusUpdate(FIELD_SENT_AT, request);
 	}
 
 	/**
 	 * Marks a message as delivered.
 	 */
-	@PatchMapping("/{messageId}/mark-as-delivered")
+	@PatchMapping("/mark-as-delivered")
 	public ResponseEntity<CommonResponse<?>> markAsDelivered(
-			@PathVariable UUID messageId,
 			@Validated @RequestBody MessageStatusUpdateRequest request) {
-		return processStatusUpdate(messageId, FIELD_DELIVERED_AT, request);
+		return processStatusUpdate(FIELD_DELIVERED_AT, request);
 	}
 
 	/**
@@ -366,36 +351,31 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 	 */
 	@PatchMapping("/{messageId}/mark-as-read")
 	public ResponseEntity<CommonResponse<?>> markAsRead(
-			@PathVariable UUID messageId,
-			@Validated @RequestBody MessageStatusUpdateRequest request) {
-		return processStatusUpdate(messageId, FIELD_READ_AT, request);
-	}
+	        @PathVariable UUID messageId,
+	        @RequestParam(value = "date", required = false) Long date) {		
+	    
+	    MessageStatusUpdateRequest request = new MessageStatusUpdateRequest();
+	    request.setMessageIds(List.of(messageId));
+	    
+	    // Use Optional.ofNullable to handle the nullability cleanly
+	    Optional.ofNullable(date).ifPresent(request::setDate);
 
-	/**
-	 * Performs a soft delete (tombstone) on a message.
-	 */
-	@PatchMapping("/{messageId}/mark-as-deleted")
-	public ResponseEntity<CommonResponse<?>> markAsDeleted(
-			@PathVariable UUID messageId,
-			@Validated @RequestBody MessageStatusUpdateRequest request) {
-		return processStatusUpdate(messageId, FIELD_DELETED_AT, request);
+	    return processStatusUpdate(FIELD_READ_AT, request);
 	}
 	
 	/**
 	 * Performs a soft delete (tombstone) on a message.
 	 */
-	@PatchMapping("/{messageId}/mark-as-retracted")
+	@PatchMapping("/mark-as-retracted")
 	public ResponseEntity<CommonResponse<?>> markAsRetracted(
-			@PathVariable UUID messageId,
 			@Validated @RequestBody MessageStatusUpdateRequest request) {
-		return processStatusUpdate(messageId, FIELD_RETRACTED_AT, request);
+		return processStatusUpdate(FIELD_DELETED_AT, request);
 	}
 
 	/**
 	 * Private helper to DRY up the status update logic and handle parsing.
 	 */
 	private ResponseEntity<CommonResponse<?>> processStatusUpdate(
-			UUID messageId, 
 			String fieldName, 
 			MessageStatusUpdateRequest request) {
 
@@ -403,25 +383,16 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 			long timestamp;
 
 			// Fallback logic: Use client date if present, otherwise use server's current time
-			if (request.getDate() != null && !request.getDate().isBlank()) {
-				timestamp = Instant.parse(request.getDate()).toEpochMilli();
+			if (request.getDate() != null) {
+				timestamp = request.getDate();
 			} else {
 				timestamp = System.currentTimeMillis();
 			}
 
-			UUID stanzaId;
-			if (StringUtils.hasText(request.getStanzaId())) {
-				stanzaId = UUID.fromString(request.getStanzaId());            	
-			} else {
-				stanzaId = UuidCreator.getTimeOrderedEpoch();
-			}
-
 			messageBackupService.updateStatus(
-					messageId, 
+					request.getMessageIds(), 
 					fieldName, 
-					stanzaId, 
-					timestamp
-					);
+					timestamp);
 
 			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
 		} catch (MessageUpdateStatusInProgressException ex) {
@@ -435,5 +406,5 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 			return ResponseEntity.status(HttpStatus.NOT_FOUND)
 					.body(CommonResponse.from(ResponseCode.MESSAGE_BACKUP_NOT_FOUND));
 		}
-	}	
+	}
 }

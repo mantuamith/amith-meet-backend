@@ -89,7 +89,6 @@ public class MessageBackupDocument {
     public static final String FIELD_DELIVERED_AT = "deliveredAt";
     public static final String FIELD_READ_AT = "readAt";
     public static final String FIELD_DELETED_AT = "deletedAt";
-    public static final String FIELD_RETRACTED_AT = "retractedAt";
     public static final String FIELD_EDIT_COUNT = "editCount";
     public static final String FIELD_TIMESTAMP = "timestamp";
     
@@ -150,8 +149,6 @@ public class MessageBackupDocument {
 	
 	// Soft delete / tombstone (for retention/compaction)
 	private Long deletedAt;
-	
-	private Long retractedAt;
 	
     // Useful for finding all reactions, replies and etc to a specific message
     @Indexed
