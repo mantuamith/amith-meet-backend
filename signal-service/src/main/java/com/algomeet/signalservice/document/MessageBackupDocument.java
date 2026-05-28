@@ -91,6 +91,7 @@ public class MessageBackupDocument {
     public static final String FIELD_DELETED_AT = "deletedAt";
     public static final String FIELD_EDIT_COUNT = "editCount";
     public static final String FIELD_TIMESTAMP = "timestamp";
+    public static final String FIELD_SIZE = "size";
     
 	@Id
 	private UUID messageId;

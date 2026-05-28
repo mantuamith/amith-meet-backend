@@ -16,6 +16,7 @@ import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_ST
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_UPDATE_CURSOR_ID;
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_USER_KEY;
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_VERSION;
+import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_SIZE;
 
 import java.nio.charset.Charset;
 import java.time.Duration;
@@ -573,6 +574,8 @@ public class MessageBackupService {
 		// Clean up message
 		if (FIELD_DELETED_AT.equals(timestampField)) {
 			update.set(FIELD_ENCRYPTED_MSG, null);
+			// TODO: Calculate the deducted size
+			update.set(FIELD_SIZE, 0);
 		}
 
 		UpdateResult result = mongoTemplate.updateMulti(query, update, MessageBackupDocument.class);
