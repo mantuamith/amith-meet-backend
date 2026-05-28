@@ -63,13 +63,13 @@ public interface MucMessageControllerDoc {
 					description = "Fetch messages before the specified stanza ID (older messages)",
 					example = "0196b2d7-4b84-7c10-b1d2-91ef4c1cfa11"
 			)
-			@RequestParam("before") Optional<String> beforeStanzaId,
+			@RequestParam("before") UUID beforeStanzaId,
 
 			@Parameter(
 					description = "Fetch messages after the specified stanza ID (newer messages)",
 					example = "0196b2d7-4b84-7c10-b1d2-91ef4c1cfa11"
 			)
-			@RequestParam("after") Optional<String> afterStanzaId,
+			@RequestParam("after") UUID afterStanzaId,
 
 			@Parameter(
 					description = "Page index",
@@ -133,9 +133,9 @@ public interface MucMessageControllerDoc {
 
 			@Parameter(
 					description = "Page size",
-					example = "50"
+					example = "20"
 			)
-			@RequestParam(value = "size", defaultValue = "50") int size);
+			@RequestParam(value = "size", defaultValue = "20") int size);
 	
 	@Operation(
 	        summary = "Get user group conversations",

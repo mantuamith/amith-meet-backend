@@ -2,7 +2,6 @@ package com.algomeet.xmpp.chatservice.controller;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.http.ResponseEntity;
@@ -21,6 +20,7 @@ import com.algomeet.xmpp.chatservice.enums.ResponseCode;
 import com.algomeet.xmpp.chatservice.service.MucMessageService;
 import com.algomeet.xmpp.chatservice.service.MucRoomService;
 import com.algomeet.xmpp.chatservice.util.SecurityUtil;
+import com.github.f4b6a3.uuid.UuidCreator;
 
 import io.swagger.v3.oas.annotations.Parameter;
 import lombok.RequiredArgsConstructor;
@@ -61,33 +61,28 @@ public class MucMessageController implements MucMessageControllerDoc{
 	 */
 	@GetMapping("/{groupId}/messages")
 	public ResponseEntity<CommonResponse<List<MucMessageResponse>>> getMessages(
-			@PathVariable UUID groupId,
-			@RequestParam("before") Optional<String> beforeStanzaId,
-			@RequestParam("after") Optional<String> afterStanzaId,    		
-			@RequestParam(value = "page", defaultValue = "0") int page, 
-			@RequestParam(value = "size", defaultValue = "20") int size) {
+	        @PathVariable UUID groupId,
+	        @RequestParam(value = "before", required = false) UUID beforeStanzaId,
+	        @RequestParam(value = "after", required = false) UUID afterStanzaId,    		
+	        @RequestParam(value = "page", defaultValue = "0") int page, 
+	        @RequestParam(value = "size", defaultValue = "20") int size) {
 
-		// Get the authenticated user's key
-		String userKey = SecurityUtil.getUserKey();
+	    UUID userKey = UUID.fromString(SecurityUtil.getUserKey());
+	    List<MucMessageResponse> messages;
 
-		List<MucMessageResponse> messages = null;
-		if (afterStanzaId.isPresent()) {
-			messages = mucMessageService.getMessagesAfter(UUID.fromString(userKey), 
-					groupId, 
-					UUID.fromString(afterStanzaId.get()), 
-					page, size);   
-		} else if (beforeStanzaId.isPresent()){
-			messages = mucMessageService.getMessagesBefore(UUID.fromString(userKey), 
-					groupId, 
-					UUID.fromString(beforeStanzaId.get()), 
-					page, size);   
-		}
+	    if (afterStanzaId != null) {
+	        messages = mucMessageService.getMessagesAfter(
+	                userKey, groupId, afterStanzaId, page, size);   
+	    } else {
+	        // Fallback: If 'before' is missing, default to a fresh time-ordered UUID
+	        UUID targetBeforeId = (beforeStanzaId != null) ? beforeStanzaId : UuidCreator.getTimeOrderedEpoch();
+	        
+	        messages = mucMessageService.getMessagesBefore(
+	                userKey, groupId, targetBeforeId, page, size);   
+	    }
 
-		return ResponseEntity.ok(CommonResponse.from(
-				ResponseCode.SUCCESS, 
-				messages
-				));
-	}   
+	    return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, messages));
+	}
 
 	/**
 	 * Retrieves incremental message updates for a MUC (group chat) conversation.
@@ -115,8 +110,8 @@ public class MucMessageController implements MucMessageControllerDoc{
 	public ResponseEntity<CommonResponse<List<MucMessageResponse>>> getMessageUpdates(
 			@PathVariable UUID groupId,
 			@RequestParam("untilStanzaId") UUID untilStanzaId,
-			@Parameter(description = "Page index", example = "0") int page,
-			@Parameter(description = "Page size", example = "20") int size) {
+			@RequestParam(value = "page", defaultValue = "0") int page,
+			@RequestParam(value = "size", defaultValue = "20") int size) {
 
 		// Get the authenticated user's key
 		String userKey = SecurityUtil.getUserKey();                  
