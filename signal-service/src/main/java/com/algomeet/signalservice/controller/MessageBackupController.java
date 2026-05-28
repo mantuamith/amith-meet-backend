@@ -331,7 +331,7 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 	/**
 	 * Marks a message as successfully sent.
 	 */
-	@PatchMapping("/{messageId}/mark-as-sent")
+	@PatchMapping("/mark-as-sent")
 	public ResponseEntity<CommonResponse<?>> markAsSent(
 			@Validated @RequestBody MessageStatusUpdateRequest request) {
 		return processStatusUpdate(FIELD_SENT_AT, request);

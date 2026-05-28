@@ -144,17 +144,17 @@ public interface MessageBackupControllerDoc {
     ResponseEntity<CommonResponse<?>> markAsDelivered(MessageStatusUpdateRequest request);
 
     @Operation(
-    	    summary = "Mark a message as read",
-    	    description = "Updates the status of a specific message to 'read', with an optional timestamp.",
+    	    summary = "Mark a message(s) as read",
+    	    description = "Updates the status of a specific message(s) to 'read', with an optional timestamp.",
     	    responses = {
     	        @ApiResponse(
     	            responseCode = "200", 
-    	            description = "Message successfully marked as read",
+    	            description = "Message(s) successfully marked as read",
     	            content = @Content(schema = @Schema(implementation = CommonResponse.class))
     	        ),
     	        @ApiResponse(
     	            responseCode = "404", 
-    	            description = "Message not found",
+    	            description = "Message(s) not found",
     	            content = @Content(schema = @Schema(implementation = CommonResponse.class))
     	        )
     	    }
