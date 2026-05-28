@@ -1,7 +1,6 @@
 package com.algomeet.signalservice.controller.swagger;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.http.ResponseEntity;
@@ -178,4 +177,7 @@ public interface MessageBackupControllerDoc {
     
     @Operation(summary = "Mark message(s) as retracted (soft delete by sender)")
     ResponseEntity<CommonResponse<?>> markAsRetracted(MessageStatusUpdateRequest request);
+    
+    @Operation(summary = "Mark message(s) as deleted (soft delete by sender)")
+    ResponseEntity<CommonResponse<?>> markAsDeleted(MessageStatusUpdateRequest request);
 }

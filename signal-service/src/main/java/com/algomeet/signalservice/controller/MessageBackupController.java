@@ -371,6 +371,15 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 			@Validated @RequestBody MessageStatusUpdateRequest request) {
 		return processStatusUpdate(FIELD_DELETED_AT, request);
 	}
+	
+	/**
+	 * Performs a soft delete on a message.
+	 */
+	@PatchMapping("/mark-as-deleted")
+	public ResponseEntity<CommonResponse<?>> markAsDeleted(
+			@Validated @RequestBody MessageStatusUpdateRequest request) {
+		return processStatusUpdate(FIELD_DELETED_AT, request);
+	}
 
 	/**
 	 * Private helper to DRY up the status update logic and handle parsing.
