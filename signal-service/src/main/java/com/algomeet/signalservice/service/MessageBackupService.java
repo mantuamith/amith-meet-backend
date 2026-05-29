@@ -213,7 +213,7 @@ public class MessageBackupService {
 		.include(FIELD_STANZA_ID)
 		.include(FIELD_SENDER_KEY)
 		.include(FIELD_RECEIVER_KEY)
-		.include(FIELD_ENCRYPTED_MSG)
+//		.include(FIELD_ENCRYPTED_MSG)
 		.include(FIELD_ALGORITHM)
 		.include(FIELD_VERSION)
 		.include(FIELD_SALT)
