@@ -122,11 +122,11 @@ public interface MessageBackupControllerDoc {
         @RequestBody MessageBackupDocument request
     );
 
-    @Operation(summary = "Edit message (partial update), do not use this if you need the history of the original message or previous message updates.")
-    ResponseEntity<CommonResponse<MessageBackupResponse>> editMessage(
-    	UUID messageId,
-        @RequestBody MessageBackupDocument request
-    );
+//    @Operation(summary = "Edit message (partial update), do not use this if you need the history of the original message or previous message updates.")
+//    ResponseEntity<CommonResponse<MessageBackupResponse>> editMessage(
+//    	UUID messageId,
+//        @RequestBody MessageBackupDocument request
+//    );
 
     @Operation(summary = "Delete one or more messages")
     ResponseEntity<CommonResponse<?>> deleteMessages(List<UUID> messageIds);

@@ -279,16 +279,16 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 	 *
 	 * @throws RecordNotFoundException if the message with the given ID does not exist
 	 */
-	@PutMapping("/{messageId}/edit")
-	public ResponseEntity<CommonResponse<MessageBackupResponse>> editMessage(@PathVariable UUID messageId, 
-			@RequestBody MessageBackupDocument request) {
-		try {
-			MessageBackupDocument saved = messageBackupService.edit(UUID.fromString(SecurityUtil.getUserKey()), messageId, request);
-			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, MessageBackupResponse.from(saved)));
-		} catch (RecordNotFoundException ex) {
-			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.MESSAGE_BACKUP_NOT_FOUND));
-		}
-	}
+//	@PutMapping("/{messageId}/edit")
+//	public ResponseEntity<CommonResponse<MessageBackupResponse>> editMessage(@PathVariable UUID messageId, 
+//			@RequestBody MessageBackupDocument request) {
+//		try {
+//			MessageBackupDocument saved = messageBackupService.edit(UUID.fromString(SecurityUtil.getUserKey()), messageId, request);
+//			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, MessageBackupResponse.from(saved)));
+//		} catch (RecordNotFoundException ex) {
+//			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.MESSAGE_BACKUP_NOT_FOUND));
+//		}
+//	}
 	
 	/**
 	 * Deletes all messages in a conversation between the authenticated user and the given peer.
