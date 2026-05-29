@@ -49,7 +49,7 @@ public class MessageBackupResponse {
                 .readAt(doc.getReadAt())
                 .deletedAt(doc.getDeletedAt())
                 .isHidden(doc.getHiddenAt() != null)
-                .refersTo(doc.getRefersTo())
+                .refersTo(doc.getRefersTo() != null ? doc.getRefersTo().toString() : null)
                 .editCount(doc.getEditCount())
                 .isStartOfConversation(doc.getStartOfConversation())
                 // Meta info
