@@ -214,15 +214,16 @@ public class MessageBackupService {
 		.include(FIELD_SENDER_KEY)
 		.include(FIELD_RECEIVER_KEY)
 //		.include(FIELD_ENCRYPTED_MSG)
-		.include(FIELD_ALGORITHM)
-		.include(FIELD_VERSION)
-		.include(FIELD_SALT)
+//		.include(FIELD_ALGORITHM)
+//		.include(FIELD_VERSION)
+//		.include(FIELD_SALT)
 		.include(FIELD_SENT_AT)
 		.include(FIELD_DELIVERED_AT)
 		.include(FIELD_READ_AT)
 		.include(FIELD_DELETED_AT)
 		.include(FIELD_HIDDEN_AT)
-		.include(FIELD_EDIT_COUNT);
+//		.include(FIELD_EDIT_COUNT)
+		;
 
 		// 2. Attach Sort and Pagination Bounds to Query
 		query.with(Sort.by(Sort.Direction.DESC, FIELD_STANZA_ID));
