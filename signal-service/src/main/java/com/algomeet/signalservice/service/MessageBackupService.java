@@ -563,10 +563,14 @@ public class MessageBackupService {
 
 		// Clean up message
 		if (FIELD_DELETED_AT.equals(timestampField) || FIELD_HIDDEN_AT.equals(timestampField)) {
-			// Get reactions and replacement/edit			
-			List<MessageBackupView> relatedMessages = repository.findByUserKeyAndTargetMessageIdIn(userKey, messageIds);
-			// Add IDs to message IDs to be updated
-			messageIds.addAll(relatedMessages.stream().map(m -> m.getMessageId()).toList());
+			// Retrieve reaction and edit/replacement messages associated with the target messages
+			List<MessageBackupView> relatedMessages =
+			        repository.findByUserKeyAndTargetMessageIdIn(userKey, messageIds);
+
+			// Include related reaction and edit message IDs in the synchronization update set
+			messageIds.addAll(relatedMessages.stream()
+			        .map(MessageBackupView::getMessageId)
+			        .toList());
 			
 			update.set(FIELD_ENCRYPTED_MSG, null);
 			// TODO: Calculate the deducted size
