@@ -22,7 +22,8 @@ public class MessageBackupResponse {
     private Long readAt;
     private Long deletedAt;
     private Boolean isHidden;
-    private String refersTo;      
+    private String targetMessageId;   
+    private String replyToMessageId;     
     private Integer editCount;
     private Boolean isStartOfConversation;
     private Long timestamp;
@@ -49,7 +50,8 @@ public class MessageBackupResponse {
                 .readAt(doc.getReadAt())
                 .deletedAt(doc.getDeletedAt())
                 .isHidden(doc.getHiddenAt() != null)
-                .refersTo(doc.getRefersTo() != null ? doc.getRefersTo().toString() : null)
+                .targetMessageId(doc.getTargetMessageId() != null ? doc.getTargetMessageId().toString() : null)
+                .replyToMessageId(doc.getReplyToMessageId() != null ? doc.getReplyToMessageId().toString() : null)
                 .editCount(doc.getEditCount())
                 .isStartOfConversation(doc.getStartOfConversation())
                 // Meta info

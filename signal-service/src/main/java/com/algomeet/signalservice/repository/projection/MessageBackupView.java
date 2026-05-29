@@ -8,4 +8,5 @@ public interface MessageBackupView {
     UUID getSenderKey();
     UUID getReceiverKey();
     Long getSize();
+    UUID getTargetMessageId();
 }

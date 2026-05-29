@@ -82,7 +82,15 @@ import lombok.NoArgsConstructor;
     @CompoundIndex(
             name = "idxMsg_convId_senderKey_stanzaId_readAt", 
             def = "{'conversationId': 1, 'senderKey': 1, 'stanzaId': -1, 'readAt': 1}"
-        )
+        ),
+    /**
+     * 7. Fetching reactions, replies, or message threads (e.g., finding edits/reactions for listed messages)
+     * Covers: findByUserKeyAndTargetMessageIdIn
+     */
+    @CompoundIndex(
+        name = "idxMsg_userKey_targetMessageId", 
+        def = "{'userKey': 1, 'targetMessageId': 1}"
+    )
 })
 public class MessageBackupDocument {
 	// These constants match the @Field names or the variable names
@@ -165,8 +173,10 @@ public class MessageBackupDocument {
 	private Long deletedAt;
 	
     // Useful for finding all reactions, replies and etc to a specific message
-    @Indexed
-    private UUID refersTo;      
+    private UUID targetMessageId;    
+    
+    // Useful for finding all replies to a specific message
+    private UUID replyToMessageId;  
   
     private Integer editCount;
     

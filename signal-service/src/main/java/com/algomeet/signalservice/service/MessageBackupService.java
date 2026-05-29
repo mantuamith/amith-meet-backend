@@ -385,7 +385,8 @@ public class MessageBackupService {
 			if (backup.getDeletedAt() != null) existing.setDeletedAt(backup.getDeletedAt());
 
 			// Relationships & Sync
-			if (backup.getRefersTo() != null) existing.setRefersTo(backup.getRefersTo());
+			if (backup.getTargetMessageId() != null) existing.setTargetMessageId(backup.getTargetMessageId());
+			if (backup.getReplyToMessageId() != null) existing.setReplyToMessageId(backup.getReplyToMessageId());
 			if (backup.getEditCount() != null) existing.setEditCount(backup.getEditCount());
 			if (backup.getUpdateCursorId() != null) existing.setUpdateCursorId(backup.getUpdateCursorId());
 			if (backup.getSize() != null) existing.setSize(backup.getSize());
@@ -535,7 +536,7 @@ public class MessageBackupService {
 			// 1. Filter by User Key (Equality match)
 			// 2. Filter by Message ID threshold (Range match)
 			// 3. Apply the dynamic status timestamp null check last			
-			Optional<MessageBackupView> messageOpt = repository.findProjectedByMessageId(messageIds.get(0));			
+			Optional<MessageBackupView> messageOpt = repository.findMessageBackupViewByMessageId(messageIds.get(0));			
 			
 			if(messageOpt.isPresent()) {
 				String conversationId = ConversationUtil.getConversationId(
@@ -562,8 +563,10 @@ public class MessageBackupService {
 
 		// Clean up message
 		if (FIELD_DELETED_AT.equals(timestampField) || FIELD_HIDDEN_AT.equals(timestampField)) {
-			// TODO: Retrieve child messages, by comparing the refersTo to the request messageIds.
-			// And include them to be updated their msg and size fields.
+			// Get reactions and replacement/edit			
+			List<MessageBackupView> relatedMessages = repository.findByUserKeyAndTargetMessageIdIn(userKey, messageIds);
+			// Add IDs to message IDs to be updated
+			messageIds.addAll(relatedMessages.stream().map(m -> m.getMessageId()).toList());
 			
 			update.set(FIELD_ENCRYPTED_MSG, null);
 			// TODO: Calculate the deducted size
