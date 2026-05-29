@@ -113,15 +113,9 @@ public class MucMessageService {
 				.stream()
 				// 1. Map documents to Response DTOs safely passing your explicit userKey parameter
 				.map(m -> mucMessageMapper.toResponse(m, userKey))
-				// 2. Clear payload XML elements on the fly for hidden messages
-				.peek(message -> {
-					if (Boolean.TRUE.equals(message.getIsHidden())) {
-						message.setStanzaXml(null);
-					}
-				})
-				// 3. Sort the stream cleanly by stanzaId (UUIDv7) in Ascending order
+				// 2. Sort the stream cleanly by stanzaId (UUIDv7) in Ascending order
 				.sorted(Comparator.comparing(MucMessageResponse::getStanzaId))
-				// 4. Collect the finalized stream into your immutable list safely
+				// 3. Collect the finalized stream into your immutable list safely
 				.toList();
 
 		return processedMessages;
