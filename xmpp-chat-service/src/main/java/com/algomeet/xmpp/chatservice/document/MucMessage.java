@@ -31,12 +31,7 @@ import lombok.NoArgsConstructor;
 	// Index A: For public/room-wide messages
 	@CompoundIndex(name = "idxMuc_roomId_idDesc_createdA_public", def = "{'roomId': 1, 'id': -1, 'createdAt': 1}"),
 	// Index B: For direct private messages inside the room
-	@CompoundIndex(name = "idxMuc_room_to_idDesc_createdAt_private", def = "{'roomId': 1, 'to': 1, 'id': -1, 'createdAt': 1}"),
-	
-	/**
-	 * Used for MucMessageService.getConversations() 
-	 * Important Notice: Be careful on changing the name of this index it's hard coded inside MucMessageService.getConversations().
-	 */
+	// Used for MucMessageService.getConversations() 
 	@CompoundIndex(name = "idxMuc_room_to_idDesc_createdAt_private", def = "{'roomId': 1, 'to': 1, 'id': -1, 'createdAt': 1}"),
 
 	/**
