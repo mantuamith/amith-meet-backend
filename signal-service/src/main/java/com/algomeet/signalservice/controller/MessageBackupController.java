@@ -4,6 +4,7 @@ import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_DE
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_DELIVERED_AT;
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_READ_AT;
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_SENT_AT;
+import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_HIDDEN_AT;
 
 import java.time.format.DateTimeParseException;
 import java.util.Comparator;
@@ -375,10 +376,10 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 	/**
 	 * Performs a soft delete on a message.
 	 */
-	@PatchMapping("/mark-as-deleted")
-	public ResponseEntity<CommonResponse<?>> markAsDeleted(
+	@PatchMapping("/mark-as-hidden")
+	public ResponseEntity<CommonResponse<?>> markAsHidden(
 			@Validated @RequestBody MessageStatusUpdateRequest request) {
-		return processStatusUpdate(FIELD_DELETED_AT, request);
+		return processStatusUpdate(FIELD_HIDDEN_AT, request);
 	}
 
 	/**

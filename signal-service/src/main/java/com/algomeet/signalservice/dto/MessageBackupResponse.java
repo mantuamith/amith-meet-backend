@@ -21,10 +21,11 @@ public class MessageBackupResponse {
     private Long deliveredAt;
     private Long readAt;
     private Long deletedAt;
+    private Boolean isHidden;
     private String refersTo;      
     private Integer editCount;
     private Boolean isStartOfConversation;
-    private Instant timestamp;
+    private Long timestamp;
     private String algorithm;
     private String version;
     private String salt;
@@ -47,6 +48,7 @@ public class MessageBackupResponse {
                 .deliveredAt(doc.getDeliveredAt())
                 .readAt(doc.getReadAt())
                 .deletedAt(doc.getDeletedAt())
+                .isHidden(doc.getHiddenAt() != null)
                 .refersTo(doc.getRefersTo())
                 .editCount(doc.getEditCount())
                 .isStartOfConversation(doc.getStartOfConversation())
@@ -54,7 +56,7 @@ public class MessageBackupResponse {
                 .algorithm(doc.getAlgorithm())
                 .version(doc.getVersion())
                 .salt(doc.getSalt())
-                .timestamp(doc.getTimestamp())
+                .timestamp(doc.getTimestamp().toEpochMilli())
                 .build();
     }
     

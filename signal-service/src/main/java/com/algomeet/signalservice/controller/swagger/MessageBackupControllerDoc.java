@@ -178,6 +178,6 @@ public interface MessageBackupControllerDoc {
     @Operation(summary = "Mark message(s) as retracted (soft delete by sender)")
     ResponseEntity<CommonResponse<?>> markAsRetracted(MessageStatusUpdateRequest request);
     
-    @Operation(summary = "Mark message(s) as deleted (soft delete by sender)")
-    ResponseEntity<CommonResponse<?>> markAsDeleted(MessageStatusUpdateRequest request);
+    @Operation(summary = "Mark message(s) as hidden (soft delete by sender)")
+    ResponseEntity<CommonResponse<?>> markAsHidden(MessageStatusUpdateRequest request);
 }

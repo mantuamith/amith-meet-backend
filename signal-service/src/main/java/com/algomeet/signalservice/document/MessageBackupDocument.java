@@ -26,6 +26,15 @@ import lombok.NoArgsConstructor;
     /**
      * 1. Message history + range queries per conversation (ESR pattern)
      * Covers: findByConversationIdAndStanzaIdLessThan, findByConversationIdAndStanzaIdGreaterThan,
+     */
+    @CompoundIndex(
+    	    name = "idxMsg_convId_stanzaIdDesc_partialVisible", 
+    	    def = "{'conversationId': 1, 'stanzaId': -1}",
+    	    partialFilter = "{'hiddenAt': null}"
+    	),
+    
+    /**
+     * 2. Message history + range queries per conversation (ESR pattern)
      *         deleteByUserKeyAndConversationId, getConversationStorageStats,
      *         and findFirstByUserKeyAndConversationIdOrderByStanzaIdAsc.
      */
@@ -34,8 +43,10 @@ import lombok.NoArgsConstructor;
         def = "{'userKey': 1, 'conversationId': 1, 'stanzaId': -1}"
     ),
     
+
+    
     /**
-     * 2. Incremental sync cursor (update tracking + ordering)
+     * 3. Incremental sync cursor (update tracking + ordering)
      * Covers high-frequency background synchronization loops matching user modifications.
      * MessageBackupService.getMessageUpdates
      */
@@ -45,7 +56,7 @@ import lombok.NoArgsConstructor;
     	),
     
     /**
-     * 3. Direct message lookup + lightweight ordering
+     * 4. Direct message lookup + lightweight ordering
      * Covers: findByMessageIdAndUserKey, and any chronological receipt processing (Read/Delivered states).
      * deleteByUserKey(UUID userKey) during account offboarding or device un-pairing actions.
      */
@@ -55,16 +66,17 @@ import lombok.NoArgsConstructor;
     ),
     
     /**
-     * 4. Inbox / conversation listing (latest-first scan). Used for finding user conversations 
+     * 5. Inbox / conversation listing (latest-first scan). Used for finding user conversations 
      * MessageBackupService.findUniqueConversationsWithFullDetails
      */
     @CompoundIndex(
-    	    name = "idxMsg_userKey_stanzaIdDesc_conversationId", 
-    	    def = "{'userKey': 1, 'stanzaId': -1, 'conversationId': 1}"
+    	    name = "idxMsg_userKey_stanzaIdDesc_conversationId_partialVisible", 
+    	    def = "{'userKey': 1, 'stanzaId': -1, 'conversationId': 1}",
+    	    partialFilter = "{'hiddenAt': null}"
     	),
     
     /**
-     * 5. Read-state bulk update per conversation
+     * 6. Read-state bulk update per conversation
      * MessageBackupService.updateStatus
      */
     @CompoundIndex(
@@ -89,6 +101,7 @@ public class MessageBackupDocument {
     public static final String FIELD_DELIVERED_AT = "deliveredAt";
     public static final String FIELD_READ_AT = "readAt";
     public static final String FIELD_DELETED_AT = "deletedAt";
+    public static final String FIELD_HIDDEN_AT = "hiddenAt";
     public static final String FIELD_EDIT_COUNT = "editCount";
     public static final String FIELD_TIMESTAMP = "timestamp";
     public static final String FIELD_SIZE = "size";
@@ -159,6 +172,8 @@ public class MessageBackupDocument {
     
     @Transient
     private Boolean startOfConversation = false; // Initialize to avoid null-omission
+    
+    private Long hiddenAt;
     
     @Indexed(unique = true, sparse = true)
     @io.swagger.v3.oas.annotations.media.Schema(

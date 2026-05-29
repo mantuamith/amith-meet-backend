@@ -17,6 +17,7 @@ import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_UP
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_USER_KEY;
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_VERSION;
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_SIZE;
+import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_HIDDEN_AT;
 
 import java.nio.charset.Charset;
 import java.time.Duration;
@@ -170,7 +171,7 @@ public class MessageBackupService {
 
 		// Get converation ID
 		String converationId = ConversationUtil.getConversationId(userKey.toString(), peerKey.toString());		
-		return repository.findByConversationIdAndStanzaIdLessThan(converationId, stanzaId, pageable);
+		return repository.findByConversationIdAndStanzaIdLessThanAndHiddenAtIsNull(converationId, stanzaId, pageable);
 	}
 
 	public List<MessageBackupDocument> getConversationMessagesAfter(UUID userKey, UUID peerKey, UUID stanzaId, int page, int size) {
@@ -178,7 +179,7 @@ public class MessageBackupService {
 
 		// Get converation ID
 		String converationId = ConversationUtil.getConversationId(userKey.toString(), peerKey.toString());		
-		return repository.findByConversationIdAndStanzaIdGreaterThan(converationId, stanzaId, pageable);
+		return repository.findByConversationIdAndStanzaIdGreaterThanAndHiddenAtIsNull(converationId, stanzaId, pageable);
 	}
 
 	public List<MessageBackupDocument> getMessageUpdates(
@@ -220,6 +221,7 @@ public class MessageBackupService {
 		.include(FIELD_DELIVERED_AT)
 		.include(FIELD_READ_AT)
 		.include(FIELD_DELETED_AT)
+		.include(FIELD_HIDDEN_AT)
 		.include(FIELD_EDIT_COUNT);
 
 		// 2. Attach Sort and Pagination Bounds to Query
@@ -258,14 +260,6 @@ public class MessageBackupService {
 		}
 
 		return modifiedRecords;
-	}
-
-	public List<MessageBackupDocument> getSyncConversationMessages(UUID userKey, UUID peerKey, UUID stanzaId, int page, int size) {
-		Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.ASC, FIELD_STANZA_ID));
-
-		// Get converation ID
-		String converationId = ConversationUtil.getConversationId(userKey.toString(), peerKey.toString());		
-		return repository.findByConversationIdAndStanzaIdGreaterThan(converationId, stanzaId, pageable);
 	}
 
 	public MessageBackupDocument getMessage(UUID userKey, UUID messageId) {
@@ -330,7 +324,7 @@ public class MessageBackupService {
 		Aggregation aggregation = Aggregation.newAggregation(
 				// 1. Filter only for messages belonging to this user
 				// This perfectly utilizes your compound index: idx_user_inbox_view {'userKey': 1, 'timestamp': -1, 'conversationId': 1}
-				Aggregation.match(Criteria.where(FIELD_USER_KEY).is(userKey)),
+				Aggregation.match(Criteria.where(FIELD_USER_KEY).is(userKey).and(FIELD_HIDDEN_AT).is(null)),
 
 				// 2. Sort them by timestamp descending BEFORE grouping.
 				// This ensures the first document MongoDB encounters per conversation is the newest one.
@@ -572,7 +566,7 @@ public class MessageBackupService {
 				.set(FIELD_UPDATE_CURSOR_ID, UuidCreator.getTimeOrderedEpoch());
 
 		// Clean up message
-		if (FIELD_DELETED_AT.equals(timestampField)) {
+		if (FIELD_DELETED_AT.equals(timestampField) || FIELD_HIDDEN_AT.equals(timestampField)) {
 			update.set(FIELD_ENCRYPTED_MSG, null);
 			// TODO: Calculate the deducted size
 			update.set(FIELD_SIZE, 0);
