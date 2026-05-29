@@ -192,7 +192,7 @@ public class MessageBackupService {
 			) {
 		// 1. Initialize Spring Data Pagination
 		if (page == 0) {
-			size = size - 1;
+			size = Math.max(1, size - 1); // Guard against size dropping below 1
 		}
 
 		Pageable pageable = PageRequest.of(page, size);
