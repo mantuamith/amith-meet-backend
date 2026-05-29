@@ -237,18 +237,12 @@ public class MessageBackupService {
 
 			if (optCurrentFirstMessage.isPresent()) {
 				MessageBackupDocument conversationStartMessage = optCurrentFirstMessage.get();
-
-				// Check if this record was already pulled by the main pagination query
-				int existingIndex = modifiedRecords.indexOf(conversationStartMessage);
-
-				if (existingIndex != -1) {
-					// If it already exists in the payload, don't duplicate it—just flag it in place
-					modifiedRecords.get(existingIndex).setStartOfConversation(true);
-				} else {
-					// Otherwise, mark it and inject it cleanly as the first item
-					conversationStartMessage.setStartOfConversation(true);
-					modifiedRecords.add(0, conversationStartMessage);
-				}
+				// Otherwise, mark it and inject it cleanly as the first item
+				conversationStartMessage.setStartOfConversation(true);
+				// Lighten the message
+				conversationStartMessage.setEncryptedMessage(null);
+				modifiedRecords.add(0, conversationStartMessage);
+				
 			} else {
 				MessageBackupDocument conversationStartMessage = new MessageBackupDocument();
 				conversationStartMessage.setStartOfConversation(true);
