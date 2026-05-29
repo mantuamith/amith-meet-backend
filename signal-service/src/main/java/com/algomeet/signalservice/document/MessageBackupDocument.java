@@ -166,7 +166,7 @@ public class MessageBackupDocument {
 	
     // Useful for finding all reactions, replies and etc to a specific message
     @Indexed
-    private String refersTo;      
+    private UUID refersTo;      
   
     private Integer editCount;
     
