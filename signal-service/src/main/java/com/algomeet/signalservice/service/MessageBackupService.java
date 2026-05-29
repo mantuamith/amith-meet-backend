@@ -562,7 +562,7 @@ public class MessageBackupService {
 
 		// Clean up message
 		if (FIELD_DELETED_AT.equals(timestampField) || FIELD_HIDDEN_AT.equals(timestampField)) {
-			// TODO: Retrieve child messages, by getting the target
+			// TODO: Retrieve child messages, by comparing the refersTo to the request messageIds.
 			
 			update.set(FIELD_ENCRYPTED_MSG, null);
 			// TODO: Calculate the deducted size
