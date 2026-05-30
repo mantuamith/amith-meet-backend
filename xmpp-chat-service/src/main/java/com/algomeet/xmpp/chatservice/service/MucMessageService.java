@@ -254,8 +254,9 @@ public class MucMessageService {
 		Aggregation aggregation = Aggregation.newAggregation(
 				Aggregation.match(
 						new Criteria().andOperator(
-								// Constraint A: Only pull from rooms the user belongs to
-								Criteria.where(MucMessage.FIELD_ROOM_ID).in(roomUuids),
+								// Constraint A: Only pull from rooms the user belongs to, and not soft-deleted
+								Criteria.where(MucMessage.FIELD_ROOM_ID).in(roomUuids)
+								.and(MucMessage.FIELD_DELETED_AT).is(null),
 
 								// Constraint B: Public room message OR private message specifically for this user
 								new Criteria().orOperator(

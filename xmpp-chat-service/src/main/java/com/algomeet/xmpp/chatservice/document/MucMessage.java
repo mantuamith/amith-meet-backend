@@ -29,10 +29,14 @@ import lombok.NoArgsConstructor;
 	 * queries
 	 */
 	// Index A: For public/room-wide messages
-	@CompoundIndex(name = "idxMuc_roomId_idDesc_createdA_public", def = "{'roomId': 1, 'id': -1, 'createdAt': 1}"),
+	@CompoundIndex(name = "idxMuc_roomId_idDesc_createdA_publicPartial", 
+			def = "{'roomId': 1, 'id': -1, 'createdAt': 1}",
+		    partialFilter = "{ 'deletedAt': null }"),
 	// Index B: For direct private messages inside the room
 	// Used for MucMessageService.getConversations() 
-	@CompoundIndex(name = "idxMuc_room_to_idDesc_createdAt_private", def = "{'roomId': 1, 'to': 1, 'id': -1, 'createdAt': 1}"),
+	@CompoundIndex(name = "idxMuc_room_to_idDesc_createdAt_privatePartial", 
+			def = "{'roomId': 1, 'to': 1, 'id': -1, 'createdAt': 1}",
+			partialFilter = "{ 'deletedAt': null }"),
 
 	/**
 	 * Incremental message update synchronization.
@@ -91,6 +95,7 @@ import lombok.NoArgsConstructor;
 public class MucMessage {   
 	public static final String FIELD_ID = "id"; // StanzaId
 	public static final String FIELD_ROOM_ID = "roomId";
+	public static final String FIELD_DELETED_AT = "deletedAt";
 
 	@Id
 	private UUID id;           // Stanza ID - UUID v7
@@ -106,7 +111,6 @@ public class MucMessage {
 	private UUID from;
 
 	// Used for DIRECT PRIVATE MESSAGE (PM) WITHIN MUC 
-	@Indexed
 	private UUID to;
 
 	@Size(max = 20000, message = "XML stanza is too large") // Max length 20kb
