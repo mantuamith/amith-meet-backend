@@ -29,6 +29,7 @@ import com.algomeet.xmpp.chatservice.routing.dispacher.LocalStanzaDispatcher;
 import com.algomeet.xmpp.chatservice.stanza.MessageSyncReadReceiptStanza;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.algomeet.xmpp.chatservice.util.MamUtil;
+import com.algomeet.xmpp.chatservice.util.XmppCustomStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
 import com.github.f4b6a3.uuid.UuidCreator;
@@ -85,6 +86,11 @@ public class XmppArchiveService {
 		event.setFrom(UUID.fromString(from));
 		event.setTo(StringUtils.hasText(toMucMember) ? UUID.fromString(toMucMember) : null);
 		event.setCountable(isCountable);
+		
+		// Get target message ID for reactions and edits, they are not countable stanza.
+		// sample stanza: <target xmlns='urn:algomeet:meta:0' id='019e537d-31a0-7556-a160-7ac448312343'/>
+		String targetMessageId = !(isCountable) ? XmppCustomStanzaUtil.getTargetMessageId(xml) : null;
+		event.setTargetMessageId(targetMessageId != null ? UUID.fromString(targetMessageId) : null);
 		event.setStanzaXml(xml);
 
 		return repository.save(event);
@@ -112,7 +118,7 @@ public class XmppArchiveService {
 		event.setRoomId(UUID.fromString(toRoomId));
 		event.setFrom(UUID.fromString(from));
 		event.setTo(StringUtils.hasText(toMucMember) ? UUID.fromString(toMucMember) : null);
-		event.setCountable(XmppStanzaUtil.isCountableMessage(xml));
+		event.setCountable(XmppCustomStanzaUtil.isCountableMessage(xml));
 		event.setStanzaXml(xml);
 
 		return repository.save(event);

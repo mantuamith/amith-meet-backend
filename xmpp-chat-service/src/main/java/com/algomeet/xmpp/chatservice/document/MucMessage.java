@@ -75,7 +75,17 @@ import lombok.NoArgsConstructor;
 	 */
 	@CompoundIndex(
 			name = "idxMuc_roomId_idAsc_createdAt", 
-			def = "{ 'roomId': 1, 'id': 1, 'createdAt': 1 }")
+			def = "{ 'roomId': 1, 'id': 1, 'createdAt': 1 }"),
+	
+	/**
+	 * Find reactions and edits
+	 * findByRoomIdAndTargetMessageId()
+	 */
+	@CompoundIndex(
+		    name = "idxMuc_roomId_targetMessageId_partial", 
+		    def = "{ 'roomId': 1, 'targetMessageId': 1 }",
+		    partialFilter = "{ 'targetMessageId': { '$exists': true, '$ne': null } }"
+		)
 })
 public class MucMessage {   
 	public static final String FIELD_ID = "id"; // StanzaId
@@ -148,6 +158,9 @@ public class MucMessage {
 	 * - retraction events
 	 */
 	private Boolean countable;
+	
+    // Useful for finding all reactions, edits and etc to a specific message
+    private UUID targetMessageId;    
 
 	/**
 	 * Optional: MongoDB TTL (Time To Live) index.

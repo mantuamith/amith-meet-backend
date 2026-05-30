@@ -23,6 +23,7 @@ import com.algomeet.xmpp.chatservice.service.MucRetractionService;
 import com.algomeet.xmpp.chatservice.service.XmppArchiveService;
 import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
+import com.algomeet.xmpp.chatservice.util.XmppCustomStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppReadUtil;
 import com.algomeet.xmpp.chatservice.util.XmppServerAckUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
@@ -164,7 +165,7 @@ public class XmppMucHandler {
 								
 				// Insert stanza ID
 				forArchiveXml = XmppStanzaUtil.insertStanzaId(originalXml, stanzaId.toString(), principal.getDomain());		
-				Boolean isCountable = XmppStanzaUtil.isCountableMessage(originalXml);
+				Boolean isCountable = XmppCustomStanzaUtil.isCountableMessage(originalXml);
 				
 				xmppArchiveService.archiveEvent(forArchiveXml, id, XmppUtil.getRoomId(toRoomJid), (pmToMucMember != null ? pmToMucMember.getUserKey() : null), 
 						XmppUtil.getUserKey(fromJid), stanzaId, isCountable)

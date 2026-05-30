@@ -140,11 +140,15 @@ public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocke
 				// This block catches MAM, Service Discovery, and Stream Management
 				if (xmppStreamManagementHandler.isStreamManagementStanza(xml)) {
 					xmppStreamManagementHandler.process(ctx, xml, principal);
+					
 				} else if (mam) {
 					// XEP-0313: Message Archive Management
 					xmppMamHandler.handleMamRequest(ctx, toJid, xml);
-				} else if (xmppViewManagementHandler.isViewManagementStanza(xml)) {
+					
+				} else if (xmppViewManagementHandler.isMessageViewManagementStanza(xml)) {
+					// Handle hiding of messages and etc. 
 					xmppViewManagementHandler.process(ctx, xml, principal);
+					
 				} else {
 					xmppDiscoveryHandler.handleQuery(ctx, xml);
 				}     

@@ -17,7 +17,6 @@ import com.algomeet.xmpp.chatservice.document.UnreadCount;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.repository.OfflineMessageRepository;
-import com.algomeet.xmpp.chatservice.session.UserSessionRegistry;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.algomeet.xmpp.chatservice.util.XmppSyncStanzaComposer;
 import com.github.f4b6a3.uuid.UuidCreator;

@@ -17,6 +17,7 @@ import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.stanza.MessageRetractStanza;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
+import com.algomeet.xmpp.chatservice.util.RetractUtil;
 import com.algomeet.xmpp.chatservice.util.XmppRetractUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
@@ -48,6 +49,7 @@ public class MucRetractionService {
     private final ClusterMessagePublisher clusterMessagePublisher;
     private final DomainProperties domainProperties;
     private final XmppUtil xmppUtil;
+    private final RetractUtil retractUtil;
 
     /**
      * Processes an incoming message retraction request.
@@ -92,11 +94,15 @@ public class MucRetractionService {
                     message.setUpdateCursorId(updateCursorId);
                     message.setCountable(false);
                     message.setStanzaXml(XmppStanzaUtil.markAsRetractedStanza(message.getStanzaXml(), newString));
-
+                    
                     return xmppArchiveService.save(message)
                             .doOnSuccess(success -> {
                                 // Inform all online occupants via a broadcasted retraction stanza
-                                composeAndSendRetractStanza(ctx, id, updateCursorId.toString(), roomJid, group, retractMessageId, principal);                                
+                                composeAndSendRetractStanza(ctx, id, updateCursorId.toString(), roomJid, group, retractMessageId, principal);    
+                                
+                                // Delete/retract related messages
+                                retractUtil.retractRelatedMessages(message.getRoomId(), message.getMessageId()).subscribe();
+                                
                                 // TODO: Implementation required for decrementing unread message counters
                             })
                             .then();

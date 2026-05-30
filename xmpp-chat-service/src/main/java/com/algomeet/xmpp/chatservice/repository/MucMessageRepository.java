@@ -1,6 +1,7 @@
 package com.algomeet.xmpp.chatservice.repository;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.data.domain.Pageable;
@@ -130,4 +131,11 @@ public interface MucMessageRepository extends ReactiveMongoRepository<MucMessage
 	Mono<Long> countUnreadMessages(UUID roomId, UUID lastReadStanzaId, UUID userKey, Instant historyCutoff);
 	
 	Mono<MucMessageView> findMucMessageViewByMessageId(UUID messageId);
+	/**
+	 * Retrieve reactions and edit messages
+	 * @param roomId
+	 * @param targetMessageId
+	 * @return
+	 */
+	List<MucMessageView> findByRoomIdAndTargetMessageId(UUID roomId, UUID targetMessageId);
 }

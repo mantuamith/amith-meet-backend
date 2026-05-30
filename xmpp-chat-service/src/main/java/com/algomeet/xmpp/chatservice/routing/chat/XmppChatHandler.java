@@ -26,6 +26,7 @@ import com.algomeet.xmpp.chatservice.service.UnreadCountService;
 import com.algomeet.xmpp.chatservice.session.UserSessionRegistry;
 import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
 import com.algomeet.xmpp.chatservice.session.model.UserSession;
+import com.algomeet.xmpp.chatservice.util.XmppCustomStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppReadUtil;
 import com.algomeet.xmpp.chatservice.util.XmppReceiptUtil;
 import com.algomeet.xmpp.chatservice.util.XmppRetractUtil;
@@ -96,7 +97,7 @@ public class XmppChatHandler {
 				    ? UUID.fromString(id.trim()) 
 				    : UuidCreator.getTimeOrderedEpoch();
 			
-			boolean isCountable = XmppStanzaUtil.isCountableMessage(originalXml);
+			boolean isCountable = XmppCustomStanzaUtil.isCountableMessage(originalXml);
 			
 			// Determine if message is ACK stanza
 			isAckStanza = XmppStanzaUtil.isMessageAckStanza(originalXml);
