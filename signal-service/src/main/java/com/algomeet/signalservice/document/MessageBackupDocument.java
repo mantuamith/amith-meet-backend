@@ -25,7 +25,8 @@ import lombok.NoArgsConstructor;
 @CompoundIndexes({
     /**
      * 1. Message history + range queries per conversation (ESR pattern)
-     * Covers: findByConversationIdAndStanzaIdLessThan, findByConversationIdAndStanzaIdGreaterThan,
+     * Covers: findByConversationIdAndStanzaIdLessThanAndDeletedAtIsNullAndHiddenAtIsNull()
+     * , findByConversationIdAndStanzaIdGreaterThanAndDeletedAtIsNullAndHiddenAtIsNull()
      */
     @CompoundIndex(
     	    name = "idxMsg_convId_stanzaIdDesc_partialVisible", 
@@ -70,9 +71,9 @@ import lombok.NoArgsConstructor;
      * MessageBackupService.findUniqueConversationsWithFullDetails
      */
     @CompoundIndex(
-    	    name = "idxMsg_userKey_stanzaIdDesc_conversationId_partialVisible", 
+    	    name = "idxMsg_userKey_stanzaIdDesc_conversationId_partial", 
     	    def = "{'userKey': 1, 'stanzaId': -1, 'conversationId': 1}",
-    	    partialFilter = "{'hiddenAt': null}"
+    	    partialFilter = "{'DeletedAt': null, 'hiddenAt': null}"
     	),
     
     /**
@@ -185,7 +186,7 @@ public class MessageBackupDocument {
     
     private Long hiddenAt;
     
-    @Indexed(unique = true, sparse = true)
+    @Indexed(unique = false, sparse = true)
     @io.swagger.v3.oas.annotations.media.Schema(
         description = "Cursor used for incremental sync ordering. " +
                       "Set this to the stanza-id of the edit (replace) request when a message is updated; " +

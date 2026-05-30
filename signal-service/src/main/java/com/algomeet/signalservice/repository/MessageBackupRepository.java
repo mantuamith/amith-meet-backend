@@ -17,10 +17,10 @@ import com.algomeet.signalservice.repository.projection.MessageBackupView;
 import jakarta.transaction.Transactional;
 
 public interface MessageBackupRepository extends MongoRepository<MessageBackupDocument, UUID> {	
-	List<MessageBackupDocument> findByConversationIdAndStanzaIdLessThanAndHiddenAtIsNull(
+	List<MessageBackupDocument> findByConversationIdAndStanzaIdLessThanAndDeletedAtIsNullAndHiddenAtIsNull(
 	        String conversationId, UUID stanzaId, Pageable pageable);
 
-	List<MessageBackupDocument> findByConversationIdAndStanzaIdGreaterThanAndHiddenAtIsNull(
+	List<MessageBackupDocument> findByConversationIdAndStanzaIdGreaterThanAndDeletedAtIsNullAndHiddenAtIsNull(
 	        String conversationId, UUID stanzaId, Pageable pageable);
 
 	// Custom delete query for both sides of conversation

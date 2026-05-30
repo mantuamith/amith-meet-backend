@@ -171,7 +171,7 @@ public class MessageBackupService {
 
 		// Get converation ID
 		String converationId = ConversationUtil.getConversationId(userKey.toString(), peerKey.toString());		
-		return repository.findByConversationIdAndStanzaIdLessThanAndHiddenAtIsNull(converationId, stanzaId, pageable);
+		return repository.findByConversationIdAndStanzaIdLessThanAndDeletedAtIsNullAndHiddenAtIsNull(converationId, stanzaId, pageable);
 	}
 
 	public List<MessageBackupDocument> getConversationMessagesAfter(UUID userKey, UUID peerKey, UUID stanzaId, int page, int size) {
@@ -179,7 +179,7 @@ public class MessageBackupService {
 
 		// Get converation ID
 		String converationId = ConversationUtil.getConversationId(userKey.toString(), peerKey.toString());		
-		return repository.findByConversationIdAndStanzaIdGreaterThanAndHiddenAtIsNull(converationId, stanzaId, pageable);
+		return repository.findByConversationIdAndStanzaIdGreaterThanAndDeletedAtIsNullAndHiddenAtIsNull(converationId, stanzaId, pageable);
 	}
 
 	public List<MessageBackupDocument> getMessageUpdates(
@@ -213,16 +213,11 @@ public class MessageBackupService {
 		.include(FIELD_STANZA_ID)
 		.include(FIELD_SENDER_KEY)
 		.include(FIELD_RECEIVER_KEY)
-//		.include(FIELD_ENCRYPTED_MSG)
-//		.include(FIELD_ALGORITHM)
-//		.include(FIELD_VERSION)
-//		.include(FIELD_SALT)
 		.include(FIELD_SENT_AT)
 		.include(FIELD_DELIVERED_AT)
 		.include(FIELD_READ_AT)
 		.include(FIELD_DELETED_AT)
 		.include(FIELD_HIDDEN_AT)
-//		.include(FIELD_EDIT_COUNT)
 		;
 
 		// 2. Attach Sort and Pagination Bounds to Query
@@ -319,7 +314,8 @@ public class MessageBackupService {
 		Aggregation aggregation = Aggregation.newAggregation(
 				// 1. Filter only for messages belonging to this user
 				// This perfectly utilizes your compound index: idx_user_inbox_view {'userKey': 1, 'timestamp': -1, 'conversationId': 1}
-				Aggregation.match(Criteria.where(FIELD_USER_KEY).is(userKey).and(FIELD_HIDDEN_AT).is(null)),
+				Aggregation.match(Criteria.where(FIELD_USER_KEY).is(userKey).
+						and(FIELD_DELETED_AT).is(null).and(FIELD_HIDDEN_AT).is(null)),
 
 				// 2. Sort them by timestamp descending BEFORE grouping.
 				// This ensures the first document MongoDB encounters per conversation is the newest one.
