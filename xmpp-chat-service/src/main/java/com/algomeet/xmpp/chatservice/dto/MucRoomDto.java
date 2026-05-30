@@ -18,5 +18,5 @@ public class MucRoomDto {
     private String name;
 
     @JsonDeserialize(as = TreeSet.class)
-    private SortedSet<MucMember> members = new TreeSet<>();
+    private SortedSet<MucMember> members = new TreeSet<>();    
 }

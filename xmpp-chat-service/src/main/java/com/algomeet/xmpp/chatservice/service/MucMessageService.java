@@ -346,11 +346,9 @@ public class MucMessageService {
             return;
         }
 
-        // 2. Fetch ALL required groups in ONE non-blocking pipeline operation
-        List<MucRoomDto> groups = groupCacheService.getGroups(new java.util.ArrayList<>(allTargetGroupIds))
-                .collectList()
-                .block(); // Bridging reactive to imperative layer safely
-
+        // 2. Fetch ALL required groups
+        List<MucRoomDto> groups = groupCacheService.getGroups(new java.util.ArrayList<>(allTargetGroupIds));
+                
         if (CollectionUtils.isEmpty(groups)) {
             mucConversations.clear();
             return;

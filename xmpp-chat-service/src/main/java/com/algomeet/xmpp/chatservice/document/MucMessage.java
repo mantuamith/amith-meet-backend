@@ -89,7 +89,7 @@ import lombok.NoArgsConstructor;
 	@CompoundIndex(
 		    name = "idxMuc_roomId_targetMessageId_partial", 
 		    def = "{ 'roomId': 1, 'targetMessageId': 1 }",
-		    partialFilter = "{ 'targetMessageId': { '$exists': true, '$ne': null } }"
+		    partialFilter = "{ 'targetMessageId': { '$exists': true } }" 
 		)
 })
 public class MucMessage {   

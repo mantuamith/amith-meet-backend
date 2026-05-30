@@ -1,6 +1,7 @@
 package com.algomeet.xmpp.chatservice.service;
 
 import java.time.Duration;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.TreeSet;
@@ -48,7 +49,7 @@ public class GroupCacheService {
 
     private final GroupClient groupClient;
     private final RedisTemplate<String, Object> redisTemplate;
-    private final ReactiveRedisTemplate<String, Object> reactiveRedisTemplate;
+    private final ReactiveRedisTemplate<String, MucRoomDto> reactiveRedisTemplate;
 
     /** Prefix for all group-related keys in Redis to prevent namespace collisions. */
     private static final String CACHE_KEY_PREFIX = "xmpp:group:";
@@ -57,28 +58,7 @@ public class GroupCacheService {
      * Configured via {@code xmpp.cache.group-ttl} in application.yml.
      */
     @Value("${group.cache.ttl:30m}")
-    private Duration cacheTtl;
-    
-    private final ObjectMapper objectMapper;
-    private ObjectMapper polymorphicObjectMapper;
-
-    // Add an initializing block or update your constructor assignment
-    @jakarta.annotation.PostConstruct
-    public void init() {
-        // Build a validator allowing your package domain prefixes
-        PolymorphicTypeValidator ptv = BasicPolymorphicTypeValidator.builder()
-                .allowIfBaseType("com.algomeet")
-                .allowIfBaseType("java.util")
-                .build();
-
-        // Create a dedicated clone configured specifically for typed Redis streams
-        this.polymorphicObjectMapper = objectMapper.copy()
-                .activateDefaultTyping(
-                        ptv, 
-                        ObjectMapper.DefaultTyping.NON_FINAL, 
-                        com.fasterxml.jackson.annotation.JsonTypeInfo.As.PROPERTY
-                );
-    }
+    private Duration cacheTtl;    
     
     /**
      * Retrieves group metadata from the cache.
@@ -208,18 +188,15 @@ public class GroupCacheService {
     }
     
     /**
-     * Bulk retrieves multiple group configurations reactively in a single pipeline round-trip.
-     * <p>
-     * Filters out null values caused by partial cache misses to ensure down-stream subscriber safety.
-     * </p>
+     * Bulk retrieves multiple group configurations 
      *
      * @param groupIds List of unique room identifiers (e.g., JID components).
-     * @return A {@link Flux<MucRoomDto>} emitting cached configurations that were found.
+     * @return A {@link List<MucRoomDto>}
      */
-    public Flux<MucRoomDto> getGroups(List<String> groupIds) {
+    public List<MucRoomDto> getGroups(List<String> groupIds) {
 
         if (CollectionUtils.isEmpty(groupIds)) {
-            return Flux.empty();
+            return Collections.emptyList();
         }
 
         List<String> prefixedKeys = groupIds.stream()
@@ -228,56 +205,18 @@ public class GroupCacheService {
                 .toList();
 
         if (prefixedKeys.isEmpty()) {
-            return Flux.empty();
+            return Collections.emptyList();
         }
 
-        return reactiveRedisTemplate.opsForValue()
-                .multiGet(prefixedKeys)
-                .flatMapMany(values -> Flux.create(sink -> {
+        List<Object> values = redisTemplate.opsForValue().multiGet(prefixedKeys);
 
-                    if (values == null) {
-                        sink.complete();
-                        return;
-                    }
-
-                    for (Object value : values) {
-
-                        if (value == null) {
-                            continue;
-                        }
-
-                        sink.next(deserializeMucRoom(value));
-                    }
-
-                    sink.complete();
-                }));
-    }
-
-    private MucRoomDto deserializeMucRoom(Object payload) {
-        if (payload instanceof MucRoomDto dto) {
-            return dto;
+        if (values == null) {
+            return Collections.emptyList();
         }
 
-        try {
-            // If Redisson returns a raw JSON String, use readValue instead of convertValue
-            if (payload instanceof String jsonString) {
-                return objectMapper.readValue(jsonString, MucRoomDto.class);
-            }
-            
-            // Alternative fallback fallback if it's byte arrays
-            if (payload instanceof byte[] bytes) {
-                return objectMapper.readValue(bytes, MucRoomDto.class);
-            }
-
-            // Direct catch-all fallback (only if payload is an unmapped Map/Node structure)
-            return objectMapper.convertValue(payload, MucRoomDto.class);
-
-        } catch (Exception e) {
-            log.error("Failed to deserialize Redis payload into MucRoomDto", e);
-            throw new IllegalStateException(
-                    "Redis payload is corrupt or incompatible with MucRoomDto structure",
-                    e
-            );
-        }
-    }
+        return values.stream()
+                .filter(Objects::nonNull)
+                .map(v -> (MucRoomDto) v)
+                .toList();
+    }   
 }

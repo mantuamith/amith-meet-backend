@@ -5,9 +5,11 @@ import java.util.Objects;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @Data
+@NoArgsConstructor
 public class MucMember implements Comparable<MucMember> {
 
     private String userKey;
