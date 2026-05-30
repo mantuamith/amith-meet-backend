@@ -1,23 +1,19 @@
 package com.algomeet.signalservice.service;
 
-import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_ALGORITHM;
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_CONVERSATION_ID;
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_DELETED_AT;
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_DELIVERED_AT;
-import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_EDIT_COUNT;
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_ENCRYPTED_MSG;
+import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_HIDDEN_AT;
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_MESSAGE_ID;
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_READ_AT;
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_RECEIVER_KEY;
-import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_SALT;
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_SENDER_KEY;
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_SENT_AT;
+import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_SIZE;
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_STANZA_ID;
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_UPDATE_CURSOR_ID;
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_USER_KEY;
-import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_VERSION;
-import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_SIZE;
-import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_HIDDEN_AT;
 
 import java.nio.charset.Charset;
 import java.time.Duration;
@@ -53,6 +49,8 @@ import com.algomeet.signalservice.repository.MessageBackupRepository;
 import com.algomeet.signalservice.repository.projection.ConversationStorageStats;
 import com.algomeet.signalservice.repository.projection.MessageBackupView;
 import com.algomeet.signalservice.util.ConversationUtil;
+import com.algomeet.signalservice.util.HideUtil;
+import com.algomeet.signalservice.util.RetractUtil;
 import com.algomeet.signalservice.util.SecurityUtil;
 import com.github.f4b6a3.uuid.UuidCreator;
 import com.mongodb.client.result.UpdateResult;
@@ -70,6 +68,8 @@ public class MessageBackupService {
 	private final MediaService mediaService;
 	private final StringRedisTemplate redisTemplate;
 	private final MongoTemplate mongoTemplate;
+	private final RetractUtil retractUtil;
+	private final HideUtil hideUtil;
 
 	/**
 	 * Inserts a message backup document into MongoDB with concurrency protection,
@@ -562,16 +562,7 @@ public class MessageBackupService {
 				.set(FIELD_UPDATE_CURSOR_ID, UuidCreator.getTimeOrderedEpoch());
 
 		// Clean up message
-		if (FIELD_DELETED_AT.equals(timestampField) || FIELD_HIDDEN_AT.equals(timestampField)) {
-			// Retrieve reaction and edit/replacement messages associated with the target messages
-			List<MessageBackupView> relatedMessages =
-			        repository.findByUserKeyAndTargetMessageIdIn(userKey, messageIds);
-
-			// Include related reaction and edit message IDs in the synchronization update set
-			messageIds.addAll(relatedMessages.stream()
-			        .map(MessageBackupView::getMessageId)
-			        .toList());
-			
+		if (FIELD_DELETED_AT.equals(timestampField) || FIELD_HIDDEN_AT.equals(timestampField)) {		
 			update.set(FIELD_ENCRYPTED_MSG, null);
 			// TODO: Calculate the deducted size
 			update.set(FIELD_SIZE, 0);
@@ -579,7 +570,17 @@ public class MessageBackupService {
 
 		UpdateResult result = mongoTemplate.updateMulti(query, update, MessageBackupDocument.class);
 
-		if (result.getMatchedCount() == 0) {
+		if (result.getMatchedCount() >  0) {
+			if (FIELD_DELETED_AT.equals(timestampField)) {
+				// Retract related messages
+				retractUtil.retractRelatedMessages(userKey, messageIds);
+				
+			} else if (FIELD_HIDDEN_AT.equals(timestampField)) {
+				// Hide related messages
+				hideUtil.hideRelatedMessages(userKey, messageIds);
+			}
+		} else {
+			
 			log.warn("Message backup message IDs not found: {} " + messageIds);
 		}
 	}
