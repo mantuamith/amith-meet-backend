@@ -172,7 +172,7 @@ public class MessageBackupDocument {
 	// Soft delete / tombstone (for retention/compaction)
 	private Long deletedAt;
 	
-    // Useful for finding all reactions, replies and etc to a specific message
+    // Useful for finding all reactions, edits and etc to a specific message
     private UUID targetMessageId;    
     
     // Useful for finding all replies to a specific message
