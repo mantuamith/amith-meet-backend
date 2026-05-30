@@ -49,7 +49,7 @@ public class GroupCacheService {
 
     private final GroupClient groupClient;
     private final RedisTemplate<String, Object> redisTemplate;
-    private final ReactiveRedisTemplate<String, MucRoomDto> reactiveRedisTemplate;
+    private final ReactiveRedisTemplate<String, Object> reactiveRedisTemplate;
 
     /** Prefix for all group-related keys in Redis to prevent namespace collisions. */
     private static final String CACHE_KEY_PREFIX = "xmpp:group:";
