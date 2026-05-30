@@ -85,7 +85,7 @@ import lombok.NoArgsConstructor;
         ),
     /**
      * 7. Fetching reactions, replies, or message threads (e.g., finding edits/reactions for listed messages)
-     * Covers: findByUserKeyAndTargetMessageIdIn
+     * Covers: findByUserKeyAndTargetMessageIdIn, HideUtil.hideRelatedMessages() and RetractUtil.retractRelatedMessages()
      */
     @CompoundIndex(
         name = "idxMsg_userKey_targetMessageId", 
