@@ -80,6 +80,7 @@ import lombok.NoArgsConstructor;
 	/**
 	 * Find reactions and edits
 	 * findByRoomIdAndTargetMessageId()
+	 * HidetUtil.hideRelatedMessages() and RetractUtil.retractRelatedMessages()
 	 */
 	@CompoundIndex(
 		    name = "idxMuc_roomId_targetMessageId_partial", 
