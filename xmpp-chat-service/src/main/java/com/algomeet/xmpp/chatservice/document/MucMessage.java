@@ -79,7 +79,7 @@ import lombok.NoArgsConstructor;
 	
 	/**
 	 * Find reactions and edits
-	 * findByRoomIdAndTargetMessageId()
+	 * Used for findByRoomIdAndTargetMessageId()
 	 * HidetUtil.hideRelatedMessages() and RetractUtil.retractRelatedMessages()
 	 */
 	@CompoundIndex(
