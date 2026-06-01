@@ -52,7 +52,9 @@ public class UnreadCountService {
 
 		// upsert returns the updated document
 		return reactiveMongoTemplate.upsert(query, update, UnreadCount.class)
-				.then(reactiveMongoTemplate.findById(id, UnreadCount.class));
+				.then(reactiveMongoTemplate
+					    .findById(id, UnreadCount.class)
+					    .doOnNext(doc -> log.debug("RAW DOC={}", doc)));
 	}
 
 	/**
