@@ -8,7 +8,9 @@ public enum ResponseCode {
     
     MEDIA_NOT_FOUND("MEDIA_NOT_FOUND", "media.not.found"),
     MEDIA_ACCESS_DENIED("MEDIA_ACCESS_DENIED", "media.access.denied"),
-    MEDIA_FILE_TYPE_NOT_SUPPORTED("MEDIA_FILE_TYPE_NOT_SUPPORTED", "media.file.type.not-supported")
+    MEDIA_FILE_TYPE_NOT_SUPPORTED("MEDIA_FILE_TYPE_NOT_SUPPORTED", "media.file.type.not-supported"),
+    MEDIA_BATCH_UPLOAD_PARTIAL_FAILURE("MEDIA_BATCH_UPLOAD_PARTIAL_FAILURE", "media.batch.upload.partial-failure"),
+    MEDIA_THUMBNAIL_NOT_AVAILABLE("MEDIA_THUMBNAIL_NOT_AVAILABLE", "media.thumbnail.not-available")
     ;
 	
     private final String code;

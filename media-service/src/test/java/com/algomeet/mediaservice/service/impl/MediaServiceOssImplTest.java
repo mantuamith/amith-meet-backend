@@ -54,6 +54,9 @@ class MediaServiceOssImplTest {
 	@Mock
 	private UserStorageUsageService userStorageUsageService;
 
+	@Mock
+	private com.algomeet.mediaservice.util.MediaMetadataExtractor metadataExtractor;
+
     @BeforeEach
     void setup() {
     }
@@ -85,7 +88,9 @@ class MediaServiceOssImplTest {
                 file,
                 null,
                 false,
-                true
+                true,
+                null,
+                null
         );
 
         // then

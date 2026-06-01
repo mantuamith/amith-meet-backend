@@ -53,6 +53,9 @@ class MediaServiceLocalImplTest {
 	@Mock
 	private UserStorageUsageService userStorageUsageService;
 
+	@Mock
+	private com.algomeet.mediaservice.util.MediaMetadataExtractor metadataExtractor;
+
     @BeforeEach
     void setup() {
     }
@@ -78,7 +81,9 @@ class MediaServiceLocalImplTest {
                 file,
                 null,
                 false,
-                true
+                true,
+                null,
+                null
         );
 
         // then
