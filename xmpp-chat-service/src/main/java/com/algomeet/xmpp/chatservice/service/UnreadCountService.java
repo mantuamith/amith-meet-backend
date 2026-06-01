@@ -45,10 +45,10 @@ public class UnreadCountService {
 
 		Query query = new Query(Criteria.where("_id").is(id));
 		Update update = new Update()
-				.inc("unread_count", 1)
-				.set("user_key", UUID.fromString(recipientKey))
-				.set("sender_key", UUID.fromString(senderKey))
-				.set("last_increment_at", Instant.now().toEpochMilli());
+				.inc("unreadCount", 1)
+				.set("userKey", UUID.fromString(recipientKey))
+				.set("senderKey", UUID.fromString(senderKey))
+				.set("lastIncrementAt", Instant.now().toEpochMilli());
 
 		// upsert returns the updated document
 		return reactiveMongoTemplate.upsert(query, update, UnreadCount.class)
@@ -60,7 +60,7 @@ public class UnreadCountService {
 	 * provided the current count is strictly greater than 0.
 	 * <p>
 	 * This method executes an atomic server-side increment/decrement operation directly 
-	 * within MongoDB. By using a conditional query ({@code unread_count > 0}), it prevents 
+	 * within MongoDB. By using a conditional query ({@code unreadCount > 0}), it prevents 
 	 * negative counter invariants (underflows) that could otherwise be caused by concurrent 
 	 * or duplicate client read receipts.
 	 * </p>
@@ -77,12 +77,12 @@ public class UnreadCountService {
 		String id = getConversationId(senderKey, recipientKey);
 
 		// Construct an atomic guard query: only match and update if the counter is currently > 0
-		Query query = new Query(Criteria.where("_id").is(id).and("unread_count").gt(0));
+		Query query = new Query(Criteria.where("_id").is(id).and("unreadCount").gt(0));
 
 		// Apply server-side isolation: decrement the value by 1 and log the timestamp
-		Update update = new Update().inc("unread_count", -1)
-				.set("last_decrement_at", Instant.now().toEpochMilli())
-				.set("last_read_mid", messageId);
+		Update update = new Update().inc("unreadCount", -1)
+				.set("lastDecrementAt", Instant.now().toEpochMilli())
+				.set("lastReadMid", messageId);
 
 		// 1. Execute the conditional update first
 		return reactiveMongoTemplate.updateFirst(query, update, UnreadCount.class)
@@ -141,14 +141,14 @@ public class UnreadCountService {
 
 	                                Query query = new Query(
 	                                        Criteria.where("_id").is(id)
-	                                        .and("last_increment_at").is(capturedIncrementAt)
+	                                        .and("lastIncrementAt").is(capturedIncrementAt)
 	                                        );
 
 	                                Update update = new Update()
-	                                        .set("unread_count", count)
-	                                        .set("last_decrement_at", Instant.now().toEpochMilli())
-	                                        .set("last_read_mid", messageId)
-	                                        .set("last_read_sid", stanzaId);
+	                                        .set("unreadCount", count)
+	                                        .set("lastDecrementAt", Instant.now().toEpochMilli())
+	                                        .set("lastReadMid", messageId)
+	                                        .set("lastReadSid", stanzaId);
 
 	                                // 4. Perform the conditional update
 	                                return reactiveMongoTemplate.updateFirst(query, update, UnreadCount.class)
@@ -176,7 +176,7 @@ public class UnreadCountService {
 	             * <message from='.algomeet.app'
 	             *          type='headline'>
 	             *     <sync xmlns='urn:xmpp:algomeet:sync:history'>
-	             *         <conversation peer-key='USER_KEY'
+	             *         <conversation peer-key='userKey'
 	             *                       cleared-until-message-id='xxxxxx' />
 	             *     </sync>
 	             * </message>
@@ -208,7 +208,7 @@ public class UnreadCountService {
 	 * Aggregates total unread count for a user across all senders reactively.
 	 */
 	public Mono<Integer> getTotalUnreadForUser(String userKey) {
-		Query query = new Query(Criteria.where("user_key").is(UUID.fromString(userKey)));
+		Query query = new Query(Criteria.where("userKey").is(UUID.fromString(userKey)));
 
 		return reactiveMongoTemplate.find(query, UnreadCount.class)
 				.map(UnreadCount::getUnreadCount)
@@ -220,8 +220,8 @@ public class UnreadCountService {
 	 * Usually used to populate the main chat list/inbox.
 	 */
 	public Flux<UnreadCount> getUnreadCountsForUser(String recipientKey) {
-		Query query = new Query(Criteria.where("user_key").is(UUID.fromString(recipientKey))
-				.and("unread_count").gt(0));
+		Query query = new Query(Criteria.where("userKey").is(UUID.fromString(recipientKey))
+				.and("unreadCount").gt(0));
 
 		return reactiveMongoTemplate.find(query, UnreadCount.class);
 	}
@@ -251,10 +251,10 @@ public class UnreadCountService {
 		// but requires a single unified index tracking the sorting field across the query.
 		Query query = new Query(
 				new Criteria().orOperator(
-						Criteria.where("user_key").is(UUID.fromString(targetUserKey)),
-						Criteria.where("sender_key").is(UUID.fromString(targetUserKey))
+						Criteria.where("userKey").is(UUID.fromString(targetUserKey)),
+						Criteria.where("senderKey").is(UUID.fromString(targetUserKey))
 						)
-				).with(Sort.by(Sort.Direction.DESC, "last_increment_at"))
+				).with(Sort.by(Sort.Direction.DESC, "lastIncrementAt"))
 				.skip(skipValues)
 				.limit(size);
 

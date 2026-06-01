@@ -7,7 +7,6 @@ import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
-import org.springframework.data.mongodb.core.mapping.Field;
 import lombok.Data;
 
 @Data
@@ -22,7 +21,7 @@ import lombok.Data;
      * - UnreadCountService.getUnreadCountsForUser(recipientKey) [via index-bound range filtering]
      * - Left-leg optimization of UnreadCountService.getRecentContactKeysReactive ($or clause matching user_key)
      */
-	@CompoundIndex(name = "idxUnread_userKey_lastIncrementAtDesc", def = "{'user_key': 1, 'last_increment_at': -1}"),
+	@CompoundIndex(name = "idxUnread_userKey_lastIncrementAtDesc", def = "{'userKey': 1, 'lastIncrementAt': -1}"),
 	
 	/**
      * Covers:
@@ -31,34 +30,29 @@ import lombok.Data;
      * Ensures that the parallel sorting on 'last_increment_at DESC' runs instantly 
      * via index intersection with no in-memory sorting penalties.
      */
-	@CompoundIndex(name = "idxUnread_senderKey_lastIncrementAtDesc", def = "{'sender_key': 1, 'last_increment_at': -1}")
+	@CompoundIndex(name = "idxUnread_senderKey_lastIncrementAtDesc", def = "{'senderKey': 1, 'lastIncrementAt': -1}")
 })
 public class UnreadCount {    
 	@Id
 	private String id; // format: <senderKey>_<recipientKey>
 
 	@Indexed
-	@Field("user_key")
 	private UUID userKey; // The person who OWNS this unread count
 
 	@Indexed
-	@Field("sender_key")
 	private UUID senderKey; // The person who SEND this unread count
 
-	@Field("unread_count")
 	private int unreadCount = 0;
 		
 	/** * Timestamp of the last increment (new message received). 
      * Used to determine the 'freshness' of the unread count.
      */
     @Indexed
-    @Field("last_increment_at")
     private Long lastIncrementAt;	
 	
     /** * Timestamp of the last decrement (user read the chat). 
      * Critical for resolving race conditions between multiple devices.
      */
-    @Field("last_decrement_at")
     private Long lastDecrementAt;
 
     /**
@@ -67,10 +61,8 @@ public class UnreadCount {
      * Prevents "double-decrement" logic errors.
      */
     /** Last Read Message ID **/
-    @Field("last_read_mid")
     private UUID lastReadMid;
     
     /** Last Read stanza ID **/
-    @Field("last_read_sid")
     private UUID lastReadSid;
 }
