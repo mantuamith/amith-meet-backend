@@ -25,6 +25,7 @@ import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.util.retry.Retry;
+import static com.algomeet.xmpp.chatservice.document.UnreadCount.*;
 
 @Slf4j
 @Service
@@ -43,10 +44,10 @@ public class UnreadCountService {
 
 		Query query = new Query(Criteria.where("_id").is(id));
 		Update update = new Update()
-				.inc("unreadCount", 1)
-				.set("userKey", UUID.fromString(recipientKey))
-				.set("senderKey", UUID.fromString(senderKey))
-				.set("lastIncrementAt", Instant.now().toEpochMilli());
+				.inc(UNREAD_COUNT, 1)
+				.set(USER_KEY, UUID.fromString(recipientKey))
+				.set(SENDER_KEY, UUID.fromString(senderKey))
+				.set(LAST_INCREMENT_AT, Instant.now().toEpochMilli());
 
 		// upsert returns the updated document
 		return reactiveMongoTemplate.upsert(query, update, UnreadCount.class)
@@ -75,12 +76,12 @@ public class UnreadCountService {
 		String id = getConversationId(senderKey, recipientKey);
 
 		// Construct an atomic guard query: only match and update if the counter is currently > 0
-		Query query = new Query(Criteria.where("_id").is(id).and("unreadCount").gt(0));
+		Query query = new Query(Criteria.where("_id").is(id).and(UNREAD_COUNT).gt(0));
 
 		// Apply server-side isolation: decrement the value by 1 and log the timestamp
-		Update update = new Update().inc("unreadCount", -1)
-				.set("lastDecrementAt", Instant.now().toEpochMilli())
-				.set("lastReadMid", messageId);
+		Update update = new Update().inc(UNREAD_COUNT, -1)
+				.set(LAST_DECREMENT_AT, Instant.now().toEpochMilli())
+				.set(LAST_READ_MID, messageId);
 
 		// 1. Execute the conditional update first
 		return reactiveMongoTemplate.updateFirst(query, update, UnreadCount.class)
@@ -139,14 +140,14 @@ public class UnreadCountService {
 
 	                                Query query = new Query(
 	                                        Criteria.where("_id").is(id)
-	                                        .and("lastIncrementAt").is(capturedIncrementAt)
+	                                        .and(LAST_INCREMENT_AT).is(capturedIncrementAt)
 	                                        );
 
 	                                Update update = new Update()
-	                                        .set("unreadCount", count)
-	                                        .set("lastDecrementAt", Instant.now().toEpochMilli())
-	                                        .set("lastReadMid", messageId)
-	                                        .set("lastReadSid", stanzaId);
+	                                        .set(UNREAD_COUNT, count)
+	                                        .set(LAST_DECREMENT_AT, Instant.now().toEpochMilli())
+	                                        .set(LAST_READ_MID, messageId)
+	                                        .set(LAST_READ_SID, stanzaId);
 
 	                                // 4. Perform the conditional update
 	                                return reactiveMongoTemplate.updateFirst(query, update, UnreadCount.class)
@@ -206,7 +207,7 @@ public class UnreadCountService {
 	 * Aggregates total unread count for a user across all senders reactively.
 	 */
 	public Mono<Integer> getTotalUnreadForUser(String userKey) {
-		Query query = new Query(Criteria.where("userKey").is(UUID.fromString(userKey)));
+		Query query = new Query(Criteria.where(USER_KEY).is(UUID.fromString(userKey)));
 
 		return reactiveMongoTemplate.find(query, UnreadCount.class)
 				.map(UnreadCount::getUnreadCount)
@@ -218,8 +219,8 @@ public class UnreadCountService {
 	 * Usually used to populate the main chat list/inbox.
 	 */
 	public Flux<UnreadCount> getUnreadCountsForUser(String recipientKey) {
-		Query query = new Query(Criteria.where("userKey").is(UUID.fromString(recipientKey))
-				.and("unreadCount").gt(0));
+		Query query = new Query(Criteria.where(USER_KEY).is(UUID.fromString(recipientKey))
+				.and(UNREAD_COUNT).gt(0));
 
 		return reactiveMongoTemplate.find(query, UnreadCount.class);
 	}
@@ -249,10 +250,10 @@ public class UnreadCountService {
 		// but requires a single unified index tracking the sorting field across the query.
 		Query query = new Query(
 				new Criteria().orOperator(
-						Criteria.where("userKey").is(UUID.fromString(targetUserKey)),
-						Criteria.where("senderKey").is(UUID.fromString(targetUserKey))
+						Criteria.where(USER_KEY).is(UUID.fromString(targetUserKey)),
+						Criteria.where(SENDER_KEY).is(UUID.fromString(targetUserKey))
 						)
-				).with(Sort.by(Sort.Direction.DESC, "lastIncrementAt"))
+				).with(Sort.by(Sort.Direction.DESC, LAST_INCREMENT_AT))
 				.skip(skipValues)
 				.limit(size);
 
