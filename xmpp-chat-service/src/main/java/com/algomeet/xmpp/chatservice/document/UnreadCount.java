@@ -27,7 +27,7 @@ import lombok.Data;
      * Covers:
      * - Right-leg optimization of UnreadCountService.getRecentContactKeysReactive ($or clause matching sender_key)
      * 
-     * Ensures that the parallel sorting on 'last_increment_at DESC' runs instantly 
+     * Ensures that the parallel sorting on 'lastIncrementAt DESC' runs instantly 
      * via index intersection with no in-memory sorting penalties.
      */
 	@CompoundIndex(name = "idxUnread_senderKey_lastIncrementAtDesc", def = "{'senderKey': 1, 'lastIncrementAt': -1}")
@@ -39,7 +39,6 @@ public class UnreadCount {
 	@Indexed
 	private UUID userKey; // The person who OWNS this unread count
 
-	@Indexed
 	private UUID senderKey; // The person who SEND this unread count
 
 	private int unreadCount = 0;
@@ -47,7 +46,6 @@ public class UnreadCount {
 	/** * Timestamp of the last increment (new message received). 
      * Used to determine the 'freshness' of the unread count.
      */
-    @Indexed
     private Long lastIncrementAt;	
 	
     /** * Timestamp of the last decrement (user read the chat). 
