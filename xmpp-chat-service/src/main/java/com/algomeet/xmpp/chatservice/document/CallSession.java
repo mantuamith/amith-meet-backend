@@ -107,7 +107,7 @@ public class CallSession {
 	
 	/**
 	 * Optional: MongoDB TTL (Time To Live) index.
-	 * Automatically deletes messages after 12 months if never delivered.
+	 * Automatically deletes messages after 1 month
 	 */
 	@Indexed(expireAfterSeconds = 1 * 2592000) 
 	private Instant expireAt;
