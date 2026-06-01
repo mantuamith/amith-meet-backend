@@ -3,6 +3,7 @@ package com.algomeet.xmpp.chatservice.document;
 import lombok.Builder;
 import lombok.Data;
 
+import java.time.Instant;
 import java.util.UUID;
 
 import org.springframework.data.annotation.Id;
@@ -103,4 +104,11 @@ public class CallSession {
 
 	@Field(UPDATED_AT)
 	private Long updatedAt;    // Track structural modification/state changes	
+	
+	/**
+	 * Optional: MongoDB TTL (Time To Live) index.
+	 * Automatically deletes messages after 12 months if never delivered.
+	 */
+	@Indexed(expireAfterSeconds = 1 * 2592000) 
+	private Instant expireAt;
 }
