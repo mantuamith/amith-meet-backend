@@ -241,7 +241,16 @@ public class UserController {
         // Best-effort cleanup of media storage-usage record before removing the user row.
         // If media-service is unavailable the deletion still completes — the quota row
         // will be an orphan until the next media-service cleanup scheduler runs.
-        mediaServiceClient.deleteStorageUsage(user.getUserKey());
+        try {
+            mediaServiceClient.deleteStorageUsage(user.getUserKey());
+        } catch (Exception ex) {
+            // Safety net: MediaServiceClient already swallows all exceptions internally,
+            // but guard here too so a bug in the client never blocks account deletion.
+            // Log is intentionally at WARN to surface if this branch is ever hit.
+            org.slf4j.LoggerFactory.getLogger(getClass())
+                .warn("Media storage-usage cleanup failed for userKey={} — proceeding with deletion: {}",
+                      user.getUserKey(), ex.getMessage());
+        }
 
         userRepository.deleteByEmail(email);
         return ResponseEntity.ok(Map.of("message", "User deleted successfully"));
