@@ -92,8 +92,8 @@ public class MucRoomService {
         // If group is null meaning group has been deleted and anyone can delete the messages
         // otherwise validate the authority.
         if (group != null) {
-        	if(memberOpt.isEmpty() || !(MucAffiliation.OWNER.equals(memberOpt.get().getRole())
-        			|| MucAffiliation.ADMIN.equals(memberOpt.get().getRole()))) {
+        	if(memberOpt.isEmpty() || !(MucAffiliation.OWNER.name().equals(memberOpt.get().getRole())
+        			|| MucAffiliation.ADMIN.name().equals(memberOpt.get().getRole()))) {
         		throw new AccessDeniedException("Unauthorized purge the group messages.");
         	}
         }
