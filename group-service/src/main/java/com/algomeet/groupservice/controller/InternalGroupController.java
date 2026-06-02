@@ -15,7 +15,6 @@ import com.algomeet.groupservice.controller.swagger.InternalGroupControllerDoc;
 import com.algomeet.groupservice.dto.GroupResponse;
 import com.algomeet.groupservice.exceptions.GroupNotFoundException;
 import com.algomeet.groupservice.service.GroupService;
-import com.algomeet.groupservice.util.SecurityUtil;
 
 import lombok.AllArgsConstructor;
 

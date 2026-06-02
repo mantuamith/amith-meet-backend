@@ -463,19 +463,13 @@ public class GroupService {
      */
     @Transactional
     public boolean clearMemberHistoryTimeline(UUID groupId, String userKey, Long newCutoff) {
-        log.info("Executing atomic row update to clear member timeline: user={}, group={}", userKey, groupId);
-        Group group = getGroupOrThrow(groupId);
-
-		Member member = new Member(userKey, null);
-		if (!group.getMembers().contains(member)) {
-			throw new IllegalStateException(ResponseCode.GROUP_MEMBER_NOT_FOUND.name());
-		}        
+        log.info("Executing atomic row update to clear member timeline: user={}, group={}", userKey, groupId);    
 
         // Directly target the row without fetching the entire Group entity or its member list
         int updatedRows = groupRepository.updateSingleMemberHistoryCutoff(groupId, userKey, newCutoff);
         
         if (updatedRows == 0) {
-            log.warn("No rows updated. Member {} may not belong to group {}", userKey, groupId);
+            log.error("No rows updated. Member {} may not belong to group {}.", userKey, groupId);
             return false;
         }
 
