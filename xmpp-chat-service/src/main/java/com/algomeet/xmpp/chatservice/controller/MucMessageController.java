@@ -4,7 +4,9 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -179,12 +181,17 @@ public class MucMessageController implements MucMessageControllerDoc{
     public ResponseEntity<CommonResponse<Boolean>> purgeGroupMessages(
             @Parameter(description = "The unique group/room UUID", required = true)
             @PathVariable UUID groupId) {
-        
+		UUID userKey = UUID.fromString(SecurityUtil.getUserKey());  
+		
         log.warn("Administrative trigger: Hard purging all message records for group {}", groupId);
-
-        boolean purged = mucRoomService.purgeAllGroupMessages(groupId);
+        try {
+        boolean purged = mucRoomService.purgeAllGroupMessages(groupId, userKey);
                 
         return ResponseEntity.ok(
                 CommonResponse.from(ResponseCode.SUCCESS, purged));
+        } catch (AccessDeniedException ex) {
+        	return ResponseEntity.status(HttpStatus.FORBIDDEN)
+        			.body(CommonResponse.from(ResponseCode.SUCCESS, false));
+        }
     }
 }

@@ -1,13 +1,19 @@
 package com.algomeet.xmpp.chatservice.service;
 
+import java.util.Optional;
 import java.util.UUID;
 
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
 import com.algomeet.xmpp.chatservice.client.GroupClient;
 import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
+import com.algomeet.xmpp.chatservice.dto.MucMember;
+import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
+import com.algomeet.xmpp.chatservice.enums.MucAffiliation;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
+import com.algomeet.xmpp.chatservice.util.SearchUtil;
 import com.algomeet.xmpp.chatservice.util.XmppSyncStanzaComposer;
 import com.github.f4b6a3.uuid.UuidCreator;
 
@@ -77,12 +83,25 @@ public class MucRoomService {
      * * @param groupId The unique room identifier (UUID) targeting the group chat space
      * @return true if the purge was executed and completed successfully across remote endpoints
      */
-    public Boolean purgeAllGroupMessages(UUID groupId) {
+    public Boolean purgeAllGroupMessages(UUID groupId, UUID userKey) {
         log.warn("Executing administrative database purge for all messages in group: {}", groupId);
 
+        MucRoomDto group = groupCacheService.getCachedGroup(groupId.toString());
+        Optional<MucMember> memberOpt = SearchUtil.findMember(group, userKey.toString());
+        
+        // If group is null meaning group has been deleted and anyone can delete the messages
+        // otherwise validate the authority.
+        if (group != null) {
+        	if(memberOpt.isEmpty() || !(MucAffiliation.OWNER.equals(memberOpt.get().getRole())
+        			|| MucAffiliation.ADMIN.equals(memberOpt.get().getRole()))) {
+        		throw new AccessDeniedException("Unauthorized purge the group messages.");
+        	}
+        }
+        
         // TODO: 1. Trigger the hard-deletion across your microservice boundary
         boolean isPurged = true; //groupClient.purgeAllGroupMessages(groupId);
 
+                
         if (!isPurged) {
             log.error("Remote core group microservice failed to purge messages for group: {}", groupId);
             return false;
