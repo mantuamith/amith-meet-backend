@@ -1,5 +1,6 @@
 package com.algomeet.userservice.controller;
 
+import com.algomeet.userservice.client.MediaServiceClient;
 import com.algomeet.userservice.dto.UserDto;
 import com.algomeet.userservice.enums.ResponseCode;
 import com.algomeet.userservice.dto.UserRequest;
@@ -27,10 +28,9 @@ public class UserController {
 
 
     private final UserRepository userRepository;
-
     private final PasswordEncoder passwordEncoder;
-    
     private final UserProfileRepository userProfileRepository;
+    private final MediaServiceClient mediaServiceClient;
 
     // Feign client will call this from auth-service to register user
     @PostMapping
@@ -231,11 +231,17 @@ public class UserController {
     }
 
     @DeleteMapping("/email/{email}")
-    @Transactional  //  Works as a quick fix
+    @Transactional
     public ResponseEntity<?> deleteUserByEmail(@PathVariable String email) {
-        if (!userRepository.existsByEmailIgnoreCase(email)) {
+        User user = userRepository.findByEmailIgnoreCase(email).orElse(null);
+        if (user == null) {
             return ResponseEntity.status(404).body(Map.of("error", "User not found"));
         }
+
+        // Best-effort cleanup of media storage-usage record before removing the user row.
+        // If media-service is unavailable the deletion still completes — the quota row
+        // will be an orphan until the next media-service cleanup scheduler runs.
+        mediaServiceClient.deleteStorageUsage(user.getUserKey());
 
         userRepository.deleteByEmail(email);
         return ResponseEntity.ok(Map.of("message", "User deleted successfully"));
