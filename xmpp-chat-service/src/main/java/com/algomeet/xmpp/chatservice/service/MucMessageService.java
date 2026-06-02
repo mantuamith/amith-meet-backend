@@ -125,8 +125,10 @@ public class MucMessageService {
 			int size) {    
 		List<MucMessageResponse> resultList = new ArrayList<>();
 
+		MucRoomDto group = groupCacheService.getCachedGroup(groupId.toString());
+		
 		if (page == 0) {
-	        MucMessageResponse startMessage = getStartOfConversation(userKey, groupId);
+	        MucMessageResponse startMessage = getStartOfConversation(userKey, groupId, group);
 	        if (startMessage != null) {
 	            resultList.add(startMessage);
 	        }
@@ -136,7 +138,7 @@ public class MucMessageService {
 		Pageable pageable = PageRequest.of(page, size);
 
 		// Retrieve group info
-		Optional<MucMember>  member = SearchUtil.findMember(groupCacheService.getCachedGroup(groupId.toString()), userKey.toString());
+		Optional<MucMember>  member = SearchUtil.findMember(group, userKey.toString());
 		if (member.isEmpty()) {
 			return List.of();
 		}
@@ -187,7 +189,7 @@ public class MucMessageService {
 	    return Collections.unmodifiableList(resultList);
 	}
 
-	private MucMessageResponse getStartOfConversation(UUID userKey, UUID groupId) {
+	private MucMessageResponse getStartOfConversation(UUID userKey, UUID groupId, MucRoomDto group) {
 		// Scenario B: The room is brand new / completely empty. Return a structural anchor.
 		MucMessageResponse emptyRoomAnchor = new MucMessageResponse();
 		emptyRoomAnchor.setStanzaId(Constants.NIL_UUID);
@@ -196,7 +198,7 @@ public class MucMessageService {
 		emptyRoomAnchor.setStartOfRoomConversation(true);
 		
 		// Retrieve group info
-		Optional<MucMember>  member = SearchUtil.findMember(groupCacheService.getCachedGroup(groupId.toString()), userKey.toString());
+		Optional<MucMember>  member = SearchUtil.findMember(group, userKey.toString());
 		if (member.isEmpty()) {
 			return emptyRoomAnchor;
 		}
