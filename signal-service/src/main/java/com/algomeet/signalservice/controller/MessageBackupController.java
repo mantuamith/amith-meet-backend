@@ -2,9 +2,9 @@ package com.algomeet.signalservice.controller;
 
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_DELETED_AT;
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_DELIVERED_AT;
+import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_HIDDEN_AT;
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_READ_AT;
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_SENT_AT;
-import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_HIDDEN_AT;
 
 import java.time.format.DateTimeParseException;
 import java.util.Comparator;
@@ -309,7 +309,7 @@ public class MessageBackupController implements MessageBackupControllerDoc{
      * @return success response or HTTP 404 if not found
      */
     @DeleteMapping("/messages")
-	public ResponseEntity<CommonResponse<?>> deleteMessages(@PathVariable List<UUID> messageIds) {
+	public ResponseEntity<CommonResponse<?>> deleteMessages(@RequestParam("messageIds") List<UUID> messageIds) {
 		try {
 			messageBackupService.delete(UUID.fromString(SecurityUtil.getUserKey()), messageIds);        
 			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
@@ -417,4 +417,52 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 					.body(CommonResponse.from(ResponseCode.MESSAGE_BACKUP_NOT_FOUND));
 		}
 	}
+	
+	/**
+     * Retrieves the metadata or payload of the last message sent by the current authenticated user 
+     * within a specific conversation.
+     *
+     * @param peerKey The unique identifier of the other chat participant.
+     * @return A standard API response containing the last outbound message response DTO, 
+     * or a successful payload with null data if no message has been sent yet.
+     */
+    @GetMapping("/{peerKey}/conversation/last-sent")
+    public ResponseEntity<CommonResponse<MessageBackupResponse>> getConversationLastSent(
+            @PathVariable UUID peerKey) {
+
+        // Extract the authenticated user's unique identifier from the security context
+        UUID userKey = UUID.fromString(SecurityUtil.getUserKey());
+            
+        // Fetch the last sent message. Passing 'userKey' as the third argument 
+        // filters the repository query down to messages where senderKey == userKey.
+        MessageBackupResponse responseBody = messageBackupService.getConversationLastSent(userKey, peerKey, userKey)
+                .map(MessageBackupResponse::from)
+                .orElse(null); 
+
+        return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, responseBody));
+    }	
+    
+    /**
+     * Retrieves the metadata or payload of the last message received by the current authenticated user 
+     * (sent by the peer) within a specific conversation.
+     *
+     * @param peerKey The unique identifier of the chat participant who authored the message.
+     * @return A standard API response containing the last inbound message response DTO, 
+     * or a successful payload with null data if no message has been received yet.
+     */
+    @GetMapping("/{peerKey}/conversation/last-received")
+    public ResponseEntity<CommonResponse<MessageBackupResponse>> getConversationLastReceived(
+            @PathVariable UUID peerKey) {
+
+        // Extract the authenticated user's unique identifier from the security context
+        UUID userKey = UUID.fromString(SecurityUtil.getUserKey());
+            
+        // Fetch the last received message. Passing 'peerKey' as the third argument 
+        // filters the repository query down to messages where senderKey == peerKey.
+        MessageBackupResponse responseBody = messageBackupService.getConversationLastSent(userKey, peerKey, peerKey)
+                .map(MessageBackupResponse::from)
+                .orElse(null); 
+
+        return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, responseBody));
+    }
 }
