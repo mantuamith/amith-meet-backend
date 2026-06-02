@@ -18,6 +18,7 @@ import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_US
 import java.nio.charset.Charset;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -498,30 +499,39 @@ public class MessageBackupService {
 		}
 		
 		UUID userKey = UUID.fromString(SecurityUtil.getUserKey());	
-		/**
-		 * Redis distributed lock key to prevent concurrent duplicate inserts
-		 * for the same messageId (idempotency + race-condition protection).
-		 *
-		 * Format:
-		 * signal:lock:message-backup:insert:{messageId}
-		 */
-		String lockKey = "signal:lock:mb:update-status:" + messageIds.get(0);
+		
+		Iterator<UUID> it = messageIds.iterator();
+		while (it.hasNext()) {
+			UUID messageId = it.next();
+			/**
+			 * Redis distributed lock key to prevent concurrent duplicate inserts
+			 * for the same messageId (idempotency + race-condition protection).
+			 *
+			 * Format:
+			 * signal:lock:message-backup:insert:{messageId}
+			 */
+			String lockKey = "signal:lock:mb:update-status:" + messageId;
 
-		/**
-		 * Lock value used for safe release verification.
-		 * NOTE: In production systems, this should ideally be a UUID to ensure ownership safety.
-		 */
-		String lockValue = UUID.randomUUID().toString();
+			/**
+			 * Lock value used for safe release verification.
+			 * NOTE: In production systems, this should ideally be a UUID to ensure ownership safety.
+			 */
+			String lockValue = UUID.randomUUID().toString();
 
-		// Lock TTL ensures deadlock prevention in case of unexpected failures
-		long ttlSeconds = 5;
+			// Lock TTL ensures deadlock prevention in case of unexpected failures
+			long ttlSeconds = 5;
 
-		// Attempt to acquire distributed lock
-		boolean acquired = redisTemplate.opsForValue()
-				.setIfAbsent(lockKey, lockValue, Duration.ofSeconds(ttlSeconds));
+			// Attempt to acquire distributed lock
+			boolean acquired = redisTemplate.opsForValue()
+					.setIfAbsent(lockKey, lockValue, Duration.ofSeconds(ttlSeconds));
+			
+			if(Boolean.FALSE.equals(acquired)) {
+				it.remove();
+			}
+		}
 
-		// If lock is not acquired, another process is already inserting this message
-		if (!Boolean.TRUE.equals(acquired)) {
+		// No message locks were acquired, indicating that another process is currently updating the status of these messages.
+		if (CollectionUtils.isEmpty(messageIds)) {
 			throw new MessageUpdateStatusInProgressException();
 		}
 
@@ -579,5 +589,13 @@ public class MessageBackupService {
 			
 			log.warn("Message backup message IDs not found: {} " + messageIds);
 		}
+	}
+	
+	
+	public Optional<MessageBackupView> getConversationLastSent(UUID userKey, UUID peerKey, UUID senderKey) {
+		// Get converation ID
+		String converationId = ConversationUtil.getConversationId(userKey.toString(), peerKey.toString());	
+		
+		return repository.findFirstByConversationIdAndSenderKeyAndDeletedAtIsNullAndHiddenAtIsNullOrderByStanzaIdDesc(converationId, senderKey);
 	}
 }
