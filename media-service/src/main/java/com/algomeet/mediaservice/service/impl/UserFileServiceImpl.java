@@ -16,6 +16,7 @@ import com.algomeet.mediaservice.document.FileAccessEntry;
 import com.algomeet.mediaservice.document.FilePermission;
 import com.algomeet.mediaservice.document.UserFileDocument;
 import com.algomeet.mediaservice.dto.StorageUsageAdjustmentRequest;
+import com.algomeet.mediaservice.enums.UploadContext;
 import com.algomeet.mediaservice.repository.UserFileRepository;
 import com.algomeet.mediaservice.service.UserFileService;
 
@@ -189,12 +190,19 @@ public class UserFileServiceImpl implements UserFileService {
 
 				if (accControl.getRefCount() <= 0) {
 					itAccControl.remove();
-					
-	            	// Update user storage usage, subtract the deleted file count and file size     	
-	            	StorageUsageAdjustmentRequest storageUsageAdjustment = new StorageUsageAdjustmentRequest();
-	            	storageUsageAdjustment.setMediaFileCountDelta(-1L);
-	            	storageUsageAdjustment.setMediaStorageBytesDelta(-file.getSize());
-	            	userStorageUsageService.adjustUsage(UUID.fromString(uKey), storageUsageAdjustment);
+
+					// Debit the correct quota bucket — must mirror the bucket used at upload time.
+					// Files uploaded with uploadContext=CHAT were credited to chatStorageUsed;
+					// everything else goes to mediaStorageUsed.
+					StorageUsageAdjustmentRequest storageUsageAdjustment = new StorageUsageAdjustmentRequest();
+					if (UploadContext.CHAT.name().equals(file.getUploadContext())) {
+						storageUsageAdjustment.setChatStorageBytesDelta(-file.getSize());
+						storageUsageAdjustment.setChatMessageCountDelta(-1L);
+					} else {
+						storageUsageAdjustment.setMediaStorageBytesDelta(-file.getSize());
+						storageUsageAdjustment.setMediaFileCountDelta(-1L);
+					}
+					userStorageUsageService.adjustUsage(UUID.fromString(uKey), storageUsageAdjustment);
 				}
 			}
 		}

@@ -7,6 +7,7 @@ import com.algomeet.chatservice.repository.MessageRepository;
 import com.algomeet.chatservice.sync.messaging.SimpMessagingSyncTemplate;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -15,6 +16,7 @@ import java.util.stream.Collectors;
 
 import static java.lang.Boolean.TRUE;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class MessageDeleteService {
@@ -83,8 +85,14 @@ public class MessageDeleteService {
                 notifyForEveryoneByUser.computeIfAbsent(msg.getSender(), k -> new ArrayList<>()).add(id);
                 notifyForEveryoneByUser.computeIfAbsent(msg.getReceiver(), k -> new ArrayList<>()).add(id);
                 
-                // Delete/remove sender and receivers from media permissions
-                mediaService.deleteAll(msg, requesterKey);
+                // Delete/remove sender and receivers from media permissions.
+                // Best-effort: a media-service outage must never roll back the message deletion.
+                try {
+                    mediaService.deleteAll(msg, requesterKey);
+                } catch (Exception ex) {
+                    log.warn("Media cleanup failed for deleteForAll on message={} — file may be orphaned until scheduler runs: {}",
+                            id, ex.getMessage());
+                }
 
             } else {
                 // Delete "for me" = add requester to deletedForUsers
@@ -99,8 +107,14 @@ public class MessageDeleteService {
                 }
                 deletedForMeIds.add(id);
                 
-                // Delete/remove requester from media permissions
-                mediaService.delete(msg, requesterKey);
+                // Delete/remove requester from media permissions.
+                // Best-effort: a media-service outage must never roll back the message deletion.
+                try {
+                    mediaService.delete(msg, requesterKey);
+                } catch (Exception ex) {
+                    log.warn("Media cleanup failed for deleteForMe on message={} — ACL entry may persist until next cleanup: {}",
+                            id, ex.getMessage());
+                }
             }
         }
 
