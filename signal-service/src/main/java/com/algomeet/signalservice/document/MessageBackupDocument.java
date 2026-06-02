@@ -73,7 +73,7 @@ import lombok.NoArgsConstructor;
     @CompoundIndex(
     	    name = "idxMsg_userKey_stanzaIdDesc_conversationId_partial", 
     	    def = "{'userKey': 1, 'stanzaId': -1, 'conversationId': 1}",
-    	    partialFilter = "{'DeletedAt': null, 'hiddenAt': null}"
+    	    partialFilter = "{'deletedAt': null, 'hiddenAt': null}"
     	),
     
     /**
@@ -91,7 +91,15 @@ import lombok.NoArgsConstructor;
     @CompoundIndex(
         name = "idxMsg_userKey_targetMessageId", 
         def = "{'userKey': 1, 'targetMessageId': 1}"
-    )
+    ),
+    /**
+     * 8. Used for findFirstByConversationIdAndSenderKeyAndDeletedAtIsNullAndHiddenAtIsNullOrderByStanzaIdDesc()
+     */
+    @CompoundIndex(
+    	    name = "idxMsg_convId_senderKey_stanzaIdDesc_partialActive", 
+    	    def = "{'conversationId': 1, 'senderKey': 1, 'stanzaId': -1}",
+    	    partialFilter = "{'deletedAt': null, 'hiddenAt': null}"
+    	)
 })
 public class MessageBackupDocument {
 	// These constants match the @Field names or the variable names
