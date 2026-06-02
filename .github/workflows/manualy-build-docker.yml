@@ -53,6 +53,11 @@ on:
         required: true
         default: 'true'
         type: boolean
+      media-service:
+        description: 'Build media-service?'
+        required: true
+        default: 'true'
+        type: boolean
       extra-tag:
         description: 'Additional tag (optional)'
         required: false
@@ -83,7 +88,8 @@ jobs:
           if [ "${{ github.event.inputs.subscription-service }}" == "true" ]; then SERVICES+=("\"subscription-service\""); fi
           if [ "${{ github.event.inputs.signal-service }}" == "true" ]; then SERVICES+=("\"signal-service\""); fi
           if [ "${{ github.event.inputs.group-service }}" == "true" ]; then SERVICES+=("\"group-service\""); fi
-          
+          if [ "${{ github.event.inputs.media-service }}" == "true" ]; then SERVICES+=("\"media-service\""); fi
+
           # join with commas, not spaces
           SERVICES_JOINED=$(IFS=, ; echo "${SERVICES[*]}")
           MATRIX_JSON="{\"service\":[${SERVICES_JOINED}]}"
