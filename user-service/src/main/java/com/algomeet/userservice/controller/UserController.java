@@ -1,5 +1,6 @@
 package com.algomeet.userservice.controller;
 
+import com.algomeet.userservice.client.MediaServiceClient;
 import com.algomeet.userservice.dto.UserDto;
 import com.algomeet.userservice.enums.ResponseCode;
 import com.algomeet.userservice.dto.UserRequest;
@@ -27,10 +28,9 @@ public class UserController {
 
 
     private final UserRepository userRepository;
-
     private final PasswordEncoder passwordEncoder;
-    
     private final UserProfileRepository userProfileRepository;
+    private final MediaServiceClient mediaServiceClient;
 
     // Feign client will call this from auth-service to register user
     @PostMapping
@@ -231,10 +231,25 @@ public class UserController {
     }
 
     @DeleteMapping("/email/{email}")
-    @Transactional  //  Works as a quick fix
+    @Transactional
     public ResponseEntity<?> deleteUserByEmail(@PathVariable String email) {
-        if (!userRepository.existsByEmailIgnoreCase(email)) {
+        User user = userRepository.findByEmailIgnoreCase(email).orElse(null);
+        if (user == null) {
             return ResponseEntity.status(404).body(Map.of("error", "User not found"));
+        }
+
+        // Best-effort cleanup of media storage-usage record before removing the user row.
+        // If media-service is unavailable the deletion still completes — the quota row
+        // will be an orphan until the next media-service cleanup scheduler runs.
+        try {
+            mediaServiceClient.deleteStorageUsage(user.getUserKey());
+        } catch (Exception ex) {
+            // Safety net: MediaServiceClient already swallows all exceptions internally,
+            // but guard here too so a bug in the client never blocks account deletion.
+            // Log is intentionally at WARN to surface if this branch is ever hit.
+            org.slf4j.LoggerFactory.getLogger(getClass())
+                .warn("Media storage-usage cleanup failed for userKey={} — proceeding with deletion: {}",
+                      user.getUserKey(), ex.getMessage());
         }
 
         userRepository.deleteByEmail(email);

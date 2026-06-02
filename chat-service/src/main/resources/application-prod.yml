@@ -71,5 +71,5 @@ logging:
     com.algomeet.chatservice.service: ${CHAT_LOG_LEVEL}
 
 mediaservice:
-  support: false
+  support: true
 

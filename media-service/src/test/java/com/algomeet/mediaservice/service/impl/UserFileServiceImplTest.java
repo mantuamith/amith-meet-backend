@@ -31,6 +31,9 @@ class UserFileServiceImplTest {
     @Mock
     private UserFileRepository repository;
 
+    @Mock
+    private UserStorageUsageService userStorageUsageService;
+
     @InjectMocks
     private UserFileServiceImpl service;
 
@@ -243,6 +246,7 @@ class UserFileServiceImplTest {
         UserFileDocument file = new UserFileDocument();
         file.setId(FILE_ID);
         file.setOwner(OWNER);
+        file.setSize(1024L);
         file.setAccessControlList(new ArrayList<>());
         return file;
     }

@@ -28,7 +28,7 @@ public class MediaService {
 
 	private final MediaClient mediaClient;
 	private final GroupClient groupClient;
-	@Value("${mediaservice.support:false}")
+	@Value("${mediaservice.support:true}")
 	private boolean mediaServiceSupport;
 
 	private void share(String mediaId, String userKey, List<String> shareWithUserKeys) {

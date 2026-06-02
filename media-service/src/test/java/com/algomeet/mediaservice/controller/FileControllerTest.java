@@ -2,6 +2,7 @@ package com.algomeet.mediaservice.controller;
 
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -112,13 +113,13 @@ class FileControllerTest {
 		MediaUploadResponse uploadResponse = MediaUploadResponse.builder().build();
 
 		when(storageProperties.getActiveUploadStorage()).thenReturn(Storage.LOCAL.name());
-		when(mediaServiceLocal.upload(any(), any(), any(), anyBoolean(), anyBoolean())).thenReturn(uploadResponse);
+		when(mediaServiceLocal.upload(any(), any(), any(), anyBoolean(), anyBoolean(), any(), any())).thenReturn(uploadResponse);
 
 		mockMvc.perform(multipart("/media").file(file).param("contentType", "text/plain")).andExpect(status().isOk())
 				.andExpect(jsonPath("$.code").value("SUCCESS"));
 
 		verify(fileValidator).validate(file, false);
-		verify(mediaServiceLocal).upload(eq(USER_KEY), eq(file), eq("text/plain"), eq(false), eq(true));
+		verify(mediaServiceLocal).upload(eq(USER_KEY), eq(file), eq("text/plain"), eq(false), eq(true), isNull(), any());
 	}
 
 	@Test

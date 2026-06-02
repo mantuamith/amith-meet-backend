@@ -10,106 +10,342 @@ import org.springframework.web.multipart.MultipartFile;
 
 import com.algomeet.mediaservice.dto.CommonResponse;
 import com.algomeet.mediaservice.dto.MediaUploadResponse;
+import com.algomeet.mediaservice.enums.UploadContext;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.ArraySchema;
 import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
-
-@Tag(name = "Media API", description = "Upload, read, share, and delete media files")
+@Tag(name = "Media API", description = "Upload, read, share, and delete media files. Supports single-file and batch (multi-select album) uploads with image metadata extraction and chat-session association.")
 public interface FileControllerDoc {
-    // ========================= UPLOAD =========================
+
+    // ========================= UPLOAD (single) =========================
 
     @Operation(
-        summary = "Upload media file",
-        description = "Uploads a media file. Storage backend depends on active configuration (LOCAL / S3 / OSS).",
+        summary = "Upload a single media file",
+        description = """
+            Uploads a single file (image, video, audio, or document) to the configured storage backend (LOCAL / S3 / OSS).
+
+            **Camera flow**: Invoke after the user captures a photo or video from the in-app camera.
+            Set `uploadContext=CHAT` and `conversationId` to associate the file with the active chat session.
+            Image files return `mediaWidth` and `mediaHeight` in the response.
+
+            **Storage accounting**:
+            - `uploadContext=MEDIA` → counted against `mediaStorageUsed`
+            - `uploadContext=CHAT`  → counted against `chatStorageUsed`
+
+            **autoExpire behaviour**:
+            - `true` (default): file is scheduled for deletion after the TTL if never shared.
+              Use this for temporary preview uploads before the user confirms sending.
+            - `false`: file is persisted and counted against storage quota immediately.
+              Use this once the user confirms sending.
+            """,
         responses = {
             @ApiResponse(responseCode = "200", description = "Upload successful",
-                content = @Content(schema = @Schema(implementation = MediaUploadResponse.class))),
-            @ApiResponse(responseCode = "400", description = "Invalid request"),
+                content = @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(implementation = MediaUploadResponse.class),
+                    examples = @ExampleObject(name = "Image upload response", value = """
+                        {
+                          "code": "SUCCESS",
+                          "message": "Success",
+                          "data": {
+                            "mediaId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                            "originalFilename": "camera_shot.jpg",
+                            "contentType": "image/jpeg",
+                            "size": 2048000,
+                            "encrypted": false,
+                            "url": "/media/3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                            "mediaWidth": 3024,
+                            "mediaHeight": 4032,
+                            "durationSeconds": null,
+                            "conversationId": "conv_abc123"
+                          }
+                        }
+                        """)
+                )
+            ),
+            @ApiResponse(responseCode = "415", description = "File type not supported",
+                content = @Content(examples = @ExampleObject(value = """
+                    { "code": "MEDIA_FILE_TYPE_NOT_SUPPORTED", "message": "Media file type not supported" }
+                    """))
+            ),
+            @ApiResponse(responseCode = "403", description = "Access denied"),
             @ApiResponse(responseCode = "500", description = "Upload failed")
         }
     )
-    public ResponseEntity<CommonResponse<MediaUploadResponse>> upload(
-            @Parameter(description = "File to upload", required = true)
+    ResponseEntity<CommonResponse<MediaUploadResponse>> upload(
+            @Parameter(description = "File to upload (image, video, audio, or document)", required = true)
             @RequestPart("file") MultipartFile file,
 
-            @Parameter(description = "Override content type")
-            @RequestParam(required = false)
-            String contentType,
+            @Parameter(description = "Override the detected MIME content type (optional)")
+            @RequestParam(required = false) String contentType,
 
-            @Parameter(description = "Whether file is encrypted")
-            @RequestParam(required = false)
-            Boolean encrypted,
-            
+            @Parameter(description = "Set to true if the file payload is already client-side encrypted")
+            @RequestParam(required = false) Boolean encrypted,
+
             @Parameter(
-            		description = "Whether the uploaded file should automatically expire based on system TTL policy. " +
-            				"Defaults to true when not provided.",
-            				schema = @Schema(type = "boolean", defaultValue = "true", example = "true")
-            		)
-            @RequestParam(defaultValue = "true") Boolean autoExpire
+                description = "Whether the file should auto-expire based on the system TTL. " +
+                    "Use `true` for preview-stage uploads; switch to `false` once the user confirms sending.",
+                schema = @Schema(type = "boolean", defaultValue = "true", example = "true")
+            )
+            @RequestParam(required = false, defaultValue = "true") Boolean autoExpire,
+
+            @Parameter(
+                description = "Chat session / conversation ID to associate this file with. " +
+                    "Required when the file is sent from Camera or Photos within a private chat.",
+                example = "conv_abc123"
+            )
+            @RequestParam(required = false) String conversationId,
+
+            @Parameter(
+                description = "Storage quota bucket. Use `CHAT` when uploading chat attachments so the " +
+                    "file counts against chatStorageUsed rather than mediaStorageUsed.",
+                schema = @Schema(implementation = UploadContext.class, defaultValue = "MEDIA")
+            )
+            @RequestParam(required = false, defaultValue = "MEDIA") UploadContext uploadContext
     ) throws Exception;
+
+
+    // ========================= UPLOAD (batch / album multi-select) =========================
+
+    @Operation(
+        summary = "Batch upload multiple files (album multi-select)",
+        description = """
+            Uploads multiple files in a single request. Designed for the **Photos (album selection)** flow
+            where the user selects one or more images/videos from the device gallery.
+
+            Files are processed independently — a single rejected file does not abort the others.
+
+            **Response codes**:
+            - `200 OK` — all files uploaded successfully.
+            - `207 Multi-Status` — partial success; at least one file failed. The `data` array contains the successfully uploaded items.
+            - `415 Unsupported Media Type` — all files rejected (type not supported).
+
+            **Default behaviour**: `uploadContext` defaults to `CHAT` because batch uploads are almost always
+            sent directly into a chat session. Override to `MEDIA` if needed.
+            """,
+        responses = {
+            @ApiResponse(responseCode = "200", description = "All files uploaded successfully",
+                content = @Content(
+                    mediaType = "application/json",
+                    array = @ArraySchema(schema = @Schema(implementation = MediaUploadResponse.class)),
+                    examples = @ExampleObject(name = "All-success response", value = """
+                        {
+                          "code": "SUCCESS",
+                          "message": "Success",
+                          "data": [
+                            {
+                              "mediaId": "aaa11111-1111-1111-1111-aaaaaaaaaaaa",
+                              "originalFilename": "IMG_001.jpg",
+                              "contentType": "image/jpeg",
+                              "size": 1536000,
+                              "encrypted": false,
+                              "url": "/media/aaa11111-1111-1111-1111-aaaaaaaaaaaa",
+                              "mediaWidth": 4032,
+                              "mediaHeight": 3024,
+                              "durationSeconds": null,
+                              "conversationId": "conv_abc123"
+                            },
+                            {
+                              "mediaId": "bbb22222-2222-2222-2222-bbbbbbbbbbbb",
+                              "originalFilename": "VID_002.mp4",
+                              "contentType": "video/mp4",
+                              "size": 15728640,
+                              "encrypted": false,
+                              "url": "/media/bbb22222-2222-2222-2222-bbbbbbbbbbbb",
+                              "mediaWidth": null,
+                              "mediaHeight": null,
+                              "durationSeconds": null,
+                              "conversationId": "conv_abc123"
+                            }
+                          ]
+                        }
+                        """)
+                )
+            ),
+            @ApiResponse(responseCode = "207", description = "Partial success — some files failed",
+                content = @Content(examples = @ExampleObject(value = """
+                    {
+                      "code": "MEDIA_BATCH_UPLOAD_PARTIAL_FAILURE",
+                      "message": "One or more files failed to upload",
+                      "data": [
+                        {
+                          "mediaId": "aaa11111-1111-1111-1111-aaaaaaaaaaaa",
+                          "originalFilename": "IMG_001.jpg",
+                          "contentType": "image/jpeg",
+                          "size": 1536000,
+                          "encrypted": false,
+                          "url": "/media/aaa11111-1111-1111-1111-aaaaaaaaaaaa",
+                          "mediaWidth": 4032,
+                          "mediaHeight": 3024,
+                          "durationSeconds": null,
+                          "conversationId": "conv_abc123"
+                        }
+                      ]
+                    }
+                    """))
+            ),
+            @ApiResponse(responseCode = "415", description = "All files were of unsupported type")
+        }
+    )
+    ResponseEntity<CommonResponse<List<MediaUploadResponse>>> uploadBatch(
+            @Parameter(description = "List of files to upload (images and/or videos from album)", required = true)
+            @RequestPart("files") List<MultipartFile> files,
+
+            @Parameter(description = "Set to true if all file payloads are client-side encrypted")
+            @RequestParam(required = false) Boolean encrypted,
+
+            @Parameter(
+                description = "Whether files should auto-expire. Use `true` for preview stage, `false` once confirmed for sending.",
+                schema = @Schema(type = "boolean", defaultValue = "true", example = "true")
+            )
+            @RequestParam(required = false, defaultValue = "true") Boolean autoExpire,
+
+            @Parameter(
+                description = "Chat session / conversation ID to associate all uploaded files with.",
+                example = "conv_abc123"
+            )
+            @RequestParam(required = false) String conversationId,
+
+            @Parameter(
+                description = "Storage quota bucket. Defaults to `CHAT` for batch album uploads.",
+                schema = @Schema(implementation = UploadContext.class, defaultValue = "CHAT")
+            )
+            @RequestParam(required = false, defaultValue = "CHAT") UploadContext uploadContext
+    ) throws Exception;
+
 
     // ========================= GET/READ =========================
 
     @Operation(
-        summary = "Get/Read media file",
+        summary = "Read / download a media file",
         description = """
-            Gets/Reads a media file.
-            - LOCAL: returns file bytes
-            - S3 / OSS: returns HTTP 302 redirect to a presigned URL
+            Fetches the media file content.
+
+            - **LOCAL storage**: returns the file bytes inline (`Content-Disposition: inline`).
+            - **S3 / OSS storage**: returns HTTP 302 redirect to a short-lived pre-signed URL.
+
+            The caller must have `READ` permission on the file (owner or explicitly shared).
             """,
         responses = {
-            @ApiResponse(responseCode = "200", description = "File get/read (LOCAL)"),
-            @ApiResponse(responseCode = "302", description = "Redirect to presigned URL (S3 / OSS)"),
-            @ApiResponse(responseCode = "403", description = "Access denied"),
-            @ApiResponse(responseCode = "404", description = "Media not found")
+            @ApiResponse(responseCode = "200", description = "File bytes returned (LOCAL storage)"),
+            @ApiResponse(responseCode = "302", description = "Redirect to pre-signed URL (S3 / OSS)"),
+            @ApiResponse(responseCode = "403", description = "Access denied",
+                content = @Content(examples = @ExampleObject(value = """
+                    { "code": "MEDIA_ACCESS_DENIED", "message": "Media access denied" }
+                    """))
+            ),
+            @ApiResponse(responseCode = "404", description = "Media not found",
+                content = @Content(examples = @ExampleObject(value = """
+                    { "code": "MEDIA_NOT_FOUND", "message": "Media not found" }
+                    """))
+            )
         }
     )
-    public ResponseEntity<?> getMedia(
-            @Parameter(description = "Media ID", required = true)
+    ResponseEntity<?> getMedia(
+            @Parameter(description = "Media ID returned by the upload endpoint", required = true, example = "3fa85f64-5717-4562-b3fc-2c963f66afa6")
             @PathVariable String mediaId
     );
+
+
+    // ========================= THUMBNAIL =========================
+
+    @Operation(
+        summary = "Get a thumbnail / preview of a media file",
+        description = """
+            Returns a scaled-down preview suitable for rendering inside a chat message bubble.
+
+            **LOCAL storage + image files**: generates a server-side thumbnail scaled to `maxWidth` pixels (default 320).
+
+            **S3 / OSS or video files**: returns HTTP 302 redirect to the full-size URL.
+            Video thumbnail extraction requires native tooling (FFmpeg) which is not available in this service;
+            the mobile client should derive a poster frame from the local capture session before upload.
+
+            The caller must have `READ` permission on the file.
+            """,
+        responses = {
+            @ApiResponse(responseCode = "200", description = "Thumbnail image bytes (LOCAL image files)"),
+            @ApiResponse(responseCode = "302", description = "Redirect to full-size URL (S3 / OSS)"),
+            @ApiResponse(responseCode = "404", description = "Thumbnail not available (non-image LOCAL file or media not found)",
+                content = @Content(examples = @ExampleObject(value = """
+                    { "code": "MEDIA_THUMBNAIL_NOT_AVAILABLE", "message": "Thumbnail not available for this media type" }
+                    """))
+            ),
+            @ApiResponse(responseCode = "403", description = "Access denied")
+        }
+    )
+    ResponseEntity<?> getThumbnail(
+            @Parameter(description = "Media ID", required = true, example = "3fa85f64-5717-4562-b3fc-2c963f66afa6")
+            @PathVariable String mediaId,
+
+            @Parameter(description = "Maximum thumbnail width in pixels", schema = @Schema(defaultValue = "320", example = "320"))
+            @RequestParam(required = false, defaultValue = "320") int maxWidth
+    );
+
 
     // ========================= DELETE =========================
 
     @Operation(
-        summary = "Delete media file",
-        description = "Soft deletes a media file. Deletes physical file only if orphaned.",
+        summary = "Delete a media file",
+        description = """
+            Soft-deletes a media file. The physical file is removed only when it becomes orphaned
+            (no remaining access control entries). Storage quota is decremented accordingly.
+
+            Pass `deleteWithUserKeys` to simultaneously remove other users' access entries
+            (e.g., when a chat message is retracted for all participants).
+            """,
         responses = {
-            @ApiResponse(responseCode = "200", description = "Delete successful"),
+            @ApiResponse(responseCode = "200", description = "Delete successful",
+                content = @Content(examples = @ExampleObject(value = """
+                    { "code": "SUCCESS", "message": "Success" }
+                    """))
+            ),
             @ApiResponse(responseCode = "403", description = "Access denied"),
             @ApiResponse(responseCode = "404", description = "Media not found")
         }
     )
-    public ResponseEntity<CommonResponse<?>> delete(
-            @Parameter(description = "Media ID", required = true)
+    ResponseEntity<CommonResponse<?>> delete(
+            @Parameter(description = "Media ID", required = true, example = "3fa85f64-5717-4562-b3fc-2c963f66afa6")
             @PathVariable String mediaId,
 
-            @Parameter(description = "User keys whose access should also be removed")
-            @RequestParam(required = false)
-            List<String> deleteWithUserKeys
+            @Parameter(description = "Additional user keys whose access should also be revoked (e.g., chat participants when retracting a message)")
+            @RequestParam(required = false) List<String> deleteWithUserKeys
     );
+
 
     // ========================= SHARE =========================
 
     @Operation(
-        summary = "Share media file",
-        description = "Grants access to other users",
+        summary = "Share a media file with other users",
+        description = """
+            Grants READ, SHARE, and DELETE permissions on the file to the listed users.
+            This is called automatically by the chat-service when a message containing media is delivered,
+            so the recipient can access the attachment.
+
+            The file's auto-expire cleanup timer is cleared once it has been shared.
+            """,
         responses = {
-            @ApiResponse(responseCode = "200", description = "File shared successfully"),
+            @ApiResponse(responseCode = "200", description = "File shared successfully",
+                content = @Content(examples = @ExampleObject(value = """
+                    { "code": "SUCCESS", "message": "Success" }
+                    """))
+            ),
             @ApiResponse(responseCode = "403", description = "Access denied"),
             @ApiResponse(responseCode = "404", description = "Media not found")
         }
     )
-    public ResponseEntity<?> share(
-            @Parameter(description = "Media ID", required = true)
+    ResponseEntity<?> share(
+            @Parameter(description = "Media ID", required = true, example = "3fa85f64-5717-4562-b3fc-2c963f66afa6")
             @PathVariable String mediaId,
 
-            @Parameter(description = "User keys to share with", required = true)
+            @Parameter(description = "User keys (UUIDs) to share the file with", required = true,
+                example = "[\"550e8400-e29b-41d4-a716-446655440000\", \"660e8400-e29b-41d4-a716-446655440001\"]")
             @RequestParam List<String> shareWithUserKeys
     );
 }

@@ -26,3 +26,8 @@ spring:
 
 server:
   port: 8082
+
+media:
+  service:
+    url: ${MEDIA_SERVICE_URL:http://media-service:8095}
+    enabled: true
