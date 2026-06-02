@@ -94,7 +94,7 @@ public class MucRoomService {
         if (group != null) {
         	if(memberOpt.isEmpty() || !(MucAffiliation.OWNER.name().equals(memberOpt.get().getRole())
         			|| MucAffiliation.ADMIN.name().equals(memberOpt.get().getRole()))) {
-        		throw new AccessDeniedException("Unauthorized purge the group messages.");
+        		throw new AccessDeniedException("Unauthorized to purge the group messages.");
         	}
         }
         
