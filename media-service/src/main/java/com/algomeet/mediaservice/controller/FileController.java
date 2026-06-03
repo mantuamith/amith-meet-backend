@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.algomeet.mediaservice.config.StorageProperties;
@@ -50,8 +51,10 @@ import lombok.extern.slf4j.Slf4j;
 public class FileController implements FileControllerDoc {
 
     private final MediaServiceLocal mediaServiceLocal;
-    private final MediaServiceS3 mediaServiceS3;
-    private final MediaServiceOss mediaServiceOss;
+    @Autowired(required = false)
+    private MediaServiceS3 mediaServiceS3;
+    @Autowired(required = false)
+    private MediaServiceOss mediaServiceOss;
     private final StorageProperties storageProperties;
     private final UserFileService userFileService;
     private final FileValidator fileValidator;
