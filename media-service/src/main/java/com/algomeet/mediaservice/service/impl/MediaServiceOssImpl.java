@@ -7,6 +7,7 @@ import java.time.Instant;
 import java.util.Date;
 import java.util.UUID;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
@@ -29,6 +30,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Service
 @AllArgsConstructor
+@ConditionalOnProperty(name = "storage.active-upload-storage", havingValue = "oss")
 public class MediaServiceOssImpl implements MediaServiceOss {
 
     private final OSS ossClient;

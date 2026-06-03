@@ -1,5 +1,6 @@
 package com.algomeet.mediaservice.config;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -11,6 +12,7 @@ import software.amazon.awssdk.services.s3.S3Client;
 
 @Configuration
 @AllArgsConstructor
+@ConditionalOnProperty(name = "storage.active-upload-storage", havingValue = "s3")
 public class S3Config {
     private final StorageProperties props;
 

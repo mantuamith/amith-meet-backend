@@ -6,6 +6,7 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
@@ -36,6 +37,7 @@ import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignReques
 @Slf4j
 @Service
 @AllArgsConstructor
+@ConditionalOnProperty(name = "storage.active-upload-storage", havingValue = "s3")
 public class MediaServiceS3Impl implements MediaServiceS3 {
 
     private final S3Client s3Client;
