@@ -210,7 +210,7 @@ class MessageBackupServiceTest {
 
 		doNothing().when(repository).deleteById(messageId);
 
-		service.delete(userKey, messageId);
+		service.delete(userKey, List.of(messageId));
 
 		verify(repository).deleteById(messageId);
 	}
@@ -221,7 +221,7 @@ class MessageBackupServiceTest {
 		.thenReturn(Optional.empty());
 
 		assertThrows(RecordNotFoundException.class,
-				() -> service.delete(userKey, messageId));
+				() -> service.delete(userKey, List.of(messageId)));
 
 		verify(repository, never()).deleteById(any());
 	}
