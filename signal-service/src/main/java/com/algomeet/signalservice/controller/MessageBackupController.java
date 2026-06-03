@@ -267,28 +267,6 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 		}
 	}
 
-	/**
-	 * Updates (edits) an existing message in the conversation.
-	 *
-	 * This endpoint allows modification of a previously sent message.
-	 * Typically used for message correction or updates after initial delivery.
-	 *
-	 * @param messageId the unique identifier of the message to be edited
-	 * @param request the request payload containing updated message fields
-	 * @return the updated message wrapped in a standard response format
-	 *
-	 * @throws RecordNotFoundException if the message with the given ID does not exist
-	 */
-//	@PutMapping("/{messageId}/edit")
-//	public ResponseEntity<CommonResponse<MessageBackupResponse>> editMessage(@PathVariable UUID messageId, 
-//			@RequestBody MessageBackupDocument request) {
-//		try {
-//			MessageBackupDocument saved = messageBackupService.edit(UUID.fromString(SecurityUtil.getUserKey()), messageId, request);
-//			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, MessageBackupResponse.from(saved)));
-//		} catch (RecordNotFoundException ex) {
-//			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.MESSAGE_BACKUP_NOT_FOUND));
-//		}
-//	}
 	
 	/**
 	 * Deletes all messages in a conversation between the authenticated user and the given peer.
@@ -302,22 +280,7 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
 	}
 
-	/**
-     * Deletes one or more message backups by their message IDs.
-     *
-     * @param messageIds the list of IDs of the messages to delete
-     * @return success response or HTTP 404 if not found
-     */
-    @DeleteMapping("/messages")
-	public ResponseEntity<CommonResponse<?>> deleteMessages(@RequestParam("messageIds") List<UUID> messageIds) {
-		try {
-			messageBackupService.delete(UUID.fromString(SecurityUtil.getUserKey()), messageIds);        
-			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
-		} catch (RecordNotFoundException ex) {
-			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.MESSAGE_BACKUP_NOT_FOUND));
-		}
-	}
-	
+		
 	/**
      * Deletes all chat message backups belonging to the currently authenticated user.
      *
