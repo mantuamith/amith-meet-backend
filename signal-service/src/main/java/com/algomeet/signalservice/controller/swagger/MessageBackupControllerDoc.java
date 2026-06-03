@@ -180,4 +180,38 @@ public interface MessageBackupControllerDoc {
     
     @Operation(summary = "Mark message(s) as hidden (soft delete by sender)")
     ResponseEntity<CommonResponse<?>> markAsHidden(MessageStatusUpdateRequest request);
+    
+    @Operation(
+    		summary = "Get last sent message",
+    		description = "Retrieves the metadata of the last message sent by the currently authenticated user to the specified peer. Returns null within the data wrapper if no messages have been sent yet.",
+    		responses = {
+    				@ApiResponse(
+    						responseCode = "200",
+    						description = "Successfully retrieved last sent message state.",
+    						content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonResponse.class))
+    						),
+    				@ApiResponse(responseCode = "401", description = "Unauthorized - Invalid or missing authentication token.", content = @Content),
+    				@ApiResponse(responseCode = "400", description = "Bad Request - Invalid UUID format for peerKey.", content = @Content)
+    		}
+    		)
+    public ResponseEntity<CommonResponse<MessageBackupResponse>> getConversationLastSent(
+    		@Parameter(description = "The unique UUID identifier of the other chat participant", required = true, example = "a6c905b2-3e21-4b10-8e14-637bc39d0124")
+    		@PathVariable UUID peerKey);
+
+    @Operation(
+    		summary = "Get last received message",
+    		description = "Retrieves the metadata of the last message authored by the specified peer and received by the currently authenticated user. Returns null within the data wrapper if no messages have been received yet.",
+    		responses = {
+    				@ApiResponse(
+    						responseCode = "200",
+    						description = "Successfully retrieved last received message state.",
+    						content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonResponse.class))
+    						),
+    				@ApiResponse(responseCode = "401", description = "Unauthorized - Invalid or missing authentication token.", content = @Content),
+    				@ApiResponse(responseCode = "400", description = "Bad Request - Invalid UUID format for peerKey.", content = @Content)
+    		}
+    		)
+    public ResponseEntity<CommonResponse<MessageBackupResponse>> getConversationLastReceived(
+    		@Parameter(description = "The unique UUID identifier of the chat participant who authored the message", required = true, example = "e2b349d4-1a73-45bb-b302-123456789abc")
+    		@PathVariable UUID peerKey);
 }

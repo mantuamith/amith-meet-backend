@@ -1,6 +1,7 @@
 package com.algomeet.signalservice.document;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.data.annotation.Id;
@@ -227,6 +228,8 @@ public class MessageBackupDocument {
 	private String salt;
 
 	private Instant timestamp = Instant.now();
+	
+	private List<UUID> mediaIds;
 	
 	/**
 	 * Optional: MongoDB TTL (Time To Live) index.

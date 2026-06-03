@@ -100,4 +100,9 @@ public interface MessageBackupRepository extends MongoRepository<MessageBackupDo
 	 * @return A list of matching MessageBackupView projections.
 	 */
 	List<MessageBackupView> findByUserKeyAndTargetMessageIdIn(UUID userKey, List<UUID> messageIds);
+	
+	Optional<MessageBackupView> findFirstByConversationIdAndSenderKeyAndDeletedAtIsNullAndHiddenAtIsNullOrderByStanzaIdDesc(		    
+		    String conversationId,
+		    UUID senderKey
+		);
 }
