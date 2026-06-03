@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 import com.algomeet.signalservice.document.MessageBackupDocument;
+import com.algomeet.signalservice.repository.projection.MessageBackupView;
 
 import lombok.Builder;
 import lombok.Data;
@@ -59,6 +60,20 @@ public class MessageBackupResponse {
                 .version(doc.getVersion())
                 .salt(doc.getSalt())
                 .timestamp(doc.getTimestamp().toEpochMilli())
+                .build();
+    }
+    
+    public static MessageBackupResponse from(MessageBackupView doc) {
+        if (doc == null) {
+            return null;
+        }
+
+        return MessageBackupResponse.builder()        		
+                .messageId(getStringValue(doc.getMessageId()))  
+                .stanzaId(getStringValue(doc.getStanzaId()))
+                .userKey(getStringValue(doc.getUserKey()))
+                .senderKey(getStringValue(doc.getSenderKey()))
+                .targetMessageId(doc.getTargetMessageId() != null ? doc.getTargetMessageId().toString() : null)
                 .build();
     }
     
