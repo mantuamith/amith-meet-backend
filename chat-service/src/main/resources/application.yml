@@ -57,6 +57,9 @@ media:
     service:
       url: http://localhost:8095
 
+mediaservice:
+  support: true
+
 jwt:
    secret: Y0h4TkFxWkd6Um9TTktOVlFobU9naFN3SzY5cWhVY08=
 

@@ -6,52 +6,62 @@ on:
       auth-service:
         description: 'Build auth-service?'
         required: true
-        default: 'true'
+        default: 'false'
         type: boolean
       chat-service:
         description: 'Build chat-service?'
         required: true
-        default: 'true'
+        default: 'false'
+        type: boolean
+      xmpp-chat-service:
+        description: 'Build xmpp-chat-service?'
+        required: true
+        default: 'false'
         type: boolean
       contact-service:
         description: 'Build contact-service?'
         required: true
-        default: 'true'
+        default: 'false'
         type: boolean
       meeting-service:
         description: 'Build meeting-service?'
         required: true
-        default: 'true'
+        default: 'false'
         type: boolean
       user-service:
         description: 'Build user-service?'
         required: true
-        default: 'true'
+        default: 'false'
         type: boolean
       notification-service:
         description: 'Build notification-service?'
         required: true
-        default: 'true'
+        default: 'false'
         type: boolean
       control-service:
         description: 'Build control-service?'
         required: true
-        default: 'true'
+        default: 'false'
         type: boolean
       subscription-service:
         description: 'Build Subscription-service?'
         required: true
-        default: 'true'
+        default: 'false'
         type: boolean
       signal-service:
         description: 'Build signal-service?'
         required: true
-        default: 'true'
+        default: 'false'
         type: boolean
       group-service:
         description: 'Build group-service?'
         required: true
-        default: 'true'
+        default: 'false'
+        type: boolean
+      media-service:
+        description: 'Build media-service?'
+        required: true
+        default: 'false'
         type: boolean
       extra-tag:
         description: 'Additional tag (optional)'
@@ -74,7 +84,8 @@ jobs:
         run: |
           SERVICES=()
           if [ "${{ github.event.inputs.auth-service }}" == "true" ]; then SERVICES+=("\"auth-service\""); fi
-          if [ "${{ github.event.inputs.chat-service }}" == "true" ]; then SERVICES+=("\"chat-service\"" "\"xmpp-chat-service\""); fi
+          if [ "${{ github.event.inputs.chat-service }}" == "true" ]; then SERVICES+=("\"chat-service\""); fi
+          if [ "${{ github.event.inputs.xmpp-chat-service }}" == "true" ]; then SERVICES+=("\"xmpp-chat-service\""); fi
           if [ "${{ github.event.inputs.contact-service }}" == "true" ]; then SERVICES+=("\"contact-service\""); fi
           if [ "${{ github.event.inputs.meeting-service }}" == "true" ]; then SERVICES+=("\"meeting-service\""); fi
           if [ "${{ github.event.inputs.user-service }}" == "true" ]; then SERVICES+=("\"user-service\""); fi
@@ -83,7 +94,8 @@ jobs:
           if [ "${{ github.event.inputs.subscription-service }}" == "true" ]; then SERVICES+=("\"subscription-service\""); fi
           if [ "${{ github.event.inputs.signal-service }}" == "true" ]; then SERVICES+=("\"signal-service\""); fi
           if [ "${{ github.event.inputs.group-service }}" == "true" ]; then SERVICES+=("\"group-service\""); fi
-          
+          if [ "${{ github.event.inputs.media-service }}" == "true" ]; then SERVICES+=("\"media-service\""); fi
+
           # join with commas, not spaces
           SERVICES_JOINED=$(IFS=, ; echo "${SERVICES[*]}")
           MATRIX_JSON="{\"service\":[${SERVICES_JOINED}]}"

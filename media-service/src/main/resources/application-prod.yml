@@ -1,71 +1,66 @@
-spring:
-  profiles:
-    active: local
-
 ---
-
 spring:
-  application: 
+  config:
+    activate:
+      on-profile: prod
+
+  application:
     name: media-service
+
   servlet:
     multipart:
       max-file-size: 150MB
       max-request-size: 350MB
-      
-  config:
-    activate:
-      on-profile: local
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/clorameet_db
-    username: postgres
-    password: root
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
     driver-class-name: org.postgresql.Driver
 
   jpa:
     hibernate:
       ddl-auto: update
-       
-    show-sql: true
+    show-sql: false
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
 
   data:
     mongodb:
-      uri: mongodb://admin:yoursecurepassword@localhost:27017/chatdb?authSource=admin
+      uri: ${SPRING_DATA_MONGODB_URI}
       auto-index-creation: true
 
     redis:
-      host: ${REDIS_HOST:localhost}
+      host: redis-svc
       port: 6379
       password: ${REDIS_PASSWORD}
 
   jackson:
     serialization:
-      INDENT_OUTPUT: true
+      INDENT_OUTPUT: false
 
 storage:
-  active-upload-storage: local
+  active-upload-storage: ${STORAGE_ACTIVE_UPLOAD_STORAGE:local}
   unshared-file-expiration-hours: 1
-  
-  local: 
-    dir: /tmp/media/
+
+  local:
+    dir: ${STORAGE_LOCAL_DIR:/tmp/media/}
 
   s3:
-    access-key: AKIA4MF4XOWJ6C7GUQVV2
-    secret-key: AlOYvi6eicmZKIWg1afdZagNkKKbIKD7LGoqN0Mo
-    region: ap-southeast-2
-    bucket: algomeet-demo
+    access-key: ${AWS_ACCESS_KEY:}
+    secret-key: ${AWS_SECRET_KEY:}
+    region: ${AWS_REGION:ap-southeast-2}
+    bucket: ${AWS_S3_BUCKET:algomeet-demo}
     path-style-access: false
-    sig-expiration-in-minutes: 1
-  
+    sig-expiration-in-minutes: 15
+
   oss:
-    access-key-id: LTAXI5tHZ6boW8n832Q6PWS2S
-    access-key-secret: 54IjrqeluGXxA3G2sVRw5ooljeiowk
-    endpoint: https://oss-ap-southeast-6.aliyuncs.com
-    bucket: algomeet-demo
-    sig-expiration-in-minutes: 1
+    access-key-id: ${OSS_ACCESS_KEY_ID:}
+    access-key-secret: ${OSS_ACCESS_KEY_SECRET:}
+    endpoint: ${OSS_ENDPOINT:https://oss-ap-southeast-6.aliyuncs.com}
+    bucket: ${OSS_BUCKET:algomeet-demo}
+    sig-expiration-in-minutes: 15
 
 media:
   file:
@@ -74,9 +69,8 @@ media:
     audio-extensions: [mp3, wav, m4a, aac, ogg, opus, flac, amr, wma, aiff, aif, au]
     document-extensions: [pdf, doc, docx, xls, xlsx, ppt, pptx, txt, rtf, csv, odt, ods, odp, epub, md, zip, rar, 7z, tar, gz, tgz, bz2, tbz, xz, txz, lz, lzma, zst]
 
+jwt:
+  secret: ${JWT_SECRET}
+
 server:
   port: 8095
-
-jwt:
-  secret: ${JWT_SECRET:Y0h4TkFxWkd6Um9TTktOVlFobU9naFN3SzY5cWhVY08=}
-

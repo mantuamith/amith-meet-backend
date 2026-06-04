@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.core.io.InputStreamResource;
@@ -20,6 +21,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.algomeet.mediaservice.config.StorageProperties;
@@ -30,6 +32,7 @@ import com.algomeet.mediaservice.dto.CommonResponse;
 import com.algomeet.mediaservice.dto.MediaUploadResponse;
 import com.algomeet.mediaservice.enums.ResponseCode;
 import com.algomeet.mediaservice.enums.Storage;
+import com.algomeet.mediaservice.enums.UploadContext;
 import com.algomeet.mediaservice.exceptions.FileTypeNotSupportedException;
 import com.algomeet.mediaservice.service.MediaServiceLocal;
 import com.algomeet.mediaservice.service.MediaServiceOss;
@@ -46,132 +49,229 @@ import lombok.extern.slf4j.Slf4j;
 @RequestMapping("/media")
 @RequiredArgsConstructor
 public class FileController implements FileControllerDoc {
-	private final MediaServiceLocal mediaServiceLocal;
-	private final MediaServiceS3 mediaServiceS3;
-	private final MediaServiceOss mediaServiceOss;
-	private final StorageProperties storageProperties;
-	private final UserFileService userFileService;
-	private final FileValidator fileValidator;
 
-	/**
-	 * Upload media file
-	 * 
-	 * @throws IOException
-	 */
-	@PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-	public ResponseEntity<CommonResponse<MediaUploadResponse>> upload(@RequestPart("file") MultipartFile file,
-			@RequestParam(required = false) String contentType, @RequestParam(required = false) Boolean encrypted,
-			@RequestParam(required = false, defaultValue = "true") Boolean autoExpire)
-			throws Exception {
+    private final MediaServiceLocal mediaServiceLocal;
+    @Autowired(required = false)
+    private MediaServiceS3 mediaServiceS3;
+    @Autowired(required = false)
+    private MediaServiceOss mediaServiceOss;
+    private final StorageProperties storageProperties;
+    private final UserFileService userFileService;
+    private final FileValidator fileValidator;
 
-		log.info("Uploading media: name={}, size={} bytes", file.getOriginalFilename(), file.getSize());
+    // ========================= UPLOAD (single) =========================
 
-		try {
-			// Validate file
-			fileValidator.validate(file, encrypted != null && encrypted);
-		} catch (FileTypeNotSupportedException ex) {
-			log.error("Error ", ex.getMessage(), ex);
-			return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE)
-					.body(CommonResponse.from(ResponseCode.MEDIA_FILE_TYPE_NOT_SUPPORTED));
-		}
+    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<CommonResponse<MediaUploadResponse>> upload(
+            @RequestPart("file") MultipartFile file,
+            @RequestParam(required = false) String contentType,
+            @RequestParam(required = false) Boolean encrypted,
+            @RequestParam(required = false, defaultValue = "true") Boolean autoExpire,
+            @RequestParam(required = false) String conversationId,
+            @RequestParam(required = false, defaultValue = "MEDIA") UploadContext uploadContext
+    ) throws Exception {
 
-		MediaUploadResponse response = null;
-		if (storageProperties.getActiveUploadStorage() != null
-				&& Storage.LOCAL.name().equalsIgnoreCase(storageProperties.getActiveUploadStorage().trim())) {
+        log.info("Uploading media: name={}, size={} bytes, context={}", file.getOriginalFilename(), file.getSize(), uploadContext);
 
-			response = mediaServiceLocal.upload(SecurityUtil.getUserKey(), file, contentType,
-					encrypted != null && encrypted, autoExpire != null && autoExpire);
+        try {
+            fileValidator.validate(file, encrypted != null && encrypted);
+        } catch (FileTypeNotSupportedException ex) {
+            log.error("File type not supported: {}", ex.getMessage());
+            return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE)
+                    .body(CommonResponse.from(ResponseCode.MEDIA_FILE_TYPE_NOT_SUPPORTED));
+        }
 
-		} else if (storageProperties.getActiveUploadStorage() != null
-				&& Storage.S3.name().equalsIgnoreCase(storageProperties.getActiveUploadStorage().trim())) {
+        MediaUploadResponse response = doUpload(SecurityUtil.getUserKey(), file, contentType,
+                encrypted != null && encrypted, autoExpire != null && autoExpire, conversationId, uploadContext);
 
-			response = mediaServiceS3.upload(SecurityUtil.getUserKey(), file, contentType,
-					encrypted != null && encrypted, autoExpire != null && autoExpire);
-		} else if (storageProperties.getActiveUploadStorage() != null
-				&& Storage.OSS.name().equalsIgnoreCase(storageProperties.getActiveUploadStorage().trim())) {
+        return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, response));
+    }
 
-			response = mediaServiceOss.upload(SecurityUtil.getUserKey(), file, contentType,
-					encrypted != null && encrypted, autoExpire != null && autoExpire);
-		} else {
-			throw new IllegalArgumentException("Unexpected configuration active upload storage value: "
-					+ Storage.valueOf(storageProperties.getActiveUploadStorage()));
-		}
+    // ========================= UPLOAD (batch) =========================
 
-		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, response));
-	}
+    @PostMapping(value = "/batch", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<CommonResponse<List<MediaUploadResponse>>> uploadBatch(
+            @RequestPart("files") List<MultipartFile> files,
+            @RequestParam(required = false) Boolean encrypted,
+            @RequestParam(required = false, defaultValue = "true") Boolean autoExpire,
+            @RequestParam(required = false) String conversationId,
+            @RequestParam(required = false, defaultValue = "CHAT") UploadContext uploadContext
+    ) throws Exception {
 
-	@GetMapping("/{mediaId}")
-	public ResponseEntity<?> getMedia(@PathVariable String mediaId) {
-		try {
-			UserFileDocument fileDoc = userFileService.getFile(mediaId, SecurityUtil.getUserKey(), FilePermission.READ);
+        log.info("Batch upload: fileCount={}, context={}", files.size(), uploadContext);
 
-			return switch (Storage.valueOf(fileDoc.getStorage())) {
-			case LOCAL -> {
-				Path filePath = mediaServiceLocal.read(SecurityUtil.getUserKey(), mediaId);
+        List<MediaUploadResponse> results = new ArrayList<>();
+        List<String> failures = new ArrayList<>();
 
-				String contentType = Files.probeContentType(filePath);
-				if (contentType == null) {
-					contentType = MediaType.APPLICATION_OCTET_STREAM_VALUE;
-				}
+        for (MultipartFile file : files) {
+            try {
+                fileValidator.validate(file, encrypted != null && encrypted);
+                MediaUploadResponse resp = doUpload(SecurityUtil.getUserKey(), file, null,
+                        encrypted != null && encrypted, autoExpire != null && autoExpire,
+                        conversationId, uploadContext);
+                results.add(resp);
+            } catch (FileTypeNotSupportedException ex) {
+                log.warn("Batch item rejected (unsupported type): {}", file.getOriginalFilename());
+                failures.add(file.getOriginalFilename());
+            } catch (Exception ex) {
+                log.error("Batch item failed: {}", file.getOriginalFilename(), ex);
+                failures.add(file.getOriginalFilename());
+            }
+        }
 
-				InputStreamResource resource = new InputStreamResource(Files.newInputStream(filePath));
+        if (!failures.isEmpty() && results.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE)
+                    .body(CommonResponse.from(ResponseCode.MEDIA_FILE_TYPE_NOT_SUPPORTED));
+        }
 
-				yield ResponseEntity.ok().contentType(MediaType.parseMediaType(contentType))
-						.contentLength(Files.size(filePath))
-						.header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + filePath.getFileName() + "\"")
-						.body(resource);
-			}
+        if (!failures.isEmpty()) {
+            // Partial success
+            return ResponseEntity.status(HttpStatus.MULTI_STATUS)
+                    .body(CommonResponse.from(ResponseCode.MEDIA_BATCH_UPLOAD_PARTIAL_FAILURE, results));
+        }
 
-			case S3 -> {
-				String presignedUrl = mediaServiceS3.getReadUrl(SecurityUtil.getUserKey(), mediaId);
-				yield ResponseEntity.status(HttpStatus.FOUND).location(URI.create(presignedUrl)).build();
-			}
+        return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, results));
+    }
 
-			case OSS -> {
-				String presignedUrl = mediaServiceOss.getReadUrl(SecurityUtil.getUserKey(), mediaId);
-				yield ResponseEntity.status(HttpStatus.FOUND).location(URI.create(presignedUrl)).build();
-			}
+    // ========================= GET/READ =========================
 
-			default -> throw new IllegalArgumentException("Unexpected value: " + Storage.valueOf(fileDoc.getStorage()));
-			};
+    @GetMapping("/{mediaId}")
+    public ResponseEntity<?> getMedia(@PathVariable String mediaId) {
+        try {
+            UserFileDocument fileDoc = userFileService.getFile(mediaId, SecurityUtil.getUserKey(), FilePermission.READ);
 
-		} catch (IOException e) {
-			log.error("Error ", e.getMessage(), e);
-			return ResponseEntity.status(404).body(null);
-		}
-	}
+            return switch (Storage.valueOf(fileDoc.getStorage())) {
+                case LOCAL -> {
+                    Path filePath = mediaServiceLocal.read(SecurityUtil.getUserKey(), mediaId);
+                    String ct = Files.probeContentType(filePath);
+                    if (ct == null) ct = MediaType.APPLICATION_OCTET_STREAM_VALUE;
 
-	@DeleteMapping("/{mediaId}")
-	public ResponseEntity<CommonResponse<?>> delete(@PathVariable String mediaId,
-			@RequestParam(required = false) List<String> deleteWithUserKeys) {
-		try {
-			userFileService.softDeleteAndMarkForCleanupIfOrphaned(mediaId, SecurityUtil.getUserKey(),
-					deleteWithUserKeys);
+                    InputStreamResource resource = new InputStreamResource(Files.newInputStream(filePath));
+                    yield ResponseEntity.ok()
+                            .contentType(MediaType.parseMediaType(ct))
+                            .contentLength(Files.size(filePath))
+                            .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + filePath.getFileName() + "\"")
+                            .body(resource);
+                }
+                case S3 -> {
+                    String presignedUrl = mediaServiceS3.getReadUrl(SecurityUtil.getUserKey(), mediaId);
+                    yield ResponseEntity.status(HttpStatus.FOUND).location(URI.create(presignedUrl)).build();
+                }
+                case OSS -> {
+                    String presignedUrl = mediaServiceOss.getReadUrl(SecurityUtil.getUserKey(), mediaId);
+                    yield ResponseEntity.status(HttpStatus.FOUND).location(URI.create(presignedUrl)).build();
+                }
+                default -> throw new IllegalArgumentException("Unexpected storage value: " + fileDoc.getStorage());
+            };
 
-			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
-		} catch (IllegalArgumentException e) {
-			log.error("Error ", e.getMessage(), e);
-			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.MEDIA_NOT_FOUND));
-		} catch (AccessDeniedException e) {
-			log.error("Error ", e.getMessage(), e);
-			return ResponseEntity.status(HttpStatus.FORBIDDEN)
-					.body(CommonResponse.from(ResponseCode.MEDIA_ACCESS_DENIED));
-		}
-	}
+        } catch (IOException e) {
+            log.error("Error reading media {}: {}", mediaId, e.getMessage());
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
+        }
+    }
 
-	@PostMapping("/{mediaId}/share")
-	public ResponseEntity<?> share(@PathVariable String mediaId, @RequestParam List<String> shareWithUserKeys) {
-		try {
-			userFileService.shareFile(mediaId, SecurityUtil.getUserKey(), shareWithUserKeys);
+    // ========================= THUMBNAIL =========================
 
-			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
-		} catch (IllegalArgumentException e) {
-			log.error("Error ", e.getMessage(), e);
-			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.MEDIA_NOT_FOUND));
-		} catch (AccessDeniedException e) {
-			log.error("Error ", e.getMessage(), e);
-			return ResponseEntity.status(HttpStatus.FORBIDDEN)
-					.body(CommonResponse.from(ResponseCode.MEDIA_ACCESS_DENIED));
-		}
-	}
+    @GetMapping("/{mediaId}/thumbnail")
+    public ResponseEntity<?> getThumbnail(
+            @PathVariable String mediaId,
+            @RequestParam(required = false, defaultValue = "320") int maxWidth
+    ) {
+        try {
+            UserFileDocument fileDoc = userFileService.getFile(mediaId, SecurityUtil.getUserKey(), FilePermission.READ);
+            Storage storage = Storage.valueOf(fileDoc.getStorage());
+
+            if (storage == Storage.LOCAL) {
+                Path thumbPath = mediaServiceLocal.thumbnail(SecurityUtil.getUserKey(), mediaId, maxWidth);
+                if (thumbPath == null) {
+                    return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                            .body(CommonResponse.from(ResponseCode.MEDIA_THUMBNAIL_NOT_AVAILABLE));
+                }
+
+                String ct = Files.probeContentType(thumbPath);
+                if (ct == null) ct = MediaType.IMAGE_JPEG_VALUE;
+
+                InputStreamResource resource = new InputStreamResource(Files.newInputStream(thumbPath));
+                return ResponseEntity.ok()
+                        .contentType(MediaType.parseMediaType(ct))
+                        .contentLength(Files.size(thumbPath))
+                        .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"thumb_" + mediaId + "\"")
+                        .body(resource);
+
+            } else if (storage == Storage.S3) {
+                // For S3/OSS, redirect to the full-size URL — CDN/client handles resizing
+                String presignedUrl = mediaServiceS3.getReadUrl(SecurityUtil.getUserKey(), mediaId);
+                return ResponseEntity.status(HttpStatus.FOUND).location(URI.create(presignedUrl)).build();
+
+            } else {
+                String presignedUrl = mediaServiceOss.getReadUrl(SecurityUtil.getUserKey(), mediaId);
+                return ResponseEntity.status(HttpStatus.FOUND).location(URI.create(presignedUrl)).build();
+            }
+
+        } catch (AccessDeniedException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(CommonResponse.from(ResponseCode.MEDIA_ACCESS_DENIED));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(CommonResponse.from(ResponseCode.MEDIA_NOT_FOUND));
+        } catch (IOException e) {
+            log.error("Error generating thumbnail for {}: {}", mediaId, e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
+        }
+    }
+
+    // ========================= DELETE =========================
+
+    @DeleteMapping("/{mediaId}")
+    public ResponseEntity<CommonResponse<?>> delete(
+            @PathVariable String mediaId,
+            @RequestParam(required = false) List<String> deleteWithUserKeys
+    ) {
+        try {
+            userFileService.softDeleteAndMarkForCleanupIfOrphaned(mediaId, SecurityUtil.getUserKey(), deleteWithUserKeys);
+            return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
+        } catch (IllegalArgumentException e) {
+            log.error("Error: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.MEDIA_NOT_FOUND));
+        } catch (AccessDeniedException e) {
+            log.error("Error: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(CommonResponse.from(ResponseCode.MEDIA_ACCESS_DENIED));
+        }
+    }
+
+    // ========================= SHARE =========================
+
+    @PostMapping("/{mediaId}/share")
+    public ResponseEntity<?> share(
+            @PathVariable String mediaId,
+            @RequestParam List<String> shareWithUserKeys
+    ) {
+        try {
+            userFileService.shareFile(mediaId, SecurityUtil.getUserKey(), shareWithUserKeys);
+            return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
+        } catch (IllegalArgumentException e) {
+            log.error("Error: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.MEDIA_NOT_FOUND));
+        } catch (AccessDeniedException e) {
+            log.error("Error: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(CommonResponse.from(ResponseCode.MEDIA_ACCESS_DENIED));
+        }
+    }
+
+    // ========================= helpers =========================
+
+    private MediaUploadResponse doUpload(String userKey, MultipartFile file, String contentType,
+                                          boolean encrypted, boolean autoExpire,
+                                          String conversationId, UploadContext uploadContext) throws Exception {
+        String active = storageProperties.getActiveUploadStorage();
+        if (active == null) {
+            throw new IllegalArgumentException("Active upload storage is not configured");
+        }
+
+        return switch (Storage.valueOf(active.trim().toUpperCase())) {
+            case LOCAL -> mediaServiceLocal.upload(userKey, file, contentType, encrypted, autoExpire, conversationId, uploadContext);
+            case S3    -> mediaServiceS3.upload(userKey, file, contentType, encrypted, autoExpire, conversationId, uploadContext);
+            case OSS   -> mediaServiceOss.upload(userKey, file, contentType, encrypted, autoExpire, conversationId, uploadContext);
+        };
+    }
 }

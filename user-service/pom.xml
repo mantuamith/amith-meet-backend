@@ -22,6 +22,10 @@
     <maven.compiler.source>${java.version}</maven.compiler.source>
     <maven.compiler.target>${java.version}</maven.compiler.target>
     <skywalking.version>8.12.0</skywalking.version>
+    <!-- Empty placeholder overridden by jacoco; required for byte-buddy agent chaining -->
+    <argLine></argLine>
+    <!-- Byte-buddy agent: required for Mockito inline/subclass mocking on JDK 17+ -->
+    <mockito.test.javaagent>-Dnet.bytebuddy.experimental=true -javaagent:${settings.localRepository}/net/bytebuddy/byte-buddy-agent/${byte-buddy.version}/byte-buddy-agent-${byte-buddy.version}.jar</mockito.test.javaagent>
   </properties>
   <repositories>
     <repository>
@@ -145,6 +149,15 @@
       <plugin>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-maven-plugin</artifactId>
+      </plugin>
+
+      <!-- Surefire: pass byte-buddy agent so Mockito works on JDK 17+ -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <argLine>@{argLine} ${mockito.test.javaagent}</argLine>
+        </configuration>
       </plugin>
 
       <!-- Maven Compiler with Annotation Processor -->

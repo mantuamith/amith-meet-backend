@@ -73,4 +73,25 @@ public class UserFileDocument {
     
     @Field("isEncrypted")
     private boolean isEncrypted;
+
+    /** Chat session this file belongs to (null when not sent in a chat). */
+    @Indexed
+    @Field("conversationId")
+    private String conversationId;
+
+    /** Tracks whether the file was uploaded as a chat attachment or generic media. */
+    @Field("uploadContext")
+    private String uploadContext;
+
+    /** Image width in pixels (null for non-image files). */
+    @Field("mediaWidth")
+    private Integer mediaWidth;
+
+    /** Image height in pixels (null for non-image files). */
+    @Field("mediaHeight")
+    private Integer mediaHeight;
+
+    /** Media duration in seconds (null when not extracted). */
+    @Field("durationSeconds")
+    private Double durationSeconds;
 }

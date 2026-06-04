@@ -9,6 +9,7 @@ import com.algomeet.mediaservice.service.MediaServiceS3;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -20,8 +21,10 @@ import java.util.List;
 @RequiredArgsConstructor
 public class UserFileCleanupScheduler {
 	private final MediaServiceLocal mediaServiceLocal;
-	private final MediaServiceS3 mediaServiceS3;
-	private final MediaServiceOss mediaServiceOss;
+	@Autowired(required = false)
+	private MediaServiceS3 mediaServiceS3;
+	@Autowired(required = false)
+	private MediaServiceOss mediaServiceOss;
 	private final UserFileRepository userFileRepository;
 
 	/**

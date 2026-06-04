@@ -2,62 +2,62 @@ package com.algomeet.mediaservice.controller.swagger;
 
 import java.util.List;
 
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
+
+import com.algomeet.mediaservice.dto.CommonResponse;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
-
-@Tag(name = "Internal Media API", description = "Delete media files")
+@Tag(name = "Internal Media API", description = "Service-to-service media operations. Not exposed to the public gateway.")
 public interface InternalFileControllerDoc {
-	
-	// ========================= SHARE =========================
+
+    // ========================= SHARE =========================
 
     @Operation(
-        summary = "Share media file",
-        description = "Grants access to other users",
+        summary = "Share a media file (internal)",
+        description = "Called by the chat-service to grant file access to message recipients after delivery.",
         responses = {
             @ApiResponse(responseCode = "200", description = "File shared successfully"),
             @ApiResponse(responseCode = "403", description = "Access denied"),
             @ApiResponse(responseCode = "404", description = "Media not found")
         }
     )
-    public void share(
+    ResponseEntity<?> share(
             @Parameter(description = "Media ID", required = true)
             @PathVariable String mediaId,
 
-            @Parameter(description = "User key")   
+            @Parameter(description = "User key of the caller (owner / sharer)", required = true)
             @RequestParam String userKey,
-            
-            @Parameter(description = "User keys to share with", required = true)
+
+            @Parameter(description = "User keys to grant access to", required = true)
             @RequestParam List<String> shareWithUserKeys
     );
-    
 
-	// ========================= DELETE =========================
+    // ========================= DELETE =========================
 
     @Operation(
-        summary = "Delete media file",
-        description = "Soft deletes a media file. Deletes physical file only if orphaned.",
+        summary = "Delete a media file (internal)",
+        description = "Soft-deletes a media file on behalf of a user. Called by the chat-service when a message is retracted.",
         responses = {
             @ApiResponse(responseCode = "200", description = "Delete successful"),
             @ApiResponse(responseCode = "403", description = "Access denied"),
             @ApiResponse(responseCode = "404", description = "Media not found")
         }
     )
-    public void delete(
+    ResponseEntity<CommonResponse<?>> delete(
             @Parameter(description = "Media ID", required = true)
             @PathVariable String mediaId,
-            
-            @Parameter(description = "User key")   
+
+            @Parameter(description = "User key of the caller", required = true)
             @RequestParam String userKey,
-            
-            @Parameter(description = "User keys whose access should also be removed")           
+
+            @Parameter(description = "Additional user keys whose access should also be revoked")
             @RequestParam(required = false)
             List<String> deleteWithUserKeys
     );
-
 }
