@@ -1,26 +1,24 @@
 package com.algomeet.signalservice.service;
 
-import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_ALGORITHM;
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_CONVERSATION_ID;
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_DELETED_AT;
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_DELIVERED_AT;
-import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_EDIT_COUNT;
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_ENCRYPTED_MSG;
+import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_HIDDEN_AT;
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_MESSAGE_ID;
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_READ_AT;
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_RECEIVER_KEY;
-import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_RETRACTED_AT;
-import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_SALT;
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_SENDER_KEY;
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_SENT_AT;
+import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_SIZE;
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_STANZA_ID;
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_UPDATE_CURSOR_ID;
 import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_USER_KEY;
-import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_VERSION;
 
 import java.nio.charset.Charset;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -50,8 +48,10 @@ import com.algomeet.signalservice.exceptions.MessageUpdateStatusInProgressExcept
 import com.algomeet.signalservice.exceptions.RecordNotFoundException;
 import com.algomeet.signalservice.repository.MessageBackupRepository;
 import com.algomeet.signalservice.repository.projection.ConversationStorageStats;
-import com.algomeet.signalservice.repository.projection.MessageMetadataProjection;
+import com.algomeet.signalservice.repository.projection.MessageBackupView;
 import com.algomeet.signalservice.util.ConversationUtil;
+import com.algomeet.signalservice.util.HideUtil;
+import com.algomeet.signalservice.util.RetractUtil;
 import com.algomeet.signalservice.util.SecurityUtil;
 import com.github.f4b6a3.uuid.UuidCreator;
 import com.mongodb.client.result.UpdateResult;
@@ -69,6 +69,8 @@ public class MessageBackupService {
 	private final MediaService mediaService;
 	private final StringRedisTemplate redisTemplate;
 	private final MongoTemplate mongoTemplate;
+	private final RetractUtil retractUtil;
+	private final HideUtil hideUtil;
 
 	/**
 	 * Inserts a message backup document into MongoDB with concurrency protection,
@@ -170,7 +172,7 @@ public class MessageBackupService {
 
 		// Get converation ID
 		String converationId = ConversationUtil.getConversationId(userKey.toString(), peerKey.toString());		
-		return repository.findByConversationIdAndStanzaIdLessThan(converationId, stanzaId, pageable);
+		return repository.findByConversationIdAndStanzaIdLessThanAndDeletedAtIsNullAndHiddenAtIsNull(converationId, stanzaId, pageable);
 	}
 
 	public List<MessageBackupDocument> getConversationMessagesAfter(UUID userKey, UUID peerKey, UUID stanzaId, int page, int size) {
@@ -178,7 +180,7 @@ public class MessageBackupService {
 
 		// Get converation ID
 		String converationId = ConversationUtil.getConversationId(userKey.toString(), peerKey.toString());		
-		return repository.findByConversationIdAndStanzaIdGreaterThan(converationId, stanzaId, pageable);
+		return repository.findByConversationIdAndStanzaIdGreaterThanAndDeletedAtIsNullAndHiddenAtIsNull(converationId, stanzaId, pageable);
 	}
 
 	public List<MessageBackupDocument> getMessageUpdates(
@@ -191,7 +193,7 @@ public class MessageBackupService {
 			) {
 		// 1. Initialize Spring Data Pagination
 		if (page == 0) {
-			size = size - 1;
+			size = Math.max(1, size - 1); // Guard against size dropping below 1
 		}
 
 		Pageable pageable = PageRequest.of(page, size);
@@ -212,15 +214,12 @@ public class MessageBackupService {
 		.include(FIELD_STANZA_ID)
 		.include(FIELD_SENDER_KEY)
 		.include(FIELD_RECEIVER_KEY)
-		.include(FIELD_ENCRYPTED_MSG)
-		.include(FIELD_ALGORITHM)
-		.include(FIELD_VERSION)
-		.include(FIELD_SALT)
 		.include(FIELD_SENT_AT)
 		.include(FIELD_DELIVERED_AT)
 		.include(FIELD_READ_AT)
 		.include(FIELD_DELETED_AT)
-		.include(FIELD_EDIT_COUNT);
+		.include(FIELD_HIDDEN_AT)
+		;
 
 		// 2. Attach Sort and Pagination Bounds to Query
 		query.with(Sort.by(Sort.Direction.DESC, FIELD_STANZA_ID));
@@ -235,18 +234,12 @@ public class MessageBackupService {
 
 			if (optCurrentFirstMessage.isPresent()) {
 				MessageBackupDocument conversationStartMessage = optCurrentFirstMessage.get();
-
-				// Check if this record was already pulled by the main pagination query
-				int existingIndex = modifiedRecords.indexOf(conversationStartMessage);
-
-				if (existingIndex != -1) {
-					// If it already exists in the payload, don't duplicate it—just flag it in place
-					modifiedRecords.get(existingIndex).setStartOfConversation(true);
-				} else {
-					// Otherwise, mark it and inject it cleanly as the first item
-					conversationStartMessage.setStartOfConversation(true);
-					modifiedRecords.add(0, conversationStartMessage);
-				}
+				// Otherwise, mark it and inject it cleanly as the first item
+				conversationStartMessage.setStartOfConversation(true);
+				// Lighten the message
+				conversationStartMessage.setEncryptedMessage(null);
+				modifiedRecords.add(0, conversationStartMessage);
+				
 			} else {
 				MessageBackupDocument conversationStartMessage = new MessageBackupDocument();
 				conversationStartMessage.setStartOfConversation(true);
@@ -258,14 +251,6 @@ public class MessageBackupService {
 		}
 
 		return modifiedRecords;
-	}
-
-	public List<MessageBackupDocument> getSyncConversationMessages(UUID userKey, UUID peerKey, UUID stanzaId, int page, int size) {
-		Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.ASC, FIELD_STANZA_ID));
-
-		// Get converation ID
-		String converationId = ConversationUtil.getConversationId(userKey.toString(), peerKey.toString());		
-		return repository.findByConversationIdAndStanzaIdGreaterThan(converationId, stanzaId, pageable);
 	}
 
 	public MessageBackupDocument getMessage(UUID userKey, UUID messageId) {
@@ -330,7 +315,8 @@ public class MessageBackupService {
 		Aggregation aggregation = Aggregation.newAggregation(
 				// 1. Filter only for messages belonging to this user
 				// This perfectly utilizes your compound index: idx_user_inbox_view {'userKey': 1, 'timestamp': -1, 'conversationId': 1}
-				Aggregation.match(Criteria.where(FIELD_USER_KEY).is(userKey)),
+				Aggregation.match(Criteria.where(FIELD_USER_KEY).is(userKey).
+						and(FIELD_DELETED_AT).is(null).and(FIELD_HIDDEN_AT).is(null)),
 
 				// 2. Sort them by timestamp descending BEFORE grouping.
 				// This ensures the first document MongoDB encounters per conversation is the newest one.
@@ -396,7 +382,8 @@ public class MessageBackupService {
 			if (backup.getDeletedAt() != null) existing.setDeletedAt(backup.getDeletedAt());
 
 			// Relationships & Sync
-			if (backup.getRefersTo() != null) existing.setRefersTo(backup.getRefersTo());
+			if (backup.getTargetMessageId() != null) existing.setTargetMessageId(backup.getTargetMessageId());
+			if (backup.getReplyToMessageId() != null) existing.setReplyToMessageId(backup.getReplyToMessageId());
 			if (backup.getEditCount() != null) existing.setEditCount(backup.getEditCount());
 			if (backup.getUpdateCursorId() != null) existing.setUpdateCursorId(backup.getUpdateCursorId());
 			if (backup.getSize() != null) existing.setSize(backup.getSize());
@@ -458,19 +445,22 @@ public class MessageBackupService {
 		}).get());
 	}
 
-	public void delete(UUID userKey, UUID messageId) {
-		Optional<MessageBackupDocument> updateOpt = repository.findByMessageIdAndUserKey(messageId, userKey);	
-		if (updateOpt.isEmpty()) {
-			throw new RecordNotFoundException("Message ID not found");
+	public void delete(UUID userKey, List<UUID> messageIds) {
+		List<MessageBackupView> forDeleteList = repository.findByMessageIdInAndUserKey(messageIds, userKey);	
+		if (forDeleteList.isEmpty()) {
+			throw new RecordNotFoundException("Message IDs not found");
 		}
 
 		// Update user storage usage 
 		StorageUsageAdjustmentRequest req = new StorageUsageAdjustmentRequest();
-		req.setChatMessageCountDelta(-1L);
-		req.setChatStorageBytesDelta(-updateOpt.get().getSize());
-		mediaService.adjustStorageUsage(updateOpt.get().getUserKey().toString(), req);
+		req.setChatMessageCountDelta(-1L * forDeleteList.size());
+		long totalSize = forDeleteList.stream()
+			    .mapToLong(doc -> doc.getSize() != null ? doc.getSize() : 0L)
+			    .sum();
+		req.setChatStorageBytesDelta(-1 * totalSize);
+		mediaService.adjustStorageUsage(forDeleteList.get(0).getUserKey().toString(), req);
 
-		repository.deleteById(messageId);
+		repository.deleteAllById(forDeleteList.stream().map(msg -> msg.getMessageId()).toList());
 	}	
 
 	@Transactional
@@ -503,32 +493,45 @@ public class MessageBackupService {
 		mediaService.deleteStorage(userKey.toString());
 	}	
 
-	public void updateStatus(UUID messageId, String timestampField, UUID stanzaId, Long timestamp) {
+	public void updateStatus(List<UUID> messageIds, String timestampField, Long timestamp) {
+		if (CollectionUtils.isEmpty(messageIds)) {
+			return;
+		}
+		
 		UUID userKey = UUID.fromString(SecurityUtil.getUserKey());	
-		/**
-		 * Redis distributed lock key to prevent concurrent duplicate inserts
-		 * for the same messageId (idempotency + race-condition protection).
-		 *
-		 * Format:
-		 * signal:lock:message-backup:insert:{messageId}
-		 */
-		String lockKey = "signal:lock:mb:update-status:" + stanzaId;
+		
+		Iterator<UUID> it = messageIds.iterator();
+		while (it.hasNext()) {
+			UUID messageId = it.next();
+			/**
+			 * Redis distributed lock key to prevent concurrent duplicate inserts
+			 * for the same messageId (idempotency + race-condition protection).
+			 *
+			 * Format:
+			 * signal:lock:message-backup:insert:{messageId}
+			 */
+			String lockKey = "signal:lock:mb:update-status:" + messageId;
 
-		/**
-		 * Lock value used for safe release verification.
-		 * NOTE: In production systems, this should ideally be a UUID to ensure ownership safety.
-		 */
-		String lockValue = UUID.randomUUID().toString();
+			/**
+			 * Lock value used for safe release verification.
+			 * NOTE: In production systems, this should ideally be a UUID to ensure ownership safety.
+			 */
+			String lockValue = UUID.randomUUID().toString();
 
-		// Lock TTL ensures deadlock prevention in case of unexpected failures
-		long ttlSeconds = 5;
+			// Lock TTL ensures deadlock prevention in case of unexpected failures
+			long ttlSeconds = 5;
 
-		// Attempt to acquire distributed lock
-		boolean acquired = redisTemplate.opsForValue()
-				.setIfAbsent(lockKey, lockValue, Duration.ofSeconds(ttlSeconds));
+			// Attempt to acquire distributed lock
+			boolean acquired = redisTemplate.opsForValue()
+					.setIfAbsent(lockKey, lockValue, Duration.ofSeconds(ttlSeconds));
+			
+			if(Boolean.FALSE.equals(acquired)) {
+				it.remove();
+			}
+		}
 
-		// If lock is not acquired, another process is already inserting this message
-		if (!Boolean.TRUE.equals(acquired)) {
+		// No message locks were acquired, indicating that another process is currently updating the status of these messages.
+		if (CollectionUtils.isEmpty(messageIds)) {
 			throw new MessageUpdateStatusInProgressException();
 		}
 
@@ -539,7 +542,7 @@ public class MessageBackupService {
 			// 1. Filter by User Key (Equality match)
 			// 2. Filter by Message ID threshold (Range match)
 			// 3. Apply the dynamic status timestamp null check last			
-			Optional<MessageMetadataProjection> messageOpt = repository.findProjectedByMessageId(messageId);			
+			Optional<MessageBackupView> messageOpt = repository.findMessageBackupViewByMessageId(messageIds.get(0));			
 			
 			if(messageOpt.isPresent()) {
 				String conversationId = ConversationUtil.getConversationId(
@@ -556,23 +559,43 @@ public class MessageBackupService {
 			}
 
 		} else {			
-			query = new Query(Criteria.where(FIELD_MESSAGE_ID).is(messageId)
+			query = new Query(Criteria.where(FIELD_MESSAGE_ID).in(messageIds)
 					.and(FIELD_USER_KEY).is(userKey));
 		}
 
 		Update update = new Update()
 				.set(timestampField, timestamp)
-				.set(FIELD_UPDATE_CURSOR_ID, stanzaId);
+				.set(FIELD_UPDATE_CURSOR_ID, UuidCreator.getTimeOrderedEpoch());
 
 		// Clean up message
-		if (FIELD_DELETED_AT.equals(timestampField) || FIELD_RETRACTED_AT.equals(timestampField)) {
+		if (FIELD_DELETED_AT.equals(timestampField) || FIELD_HIDDEN_AT.equals(timestampField)) {		
 			update.set(FIELD_ENCRYPTED_MSG, null);
+			// TODO: Calculate the deducted size
+			update.set(FIELD_SIZE, 0);
 		}
 
 		UpdateResult result = mongoTemplate.updateMulti(query, update, MessageBackupDocument.class);
 
-		if (result.getMatchedCount() == 0) {
-			log.warn("Message backup not found: " + messageId);
+		if (result.getMatchedCount() >  0) {
+			if (FIELD_DELETED_AT.equals(timestampField)) {
+				// Retract related messages
+				retractUtil.retractRelatedMessages(userKey, messageIds);
+				
+			} else if (FIELD_HIDDEN_AT.equals(timestampField)) {
+				// Hide related messages
+				hideUtil.hideRelatedMessages(userKey, messageIds);
+			}
+		} else {
+			
+			log.warn("Message backup message IDs not found: {} " + messageIds);
 		}
+	}
+	
+	
+	public Optional<MessageBackupView> getConversationLastSent(UUID userKey, UUID peerKey, UUID senderKey) {
+		// Get converation ID
+		String converationId = ConversationUtil.getConversationId(userKey.toString(), peerKey.toString());	
+		
+		return repository.findFirstByConversationIdAndSenderKeyAndDeletedAtIsNullAndHiddenAtIsNullOrderByStanzaIdDesc(converationId, senderKey);
 	}
 }

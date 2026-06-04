@@ -10,9 +10,9 @@ public class XmppServerAckUtil {
 			ChannelHandlerContext ctx,
 			String messageId,
 			String fromJid,
-			String toJid) {
+			String stanzaId) {
 		// Send server ACK
-		String xml = XmppServerAckSender.toXml(messageId, fromJid, toJid);
+		String xml = XmppServerAckSender.toXml(messageId, fromJid, stanzaId);
 		
 		ctx.writeAndFlush(new TextWebSocketFrame(xml));
 	}

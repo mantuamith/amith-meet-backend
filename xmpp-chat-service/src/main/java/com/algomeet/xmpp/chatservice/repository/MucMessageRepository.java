@@ -1,6 +1,7 @@
 package com.algomeet.xmpp.chatservice.repository;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.data.domain.Pageable;
@@ -24,6 +25,7 @@ public interface MucMessageRepository extends ReactiveMongoRepository<MucMessage
 	@Query(value = "{"
 	        + "  'roomId': ?0,"
 	        + "  'id': { $gt: ?1 },"
+	        + "  'deletedAt': null,"
 	        + "  $or: [ { 'to': null }, { 'to': ?2 } ],"
 	        + "  'hiddenFromUserKeys': { $ne: ?2 },"
 	        + "  'createdAt': { $gt: ?3 }"
@@ -64,10 +66,11 @@ public interface MucMessageRepository extends ReactiveMongoRepository<MucMessage
 	 *                             max ID known to the server) to cap the result set.
 	 * @return A {@link Flux} of {@link MucMessageView} sorted chronologically by their primary ID.
 	 */
-	Flux<MucMessageView> findByRoomIdAndUpdateCursorIdGreaterThanAndIdLessThanEqualOrderByIdDesc(
+	Flux<MucMessageView> findByRoomIdAndUpdateCursorIdGreaterThanAndIdLessThanEqualAndCreatedAtGreaterThanOrderByIdDesc(
 			UUID roomId, 
 			UUID afterUpdateCursorId, 
 			UUID limitId,
+			Instant createdAt,
 			Pageable pageable
 			);
 
@@ -80,6 +83,7 @@ public interface MucMessageRepository extends ReactiveMongoRepository<MucMessage
 	@Query(value = "{"
 	        + "  'roomId': ?0,"
 	        + "  'id': { $lt: ?1 },"
+	        + "  'deletedAt': null,"
 	        + "  $or: [ { 'to': null }, { 'to': ?2 } ],"
 	        + "  'hiddenFromUserKeys': { $ne: ?2 },"
 	        + "  'createdAt': { $gt: ?3 }"
@@ -129,4 +133,11 @@ public interface MucMessageRepository extends ReactiveMongoRepository<MucMessage
 	Mono<Long> countUnreadMessages(UUID roomId, UUID lastReadStanzaId, UUID userKey, Instant historyCutoff);
 	
 	Mono<MucMessageView> findMucMessageViewByMessageId(UUID messageId);
+	/**
+	 * Retrieve reactions and edit messages
+	 * @param roomId
+	 * @param targetMessageId
+	 * @return
+	 */
+	List<MucMessageView> findByRoomIdAndTargetMessageId(UUID roomId, UUID targetMessageId);
 }

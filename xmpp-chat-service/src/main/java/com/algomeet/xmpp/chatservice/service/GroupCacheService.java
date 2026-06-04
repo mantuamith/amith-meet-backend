@@ -1,7 +1,10 @@
 package com.algomeet.xmpp.chatservice.service;
 
 import java.time.Duration;
+import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
+import java.util.TreeSet;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
@@ -16,6 +19,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.jsontype.BasicPolymorphicTypeValidator;
+import com.fasterxml.jackson.databind.jsontype.PolymorphicTypeValidator;
+
 
 /**
  * Service responsible for managing Multi-User Chat (MUC) room metadata via a distributed cache.
@@ -51,8 +58,8 @@ public class GroupCacheService {
      * Configured via {@code xmpp.cache.group-ttl} in application.yml.
      */
     @Value("${group.cache.ttl:30m}")
-    private Duration cacheTtl;
-
+    private Duration cacheTtl;    
+    
     /**
      * Retrieves group metadata from the cache.
      *
@@ -150,7 +157,7 @@ public class GroupCacheService {
 
         return Flux.fromIterable(rooms)
                 .flatMap(room -> {
-                    String key = getCacheKey(room.getId());
+                    String key = getCacheKey(room.getId().toString());
                     
                     return reactiveRedisTemplate.hasKey(key)
                             .flatMap(exists -> {
@@ -179,4 +186,37 @@ public class GroupCacheService {
         
         return CACHE_KEY_PREFIX + groupId;
     }
+    
+    /**
+     * Bulk retrieves multiple group configurations 
+     *
+     * @param groupIds List of unique room identifiers (e.g., JID components).
+     * @return A {@link List<MucRoomDto>}
+     */
+    public List<MucRoomDto> getGroups(List<String> groupIds) {
+
+        if (CollectionUtils.isEmpty(groupIds)) {
+            return Collections.emptyList();
+        }
+
+        List<String> prefixedKeys = groupIds.stream()
+                .filter(Objects::nonNull)
+                .map(this::getCacheKey)
+                .toList();
+
+        if (prefixedKeys.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<Object> values = redisTemplate.opsForValue().multiGet(prefixedKeys);
+
+        if (values == null) {
+            return Collections.emptyList();
+        }
+
+        return values.stream()
+                .filter(Objects::nonNull)
+                .map(v -> (MucRoomDto) v)
+                .toList();
+    }   
 }

@@ -18,6 +18,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import static com.algomeet.xmpp.chatservice.document.CallSession.*;
 
 /**
  * CallSessionRecoveryService handles recovery of call sessions in failure scenarios.
@@ -113,8 +114,8 @@ public class CallSessionRecoveryService {
 			 * This controls which field is updated.
 			 */
 			boolean isCaller = userSessionId.equals(session.getCallerSid());
-			String statusField = isCaller ? "callerStatus" : "calleeStatus";
-			Query query = new Query(Criteria.where("id").is(session.getId()));
+			String statusField = isCaller ? CALLER_STATUS : CALLEE_STATUS;
+			Query query = new Query(Criteria.where(ID).is(session.getId()));
 
 			/**
 			 * Mark only one side as DISCONNECTED.
@@ -122,7 +123,7 @@ public class CallSessionRecoveryService {
 			 */
 			Update update = new Update()
 					.set(statusField, ParticipantCallStatus.DISCONNECTED)
-					.set("terminatedAt", Instant.now().toEpochMilli());
+					.set(TERMINATED_AT, Instant.now().toEpochMilli());
 
 			return mongoTemplate.findAndModify(
 					query,
@@ -199,9 +200,9 @@ public class CallSessionRecoveryService {
 			 */
 			boolean isCaller = oldUserSid.equals(session.getCallerSid());
 
-			String sidField = isCaller ? "callerSid" : "calleeSid";
-			String statusField = isCaller ? "callerStatus" : "calleeStatus";
-			Query query = new Query(Criteria.where("id").is(session.getId()));
+			String sidField = isCaller ? CALLER_SID : CALLEE_SID;
+			String statusField = isCaller ? CALLER_STATUS : CALLEE_STATUS;
+			Query query = new Query(Criteria.where(ID).is(session.getId()));
 
 			/**
 			 * Update SID and restore active state.
@@ -209,8 +210,8 @@ public class CallSessionRecoveryService {
 			Update update = new Update()
 					.set(sidField, newUserSid)
 					.set(statusField, ParticipantCallStatus.RESUMED)
-					.set("terminatedAt", null)
-					.set("updatedAt", Instant.now());
+					.set(TERMINATED_AT, null)
+					.set(UPDATED_AT, Instant.now());
 
 			log.info(
 				"Rebinding session [{}] role={} oldSid={} newSid={}",

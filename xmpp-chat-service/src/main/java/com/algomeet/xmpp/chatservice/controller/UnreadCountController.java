@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
 
 import java.util.List;
+import java.util.UUID;
 
 @Slf4j
 @RestController
@@ -54,14 +55,16 @@ public class UnreadCountController implements UnreadCountControllerDoc{
     }
 
     /**
-     * Resets the counter when a user opens a conversation.
+     * Resets the counter when a user opens a conversation or clear the conversation without opening the messagea.
      */
-    @PostMapping("/sender/{senderKey}/reset")
-    public Mono<ResponseEntity<CommonResponse<?>>> resetCount(@PathVariable String senderKey) {
-        String userKey = SecurityUtil.getUserKey();
-        log.info("Resetting unread count for user {} from sender {}", userKey, senderKey);
-        
-        return unreadCountService.resetUnreadCount(senderKey, userKey)
-                .then(Mono.just(ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS))));
+    @PostMapping("/sender/{senderKey}/timeline-cutoff")
+    public Mono<ResponseEntity<CommonResponse<?>>> timelineCutoff(
+    		@PathVariable String senderKey,
+    		@RequestParam("cutoffMessageId") UUID cutoffMessageId) {
+    	String userKey = SecurityUtil.getUserKey();
+    	log.info("Resetting clearing message also unread count for user {} from sender {}", userKey, senderKey);
+
+    	return unreadCountService.resetUnreadCount(UUID.fromString(senderKey), UUID.fromString(userKey), cutoffMessageId)
+    			.then(Mono.just(ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS))));
     }
 }

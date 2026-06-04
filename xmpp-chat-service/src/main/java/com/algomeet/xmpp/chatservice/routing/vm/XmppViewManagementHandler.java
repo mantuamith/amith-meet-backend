@@ -15,6 +15,7 @@ import com.algomeet.xmpp.chatservice.routing.dispacher.LocalStanzaDispatcher;
 import com.algomeet.xmpp.chatservice.service.XmppArchiveService;
 import com.algomeet.xmpp.chatservice.stanza.ViewManagementSyncStanza;
 import com.algomeet.xmpp.chatservice.stanza.parser.ViewManagementStaxParser;
+import com.algomeet.xmpp.chatservice.util.HidetUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
 import com.github.f4b6a3.uuid.UuidCreator;
@@ -38,6 +39,7 @@ public class XmppViewManagementHandler {
 	private final XmppArchiveService xmppArchiveService;
 	private final ClusterMessagePublisher clusterMessagePublisher;
 	private final LocalStanzaDispatcher localStanzaDispatcher;
+	private final HidetUtil hidetUtil;
 	
 	/**
 	 * Main entry point for processing incoming View Management XML.
@@ -64,7 +66,7 @@ public class XmppViewManagementHandler {
 	/**
 	 * Quick check to see if an incoming string belongs to this namespace.
 	 */
-	public boolean isViewManagementStanza(String xml) {
+	public boolean isMessageViewManagementStanza(String xml) {
 		return xml.contains("https://algomeet.app/protocol/view-management");	        
 	}
 
@@ -88,7 +90,11 @@ public class XmppViewManagementHandler {
 							sendIqResult(id, principal);				
 							
 							// Disseminate the change to user's other devices
-							composeAndSendGroupSync(item.id.trim(), item.room, principal);                            
+							composeAndSendGroupSync(item.id.trim(), item.room, principal);      
+							
+							// Hide related messages
+							hidetUtil.hideRelatedMessages(UUID.fromString(principal.getUserKey()), message.getRoomId(), message.getMessageId())
+							.subscribe();
 						})
 						.then();
 

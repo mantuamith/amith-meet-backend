@@ -38,4 +38,6 @@ public interface OfflineMessageRepository extends ReactiveMongoRepository<Offlin
     Mono<Void> deleteByIdAndIsAckStanzaTrue(UUID id);
     
     Mono<OfflineMessageView> findOfflineMessageViewById(UUID id);
+    
+    Mono<OfflineMessageView> findByFromOrderByStanzaIdDesc(UUID from);
 }

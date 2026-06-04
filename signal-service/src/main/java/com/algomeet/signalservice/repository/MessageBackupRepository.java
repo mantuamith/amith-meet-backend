@@ -12,16 +12,16 @@ import org.springframework.data.mongodb.repository.Query;
 
 import com.algomeet.signalservice.document.MessageBackupDocument;
 import com.algomeet.signalservice.repository.projection.ConversationStorageStats;
-import com.algomeet.signalservice.repository.projection.MessageMetadataProjection;
+import com.algomeet.signalservice.repository.projection.MessageBackupView;
 
 import jakarta.transaction.Transactional;
 
 public interface MessageBackupRepository extends MongoRepository<MessageBackupDocument, UUID> {	
-	List<MessageBackupDocument> findByConversationIdAndStanzaIdLessThan(
-			String conversationId, UUID stanzaId, Pageable pageable);
+	List<MessageBackupDocument> findByConversationIdAndStanzaIdLessThanAndDeletedAtIsNullAndHiddenAtIsNull(
+	        String conversationId, UUID stanzaId, Pageable pageable);
 
-	List<MessageBackupDocument> findByConversationIdAndStanzaIdGreaterThan(
-			String conversationId, UUID stanzaId, Pageable pageable);
+	List<MessageBackupDocument> findByConversationIdAndStanzaIdGreaterThanAndDeletedAtIsNullAndHiddenAtIsNull(
+	        String conversationId, UUID stanzaId, Pageable pageable);
 
 	// Custom delete query for both sides of conversation
 	@Modifying
@@ -51,6 +51,20 @@ public interface MessageBackupRepository extends MongoRepository<MessageBackupDo
 	 * Use this instead of findById for better security and index locality.
 	 */
 	Optional<MessageBackupDocument> findByMessageIdAndUserKey(UUID messageId, UUID userKey);
+	
+	/**
+     * Finds a list of message backup documents matching a collection of message IDs 
+     * and a specific user key.
+     * <p>
+     * This method utilizes Spring Data's method-name derivation to generate a MongoDB 
+     * {@code $in} query under the hood.
+     * </p>
+     *
+     * @param messageIds a {@link List} of {@link UUID}s representing the target messages
+     * @param userKey    the {@link UUID} of the user who owns or is authorized to access these backups
+     * @return a {@link List} of matching {@link MessageBackupView}s, or an empty list if no matches are found
+     */
+    List<MessageBackupView> findByMessageIdInAndUserKey(List<UUID> messageIds, UUID userKey);
 
 
 	/**
@@ -66,5 +80,29 @@ public interface MessageBackupRepository extends MongoRepository<MessageBackupDo
 	    String conversationId
 	);
 	
-	Optional<MessageMetadataProjection> findProjectedByMessageId(UUID messageId);
+	/**
+	 * Retrieves a lightweight, read-only projection of a specific message backup by its unique ID.
+	 * * @param messageId The globally unique identifier of the target message record (_id).
+	 * @return An Optional containing the MessageBackupView if found, otherwise empty.
+	 */
+	Optional<MessageBackupView> findMessageBackupViewByMessageId(UUID messageId);
+	
+	/**
+	 * Fetches a list of related messages (such as reactions, or message edits) 
+	 * that refer to a specific set of message IDs belonging to a particular user.
+	 * <p>
+	 * <strong>Index Optimization Note:</strong> This method executes optimally when paired 
+	 * with the compound index <code>{ "userKey": 1, "targetMessageId": 1 }</code>. This satisfies the 
+	 * ESR (Equality, Sort, Range) rule by filtering on the exact 'userKey' first, followed 
+	 * by the multi-value criteria on 'targetMessageId'.
+	 * * @param userKey    The unique identifier of the user who owns the backup records.
+	 * @param messageIds A list of parent message IDs being targeted for thread/reaction retrieval.
+	 * @return A list of matching MessageBackupView projections.
+	 */
+	List<MessageBackupView> findByUserKeyAndTargetMessageIdIn(UUID userKey, List<UUID> messageIds);
+	
+	Optional<MessageBackupView> findFirstByConversationIdAndSenderKeyAndDeletedAtIsNullAndHiddenAtIsNullOrderByStanzaIdDesc(		    
+		    String conversationId,
+		    UUID senderKey
+		);
 }

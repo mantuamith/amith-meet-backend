@@ -23,6 +23,7 @@ import com.algomeet.xmpp.chatservice.service.MucRetractionService;
 import com.algomeet.xmpp.chatservice.service.XmppArchiveService;
 import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
+import com.algomeet.xmpp.chatservice.util.XmppCustomStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppReadUtil;
 import com.algomeet.xmpp.chatservice.util.XmppServerAckUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
@@ -153,7 +154,7 @@ public class XmppMucHandler {
 					if (StringUtils.hasText(ackMessageId)) {	
 						UUID messageId = UUID.fromString(ackMessageId);
 						// Save read MUC message ACK
-						mucMessageReadService.advanceReadCursor(UUID.fromString(principal.getUserKey()), UUID.fromString(group.getId()), messageId)
+						mucMessageReadService.advanceReadCursor(UUID.fromString(principal.getUserKey()), group.getId(), messageId)
 						.subscribe();
 						
 						// Read status batch update
@@ -164,7 +165,7 @@ public class XmppMucHandler {
 								
 				// Insert stanza ID
 				forArchiveXml = XmppStanzaUtil.insertStanzaId(originalXml, stanzaId.toString(), principal.getDomain());		
-				Boolean isCountable = XmppStanzaUtil.isCountableMessage(originalXml);
+				Boolean isCountable = XmppCustomStanzaUtil.isCountableMessage(originalXml);
 				
 				xmppArchiveService.archiveEvent(forArchiveXml, id, XmppUtil.getRoomId(toRoomJid), (pmToMucMember != null ? pmToMucMember.getUserKey() : null), 
 						XmppUtil.getUserKey(fromJid), stanzaId, isCountable)
@@ -179,11 +180,11 @@ public class XmppMucHandler {
 					//
 					// This is a custom acknowledgment (not client XEP-0198 ack),
 					// used to provide early delivery assurance back to the sender.
-					XmppServerAckUtil.send(ctx, id, domainProperties.getDomain(), fromJid);
+					XmppServerAckUtil.send(ctx, id, domainProperties.getDomain(), stanzaId.toString());
 					
 					// Move cursor for the message sender
 					if (isCountable) {
-						mucMessageReadService.advanceReadCursor(UUID.fromString(principal.getUserKey()), UUID.fromString(group.getId()), UUID.fromString(id))
+						mucMessageReadService.advanceReadCursor(UUID.fromString(principal.getUserKey()), group.getId(), UUID.fromString(id))
 						.subscribe();
 					}
 

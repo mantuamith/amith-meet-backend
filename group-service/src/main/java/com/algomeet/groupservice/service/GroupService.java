@@ -3,7 +3,6 @@ package com.algomeet.groupservice.service;
 import java.util.Base64;
 import java.util.EnumMap;
 import java.util.EnumSet;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -36,6 +35,7 @@ import com.algomeet.groupservice.model.Member;
 import com.algomeet.groupservice.model.RolePermissions;
 import com.algomeet.groupservice.repository.GroupRepository;
 
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 
 import java.security.SecureRandom;
@@ -451,4 +451,29 @@ public class GroupService {
 		INVITE_CODE_RANDOM.nextBytes(bytes);
 		return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
 	}
+	
+	/**
+     * Executes an atomic database update to clear chat history for a specific user.
+     * Bypasses parent entity locks, making it safe for high-concurrency environments.
+     *
+     * @param groupId   The unique ID of the group chat.
+     * @param userKey   The unique identifier string of the user clearing history.
+     * @param newCutoff The current server epoch timestamp (in milliseconds).
+     * @return true if the history was successfully cleared; false if the user/group link doesn't exist.
+     */
+    @Transactional
+    public boolean clearMemberHistoryTimeline(UUID groupId, String userKey, Long newCutoff) {
+        log.info("Executing atomic row update to clear member timeline: user={}, group={}", userKey, groupId);    
+
+        // Directly target the row without fetching the entire Group entity or its member list
+        int updatedRows = groupRepository.updateSingleMemberHistoryCutoff(groupId, userKey, newCutoff);
+        
+        if (updatedRows == 0) {
+            log.error("No rows updated. Member {} may not belong to group {}.", userKey, groupId);
+            return false;
+        }
+
+        log.info("Successfully cleared timeline via localized database row update.");
+        return true;
+    }
 }

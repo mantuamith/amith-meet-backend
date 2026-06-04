@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 import com.algomeet.signalservice.document.MessageBackupDocument;
+import com.algomeet.signalservice.repository.projection.MessageBackupView;
 
 import lombok.Builder;
 import lombok.Data;
@@ -21,10 +22,12 @@ public class MessageBackupResponse {
     private Long deliveredAt;
     private Long readAt;
     private Long deletedAt;
-    private String refersTo;      
+    private Boolean isHidden;
+    private String targetMessageId;   
+    private String replyToMessageId;     
     private Integer editCount;
     private Boolean isStartOfConversation;
-    private Instant timestamp;
+    private Long timestamp;
     private String algorithm;
     private String version;
     private String salt;
@@ -47,14 +50,30 @@ public class MessageBackupResponse {
                 .deliveredAt(doc.getDeliveredAt())
                 .readAt(doc.getReadAt())
                 .deletedAt(doc.getDeletedAt())
-                .refersTo(doc.getRefersTo())
+                .isHidden(doc.getHiddenAt() != null)
+                .targetMessageId(doc.getTargetMessageId() != null ? doc.getTargetMessageId().toString() : null)
+                .replyToMessageId(doc.getReplyToMessageId() != null ? doc.getReplyToMessageId().toString() : null)
                 .editCount(doc.getEditCount())
                 .isStartOfConversation(doc.getStartOfConversation())
                 // Meta info
                 .algorithm(doc.getAlgorithm())
                 .version(doc.getVersion())
                 .salt(doc.getSalt())
-                .timestamp(doc.getTimestamp())
+                .timestamp(doc.getTimestamp().toEpochMilli())
+                .build();
+    }
+    
+    public static MessageBackupResponse from(MessageBackupView doc) {
+        if (doc == null) {
+            return null;
+        }
+
+        return MessageBackupResponse.builder()        		
+                .messageId(getStringValue(doc.getMessageId()))  
+                .stanzaId(getStringValue(doc.getStanzaId()))
+                .userKey(getStringValue(doc.getUserKey()))
+                .senderKey(getStringValue(doc.getSenderKey()))
+                .targetMessageId(doc.getTargetMessageId() != null ? doc.getTargetMessageId().toString() : null)
                 .build();
     }
     

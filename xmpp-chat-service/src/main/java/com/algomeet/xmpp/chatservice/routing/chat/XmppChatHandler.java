@@ -26,6 +26,7 @@ import com.algomeet.xmpp.chatservice.service.UnreadCountService;
 import com.algomeet.xmpp.chatservice.session.UserSessionRegistry;
 import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
 import com.algomeet.xmpp.chatservice.session.model.UserSession;
+import com.algomeet.xmpp.chatservice.util.XmppCustomStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppReadUtil;
 import com.algomeet.xmpp.chatservice.util.XmppReceiptUtil;
 import com.algomeet.xmpp.chatservice.util.XmppRetractUtil;
@@ -96,7 +97,7 @@ public class XmppChatHandler {
 				    ? UUID.fromString(id.trim()) 
 				    : UuidCreator.getTimeOrderedEpoch();
 			
-			boolean isCountable = XmppStanzaUtil.isCountableMessage(originalXml);
+			boolean isCountable = XmppCustomStanzaUtil.isCountableMessage(originalXml);
 			
 			// Determine if message is ACK stanza
 			isAckStanza = XmppStanzaUtil.isMessageAckStanza(originalXml);
@@ -111,7 +112,7 @@ public class XmppChatHandler {
 		            	//
 		            	// This is a custom acknowledgment (not client XEP-0198 ack),
 		            	// used to provide early delivery assurance back to the sender.
-		            	XmppServerAckUtil.send(ctx, id, domainProperties.getDomain(), fromJid);	
+		            	XmppServerAckUtil.send(ctx, id, domainProperties.getDomain(), stanzaId.toString());	
 		            	
 		            	// Check if the message contains the XMPP Message Retraction namespace (XEP-0424 / urn:xmpp:message-retract:1)
 		            	if (XmppStanzaUtil.isRetractStanza(originalXml)) {		            	    
@@ -152,7 +153,7 @@ public class XmppChatHandler {
 					        if (StringUtils.hasText(ackMessageId)) {
 					            // Decrement the unread counter for this specific sender-recipient pair.
 					            // Note: fromUserKey is the person who read it, toUserKey is the original sender.
-					            unreadCountService.syncUnreadCount(toUserKey, fromUserKey, UUID.fromString(ackMessageId), principal)
+					            unreadCountService.syncUnreadCount(UUID.fromString(toUserKey), UUID.fromString(fromUserKey), UUID.fromString(ackMessageId))
 					            .doOnSuccess(success -> {
 					            	// Trigger a fire-and-forget background purge of processed/soft-deleted messages.
 					            	offlineMessageService.purgeDeletedMessagesUpToCheckpoint(

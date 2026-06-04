@@ -4,20 +4,19 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
-import org.springframework.stereotype.Service;
-
-import com.algomeet.xmpp.chatservice.document.OfflineMessage;
-import com.algomeet.xmpp.chatservice.repository.OfflineMessageRepository;
-import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
-
-import lombok.AllArgsConstructor;
-import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
-
 import org.springframework.data.mongodb.core.ReactiveMongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
+import org.springframework.stereotype.Service;
+
+import com.algomeet.xmpp.chatservice.document.OfflineMessage;
+import com.algomeet.xmpp.chatservice.repository.OfflineMessageRepository;
+import com.algomeet.xmpp.chatservice.util.XmppCustomStanzaUtil;
+
+import lombok.AllArgsConstructor;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 /**
  * <p>Service responsible for the persistence and retrieval of XMPP stanzas 
@@ -87,7 +86,7 @@ public class OfflineMessageService {
                 .to(UUID.fromString(to))
                 .from(UUID.fromString(from))
                 .messageType(type)
-                .countable(XmppStanzaUtil.isCountableMessage(originalXml))
+                .countable(XmppCustomStanzaUtil.isCountableMessage(originalXml))
                 .stanzaXml(originalXml)
                 .build();
         

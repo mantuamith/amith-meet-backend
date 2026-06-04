@@ -29,23 +29,25 @@ import lombok.NoArgsConstructor;
 	 * queries
 	 */
 	// Index A: For public/room-wide messages
-	@CompoundIndex(name = "idxMuc_roomId_idDesc_createdA_public", def = "{'roomId': 1, 'id': -1, 'createdAt': 1}"),
+	@CompoundIndex(name = "idxMuc_roomId_idDesc_createdA_publicPartial", 
+			def = "{'roomId': 1, 'id': -1, 'createdAt': 1}",
+		    partialFilter = "{ 'deletedAt': null }"),
 	// Index B: For direct private messages inside the room
-	@CompoundIndex(name = "idxMuc_room_to_idDesc_createdAt_private", def = "{'roomId': 1, 'to': 1, 'id': -1, 'createdAt': 1}"),
-	
-	/**
-	 * Used for MucMessageService.getConversations() 
-	 * Important Notice: Be careful on changing the name of this index it's hard coded inside MucMessageService.getConversations().
-	 */
-	@CompoundIndex(name = "idxMuc_room_to_idDesc_createdAt_private", def = "{'roomId': 1, 'to': 1, 'id': -1, 'createdAt': 1}"),
+	// Used for MucMessageService.getConversations() 
+	@CompoundIndex(name = "idxMuc_room_to_idDesc_createdAt_privatePartial", 
+			def = "{'roomId': 1, 'to': 1, 'id': -1, 'createdAt': 1}",
+			partialFilter = "{ 'deletedAt': null }"),
 
 	/**
 	 * Incremental message update synchronization.
 	 *
 	 * Used to synchronize updates to the local device's message copy.
-	 * findByRoomIdAndUpdateCursorIdGreaterThanAndIdLessThanEqualOrderByIdAsc()
+	 * findByRoomIdAndUpdateCursorIdGreaterThanAndIdLessThanEqualAndCreatedAtGreaterThanOrderByIdDesc()
 	 */
-	@CompoundIndex(name = "idxMuc_roomId_idDesc_updateCursorId", def = "{ 'roomId': 1, 'id': -1, 'updateCursorId': 1 }"),
+	@CompoundIndex(
+		    name = "idxMuc_roomId_updateCursorId_idDesc_createdAt", 
+		    def = "{ 'roomId': 1, 'updateCursorId': 1, 'id': -1, 'createdAt': 1 }"
+		),
 
 	/**
 	 * Unread message counting.
@@ -77,11 +79,23 @@ import lombok.NoArgsConstructor;
 	 */
 	@CompoundIndex(
 			name = "idxMuc_roomId_idAsc_createdAt", 
-			def = "{ 'roomId': 1, 'id': 1, 'createdAt': 1 }")
+			def = "{ 'roomId': 1, 'id': 1, 'createdAt': 1 }"),
+	
+	/**
+	 * Find reactions and edits
+	 * Used for 
+	 * HidetUtil.hideRelatedMessages() and RetractUtil.retractRelatedMessages()
+	 */
+	@CompoundIndex(
+		    name = "idxMuc_roomId_targetMessageId_partial", 
+		    def = "{ 'roomId': 1, 'targetMessageId': 1 }",
+		    partialFilter = "{ 'targetMessageId': { '$exists': true } }" 
+		)
 })
 public class MucMessage {   
 	public static final String FIELD_ID = "id"; // StanzaId
 	public static final String FIELD_ROOM_ID = "roomId";
+	public static final String FIELD_DELETED_AT = "deletedAt";
 
 	@Id
 	private UUID id;           // Stanza ID - UUID v7
@@ -97,7 +111,6 @@ public class MucMessage {
 	private UUID from;
 
 	// Used for DIRECT PRIVATE MESSAGE (PM) WITHIN MUC 
-	@Indexed
 	private UUID to;
 
 	@Size(max = 20000, message = "XML stanza is too large") // Max length 20kb
@@ -150,6 +163,9 @@ public class MucMessage {
 	 * - retraction events
 	 */
 	private Boolean countable;
+	
+    // Useful for finding all reactions, edits and etc to a specific message
+    private UUID targetMessageId;    
 
 	/**
 	 * Optional: MongoDB TTL (Time To Live) index.

@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -12,9 +13,12 @@ import org.springframework.util.CollectionUtils;
 
 import com.algomeet.xmpp.chatservice.constant.Constants;
 import com.algomeet.xmpp.chatservice.document.MucRoomReadCursor;
+import com.algomeet.xmpp.chatservice.dto.MucMember;
 import com.algomeet.xmpp.chatservice.dto.MucUnreadCount;
 import com.algomeet.xmpp.chatservice.repository.MucMessageRepository;
 import com.algomeet.xmpp.chatservice.repository.MucRoomReadCursorRepository;
+import com.algomeet.xmpp.chatservice.util.MucMemberUtil;
+import com.algomeet.xmpp.chatservice.util.SearchUtil;
 
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,6 +31,7 @@ public class MucUnreadCountService {
 	private final MucRoomReadCursorRepository mucRoomReadCursorRepository;
 	private final MucMessageRepository mucMessageRepository;
 	private final MucUserGroupsCacheService mucUserGroupsCacheService;
+	private final GroupCacheService groupCacheService;
 	
 	/**
 	 * Aggregates and returns the active unread counts across all rooms for a specific user as a standard list.
@@ -45,14 +50,7 @@ public class MucUnreadCountService {
 			return Collections.emptyList();
 		}
 		
-		/* TODO: Value should be coming from MucMember class, returned from Group-service API.
-		public class MucMember {		    
-		    // The magic field: Anything before this timestamp is "deleted" for this user
-		    private Instant historyCutoffAt; 
-		}*/
-		// Used for delete group chat conversation for a particular user
-		Instant historyCutoff = Instant.EPOCH;	
-
+		
 		// Step 2: Assemble the reactive data pipeline
 		return mucRoomReadCursorRepository.findByUserKey(userKey)
 				.collectList()
@@ -74,6 +72,14 @@ public class MucUnreadCountService {
 				.flatMap(context -> {
 					String roomId = context.roomId;
 					UUID lastReadMid = context.cursor != null ? context.cursor.getLastReadMid() : Constants.SMALLEST_UUID_V7;
+					
+					// Retrieve group info
+					Optional<MucMember> member = SearchUtil.findMember(groupCacheService.getCachedGroup(roomId), userKey.toString());
+					if (member.isEmpty()) {
+						return Mono.empty();
+					}
+
+					Instant historyCutoff = MucMemberUtil.getHistoryCutoff(member.get());
 
 					return mucMessageRepository.countUnreadMessages(UUID.fromString(roomId), lastReadMid, userKey, historyCutoff)
 							.map(count -> {

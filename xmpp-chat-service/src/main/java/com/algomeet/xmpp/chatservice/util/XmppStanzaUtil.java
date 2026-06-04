@@ -30,8 +30,6 @@ public class XmppStanzaUtil {
 	private static final String BODY_TAG = "<body";
 	private static final String NS_DISPLAYED_MARKER = "urn:xmpp:chat-markers:0";
 	private static final String NS_RECEIPTS = "urn:xmpp:receipts";
-	private static final String NS_COUNTABLE = "urn:algomeet:meta:0";
-	private static final String COUNTABLE_TAG = "<countable";
 	private static final String RETRACTED_TAG = "<retracted xmlns='urn:xmpp:message-retract:1'/>";
 
 	// Matches <body>...</body> across multiple lines (?s mode)
@@ -530,37 +528,5 @@ public class XmppStanzaUtil {
 		return new StringBuilder(xml)
 				.insert(insertAt, replacement)
 				.toString();
-	}   
-
-	public static boolean isCountableMessage(String xml) {
-
-		// Locate the last occurrence of the <countable tag.
-		// We use lastIndexOf because in typical XMPP stanzas this extension tag
-		// appears near the end of the message payload, making backward search
-		// potentially faster than scanning from the beginning.
-		int tagIndex = xml.lastIndexOf(COUNTABLE_TAG);
-
-		// If the tag is not present at all, we can safely exit early.
-		if (tagIndex == -1) {
-			return false;
-		}
-
-		// Find the closing '>' of the <countable ...> element starting from the tag position.
-		// This defines the boundary of the tag we are inspecting.
-		int end = xml.indexOf('>', tagIndex);
-
-		// If no closing bracket is found, the XML is malformed or incomplete,
-		// so we treat it as non-countable for safety.
-		if (end == -1) {
-			return false;
-		}
-
-		// Check that the expected namespace appears within the bounds of the tag.
-		// This ensures we are not matching random occurrences elsewhere in the XML body.
-		int nsIndex = xml.indexOf(NS_COUNTABLE, tagIndex);
-
-		// Valid only if the namespace exists AND is located inside the <countable ...> tag.
-		// This prevents false positives from other parts of the stanza.
-		return nsIndex != -1 && nsIndex < end;
-	}
+	}   	
 }

@@ -1,15 +1,22 @@
 package com.algomeet.xmpp.chatservice.dto;
 
-import java.util.List;
+import java.util.SortedSet;
+import java.util.TreeSet;
+import java.util.UUID;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 
 import lombok.Data;
 
+
 @JsonIgnoreProperties(ignoreUnknown = true)
-@Data 
+@Data
 public class MucRoomDto {
-    private String id; // Changed from Long id to String to match XMPP JIDs
+    private UUID id;
+
     private String name;
-    private List<MucMember> members;
+
+    @JsonDeserialize(as = TreeSet.class)
+    private SortedSet<MucMember> members = new TreeSet<>();    
 }

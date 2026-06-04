@@ -3,7 +3,9 @@ package com.algomeet.groupservice.controller.swagger;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestParam;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -48,4 +50,43 @@ public interface InternalGroupControllerDoc {
                 required = true
             )
             @PathVariable String username);
+    
+    @Operation(
+            summary = "Clear group conversation history",
+            description = """
+                    Clears the requesting member's visible group conversation history.
+
+                    This operation updates the member-specific history cutoff timestamp,
+                    causing historical messages generated before the cutoff to be excluded
+                    from future synchronization and conversation timeline retrieval operations.
+
+                    The operation only affects the requesting member visibility context
+                    and does not permanently delete group messages from the server.
+                    """
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Group conversation history timeline cleared successfully"),
+            @ApiResponse(responseCode = "404", description = "Target group ID not found"),
+            @ApiResponse(responseCode = "409", description = "Conflict: Requesting user is not a verified member of this group"),
+            @ApiResponse(responseCode = "401", description = "Unauthorized")
+    }) 
+    public Boolean clearMemberHistoryTimeline(
+            @Parameter(
+                    description = "Target group identifier",
+                    required = true,
+                    example = "289c5f4d-58a0-4def-bf5b-0fd15c045575")
+            @PathVariable UUID groupId,
+            
+            @Parameter(
+                    description = "The unique user key identifier of the group member whose history timeline is being cleared.",
+                    required = true,
+                    example = "019e5eae-7c83-78ab-8aa8-e39c7e39f59c")
+            @PathVariable(name = "userKey") UUID targetUserKey,
+            
+            @Parameter(
+                    description = "Optional Unix epoch timestamp threshold in milliseconds. " +
+                                  "If omitted, defaults to the current server system time.",
+                    required = false,
+                    example = "1779703910000")
+            @RequestParam(name = "historyCutoff", required = false) Long historyCutoff);
 }

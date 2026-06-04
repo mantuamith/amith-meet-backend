@@ -17,22 +17,22 @@ import com.algomeet.xmpp.chatservice.document.UnreadCount;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.repository.OfflineMessageRepository;
-import com.algomeet.xmpp.chatservice.session.UserSessionRegistry;
-import com.algomeet.xmpp.chatservice.util.JidUtil;
-import com.algomeet.xmpp.chatservice.util.MucCountUtil;
+import com.algomeet.xmpp.chatservice.util.XmppSyncStanzaComposer;
+import com.github.f4b6a3.uuid.UuidCreator;
 
 import lombok.AllArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.util.retry.Retry;
+import static com.algomeet.xmpp.chatservice.document.UnreadCount.*;
 
+@Slf4j
 @Service
 @AllArgsConstructor
 public class UnreadCountService {
 	private final ReactiveMongoTemplate reactiveMongoTemplate;
 	private final DomainProperties domainProperties;
-	private final JidUtil jidUtil;
-	private final UserSessionRegistry userSessionRegistry;
 	private final ClusterMessagePublisher clusterMessagePublisher;
 	private final OfflineMessageRepository offlineMessageRepository;
 
@@ -44,10 +44,10 @@ public class UnreadCountService {
 
 		Query query = new Query(Criteria.where("_id").is(id));
 		Update update = new Update()
-				.inc("unread_count", 1)
-				.set("user_key", UUID.fromString(recipientKey))
-				.set("sender_key", UUID.fromString(senderKey))
-				.set("last_increment_at", Instant.now().toEpochMilli());
+				.inc(UNREAD_COUNT, 1)
+				.set(USER_KEY, UUID.fromString(recipientKey))
+				.set(SENDER_KEY, UUID.fromString(senderKey))
+				.set(LAST_INCREMENT_AT, Instant.now().toEpochMilli());
 
 		// upsert returns the updated document
 		return reactiveMongoTemplate.upsert(query, update, UnreadCount.class)
@@ -59,7 +59,7 @@ public class UnreadCountService {
 	 * provided the current count is strictly greater than 0.
 	 * <p>
 	 * This method executes an atomic server-side increment/decrement operation directly 
-	 * within MongoDB. By using a conditional query ({@code unread_count > 0}), it prevents 
+	 * within MongoDB. By using a conditional query ({@code unreadCount > 0}), it prevents 
 	 * negative counter invariants (underflows) that could otherwise be caused by concurrent 
 	 * or duplicate client read receipts.
 	 * </p>
@@ -76,12 +76,12 @@ public class UnreadCountService {
 		String id = getConversationId(senderKey, recipientKey);
 
 		// Construct an atomic guard query: only match and update if the counter is currently > 0
-		Query query = new Query(Criteria.where("_id").is(id).and("unread_count").gt(0));
+		Query query = new Query(Criteria.where("_id").is(id).and(UNREAD_COUNT).gt(0));
 
 		// Apply server-side isolation: decrement the value by 1 and log the timestamp
-		Update update = new Update().inc("unread_count", -1)
-				.set("last_decrement_at", Instant.now().toEpochMilli())
-				.set("last_read_mid", messageId);
+		Update update = new Update().inc(UNREAD_COUNT, -1)
+				.set(LAST_DECREMENT_AT, Instant.now().toEpochMilli())
+				.set(LAST_READ_MID, messageId);
 
 		// 1. Execute the conditional update first
 		return reactiveMongoTemplate.updateFirst(query, update, UnreadCount.class)
@@ -119,8 +119,8 @@ public class UnreadCountService {
 	 * @return A {@code Mono<UnreadCount>} emitting the fully updated and refreshed document state upon successful execution.
 	 * @throws ConcurrentModificationException if the unread count state remains unstable after 3 retry attempts due to heavy concurrent writes.
 	 */
-	public Mono<UnreadCount> syncUnreadCount(String senderKey, String recipientKey, UUID messageId, XmppPrincipal principal) {
-	    String id = getConversationId(senderKey, recipientKey);
+	public Mono<UnreadCount> syncUnreadCount(UUID senderKey, UUID recipientKey, UUID messageId) {
+	    String id = getConversationId(senderKey.toString(), recipientKey.toString());
 
 	    // 1. Explicitly type Mono.<UnreadCount>defer so the compiler knows the final target type
 	    return Mono.<UnreadCount>defer(() -> 
@@ -135,19 +135,19 @@ public class UnreadCountService {
 
 	                        // 3. Fetch the count, explicitly telling flatMap it will evaluate to an UnreadCount
 	                        return offlineMessageRepository.countByToAndFromAndStanzaIdGreaterThanAndCountableTrue(
-	                                UUID.fromString(recipientKey), UUID.fromString(senderKey), stanzaId)
+	                                recipientKey, senderKey, stanzaId)
 	                            .flatMap((Long count) -> { // Explicit lambda param type helps inference
 
 	                                Query query = new Query(
 	                                        Criteria.where("_id").is(id)
-	                                        .and("last_increment_at").is(capturedIncrementAt)
+	                                        .and(LAST_INCREMENT_AT).is(capturedIncrementAt)
 	                                        );
 
 	                                Update update = new Update()
-	                                        .set("unread_count", count)
-	                                        .set("last_decrement_at", Instant.now().toEpochMilli())
-	                                        .set("last_read_mid", messageId)
-	                                        .set("last_read_sid", stanzaId);
+	                                        .set(UNREAD_COUNT, count)
+	                                        .set(LAST_DECREMENT_AT, Instant.now().toEpochMilli())
+	                                        .set(LAST_READ_MID, messageId)
+	                                        .set(LAST_READ_SID, stanzaId);
 
 	                                // 4. Perform the conditional update
 	                                return reactiveMongoTemplate.updateFirst(query, update, UnreadCount.class)
@@ -167,39 +167,47 @@ public class UnreadCountService {
 	    .retryWhen(Retry.max(3).filter(throwable -> throwable instanceof ConcurrentModificationException));
 	}
 	
-	/**
-	 * Non-blocking reset of the unread count.
-	 */
-	public Mono<Void> resetUnreadCount(String senderKey, String recipientKey) {
-		String id = getConversationId(senderKey, recipientKey);
+	public Mono<Void> resetUnreadCount(UUID senderKey, UUID recipientKey, UUID messageId) {
+	    // 1. Trigger the underlying unread sync mutation logic
+		return syncUnreadCount(senderKey, recipientKey, messageId)
+				.then(Mono.defer(() -> {
+	            /**
+	             * <message from='.algomeet.app'
+	             *          type='headline'>
+	             *     <sync xmlns='urn:xmpp:algomeet:sync:history'>
+	             *         <conversation peer-key='userKey'
+	             *                       cleared-until-message-id='xxxxxx' />
+	             *     </sync>
+	             * </message>
+	             */
 
-		Query query = new Query(Criteria.where("_id").is(id));
-		Update update = new Update()
-				.set("unread_count", 0)
-				.set("last_decrement_at", Instant.now().toEpochMilli());
+	            String payload = XmppSyncStanzaComposer.createDirectClearanceStanza(
+	            		domainProperties.getDomain(),
+	                    senderKey.toString(), 
+	                    messageId.toString()
+	            );
 
-		// Publish message to other devices to sync the unread message counts
-		/*
-        <message from='algomeet.com' to='recipient@algomeet.com' type='headline'>
-		  <sync xmlns='urn:xmpp:algomeet:sync:unread'>
-		    <direct sender_key='user_abc_123' unread_count='0' />
-		  </sync>
-		</message> */
-		if(userSessionRegistry.getSessions(recipientKey).size() > 1) {
-			// Send it user has more that one session for synchronization
-			String payload = MucCountUtil.composeCountSync(domainProperties.getDomain(), jidUtil.getBareJid(recipientKey), senderKey, 0);
-			clusterMessagePublisher.convertAndSendToUser(id, recipientKey, recipientKey, ChatType.CHAT, payload);
-		}
-
-		return reactiveMongoTemplate.updateFirst(query, update, UnreadCount.class)
-				.then(); // Returns Mono<Void> to signal completion
+	            // 2. Generate unique tracking identifier for cluster delivery routing
+	            String clusterMessageId = UuidCreator.getTimeOrderedEpoch().toString();
+	            
+	            // 3. Dispatch the timeline clearance payload to secondary user devices
+	            clusterMessagePublisher.convertAndSendToUser(
+	                    clusterMessageId,
+	                    recipientKey.toString(), 
+	                    recipientKey.toString(), 
+	                    ChatType.CHAT, 
+	                    payload
+	            );
+	            
+	            return Mono.empty(); // Satisfies the lazy transformation contract
+				}));
 	}
 
 	/**
 	 * Aggregates total unread count for a user across all senders reactively.
 	 */
 	public Mono<Integer> getTotalUnreadForUser(String userKey) {
-		Query query = new Query(Criteria.where("user_key").is(UUID.fromString(userKey)));
+		Query query = new Query(Criteria.where(USER_KEY).is(UUID.fromString(userKey)));
 
 		return reactiveMongoTemplate.find(query, UnreadCount.class)
 				.map(UnreadCount::getUnreadCount)
@@ -211,8 +219,8 @@ public class UnreadCountService {
 	 * Usually used to populate the main chat list/inbox.
 	 */
 	public Flux<UnreadCount> getUnreadCountsForUser(String recipientKey) {
-		Query query = new Query(Criteria.where("user_key").is(UUID.fromString(recipientKey))
-				.and("unread_count").gt(0));
+		Query query = new Query(Criteria.where(USER_KEY).is(UUID.fromString(recipientKey))
+				.and(UNREAD_COUNT).gt(0));
 
 		return reactiveMongoTemplate.find(query, UnreadCount.class);
 	}
@@ -242,10 +250,10 @@ public class UnreadCountService {
 		// but requires a single unified index tracking the sorting field across the query.
 		Query query = new Query(
 				new Criteria().orOperator(
-						Criteria.where("user_key").is(UUID.fromString(targetUserKey)),
-						Criteria.where("sender_key").is(UUID.fromString(targetUserKey))
+						Criteria.where(USER_KEY).is(UUID.fromString(targetUserKey)),
+						Criteria.where(SENDER_KEY).is(UUID.fromString(targetUserKey))
 						)
-				).with(Sort.by(Sort.Direction.DESC, "last_increment_at"))
+				).with(Sort.by(Sort.Direction.DESC, LAST_INCREMENT_AT))
 				.skip(skipValues)
 				.limit(size);
 
