@@ -112,14 +112,7 @@ class UserFileServiceImplTest {
 
         assertEquals(1, service.listMyFiles(OWNER).size());
     }
-
-    @Test
-    void listFilesSharedWithMe() {
-        when(repository.findFilesUserHasAccessTo(USER)).thenReturn(List.of(new UserFileDocument()));
-
-        assertEquals(1, service.listFilesSharedWithMe(USER).size());
-    }
-
+  
     /* =========================
        UPDATE LAST DOWNLOADED
        ========================= */

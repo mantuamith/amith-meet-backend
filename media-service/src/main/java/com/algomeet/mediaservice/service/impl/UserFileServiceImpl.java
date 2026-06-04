@@ -13,10 +13,12 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
+import com.algomeet.mediaservice.document.FileAccessEntryDocument;
 import com.algomeet.mediaservice.document.FilePermission;
 import com.algomeet.mediaservice.document.UserFileDocument;
 import com.algomeet.mediaservice.dto.StorageUsageAdjustmentRequest;
 import com.algomeet.mediaservice.enums.UploadContext;
+import com.algomeet.mediaservice.repository.FileAccessEntryRepository;
 import com.algomeet.mediaservice.repository.UserFileRepository;
 import com.algomeet.mediaservice.service.FileAccessEntryService;
 import com.algomeet.mediaservice.service.UserFileService;
@@ -29,6 +31,7 @@ public class UserFileServiceImpl implements UserFileService {
 	private final UserFileRepository repository;
 	private final UserStorageUsageService userStorageUsageService;
 	private final FileAccessEntryService fileAccessEntryService;
+	private final FileAccessEntryRepository fileAccessEntryRepository;
 
 	@Override
 	public UserFileDocument create(UserFileDocument file) {
@@ -55,8 +58,9 @@ public class UserFileServiceImpl implements UserFileService {
 	}
 
 	@Override
-	public List<UserFileDocument> listFilesSharedWithMe(String userId) {
-		return repository.findFilesUserHasAccessTo(userId);
+	public List<UserFileDocument> listFilesSharedWithMe(String userKey) {
+		List<FileAccessEntryDocument> list = fileAccessEntryRepository.findByUserKey(UUID.fromString(userKey));
+		return repository.findAllById(list.stream().map(fa -> fa.getFileId().toString()).toList());
 	}
 
 	@Override
