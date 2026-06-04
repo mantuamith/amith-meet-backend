@@ -98,7 +98,6 @@ class MediaServiceS3ImplTest {
 		assertEquals("S3", saved.getStorage());
 		assertEquals(file.getSize(), saved.getSize());
 		assertFalse(saved.isEncrypted());
-		assertEquals(null, saved.getAccessControlList());
         assertEquals(true, saved.getCleanupEligibleAt() != null);
 	}
 

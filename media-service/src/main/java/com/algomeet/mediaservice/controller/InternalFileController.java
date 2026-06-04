@@ -1,6 +1,7 @@
 package com.algomeet.mediaservice.controller;
 
 import java.util.List;
+import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -32,10 +33,11 @@ public class InternalFileController implements InternalFileControllerDoc {
     public ResponseEntity<?> share(
             @PathVariable String mediaId,
             @RequestParam String userKey,
-            @RequestParam List<String> shareWithUserKeys
+            @RequestParam List<String> shareWithUserKeys,
+            @RequestParam UUID messageId
     ) {
         try {
-            userFileService.shareFile(mediaId, userKey, shareWithUserKeys);
+            userFileService.shareFile(List.of(mediaId), userKey, shareWithUserKeys, messageId);
             return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
         } catch (IllegalArgumentException e) {
             log.error("Error: {}", e.getMessage());
@@ -48,14 +50,15 @@ public class InternalFileController implements InternalFileControllerDoc {
         }
     }
 
-    @DeleteMapping("/{mediaId}")
+    @DeleteMapping("/{mediaId}/access")
     public ResponseEntity<CommonResponse<?>> delete(
             @PathVariable String mediaId,
             @RequestParam String userKey,
-            @RequestParam(required = false) List<String> deleteWithUserKeys
+            @RequestParam(required = false) List<String> deleteWithUserKeys,
+            @RequestParam UUID messageId
     ) {
         try {
-            userFileService.softDeleteAndMarkForCleanupIfOrphaned(mediaId, userKey, deleteWithUserKeys);
+            userFileService.softDeleteAndMarkForCleanupIfOrphaned(mediaId, userKey, deleteWithUserKeys, messageId);
             return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
         } catch (IllegalArgumentException e) {
             log.error("Error: {}", e.getMessage());

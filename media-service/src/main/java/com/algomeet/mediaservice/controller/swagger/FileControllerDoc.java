@@ -1,13 +1,17 @@
 package com.algomeet.mediaservice.controller.swagger;
 
 import java.util.List;
+import java.util.UUID;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.algomeet.mediaservice.dto.BatchMediaDeleteRequest;
+import com.algomeet.mediaservice.dto.BatchMediaShareRequest;
 import com.algomeet.mediaservice.dto.CommonResponse;
 import com.algomeet.mediaservice.dto.MediaUploadResponse;
 import com.algomeet.mediaservice.enums.UploadContext;
@@ -20,6 +24,7 @@ import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 
 @Tag(name = "Media API", description = "Upload, read, share, and delete media files. Supports single-file and batch (multi-select album) uploads with image metadata extraction and chat-session association.")
 public interface FileControllerDoc {
@@ -250,7 +255,7 @@ public interface FileControllerDoc {
     )
     ResponseEntity<?> getMedia(
             @Parameter(description = "Media ID returned by the upload endpoint", required = true, example = "3fa85f64-5717-4562-b3fc-2c963f66afa6")
-            @PathVariable String mediaId
+            @PathVariable UUID mediaId
     );
 
 
@@ -282,7 +287,7 @@ public interface FileControllerDoc {
     )
     ResponseEntity<?> getThumbnail(
             @Parameter(description = "Media ID", required = true, example = "3fa85f64-5717-4562-b3fc-2c963f66afa6")
-            @PathVariable String mediaId,
+            @PathVariable UUID mediaId,
 
             @Parameter(description = "Maximum thumbnail width in pixels", schema = @Schema(defaultValue = "320", example = "320"))
             @RequestParam(required = false, defaultValue = "320") int maxWidth
@@ -312,10 +317,13 @@ public interface FileControllerDoc {
     )
     ResponseEntity<CommonResponse<?>> delete(
             @Parameter(description = "Media ID", required = true, example = "3fa85f64-5717-4562-b3fc-2c963f66afa6")
-            @PathVariable String mediaId,
+            @PathVariable UUID mediaId,
 
             @Parameter(description = "Additional user keys whose access should also be revoked (e.g., chat participants when retracting a message)")
-            @RequestParam(required = false) List<String> deleteWithUserKeys
+            @RequestParam(required = false) List<String> deleteWithUserKeys,
+            
+            @Parameter(description = "The chat message ID where this file was originally attached", required = true)
+            @RequestParam UUID messageId
     );
 
 
@@ -342,10 +350,47 @@ public interface FileControllerDoc {
     )
     ResponseEntity<?> share(
             @Parameter(description = "Media ID", required = true, example = "3fa85f64-5717-4562-b3fc-2c963f66afa6")
-            @PathVariable String mediaId,
+            @PathVariable UUID mediaId,
 
             @Parameter(description = "User keys (UUIDs) to share the file with", required = true,
                 example = "[\"550e8400-e29b-41d4-a716-446655440000\", \"660e8400-e29b-41d4-a716-446655440001\"]")
-            @RequestParam List<String> shareWithUserKeys
+            @RequestParam List<String> shareWithUserKeys,
+            
+            @Parameter(description = "The chat message ID where this file was originally attached", required = true)
+            @PathVariable UUID messageId
+    );
+    
+    @Operation(
+        summary = "Batch share media files",
+        description = "Shares multiple media files with a list of users under the context of a specific chat message. Grants read, share, and delete permissions.",
+        responses = {
+            @ApiResponse(responseCode = "200", description = "Files successfully shared"),
+            @ApiResponse(responseCode = "403", description = "Access denied (caller does not have permission to share one or more files)"),
+            @ApiResponse(responseCode = "404", description = "One or more media files were not found")
+        }
+    )
+    public ResponseEntity<?> batchShare(
+            @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                description = "Details required for batch sharing media files", 
+                required = true
+            )
+            @RequestBody @Valid BatchMediaShareRequest request
+    );
+    
+    @Operation(
+        summary = "Batch delete media files",
+        description = "Permanently deletes multiple media files from both database and physical storage engines (S3, OSS, or Local filesystem). Requires ownership.",
+        responses = {
+            @ApiResponse(responseCode = "200", description = "All specified files successfully deleted"),
+            @ApiResponse(responseCode = "403", description = "Access denied (caller is not the owner of one or more files)"),
+            @ApiResponse(responseCode = "404", description = "One or more media files were not found")
+        }
+    )
+   	public ResponseEntity<CommonResponse<?>> batchDelete(
+            @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                description = "List of media IDs to be deleted", 
+                required = true
+            )
+            @RequestBody @Valid BatchMediaDeleteRequest request
     );
 }

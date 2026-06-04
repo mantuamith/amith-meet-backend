@@ -1,23 +1,24 @@
 package com.algomeet.mediaservice.service.impl;
 
 import java.time.Instant;
-import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
-import com.algomeet.mediaservice.document.FileAccessEntry;
 import com.algomeet.mediaservice.document.FilePermission;
 import com.algomeet.mediaservice.document.UserFileDocument;
 import com.algomeet.mediaservice.dto.StorageUsageAdjustmentRequest;
 import com.algomeet.mediaservice.enums.UploadContext;
 import com.algomeet.mediaservice.repository.UserFileRepository;
+import com.algomeet.mediaservice.service.FileAccessEntryService;
 import com.algomeet.mediaservice.service.UserFileService;
 
 import lombok.RequiredArgsConstructor;
@@ -27,6 +28,7 @@ import lombok.RequiredArgsConstructor;
 public class UserFileServiceImpl implements UserFileService {
 	private final UserFileRepository repository;
 	private final UserStorageUsageService userStorageUsageService;
+	private final FileAccessEntryService fileAccessEntryService;
 
 	@Override
 	public UserFileDocument create(UserFileDocument file) {
@@ -70,96 +72,91 @@ public class UserFileServiceImpl implements UserFileService {
 		UserFileDocument file = repository.findById(fileId)
 				.orElseThrow(() -> new IllegalArgumentException("File not found"));
 
-		if (!file.getOwner().equals(userId)) {
+		if (!(file.getOwner().compareTo(userId) == 0)) {
 			throw new AccessDeniedException("Only owner can delete file");
 		}
-
+		
+		// Delete all file access entries
+		fileAccessEntryService.deleteByFileId(UUID.fromString(fileId));
+		
+		// Delete the file metadata
 		repository.deleteById(fileId);
 	}
 
 	@Override
 	public boolean hasPermission(UserFileDocument file, String userKey, FilePermission permission) {
-		
 		// Owner has full access but don't show the file that is already eligible for cleanup
 		if ((file.getOwner().equals(userKey) && file.getCleanupEligibleAt() == null)
 				|| (file.getOwner().equals(userKey) && file.getCleanupEligibleAt().isAfter(Instant.now()))) {
 			return true;
 		}
 
-		if (file.getAccessControlList() == null) {
-			return false;
-		}
+		Set<FilePermission> permissions = fileAccessEntryService.getPermissions(UUID.fromString(userKey), UUID.fromString(file.getId()));
 
-		return file.getAccessControlList().stream().filter(entry -> entry.getUserKey().equals(userKey))
-				.map(FileAccessEntry::getPermissions).anyMatch(perms -> perms.contains(permission));
+		return permissions.contains(permission);
 	}
 
 	@Override
-	public void shareFile(String fileId, String userKey, List<String> shareWithUserKeys) {
-		UserFileDocument file = repository.findById(fileId)
-				.orElseThrow(() -> new IllegalArgumentException("File not found"));
+	public void shareFile(List<String> fileIds, String userKey, List<String> shareWithUserKeys, UUID messageId) {
+	    if (CollectionUtils.isEmpty(fileIds)) {
+	        return;
+	    }
 
-		if (!hasPermission(file, userKey, FilePermission.SHARE)) {
-			throw new AccessDeniedException("User is not allowed to share the media/file");
-		}
+	    // 1. Pre-parse and prepare the distinct target users
+	    UUID ownerUuid = UUID.fromString(userKey);
+	    Set<UUID> targetUserUuids = Optional.ofNullable(shareWithUserKeys)
+	            .orElse(Collections.emptyList())
+	            .stream()
+	            .map(UUID::fromString)
+	            .collect(Collectors.toSet());
+	    
+	    targetUserUuids.add(ownerUuid); // Include owner
 
-		Set<String> forShareUserKeys = new HashSet<>();
+	    // Default permissions for sharing
+	    Set<FilePermission> permissions = Set.of(FilePermission.SHARE, FilePermission.READ, FilePermission.DELETE);
 
-		if (!CollectionUtils.isEmpty(shareWithUserKeys)) {
-			shareWithUserKeys.forEach(ukey -> {
-				forShareUserKeys.add(ukey);
-			});
-		}
+	    // 2. Fetch all files in a single batch query to avoid N+1 problem
+	    List<UserFileDocument> files = repository.findAllById(fileIds);
+	    if (files.size() != fileIds.size()) {
+	        throw new IllegalArgumentException("One or more files were not found");
+	    }
 
-		// Add owner it self
-		forShareUserKeys.add(userKey);
+	    // 3. Process permissions and storage
+	    for (UserFileDocument file : files) {
+	        if (!hasPermission(file, userKey, FilePermission.SHARE)) {
+	            throw new AccessDeniedException("User is not allowed to share the media/file: " + file.getId());
+	        }
 
-		for (String uKey : forShareUserKeys) {
-			boolean isFound = false;
+	        UUID fileUuid = UUID.fromString(file.getId());
 
-			if (!CollectionUtils.isEmpty(file.getAccessControlList())) {
-				Iterator<FileAccessEntry> itAccControl = file.getAccessControlList().iterator();
+	        for (UUID targetUserUuid : targetUserUuids) {
+	            boolean isGranted = fileAccessEntryService.grantAccess(targetUserUuid, fileUuid, permissions, messageId);
 
-				while (itAccControl.hasNext()) {
-					FileAccessEntry accControl = itAccControl.next();
-					if (uKey.equalsIgnoreCase(accControl.getUserKey())) {
-						accControl.setRefCount((accControl.getRefCount() + 1));
-						isFound = true;
+	            // Double check: Do you really want to adjust storage for the owner again? 
+	            // If it's a new grant for a recipient, adjust their storage.
+	            if (isGranted) {
+	                StorageUsageAdjustmentRequest adjustment = new StorageUsageAdjustmentRequest();
+	                if (UploadContext.CHAT.name().equals(file.getUploadContext())) {
+	                	adjustment.setChatStorageBytesDelta(-file.getSize());
+	                	adjustment.setChatMessageCountDelta(-1L);
+					} else {
+						adjustment.setMediaStorageBytesDelta(-file.getSize());
+						adjustment.setMediaFileCountDelta(-1L);
 					}
-				}
-			}
+	                userStorageUsageService.adjustUsage(targetUserUuid, adjustment);
+	            }
+	        }
 
-			if (!isFound) {
-				Set<FilePermission> permissions = new HashSet<>();
-				permissions.add(FilePermission.SHARE);
-				permissions.add(FilePermission.READ);
-				permissions.add(FilePermission.DELETE);
+	        // Disable auto-deletion
+	        file.setCleanupEligibleAt(null);
+	    }
 
-				Integer refCount = 1;
-			
-				// Check if empty
-				if (CollectionUtils.isEmpty(file.getAccessControlList())) {
-					file.setAccessControlList(new ArrayList<>());
-				} 
-
-				file.getAccessControlList().add(new FileAccessEntry(uKey, refCount, permissions));
-				
-            	// Update user storage usage, add the shared file count and file size            	
-            	StorageUsageAdjustmentRequest storageUsageAdjustment = new StorageUsageAdjustmentRequest();
-            	storageUsageAdjustment.setMediaFileCountDelta(1L);
-            	storageUsageAdjustment.setMediaStorageBytesDelta(file.getSize());
-            	userStorageUsageService.adjustUsage(UUID.fromString(uKey), storageUsageAdjustment);
-
-			}
-		}
-
-		// Set clean up date to null to disable auto deletion
-		file.setCleanupEligibleAt(null);
-		repository.save(file);
+	    // 4. Batch save all modified file documents at once
+	    repository.saveAll(files);
 	}
 
 	@Override
-	public void softDeleteAndMarkForCleanupIfOrphaned(String fileId, String userKey, List<String> deleteWithUserKeys) {
+	public void softDeleteAndMarkForCleanupIfOrphaned(String fileId, String userKey, List<String> deleteWithUserKeys, UUID messageId) {
 		UserFileDocument file = repository.findById(fileId)
 				.orElseThrow(() -> new IllegalArgumentException("File not found"));
 
@@ -170,47 +167,41 @@ public class UserFileServiceImpl implements UserFileService {
 		Set<String> forDeleteUserKeys = new HashSet<>();
 
 		if (!CollectionUtils.isEmpty(deleteWithUserKeys)) {
-
 			deleteWithUserKeys.forEach(ukey -> {
 				forDeleteUserKeys.add(ukey);
 			});
 		}
 
-		// Add owner it self
-		forDeleteUserKeys.add(userKey);
+		// Add owner it self if list is empty
+		if(CollectionUtils.isEmpty(deleteWithUserKeys)) {
+			forDeleteUserKeys.add(userKey);
+		}
 
 		for (String uKey : forDeleteUserKeys) {
-			Iterator<FileAccessEntry> itAccControl = file.getAccessControlList().iterator();
+			boolean isRevoked = fileAccessEntryService.revokeAccess(UUID.fromString(uKey), UUID.fromString(fileId), messageId);
 
-			while (itAccControl.hasNext()) {
-				FileAccessEntry accControl = itAccControl.next();
-				if (uKey.equalsIgnoreCase(accControl.getUserKey())) {
-					accControl.setRefCount((accControl.getRefCount() - 1));
+			// Debit the correct quota bucket — must mirror the bucket used at upload time.
+			// Files uploaded with uploadContext=CHAT were credited to chatStorageUsed;
+			// everything else goes to mediaStorageUsed.
+			if (isRevoked) {
+				StorageUsageAdjustmentRequest storageUsageAdjustment = new StorageUsageAdjustmentRequest();
+				if (UploadContext.CHAT.name().equals(file.getUploadContext())) {
+					storageUsageAdjustment.setChatStorageBytesDelta(-file.getSize());
+					storageUsageAdjustment.setChatMessageCountDelta(-1L);
+				} else {
+					storageUsageAdjustment.setMediaStorageBytesDelta(-file.getSize());
+					storageUsageAdjustment.setMediaFileCountDelta(-1L);
 				}
-
-				if (accControl.getRefCount() <= 0) {
-					itAccControl.remove();
-
-					// Debit the correct quota bucket — must mirror the bucket used at upload time.
-					// Files uploaded with uploadContext=CHAT were credited to chatStorageUsed;
-					// everything else goes to mediaStorageUsed.
-					StorageUsageAdjustmentRequest storageUsageAdjustment = new StorageUsageAdjustmentRequest();
-					if (UploadContext.CHAT.name().equals(file.getUploadContext())) {
-						storageUsageAdjustment.setChatStorageBytesDelta(-file.getSize());
-						storageUsageAdjustment.setChatMessageCountDelta(-1L);
-					} else {
-						storageUsageAdjustment.setMediaStorageBytesDelta(-file.getSize());
-						storageUsageAdjustment.setMediaFileCountDelta(-1L);
-					}
-					userStorageUsageService.adjustUsage(UUID.fromString(uKey), storageUsageAdjustment);
-				}
+				userStorageUsageService.adjustUsage(UUID.fromString(uKey), storageUsageAdjustment);
 			}
 		}
-		if (file.getAccessControlList().isEmpty()) {
-			// set eligible for batch job clean up
+
+		// Mark for clean up if file has 0 user access entry.
+		if (fileAccessEntryService.countByFileId(UUID.fromString(fileId)) == 0) {
+			// Set eligible for batch job clean up
 			file.setCleanupEligibleAt(Instant.now());
 		}
 
 		repository.save(file);
-	}
+	}	
 }

@@ -9,6 +9,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 
 import com.algomeet.mediaservice.config.LocalizationConfig;
 import com.algomeet.mediaservice.config.StorageProperties;
@@ -17,6 +19,7 @@ import com.algomeet.mediaservice.document.UserFileDocument;
 import com.algomeet.mediaservice.dto.MediaUploadResponse;
 import com.algomeet.mediaservice.enums.Storage;
 import com.algomeet.mediaservice.exceptions.FileTypeNotSupportedException;
+import com.algomeet.mediaservice.repository.UserFileRepository;
 import com.algomeet.mediaservice.service.MediaServiceLocal;
 import com.algomeet.mediaservice.service.MediaServiceOss;
 import com.algomeet.mediaservice.service.MediaServiceS3;
@@ -78,8 +81,13 @@ class FileControllerTest {
 
 	@MockBean
 	private FileValidator fileValidator;
+	
+	@MockBean
+	private UserFileRepository userFileRepository;
 
-	private static final String USER_KEY = "user-123";
+	private static final String USER_KEY = UUID.randomUUID().toString();
+	private static final UUID MESSAGE_ID = UUID.randomUUID();
+	private static final UUID MEDIA_ID1 = UUID.randomUUID();
 
 	private MockedStatic<SecurityUtil> securityUtilMock;
 
@@ -145,10 +153,10 @@ class FileControllerTest {
 		Path tempFile = Files.createTempFile("media-", ".txt");
 		Files.write(tempFile, "hello".getBytes());
 
-		when(userFileService.getFile("media1", USER_KEY, FilePermission.READ)).thenReturn(doc);
-		when(mediaServiceLocal.read(USER_KEY, "media1")).thenReturn(tempFile);
+		when(userFileService.getFile(MEDIA_ID1.toString() , USER_KEY, FilePermission.READ)).thenReturn(doc);
+		when(mediaServiceLocal.read(USER_KEY, MEDIA_ID1.toString())).thenReturn(tempFile);
 
-		mockMvc.perform(get("/media/media1")).andExpect(status().isOk()).andExpect(
+		mockMvc.perform(get("/media/" + MEDIA_ID1)).andExpect(status().isOk()).andExpect(
 				header().string("Content-Disposition", "inline; filename=\"" + tempFile.getFileName() + "\""));
 	}
 
@@ -160,7 +168,7 @@ class FileControllerTest {
 		when(userFileService.getFile(any(), any(), any())).thenReturn(doc);
 		when(mediaServiceS3.getReadUrl(any(), any())).thenReturn("https://s3/presigned-url");
 
-		mockMvc.perform(get("/media/media1")).andExpect(status().isFound())
+		mockMvc.perform(get("/media/" + MEDIA_ID1 )).andExpect(status().isFound())
 				.andExpect(header().string("Location", "https://s3/presigned-url"));
 	}
 
@@ -170,18 +178,27 @@ class FileControllerTest {
 
 	@Test
 	void delete_success() throws Exception {
-		mockMvc.perform(delete("/media/media1")).andExpect(status().isOk())
+		UserFileDocument doc = new UserFileDocument();
+		doc.setStorage(Storage.LOCAL.name());
+
+		when(userFileService.getFile(any(), any(), any())).thenReturn(doc);
+		mockMvc.perform(delete("/media/" + MEDIA_ID1 + "/access").param("messageId", MESSAGE_ID.toString())).andExpect(status().isOk())
 				.andExpect(jsonPath("$.code").value("SUCCESS"));
 
-		verify(userFileService).softDeleteAndMarkForCleanupIfOrphaned("media1", USER_KEY, null);
+		verify(userFileService).softDeleteAndMarkForCleanupIfOrphaned(any(), any(), any(), any());
 	}
 
 	@Test
 	void delete_accessDenied() throws Exception {
-		doThrow(new org.springframework.security.access.AccessDeniedException("denied")).when(userFileService)
-				.softDeleteAndMarkForCleanupIfOrphaned(any(), any(), any());
+		UserFileDocument doc = new UserFileDocument();
+		doc.setStorage(Storage.LOCAL.name());
 
-		mockMvc.perform(delete("/media/media1")).andExpect(status().isForbidden())
+		when(userFileRepository.findById(doc.getId())).thenReturn(Optional.of(doc));
+		
+		doThrow(new org.springframework.security.access.AccessDeniedException("denied")).when(userFileService)
+				.softDeleteAndMarkForCleanupIfOrphaned(any(), any(), any(), any());
+
+		mockMvc.perform(delete("/media/" + MEDIA_ID1 + "/access").param("messageId", MESSAGE_ID.toString())).andExpect(status().isForbidden())
 				.andExpect(jsonPath("$.code").value("MEDIA_ACCESS_DENIED"));
 
 	}
@@ -192,9 +209,10 @@ class FileControllerTest {
 
 	@Test
 	void share_success() throws Exception {
-		mockMvc.perform(post("/media/media1/share").param("shareWithUserKeys", "u1", "u2")).andExpect(status().isOk())
+		mockMvc.perform(post("/media/" + MEDIA_ID1 + "/share").param("shareWithUserKeys", "u1", "u2")
+				.param("messageId", MESSAGE_ID.toString())).andExpect(status().isOk())
 				.andExpect(jsonPath("$.code").value("SUCCESS"));
 
-		verify(userFileService).shareFile("media1", USER_KEY, List.of("u1", "u2"));
+		verify(userFileService).shareFile(List.of(MEDIA_ID1.toString()), USER_KEY, List.of("u1", "u2"), MESSAGE_ID);
 	}
 }

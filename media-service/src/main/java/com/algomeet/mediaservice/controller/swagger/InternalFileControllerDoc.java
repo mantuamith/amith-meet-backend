@@ -1,6 +1,7 @@
 package com.algomeet.mediaservice.controller.swagger;
 
 import java.util.List;
+import java.util.UUID;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -35,7 +36,10 @@ public interface InternalFileControllerDoc {
             @RequestParam String userKey,
 
             @Parameter(description = "User keys to grant access to", required = true)
-            @RequestParam List<String> shareWithUserKeys
+            @RequestParam List<String> shareWithUserKeys,
+            
+            @Parameter(description = "The chat message ID where this file was originally attached", required = true)
+            @RequestParam UUID messageId
     );
 
     // ========================= DELETE =========================
@@ -58,6 +62,9 @@ public interface InternalFileControllerDoc {
 
             @Parameter(description = "Additional user keys whose access should also be revoked")
             @RequestParam(required = false)
-            List<String> deleteWithUserKeys
+            List<String> deleteWithUserKeys,
+            
+            @Parameter(description = "The chat message ID where this file was originally attached", required = true)
+            @RequestParam UUID messageId
     );
 }

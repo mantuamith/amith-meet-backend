@@ -57,12 +57,6 @@ public class UserFileDocument {
     @Indexed
     @Field("owner")
     private String owner;
-
-    /**
-     * Access Control List
-     */
-    @Field("access_control_list")
-    private List<FileAccessEntry> accessControlList;
     
     @Field("storage")
     private String storage;
