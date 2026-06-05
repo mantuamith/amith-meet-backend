@@ -323,7 +323,7 @@ public interface FileControllerDoc {
             @Parameter(description = "Additional user keys whose access should also be revoked (e.g., chat participants when retracting a message)")
             @RequestParam(required = false) List<String> deleteWithUserKeys,
             
-            @Parameter(description = "The chat message ID where this file was originally attached", required = true)
+            @Parameter(description = "Chat message ID associated with the file attachment. Used to track file references and manage attachment lifecycle.", required = true)
             @RequestParam UUID messageId
     );
     
@@ -377,7 +377,7 @@ public interface FileControllerDoc {
                 example = "[\"550e8400-e29b-41d4-a716-446655440000\", \"660e8400-e29b-41d4-a716-446655440001\"]")
             @RequestParam List<String> shareWithUserKeys,
             
-            @Parameter(description = "The chat message ID where this file was originally attached", required = true)
+            @Parameter(description = "Chat message ID associated with the file attachment. Used to track file references and manage attachment lifecycle.", required = true)
             @PathVariable UUID messageId
     );
     

@@ -19,15 +19,15 @@ public class BatchMediaDeleteRequest {
 	private List<String> mediaIds;
 	
 	@Schema(
-		    description = "List of user keys to be removed access"
+			description = "List of user keys whose access should be revoked. To permanently remove a file when no access references remain, "
+					+ "the media owner's user key must also be included in this list."
 		)
 	@NotNull(message = "User keys list cannot be null")
 	@NotEmpty(message = "At least one User key must be provided")
 	private List<String> deleteWithUserKeys;
 	
 	@Schema(
-    	    description = "Chat Message ID used to ensure idempotency and prevent duplicate processing of the same share request. "
-    	    		+ "If a network failure occurs and the client retries the request, the same request ID should be reused.",
+    	    description = "Required chat message ID associated with the file attachment. Used to track file references and manage attachment lifecycle.",
     	    example = "share-019e537d-31a0-7556-a160-7ac448312343"
     	)
     @NotNull(message = "Chat message ID cannot be null")

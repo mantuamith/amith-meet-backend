@@ -35,6 +35,7 @@ public class InternalFileController implements InternalFileControllerDoc {
     private final UserFileService userFileService;
 
     @PostMapping("/{mediaId}/share")
+    @Override
     public ResponseEntity<?> share(
             @PathVariable UUID mediaId,
             @RequestParam String userKey,
@@ -56,6 +57,7 @@ public class InternalFileController implements InternalFileControllerDoc {
     }
     
     @PostMapping("/share")
+    @Override
     public ResponseEntity<?> batchShare(
     		@RequestParam String userKey,
             @RequestBody @Valid BatchMediaShareRequest request
@@ -73,6 +75,7 @@ public class InternalFileController implements InternalFileControllerDoc {
     }
 
     @DeleteMapping("/{mediaId}/access")
+    @Override
     public ResponseEntity<CommonResponse<?>> delete(
             @PathVariable UUID mediaId,
             @RequestParam String userKey,
@@ -90,6 +93,7 @@ public class InternalFileController implements InternalFileControllerDoc {
     } 
     
     @DeleteMapping("/access")
+    @Override
     public ResponseEntity<CommonResponse<?>> batchDelete(
     		@RequestParam String userKey,
             @RequestBody @Valid BatchMediaDeleteRequest request

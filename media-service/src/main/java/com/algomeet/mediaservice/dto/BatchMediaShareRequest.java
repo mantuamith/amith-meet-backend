@@ -26,8 +26,7 @@ public class BatchMediaShareRequest {
     private List<String> shareWithUserKeys;
 
     @Schema(
-    	    description = "Chat Message ID used to ensure idempotency and prevent duplicate processing of the same share request. "
-    	    		+ "If a network failure occurs and the client retries the request, the same request ID should be reused.",
+    	    description = "Required chat message ID associated with the file attachment. Used to track file references and manage attachment lifecycle.",
     	    example = "share-019e537d-31a0-7556-a160-7ac448312343"
     	)
     @NotNull(message = "Chat message ID cannot be null")
