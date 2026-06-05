@@ -2,6 +2,7 @@ package com.algomeet.chatservice.document;
 
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.val;
 import org.springframework.data.mongodb.core.mapping.Field;
 
 @Data
@@ -30,4 +31,7 @@ public class MediaItem {
 
     @Field("thumbnailUrl")
     private String thumbnailUrl;
+
+    @Field("aspect_ratio")
+    private String aspectRatio;
 }
