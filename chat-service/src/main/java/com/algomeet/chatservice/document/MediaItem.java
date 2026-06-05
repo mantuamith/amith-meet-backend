@@ -32,6 +32,6 @@ public class MediaItem {
     @Field("thumbnailUrl")
     private String thumbnailUrl;
 
-    @Field("aspect_ratio")
+    @Field("aspectRatio")
     private String aspectRatio;
 }
