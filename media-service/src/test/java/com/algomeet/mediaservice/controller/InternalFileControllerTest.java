@@ -51,7 +51,7 @@ class InternalFileControllerTest {
 	void share_returnsOkOnSuccess() {
 		ResponseEntity<?> response = controller.share(FILE_ID, "user-1", List.of("user-2", "user-3"), MESSAGE_ID);
 
-		verify(userFileService).shareFile(List.of(FILE_ID.toString()), "user-1", List.of("user-2", "user-3"), MESSAGE_ID);
+		verify(userFileService).shareFile(Set.of(FILE_ID.toString()), "user-1", List.of("user-2", "user-3"), MESSAGE_ID);
 		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
 		assertThat(((CommonResponse<?>) response.getBody()).getCode()).isEqualTo(ResponseCode.SUCCESS.getCode());
 	}
@@ -59,7 +59,7 @@ class InternalFileControllerTest {
 	@Test
 	void share_returnsNotFoundWhenMediaMissing() {
 		doThrow(new IllegalArgumentException("missing")).when(userFileService)
-				.shareFile(List.of(FILE_ID.toString()), "user-1", List.of("user-2"), MESSAGE_ID);
+				.shareFile(Set.of(FILE_ID.toString()), "user-1", List.of("user-2"), MESSAGE_ID);
 
 		ResponseEntity<?> response = controller.share(FILE_ID, "user-1", List.of("user-2"), MESSAGE_ID);
 
@@ -70,7 +70,7 @@ class InternalFileControllerTest {
 	@Test
 	void share_returnsForbiddenWhenAccessDenied() {
 		doThrow(new AccessDeniedException("denied")).when(userFileService)
-				.shareFile(List.of(FILE_ID.toString()), "user-1", List.of("user-2"), MESSAGE_ID);
+				.shareFile(Set.of(FILE_ID.toString()), "user-1", List.of("user-2"), MESSAGE_ID);
 
 		ResponseEntity<?> response = controller.share(FILE_ID, "user-1", List.of("user-2"), MESSAGE_ID);
 
@@ -81,7 +81,7 @@ class InternalFileControllerTest {
 	@Test
 	void batchShare_returnsOkOnSuccess() {
 	    BatchMediaShareRequest request = new BatchMediaShareRequest();
-	    request.setMediaIds(List.of(FILE_ID.toString()));
+	    request.setMediaIds(Set.of(FILE_ID.toString()));
 	    request.setShareWithUserKeys(List.of("user-2", "user-3"));
 	    request.setMessageId(MESSAGE_ID);
 
@@ -101,7 +101,7 @@ class InternalFileControllerTest {
 	@Test
 	void batchShare_returnsNotFoundWhenMediaMissing() {
 	    BatchMediaShareRequest request = new BatchMediaShareRequest();
-	    request.setMediaIds(List.of(FILE_ID.toString()));
+	    request.setMediaIds(Set.of(FILE_ID.toString()));
 	    request.setShareWithUserKeys(List.of("user-2"));
 	    request.setMessageId(MESSAGE_ID);
 
@@ -123,7 +123,7 @@ class InternalFileControllerTest {
 	@Test
 	void batchShare_returnsForbiddenWhenAccessDenied() {
 	    BatchMediaShareRequest request = new BatchMediaShareRequest();
-	    request.setMediaIds(List.of(FILE_ID.toString()));
+	    request.setMediaIds(Set.of(FILE_ID.toString()));
 	    request.setShareWithUserKeys(List.of("user-2"));
 	    request.setMessageId(MESSAGE_ID);
 

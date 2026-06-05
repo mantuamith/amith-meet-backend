@@ -138,7 +138,7 @@ public class UserFileServiceImpl implements UserFileService {
 
 	@Override	
 	@Transactional(rollbackFor = Exception.class)
-	public void shareFile(List<String> fileIds, String userKey, List<String> shareWithUserKeys, UUID messageId) {
+	public void shareFile(Set<String> fileIds, String userKey, List<String> shareWithUserKeys, UUID messageId) {
 	    if (CollectionUtils.isEmpty(fileIds)) {
 	        return;
 	    }

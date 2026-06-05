@@ -1,6 +1,7 @@
 package com.algomeet.mediaservice.dto;
 
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -15,7 +16,7 @@ public class BatchMediaShareRequest {
 	@Schema(
 	    description = "List of media IDs to grant access to."
 	)
-	private List<String> mediaIds;
+	private Set<String> mediaIds;
 	
 
     @NotNull(message = "The recipient list cannot be null")

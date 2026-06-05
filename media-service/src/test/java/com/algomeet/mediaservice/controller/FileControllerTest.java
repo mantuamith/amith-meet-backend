@@ -210,7 +210,7 @@ class FileControllerTest {
 				.param("messageId", MESSAGE_ID.toString())).andExpect(status().isOk())
 				.andExpect(jsonPath("$.code").value("SUCCESS"));
 
-		verify(userFileService).shareFile(List.of(MEDIA_ID1.toString()), USER_KEY, List.of("u1", "u2"), MESSAGE_ID);
+		verify(userFileService).shareFile(Set.of(MEDIA_ID1.toString()), USER_KEY, List.of("u1", "u2"), MESSAGE_ID);
 	}
 
 	/*
@@ -234,7 +234,7 @@ class FileControllerTest {
 	            .andExpect(jsonPath("$.code").value("SUCCESS"));
 
 	    verify(userFileService).shareFile(
-	            List.of(MEDIA_ID1.toString()),
+	    		Set.of(MEDIA_ID1.toString()),
 	            USER_KEY,
 	            List.of("u1", "u2"),
 	            MESSAGE_ID);
@@ -244,7 +244,7 @@ class FileControllerTest {
 	void batchShare_mediaNotFound() throws Exception {
 	    doThrow(new IllegalArgumentException("missing"))
 	            .when(userFileService)
-	            .shareFile(anyList(), anyString(), anyList(), any());
+	            .shareFile(anySet(), anyString(), anyList(), any());
 
 	    String request = """
 	        {
@@ -265,7 +265,7 @@ class FileControllerTest {
 	void batchShare_accessDenied() throws Exception {
 	    doThrow(new org.springframework.security.access.AccessDeniedException("denied"))
 	            .when(userFileService)
-	            .shareFile(anyList(), anyString(), anyList(), any());
+	            .shareFile(anySet(), anyString(), anyList(), any());
 
 	    String request = """
 	        {

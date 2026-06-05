@@ -186,9 +186,9 @@ class UserFileServiceImplTest {
     @Test
     void shareFile_success() {
         UserFileDocument file = ownerFile();
-        when(repository.findAllById(List.of(FILE_ID))).thenReturn(List.of(file));
+        when(repository.findAllById(Set.of(FILE_ID))).thenReturn(List.of(file));
 
-        service.shareFile(List.of(FILE_ID), OWNER, List.of(USER), UUID.randomUUID());
+        service.shareFile(Set.of(FILE_ID), OWNER, List.of(USER), UUID.randomUUID());
 
         assertEquals(null, file.getCleanupEligibleAt());
         
@@ -200,10 +200,10 @@ class UserFileServiceImplTest {
     void shareFile_accessDenied() {
         UserFileDocument file = ownerFile();
 
-        when(repository.findAllById(List.of(FILE_ID))).thenReturn(List.of(file));
+        when(repository.findAllById(Set.of(FILE_ID))).thenReturn(List.of(file));
 
         assertThrows(AccessDeniedException.class,
-                () -> service.shareFile(List.of(FILE_ID), USER, List.of("00111111-1111-1111-1111-111111111111"), MESSAGE_ID));
+                () -> service.shareFile(Set.of(FILE_ID), USER, List.of("00111111-1111-1111-1111-111111111111"), MESSAGE_ID));
     }
 
     /* =========================
