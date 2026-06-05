@@ -4,6 +4,8 @@ import com.algomeet.mediaservice.document.UserFileDocument;
 import com.algomeet.mediaservice.document.FilePermission;
 
 import java.util.List;
+import java.util.Set;
+import java.util.UUID;
 
 public interface UserFileService {
 
@@ -21,7 +23,7 @@ public interface UserFileService {
 
     boolean hasPermission(UserFileDocument file, String userKey, FilePermission permission);
     
-    void softDeleteAndMarkForCleanupIfOrphaned(String fileId, String userKey, List<String> deleteWithUserKeys);
+    void softDeleteAndMarkForCleanupIfOrphaned(Set<String> fileIds, String userKey, Set<String> deleteWithUserKeys, UUID messageId);
     
-    void shareFile(String fileId, String userKey, List<String> shareWithUserKeys);
+    void shareFile(Set<String> fileIds, String userKey, List<String> shareWithUserKeys, UUID messageId);
 }

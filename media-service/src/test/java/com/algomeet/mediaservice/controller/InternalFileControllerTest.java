@@ -5,6 +5,8 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 
 import java.util.List;
+import java.util.Set;
+import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -18,6 +20,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 
 import com.algomeet.mediaservice.config.LocalizationConfig;
+import com.algomeet.mediaservice.dto.BatchMediaDeleteRequest;
+import com.algomeet.mediaservice.dto.BatchMediaShareRequest;
 import com.algomeet.mediaservice.dto.CommonResponse;
 import com.algomeet.mediaservice.enums.ResponseCode;
 import com.algomeet.mediaservice.service.UserFileService;
@@ -33,6 +37,9 @@ class InternalFileControllerTest {
 	
 	@Mock
 	private MessageSource messageSource;
+	
+	private static UUID MESSAGE_ID = UUID.randomUUID();
+	private static final UUID FILE_ID = UUID.randomUUID();
 
 	@BeforeEach
 	void setUp() {
@@ -42,9 +49,9 @@ class InternalFileControllerTest {
 
 	@Test
 	void share_returnsOkOnSuccess() {
-		ResponseEntity<?> response = controller.share("media-1", "user-1", List.of("user-2", "user-3"));
+		ResponseEntity<?> response = controller.share(FILE_ID, "user-1", List.of("user-2", "user-3"), MESSAGE_ID);
 
-		verify(userFileService).shareFile("media-1", "user-1", List.of("user-2", "user-3"));
+		verify(userFileService).shareFile(Set.of(FILE_ID.toString()), "user-1", List.of("user-2", "user-3"), MESSAGE_ID);
 		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
 		assertThat(((CommonResponse<?>) response.getBody()).getCode()).isEqualTo(ResponseCode.SUCCESS.getCode());
 	}
@@ -52,9 +59,9 @@ class InternalFileControllerTest {
 	@Test
 	void share_returnsNotFoundWhenMediaMissing() {
 		doThrow(new IllegalArgumentException("missing")).when(userFileService)
-				.shareFile("media-1", "user-1", List.of("user-2"));
+				.shareFile(Set.of(FILE_ID.toString()), "user-1", List.of("user-2"), MESSAGE_ID);
 
-		ResponseEntity<?> response = controller.share("media-1", "user-1", List.of("user-2"));
+		ResponseEntity<?> response = controller.share(FILE_ID, "user-1", List.of("user-2"), MESSAGE_ID);
 
 		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
 		assertThat(((CommonResponse<?>) response.getBody()).getCode()).isEqualTo(ResponseCode.MEDIA_NOT_FOUND.getCode());
@@ -63,19 +70,83 @@ class InternalFileControllerTest {
 	@Test
 	void share_returnsForbiddenWhenAccessDenied() {
 		doThrow(new AccessDeniedException("denied")).when(userFileService)
-				.shareFile("media-1", "user-1", List.of("user-2"));
+				.shareFile(Set.of(FILE_ID.toString()), "user-1", List.of("user-2"), MESSAGE_ID);
 
-		ResponseEntity<?> response = controller.share("media-1", "user-1", List.of("user-2"));
+		ResponseEntity<?> response = controller.share(FILE_ID, "user-1", List.of("user-2"), MESSAGE_ID);
 
 		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
 		assertThat(((CommonResponse<?>) response.getBody()).getCode()).isEqualTo(ResponseCode.MEDIA_ACCESS_DENIED.getCode());
 	}
+	
+	@Test
+	void batchShare_returnsOkOnSuccess() {
+	    BatchMediaShareRequest request = new BatchMediaShareRequest();
+	    request.setMediaIds(Set.of(FILE_ID.toString()));
+	    request.setShareWithUserKeys(List.of("user-2", "user-3"));
+	    request.setMessageId(MESSAGE_ID);
+
+	    ResponseEntity<?> response = controller.batchShare("user-1", request);
+
+	    verify(userFileService).shareFile(
+	            request.getMediaIds(),
+	            "user-1",
+	            request.getShareWithUserKeys(),
+	            MESSAGE_ID);
+
+	    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+	    assertThat(((CommonResponse<?>) response.getBody()).getCode())
+	            .isEqualTo(ResponseCode.SUCCESS.getCode());
+	}
+
+	@Test
+	void batchShare_returnsNotFoundWhenMediaMissing() {
+	    BatchMediaShareRequest request = new BatchMediaShareRequest();
+	    request.setMediaIds(Set.of(FILE_ID.toString()));
+	    request.setShareWithUserKeys(List.of("user-2"));
+	    request.setMessageId(MESSAGE_ID);
+
+	    doThrow(new IllegalArgumentException("missing"))
+	            .when(userFileService)
+	            .shareFile(
+	                    request.getMediaIds(),
+	                    "user-1",
+	                    request.getShareWithUserKeys(),
+	                    MESSAGE_ID);
+
+	    ResponseEntity<?> response = controller.batchShare("user-1", request);
+
+	    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+	    assertThat(((CommonResponse<?>) response.getBody()).getCode())
+	            .isEqualTo(ResponseCode.MEDIA_NOT_FOUND.getCode());
+	}
+
+	@Test
+	void batchShare_returnsForbiddenWhenAccessDenied() {
+	    BatchMediaShareRequest request = new BatchMediaShareRequest();
+	    request.setMediaIds(Set.of(FILE_ID.toString()));
+	    request.setShareWithUserKeys(List.of("user-2"));
+	    request.setMessageId(MESSAGE_ID);
+
+	    doThrow(new AccessDeniedException("denied"))
+	            .when(userFileService)
+	            .shareFile(
+	                    request.getMediaIds(),
+	                    "user-1",
+	                    request.getShareWithUserKeys(),
+	                    MESSAGE_ID);
+
+	    ResponseEntity<?> response = controller.batchShare("user-1", request);
+
+	    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+	    assertThat(((CommonResponse<?>) response.getBody()).getCode())
+	            .isEqualTo(ResponseCode.MEDIA_ACCESS_DENIED.getCode());
+	}
 
 	@Test
 	void delete_returnsOkOnSuccess() {
-		ResponseEntity<CommonResponse<?>> response = controller.delete("media-1", "user-1", List.of("user-2"));
+		ResponseEntity<CommonResponse<?>> response = controller.delete(FILE_ID, "user-1", Set.of("user-2"), MESSAGE_ID);
 
-		verify(userFileService).softDeleteAndMarkForCleanupIfOrphaned("media-1", "user-1", List.of("user-2"));
+		verify(userFileService).softDeleteAndMarkForCleanupIfOrphaned(Set.of(FILE_ID.toString()), "user-1", Set.of("user-2"), MESSAGE_ID);
 		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
 		assertThat(response.getBody().getCode()).isEqualTo(ResponseCode.SUCCESS.getCode());
 	}
@@ -83,22 +154,60 @@ class InternalFileControllerTest {
 	@Test
 	void delete_returnsNotFoundWhenMediaMissing() {
 		doThrow(new IllegalArgumentException("missing")).when(userFileService)
-				.softDeleteAndMarkForCleanupIfOrphaned("media-1", "user-1", List.of("user-2"));
+				.softDeleteAndMarkForCleanupIfOrphaned(Set.of(FILE_ID.toString()), "user-1", Set.of("user-2"), MESSAGE_ID);
 
-		ResponseEntity<CommonResponse<?>> response = controller.delete("media-1", "user-1", List.of("user-2"));
+		ResponseEntity<CommonResponse<?>> response = controller.delete(FILE_ID, "user-1", Set.of("user-2"), MESSAGE_ID);
 
 		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
 		assertThat(response.getBody().getCode()).isEqualTo(ResponseCode.MEDIA_NOT_FOUND.getCode());
 	}
 
 	@Test
-	void delete_returnsForbiddenWhenAccessDenied() {
-		doThrow(new AccessDeniedException("denied")).when(userFileService)
-				.softDeleteAndMarkForCleanupIfOrphaned("media-1", "user-1", List.of("user-2"));
+	void delete_shouldReturnSuccess_whenUnauthorizedUsersAreSkipped() {
+	    ResponseEntity<CommonResponse<?>> response =
+	            controller.delete(FILE_ID, "user-1", Set.of("user-2"), MESSAGE_ID);
 
-		ResponseEntity<CommonResponse<?>> response = controller.delete("media-1", "user-1", List.of("user-2"));
-
-		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
-		assertThat(response.getBody().getCode()).isEqualTo(ResponseCode.MEDIA_ACCESS_DENIED.getCode());
+	    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+	    assertThat(response.getBody().getCode())
+	            .isEqualTo(ResponseCode.SUCCESS.getCode());
 	}
+	
+	@Test
+	void batchDelete_returnsOkOnSuccess() {
+	    BatchMediaDeleteRequest request = new BatchMediaDeleteRequest();
+	    request.setMediaIds(Set.of(FILE_ID.toString()));
+	    request.setDeleteWithUserKeys(Set.of("user-2"));
+	    request.setMessageId(MESSAGE_ID);
+
+	    ResponseEntity<CommonResponse<?>> response =
+	            controller.batchDelete("user-1", request);
+
+	    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+	    assertThat(response.getBody().getCode())
+	            .isEqualTo(ResponseCode.SUCCESS.getCode());
+	}
+
+	@Test
+	void batchDelete_returnsNotFoundWhenMediaMissing() {
+	    BatchMediaDeleteRequest request = new BatchMediaDeleteRequest();
+	    request.setMediaIds(Set.of(FILE_ID.toString()));
+	    request.setDeleteWithUserKeys(Set.of("user-2"));
+	    request.setMessageId(MESSAGE_ID);
+
+	    doThrow(new IllegalArgumentException("missing"))
+	            .when(userFileService)
+	            .softDeleteAndMarkForCleanupIfOrphaned(
+	                    request.getMediaIds(),
+	                    null,
+	                    request.getDeleteWithUserKeys(),
+	                    MESSAGE_ID);
+
+	    ResponseEntity<CommonResponse<?>> response =
+	            controller.batchDelete("user-1", request);
+
+	    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+	    assertThat(response.getBody().getCode())
+	            .isEqualTo(ResponseCode.MEDIA_NOT_FOUND.getCode());
+	}	
+	
 }
