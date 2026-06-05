@@ -4,19 +4,25 @@ import java.util.List;
 import java.util.UUID;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 @Data
-public class BatchMediaDeleteRequest {
+public class BatchMediaDeleteRequest {	
+	
 	@Schema(
 	    description = "List of media IDs to delete access"
 	)
+	@NotNull(message = "Media ID list cannot be null")
+	@NotEmpty(message = "At least one media ID must be provided")
 	private List<String> mediaIds;
 	
 	@Schema(
 		    description = "List of user keys to be removed access"
 		)
+	@NotNull(message = "User keys list cannot be null")
+	@NotEmpty(message = "At least one User key must be provided")
 	private List<String> deleteWithUserKeys;
 	
 	@Schema(

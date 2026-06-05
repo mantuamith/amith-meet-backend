@@ -30,7 +30,7 @@ public interface InternalFileControllerDoc {
     )
     ResponseEntity<?> share(
             @Parameter(description = "Media ID", required = true)
-            @PathVariable String mediaId,
+            @PathVariable UUID mediaId,
 
             @Parameter(description = "User key of the caller (owner / sharer)", required = true)
             @RequestParam String userKey,
@@ -55,7 +55,7 @@ public interface InternalFileControllerDoc {
     )
     ResponseEntity<CommonResponse<?>> delete(
             @Parameter(description = "Media ID", required = true)
-            @PathVariable String mediaId,
+            @PathVariable UUID mediaId,
 
             @Parameter(description = "User key of the caller", required = true)
             @RequestParam String userKey,

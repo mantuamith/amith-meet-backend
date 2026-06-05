@@ -227,9 +227,7 @@ public class UserFileServiceImpl implements UserFileService {
 	    }
 
 	    // Build the set of users whose access should be revoked.
-	    // The requesting user is always included.
 	    Set<String> targetUserKeys = new HashSet<>();
-	    targetUserKeys.add(userKey);
 
 	    if (!CollectionUtils.isEmpty(deleteWithUserKeys)) {
 	        targetUserKeys.addAll(deleteWithUserKeys);
