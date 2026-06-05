@@ -192,7 +192,7 @@ class FileControllerTest {
 		doc.setStorage(Storage.LOCAL.name());
 
 		when(userFileService.getFile(any(), any(), any())).thenReturn(doc);
-		mockMvc.perform(delete("/media/" + MEDIA_ID1 + "/access").param("messageId", MESSAGE_ID.toString()).param("deleteWithUserKeys", "u1", "u2")).andExpect(status().isOk())
+		mockMvc.perform(delete("/media/" + MEDIA_ID1).param("messageId", MESSAGE_ID.toString()).param("deleteWithUserKeys", "u1", "u2")).andExpect(status().isOk())
 				.andExpect(jsonPath("$.code").value("SUCCESS"));
 
 		verify(userFileService).softDeleteAndMarkForCleanupIfOrphaned(any(), any(), any(), any());
@@ -296,7 +296,7 @@ class FileControllerTest {
 	        }
 	        """.formatted(MEDIA_ID1, MESSAGE_ID);
 
-	    mockMvc.perform(delete("/media/access")
+	    mockMvc.perform(delete("/media")
 	            .contentType(MediaType.APPLICATION_JSON)
 	            .content(request))
 	            .andExpect(status().isOk())
@@ -323,7 +323,7 @@ class FileControllerTest {
 	        }
 	        """.formatted(MEDIA_ID1, MESSAGE_ID);
 
-	    mockMvc.perform(delete("/media/access")
+	    mockMvc.perform(delete("/media")
 	            .contentType(MediaType.APPLICATION_JSON)
 	            .content(request))
 	            .andExpect(status().isNotFound())

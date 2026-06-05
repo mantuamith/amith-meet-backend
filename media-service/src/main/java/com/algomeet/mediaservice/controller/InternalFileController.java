@@ -74,7 +74,7 @@ public class InternalFileController implements InternalFileControllerDoc {
         }
     }
 
-    @DeleteMapping("/{mediaId}/access")
+    @DeleteMapping("/{mediaId}")
     @Override
     public ResponseEntity<CommonResponse<?>> delete(
             @PathVariable UUID mediaId,
@@ -92,7 +92,7 @@ public class InternalFileController implements InternalFileControllerDoc {
         }
     } 
     
-    @DeleteMapping("/access")
+    @DeleteMapping
     @Override
     public ResponseEntity<CommonResponse<?>> batchDelete(
     		@RequestParam String userKey,

@@ -17,7 +17,7 @@ public interface MediaClient {
 			@RequestParam String userKey, @RequestParam List<String> shareWithUserKeys,
 			@RequestParam UUID messageId);
 	
-	@DeleteMapping("/internal/media/{mediaId}/access")
+	@DeleteMapping("/internal/media/{mediaId}")
 	public void delete(@PathVariable String mediaId,
 			@RequestParam String userKey,
 			@RequestParam(required = false) List<String> deleteWithUserKeys,

@@ -227,7 +227,7 @@ public class FileController implements FileControllerDoc {
 
     // ========================= DELETE =========================
 
-    @DeleteMapping("/{mediaId}/access")
+    @DeleteMapping("/{mediaId}")
     public ResponseEntity<CommonResponse<?>> delete(
             @PathVariable UUID mediaId,
             @RequestParam List<String> deleteWithUserKeys,
@@ -242,7 +242,7 @@ public class FileController implements FileControllerDoc {
         } 
     }
     
-    @DeleteMapping("/access")
+    @DeleteMapping
     public ResponseEntity<CommonResponse<?>> batchDelete(
             @RequestBody @Valid BatchMediaDeleteRequest request
     ) {
