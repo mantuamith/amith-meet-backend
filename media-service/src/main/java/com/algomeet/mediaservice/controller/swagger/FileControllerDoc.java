@@ -1,6 +1,7 @@
 package com.algomeet.mediaservice.controller.swagger;
 
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.http.ResponseEntity;
@@ -321,7 +322,7 @@ public interface FileControllerDoc {
             @PathVariable UUID mediaId,
 
             @Parameter(description = "Add owner's and additional user keys whose access should also be revoked (e.g., chat participants when retracting a message)")
-            @RequestParam(required = true) List<String> deleteWithUserKeys,
+            @RequestParam(required = true) Set<String> deleteWithUserKeys,
             
             @Parameter(description = "Chat message ID associated with the file attachment. Used to track file references and manage attachment lifecycle.", required = true)
             @RequestParam UUID messageId

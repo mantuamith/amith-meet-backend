@@ -3,6 +3,7 @@ package com.algomeet.mediaservice.controller;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
@@ -20,6 +21,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import org.junit.jupiter.api.AfterEach;
@@ -303,9 +305,9 @@ class FileControllerTest {
 	            .andExpect(jsonPath("$.code").value("SUCCESS"));
 
 	    verify(userFileService).softDeleteAndMarkForCleanupIfOrphaned(
-	            List.of(MEDIA_ID1.toString()),
+	            Set.of(MEDIA_ID1.toString()),
 	            USER_KEY,
-	            List.of("u1", "u2"),
+	            Set.of("u1", "u2"),
 	            MESSAGE_ID);
 	}
 
@@ -313,7 +315,7 @@ class FileControllerTest {
 	void batchDelete_mediaNotFound() throws Exception {
 	    doThrow(new IllegalArgumentException("missing"))
 	            .when(userFileService)
-	            .softDeleteAndMarkForCleanupIfOrphaned(anyList(), anyString(), anyList(), any());
+	            .softDeleteAndMarkForCleanupIfOrphaned(anySet(), anyString(), anySet(), any());
 
 	    String request = """
 	        {

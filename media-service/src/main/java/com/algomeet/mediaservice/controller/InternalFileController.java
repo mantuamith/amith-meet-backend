@@ -1,6 +1,7 @@
 package com.algomeet.mediaservice.controller;
 
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
@@ -79,11 +80,11 @@ public class InternalFileController implements InternalFileControllerDoc {
     public ResponseEntity<CommonResponse<?>> delete(
             @PathVariable UUID mediaId,
             @RequestParam String userKey,
-            @RequestParam List<String> deleteWithUserKeys,
+            @RequestParam Set<String> deleteWithUserKeys,
             @RequestParam UUID messageId
     ) {
         try {
-            userFileService.softDeleteAndMarkForCleanupIfOrphaned(List.of(mediaId.toString()), userKey, deleteWithUserKeys, messageId);
+            userFileService.softDeleteAndMarkForCleanupIfOrphaned(Set.of(mediaId.toString()), userKey, deleteWithUserKeys, messageId);
             return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
         } catch (IllegalArgumentException e) {
             log.error("Error: {}", e.getMessage(), e);

@@ -1,6 +1,6 @@
 package com.algomeet.mediaservice.dto;
 
-import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -16,7 +16,7 @@ public class BatchMediaDeleteRequest {
 	)
 	@NotNull(message = "Media ID list cannot be null")
 	@NotEmpty(message = "At least one media ID must be provided")
-	private List<String> mediaIds;
+	private Set<String> mediaIds;
 	
 	@Schema(
 			description = "List of user keys whose access should be revoked. To permanently remove a file when no access references remain, "
@@ -24,7 +24,7 @@ public class BatchMediaDeleteRequest {
 		)
 	@NotNull(message = "User keys list cannot be null")
 	@NotEmpty(message = "At least one User key must be provided")
-	private List<String> deleteWithUserKeys;
+	private Set<String> deleteWithUserKeys;
 	
 	@Schema(
     	    description = "Required chat message ID associated with the file attachment. Used to track file references and manage attachment lifecycle.",

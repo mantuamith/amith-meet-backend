@@ -214,9 +214,9 @@ class UserFileServiceImplTest {
     void softDelete_removesAclAndMarksForCleanup() {
         UserFileDocument file = ownerFile();
 
-        when(repository.findAllById(List.of(FILE_ID))).thenReturn(List.of(file));
+        when(repository.findAllById(Set.of(FILE_ID))).thenReturn(List.of(file));
 
-        service.softDeleteAndMarkForCleanupIfOrphaned(List.of(FILE_ID), OWNER, null, MESSAGE_ID);
+        service.softDeleteAndMarkForCleanupIfOrphaned(Set.of(FILE_ID), OWNER, Set.of(OWNER), MESSAGE_ID);
 
         assertNotNull(file.getCleanupEligibleAt());
         verify(repository).saveAll(List.of(file));
@@ -226,7 +226,7 @@ class UserFileServiceImplTest {
     void softDelete_shouldContinueProcessingAndRevokeOwnAccess_whenUserCannotDeleteForOthers() {
         UserFileDocument file = ownerFile();
 
-        when(repository.findAllById(List.of(FILE_ID))).thenReturn(List.of(file));
+        when(repository.findAllById(Set.of(FILE_ID))).thenReturn(List.of(file));
         
         // AccessDeniedException is no longer expected.
         // To support batch delete operations, processing should continue even when the
@@ -234,7 +234,7 @@ class UserFileServiceImplTest {
         // the caller's own file access link can still be removed. This ensure that
         // all unused files clean up properly.
         service.softDeleteAndMarkForCleanupIfOrphaned(
-                List.of(FILE_ID), USER, List.of(USER), MESSAGE_ID);
+        		Set.of(FILE_ID), USER, Set.of(USER), MESSAGE_ID);
                 
         verify(fileAccessEntryService).revokeAccess(any(), any(), any());
     }

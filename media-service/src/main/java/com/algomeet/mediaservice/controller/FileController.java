@@ -6,6 +6,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.core.io.InputStreamResource;
@@ -230,11 +231,11 @@ public class FileController implements FileControllerDoc {
     @DeleteMapping("/{mediaId}")
     public ResponseEntity<CommonResponse<?>> delete(
             @PathVariable UUID mediaId,
-            @RequestParam List<String> deleteWithUserKeys,
+            @RequestParam Set<String> deleteWithUserKeys,
             @RequestParam UUID messageId
     ) {
         try {
-            userFileService.softDeleteAndMarkForCleanupIfOrphaned(List.of(mediaId.toString()), SecurityUtil.getUserKey(), deleteWithUserKeys, messageId);
+            userFileService.softDeleteAndMarkForCleanupIfOrphaned(Set.of(mediaId.toString()), SecurityUtil.getUserKey(), deleteWithUserKeys, messageId);
             return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
         } catch (IllegalArgumentException e) {
             log.error("Error: {}", e.getMessage(), e);

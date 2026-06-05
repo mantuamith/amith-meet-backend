@@ -5,6 +5,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -143,9 +144,9 @@ class InternalFileControllerTest {
 
 	@Test
 	void delete_returnsOkOnSuccess() {
-		ResponseEntity<CommonResponse<?>> response = controller.delete(FILE_ID, "user-1", List.of("user-2"), MESSAGE_ID);
+		ResponseEntity<CommonResponse<?>> response = controller.delete(FILE_ID, "user-1", Set.of("user-2"), MESSAGE_ID);
 
-		verify(userFileService).softDeleteAndMarkForCleanupIfOrphaned(List.of(FILE_ID.toString()), "user-1", List.of("user-2"), MESSAGE_ID);
+		verify(userFileService).softDeleteAndMarkForCleanupIfOrphaned(Set.of(FILE_ID.toString()), "user-1", Set.of("user-2"), MESSAGE_ID);
 		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
 		assertThat(response.getBody().getCode()).isEqualTo(ResponseCode.SUCCESS.getCode());
 	}
@@ -153,9 +154,9 @@ class InternalFileControllerTest {
 	@Test
 	void delete_returnsNotFoundWhenMediaMissing() {
 		doThrow(new IllegalArgumentException("missing")).when(userFileService)
-				.softDeleteAndMarkForCleanupIfOrphaned(List.of(FILE_ID.toString()), "user-1", List.of("user-2"), MESSAGE_ID);
+				.softDeleteAndMarkForCleanupIfOrphaned(Set.of(FILE_ID.toString()), "user-1", Set.of("user-2"), MESSAGE_ID);
 
-		ResponseEntity<CommonResponse<?>> response = controller.delete(FILE_ID, "user-1", List.of("user-2"), MESSAGE_ID);
+		ResponseEntity<CommonResponse<?>> response = controller.delete(FILE_ID, "user-1", Set.of("user-2"), MESSAGE_ID);
 
 		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
 		assertThat(response.getBody().getCode()).isEqualTo(ResponseCode.MEDIA_NOT_FOUND.getCode());
@@ -164,7 +165,7 @@ class InternalFileControllerTest {
 	@Test
 	void delete_shouldReturnSuccess_whenUnauthorizedUsersAreSkipped() {
 	    ResponseEntity<CommonResponse<?>> response =
-	            controller.delete(FILE_ID, "user-1", List.of("user-2"), MESSAGE_ID);
+	            controller.delete(FILE_ID, "user-1", Set.of("user-2"), MESSAGE_ID);
 
 	    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
 	    assertThat(response.getBody().getCode())
@@ -174,8 +175,8 @@ class InternalFileControllerTest {
 	@Test
 	void batchDelete_returnsOkOnSuccess() {
 	    BatchMediaDeleteRequest request = new BatchMediaDeleteRequest();
-	    request.setMediaIds(List.of(FILE_ID.toString()));
-	    request.setDeleteWithUserKeys(List.of("user-2"));
+	    request.setMediaIds(Set.of(FILE_ID.toString()));
+	    request.setDeleteWithUserKeys(Set.of("user-2"));
 	    request.setMessageId(MESSAGE_ID);
 
 	    ResponseEntity<CommonResponse<?>> response =
@@ -189,8 +190,8 @@ class InternalFileControllerTest {
 	@Test
 	void batchDelete_returnsNotFoundWhenMediaMissing() {
 	    BatchMediaDeleteRequest request = new BatchMediaDeleteRequest();
-	    request.setMediaIds(List.of(FILE_ID.toString()));
-	    request.setDeleteWithUserKeys(List.of("user-2"));
+	    request.setMediaIds(Set.of(FILE_ID.toString()));
+	    request.setDeleteWithUserKeys(Set.of("user-2"));
 	    request.setMessageId(MESSAGE_ID);
 
 	    doThrow(new IllegalArgumentException("missing"))

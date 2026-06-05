@@ -239,20 +239,13 @@ public class UserFileServiceImpl implements UserFileService {
 
 	@Override
 	public void softDeleteAndMarkForCleanupIfOrphaned(
-	        List<String> fileIds,
+	        Set<String> fileIds,
 	        String userKey,
-	        List<String> deleteWithUserKeys,
+	        Set<String> deleteWithUserKeys,
 	        UUID messageId) {
 
 	    if (CollectionUtils.isEmpty(fileIds)) {
 	        return;
-	    }
-
-	    // Build the set of users whose access should be revoked.
-	    Set<String> targetUserKeys = new HashSet<>();
-
-	    if (!CollectionUtils.isEmpty(deleteWithUserKeys)) {
-	        targetUserKeys.addAll(deleteWithUserKeys);
 	    }
 
 	    // Batch load all files to avoid N+1 database queries.
@@ -274,7 +267,7 @@ public class UserFileServiceImpl implements UserFileService {
 	        // orphaned files can be cleaned up.
 	        boolean canDeleteForOthers = hasPermission(file, userKey, FilePermission.DELETE);
 
-	        for (String targetUserKey : targetUserKeys) {
+	        for (String targetUserKey : deleteWithUserKeys) {
 	            boolean deletingOtherUser =
 	                    userKey != null && !userKey.equals(targetUserKey);
 
@@ -296,7 +289,7 @@ public class UserFileServiceImpl implements UserFileService {
 	            // New logic has safety net using messageId, that's why it must be executed first.
 	            if(!revoked) {
 	            	if(!CollectionUtils.isEmpty(file.getAccessControlList())) {
-	            		softDeleteAndMarkForCleanupIfOrphanedAcl(file, userKey, List.of(targetUserId.toString()));
+	            		softDeleteAndMarkForCleanupIfOrphanedAcl(file, userKey, Set.of(targetUserId.toString()));
 	            	}
 	            }
 	        }
@@ -335,7 +328,7 @@ public class UserFileServiceImpl implements UserFileService {
 	}
 	
 	@Deprecated
-	public void softDeleteAndMarkForCleanupIfOrphanedAcl(UserFileDocument file, String userKey, List<String> deleteWithUserKeys) {
+	public void softDeleteAndMarkForCleanupIfOrphanedAcl(UserFileDocument file, String userKey, Set<String> deleteWithUserKeys) {
 		if (!hasPermissionAcl(file, userKey, FilePermission.DELETE)) {
 			return;
 		}
