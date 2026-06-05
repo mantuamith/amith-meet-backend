@@ -1,7 +1,8 @@
 package com.algomeet.mediaservice.document;
 
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import java.time.Instant;
+import java.util.List;
+
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.CompoundIndexes;
@@ -9,18 +10,38 @@ import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
 
-import java.time.Instant;
-import java.util.List;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
 @Data
 @NoArgsConstructor
 @Document(collection = "user-files")
 @CompoundIndexes({
-    @CompoundIndex(
-        name = "idx_acl_userKey",
-        def = "{ 'access_control_list.userKey': 1 }"
-    )
+	 @CompoundIndex(
+		        name = "idx_acl_userKey",
+		        def = "{ 'access_control_list.userKey': 1 }"
+		    ),
+	 
+	// For looking up an owner's files sorted by creation date (Dashboard/File Manager view)
+	@CompoundIndex(
+			name = "idx_owner_dateCreated", 
+			def = "{ 'owner': 1, 'dateCreated': -1 }"
+			),
+
+	// Optimized partial index for background retention/cleanup workers
+	@CompoundIndex(
+			name = "idx_cleanup_partial", 
+			def = "{ 'cleanupEligibleAt': 1, 'storage': 1 }",
+			partialFilter = "{ 'cleanupEligibleAt': { $exists: true } }"
+			),
+
+	// For identifying storage system distributions and tracking file space metrics
+	@CompoundIndex(
+			name = "idx_owner_storage_size", 
+			def = "{ 'owner': 1, 'storage': 1, 'size': 1 }"
+			)
 })
+
 public class UserFileDocument {
 
     @Id
@@ -61,6 +82,7 @@ public class UserFileDocument {
     /**
      * Access Control List
      */
+    @Deprecated
     @Field("access_control_list")
     private List<FileAccessEntry> accessControlList;
     

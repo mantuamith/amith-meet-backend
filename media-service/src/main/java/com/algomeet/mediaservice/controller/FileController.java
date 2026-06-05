@@ -6,6 +6,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.UUID;
 
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.http.HttpHeaders;
@@ -17,6 +19,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
@@ -28,6 +31,8 @@ import com.algomeet.mediaservice.config.StorageProperties;
 import com.algomeet.mediaservice.controller.swagger.FileControllerDoc;
 import com.algomeet.mediaservice.document.FilePermission;
 import com.algomeet.mediaservice.document.UserFileDocument;
+import com.algomeet.mediaservice.dto.BatchMediaDeleteRequest;
+import com.algomeet.mediaservice.dto.BatchMediaShareRequest;
 import com.algomeet.mediaservice.dto.CommonResponse;
 import com.algomeet.mediaservice.dto.MediaUploadResponse;
 import com.algomeet.mediaservice.enums.ResponseCode;
@@ -41,6 +46,7 @@ import com.algomeet.mediaservice.service.UserFileService;
 import com.algomeet.mediaservice.util.FileValidator;
 import com.algomeet.mediaservice.util.SecurityUtil;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -76,7 +82,7 @@ public class FileController implements FileControllerDoc {
         try {
             fileValidator.validate(file, encrypted != null && encrypted);
         } catch (FileTypeNotSupportedException ex) {
-            log.error("File type not supported: {}", ex.getMessage());
+            log.error("File type not supported: {}", ex.getMessage(), ex);
             return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE)
                     .body(CommonResponse.from(ResponseCode.MEDIA_FILE_TYPE_NOT_SUPPORTED));
         }
@@ -111,7 +117,7 @@ public class FileController implements FileControllerDoc {
                         conversationId, uploadContext);
                 results.add(resp);
             } catch (FileTypeNotSupportedException ex) {
-                log.warn("Batch item rejected (unsupported type): {}", file.getOriginalFilename());
+                log.warn("Batch item rejected (unsupported type): {}", file.getOriginalFilename(), ex);
                 failures.add(file.getOriginalFilename());
             } catch (Exception ex) {
                 log.error("Batch item failed: {}", file.getOriginalFilename(), ex);
@@ -136,13 +142,13 @@ public class FileController implements FileControllerDoc {
     // ========================= GET/READ =========================
 
     @GetMapping("/{mediaId}")
-    public ResponseEntity<?> getMedia(@PathVariable String mediaId) {
+    public ResponseEntity<?> getMedia(@PathVariable UUID mediaId) {
         try {
-            UserFileDocument fileDoc = userFileService.getFile(mediaId, SecurityUtil.getUserKey(), FilePermission.READ);
+            UserFileDocument fileDoc = userFileService.getFile(mediaId.toString(), SecurityUtil.getUserKey(), FilePermission.READ);
 
             return switch (Storage.valueOf(fileDoc.getStorage())) {
                 case LOCAL -> {
-                    Path filePath = mediaServiceLocal.read(SecurityUtil.getUserKey(), mediaId);
+                    Path filePath = mediaServiceLocal.read(SecurityUtil.getUserKey(), mediaId.toString());
                     String ct = Files.probeContentType(filePath);
                     if (ct == null) ct = MediaType.APPLICATION_OCTET_STREAM_VALUE;
 
@@ -154,18 +160,18 @@ public class FileController implements FileControllerDoc {
                             .body(resource);
                 }
                 case S3 -> {
-                    String presignedUrl = mediaServiceS3.getReadUrl(SecurityUtil.getUserKey(), mediaId);
+                    String presignedUrl = mediaServiceS3.getReadUrl(SecurityUtil.getUserKey(), mediaId.toString());
                     yield ResponseEntity.status(HttpStatus.FOUND).location(URI.create(presignedUrl)).build();
                 }
                 case OSS -> {
-                    String presignedUrl = mediaServiceOss.getReadUrl(SecurityUtil.getUserKey(), mediaId);
+                    String presignedUrl = mediaServiceOss.getReadUrl(SecurityUtil.getUserKey(), mediaId.toString());
                     yield ResponseEntity.status(HttpStatus.FOUND).location(URI.create(presignedUrl)).build();
                 }
                 default -> throw new IllegalArgumentException("Unexpected storage value: " + fileDoc.getStorage());
             };
 
         } catch (IOException e) {
-            log.error("Error reading media {}: {}", mediaId, e.getMessage());
+            log.error("Error reading media {}: {}", mediaId, e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
         }
     }
@@ -174,15 +180,15 @@ public class FileController implements FileControllerDoc {
 
     @GetMapping("/{mediaId}/thumbnail")
     public ResponseEntity<?> getThumbnail(
-            @PathVariable String mediaId,
+            @PathVariable UUID mediaId,
             @RequestParam(required = false, defaultValue = "320") int maxWidth
     ) {
         try {
-            UserFileDocument fileDoc = userFileService.getFile(mediaId, SecurityUtil.getUserKey(), FilePermission.READ);
+            UserFileDocument fileDoc = userFileService.getFile(mediaId.toString(), SecurityUtil.getUserKey(), FilePermission.READ);
             Storage storage = Storage.valueOf(fileDoc.getStorage());
 
             if (storage == Storage.LOCAL) {
-                Path thumbPath = mediaServiceLocal.thumbnail(SecurityUtil.getUserKey(), mediaId, maxWidth);
+                Path thumbPath = mediaServiceLocal.thumbnail(SecurityUtil.getUserKey(), mediaId.toString(), maxWidth);
                 if (thumbPath == null) {
                     return ResponseEntity.status(HttpStatus.NOT_FOUND)
                             .body(CommonResponse.from(ResponseCode.MEDIA_THUMBNAIL_NOT_AVAILABLE));
@@ -195,16 +201,16 @@ public class FileController implements FileControllerDoc {
                 return ResponseEntity.ok()
                         .contentType(MediaType.parseMediaType(ct))
                         .contentLength(Files.size(thumbPath))
-                        .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"thumb_" + mediaId + "\"")
+                        .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"thumb_" + mediaId.toString() + "\"")
                         .body(resource);
 
             } else if (storage == Storage.S3) {
                 // For S3/OSS, redirect to the full-size URL — CDN/client handles resizing
-                String presignedUrl = mediaServiceS3.getReadUrl(SecurityUtil.getUserKey(), mediaId);
+                String presignedUrl = mediaServiceS3.getReadUrl(SecurityUtil.getUserKey(), mediaId.toString());
                 return ResponseEntity.status(HttpStatus.FOUND).location(URI.create(presignedUrl)).build();
 
             } else {
-                String presignedUrl = mediaServiceOss.getReadUrl(SecurityUtil.getUserKey(), mediaId);
+                String presignedUrl = mediaServiceOss.getReadUrl(SecurityUtil.getUserKey(), mediaId.toString());
                 return ResponseEntity.status(HttpStatus.FOUND).location(URI.create(presignedUrl)).build();
             }
 
@@ -215,7 +221,7 @@ public class FileController implements FileControllerDoc {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(CommonResponse.from(ResponseCode.MEDIA_NOT_FOUND));
         } catch (IOException e) {
-            log.error("Error generating thumbnail for {}: {}", mediaId, e.getMessage());
+            log.error("Error generating thumbnail for {}: {}", mediaId, e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
         }
     }
@@ -224,40 +230,70 @@ public class FileController implements FileControllerDoc {
 
     @DeleteMapping("/{mediaId}")
     public ResponseEntity<CommonResponse<?>> delete(
-            @PathVariable String mediaId,
-            @RequestParam(required = false) List<String> deleteWithUserKeys
+            @PathVariable UUID mediaId,
+            @RequestParam Set<String> deleteWithUserKeys,
+            @RequestParam UUID messageId
     ) {
         try {
-            userFileService.softDeleteAndMarkForCleanupIfOrphaned(mediaId, SecurityUtil.getUserKey(), deleteWithUserKeys);
+            userFileService.softDeleteAndMarkForCleanupIfOrphaned(Set.of(mediaId.toString()), SecurityUtil.getUserKey(), deleteWithUserKeys, messageId);
             return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
         } catch (IllegalArgumentException e) {
-            log.error("Error: {}", e.getMessage());
+            log.error("Error: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.MEDIA_NOT_FOUND));
-        } catch (AccessDeniedException e) {
-            log.error("Error: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(CommonResponse.from(ResponseCode.MEDIA_ACCESS_DENIED));
-        }
+        } 
+    }
+    
+    @DeleteMapping
+    public ResponseEntity<CommonResponse<?>> batchDelete(
+            @RequestBody @Valid BatchMediaDeleteRequest request
+    ) {
+        try {
+            userFileService.softDeleteAndMarkForCleanupIfOrphaned(request.getMediaIds(), 
+            		SecurityUtil.getUserKey(), request.getDeleteWithUserKeys(), request.getMessageId());
+            
+            return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
+        } catch (IllegalArgumentException e) {
+            log.error("Error: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.MEDIA_NOT_FOUND));
+        } 
     }
 
     // ========================= SHARE =========================
-
+    
     @PostMapping("/{mediaId}/share")
     public ResponseEntity<?> share(
-            @PathVariable String mediaId,
-            @RequestParam List<String> shareWithUserKeys
+            @PathVariable UUID mediaId,
+            @RequestParam List<String> shareWithUserKeys,
+            @RequestParam UUID messageId
     ) {
         try {
-            userFileService.shareFile(mediaId, SecurityUtil.getUserKey(), shareWithUserKeys);
+            userFileService.shareFile(Set.of(mediaId.toString()), SecurityUtil.getUserKey(), shareWithUserKeys, messageId);
             return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
         } catch (IllegalArgumentException e) {
-            log.error("Error: {}", e.getMessage());
+            log.error("Error: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.MEDIA_NOT_FOUND));
         } catch (AccessDeniedException e) {
-            log.error("Error: {}", e.getMessage());
+            log.error("Error: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(CommonResponse.from(ResponseCode.MEDIA_ACCESS_DENIED));
         }
     }
-
+    
+    @PostMapping("/share")
+    public ResponseEntity<?> batchShare(
+            @RequestBody @Valid BatchMediaShareRequest request
+    ) {
+        try {
+            userFileService.shareFile(request.getMediaIds(), SecurityUtil.getUserKey(), request.getShareWithUserKeys(), request.getMessageId());
+            return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
+        } catch (IllegalArgumentException e) {
+            log.error("Error: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.MEDIA_NOT_FOUND));
+        } catch (AccessDeniedException e) {
+            log.error("Error: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(CommonResponse.from(ResponseCode.MEDIA_ACCESS_DENIED));
+        }
+    }
+        
     // ========================= helpers =========================
 
     private MediaUploadResponse doUpload(String userKey, MultipartFile file, String contentType,
@@ -273,5 +309,5 @@ public class FileController implements FileControllerDoc {
             case S3    -> mediaServiceS3.upload(userKey, file, contentType, encrypted, autoExpire, conversationId, uploadContext);
             case OSS   -> mediaServiceOss.upload(userKey, file, contentType, encrypted, autoExpire, conversationId, uploadContext);
         };
-    }
+    }   
 }

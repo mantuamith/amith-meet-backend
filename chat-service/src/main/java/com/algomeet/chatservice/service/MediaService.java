@@ -4,12 +4,14 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
+import org.springframework.web.bind.annotation.RequestParam;
 
 import com.algomeet.chatservice.client.GroupClient;
 import com.algomeet.chatservice.client.MediaClient;
@@ -31,13 +33,13 @@ public class MediaService {
 	@Value("${mediaservice.support:true}")
 	private boolean mediaServiceSupport;
 
-	private void share(String mediaId, String userKey, List<String> shareWithUserKeys) {
+	private void share(String mediaId, String userKey, List<String> shareWithUserKeys, UUID messageId) {
 		if (!StringUtils.hasText(mediaId)) {
 			throw new RuntimeException("Media ID has empty value " + mediaId);
 		}
 
 		try {
-			mediaClient.share(mediaId, userKey, shareWithUserKeys);
+			mediaClient.share(mediaId, userKey, shareWithUserKeys, messageId);
 		} catch (FeignException.NotFound ex) {
 			log.error("Media {} not found while sharing", mediaId, ex);
 			throw new RuntimeException(mediaId);
@@ -53,13 +55,13 @@ public class MediaService {
 		}
 	}
 
-	private void delete(String mediaId, String userKey, List<String> deleteWithUserKeys) {
+	private void delete(String mediaId, String userKey, List<String> deleteWithUserKeys, UUID messageId) {
 		if (!StringUtils.hasText(mediaId)) {
 			throw new RuntimeException("Media ID has empty value " + mediaId);
 		}
 
 		try {
-			mediaClient.delete(mediaId, userKey, deleteWithUserKeys);
+			mediaClient.delete(mediaId, userKey, deleteWithUserKeys, messageId);
 		} catch (FeignException.NotFound ex) {
 			log.error("Media {} not found while deleting", mediaId, ex);
 			throw new RuntimeException(mediaId);
@@ -99,7 +101,7 @@ public class MediaService {
 
 		// Delete
 		for (MediaItem item : message.getMediaGroup()) {
-			share(item.getMediaId(), message.getSenderKey(), new ArrayList<>(shareWithUserKeys));
+			share(item.getMediaId(), message.getSenderKey(), new ArrayList<>(shareWithUserKeys), UUID.fromString(message.getId()));
 		}
 	}
 
@@ -112,7 +114,7 @@ public class MediaService {
 		}
 		
 		for (MediaItem item : message.getMediaGroup()) {
-			delete(item.getMediaId(), requesterKey, List.of(requesterKey));
+			delete(item.getMediaId(), requesterKey, List.of(requesterKey), UUID.fromString(message.getId()));
 		}
 	}
 
@@ -136,7 +138,7 @@ public class MediaService {
 
 		// Delete
 		for (MediaItem item : message.getMediaGroup()) {
-			delete(item.getMediaId(), requesterKey, new ArrayList<>(deleteWithUserKeys));
+			delete(item.getMediaId(), requesterKey, new ArrayList<>(deleteWithUserKeys), UUID.fromString(message.getId()));
 		}		
 	}
 }

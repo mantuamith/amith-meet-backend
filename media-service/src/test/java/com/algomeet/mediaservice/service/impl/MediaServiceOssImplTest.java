@@ -118,7 +118,6 @@ class MediaServiceOssImplTest {
         assertEquals(file.getSize(), saved.getSize());
         assertEquals("OSS", saved.getStorage());
         assertFalse(saved.isEncrypted());
-        assertEquals(null, saved.getAccessControlList());
         assertEquals(true, saved.getCleanupEligibleAt() != null);
     }
 
