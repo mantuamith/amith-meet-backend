@@ -27,6 +27,9 @@ public class MediaUploadResponse {
     @Schema(description = "Relative URL to access the file via GET /media/{mediaId}", example = "/media/3fa85f64-5717-4562-b3fc-2c963f66afa6")
     private String url;
 
+    @Schema(description = "URL or relative path to the thumbnail. Relative for LOCAL storage, presigned URL for S3/OSS.", nullable = true)
+    private String thumbnailUrl;
+
     // ── Media metadata ─────────────────────────────────────────────────────────
 
     @Schema(description = "Image width in pixels (images only; null for video/audio/documents)", example = "1920")

@@ -115,6 +115,8 @@ public class FileController implements FileControllerDoc {
                 MediaUploadResponse resp = doUpload(SecurityUtil.getUserKey(), file, null,
                         encrypted != null && encrypted, autoExpire != null && autoExpire,
                         conversationId, uploadContext);
+                UserFileDocument fileDoc = userFileService.getFile(resp.getMediaId(), SecurityUtil.getUserKey(), FilePermission.READ);
+                resp.setThumbnailUrl(resolveThumbnailUrl(fileDoc, resp.getMediaId()));
                 results.add(resp);
             } catch (FileTypeNotSupportedException ex) {
                 log.warn("Batch item rejected (unsupported type): {}", file.getOriginalFilename(), ex);
@@ -214,6 +216,9 @@ public class FileController implements FileControllerDoc {
                 return ResponseEntity.status(HttpStatus.FOUND).location(URI.create(presignedUrl)).build();
             }
 
+            String presignedUrl = resolveThumbnailUrl(fileDoc, mediaId);
+            return ResponseEntity.status(HttpStatus.FOUND).location(URI.create(presignedUrl)).build();
+
         } catch (AccessDeniedException e) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(CommonResponse.from(ResponseCode.MEDIA_ACCESS_DENIED));
@@ -295,6 +300,14 @@ public class FileController implements FileControllerDoc {
     }
         
     // ========================= helpers =========================
+
+    private String resolveThumbnailUrl(UserFileDocument fileDoc, String mediaId) {
+        return switch (Storage.valueOf(fileDoc.getStorage())) {
+            case LOCAL -> "/media/" + mediaId + "/thumbnail";
+            case S3    -> mediaServiceS3.getReadUrl(SecurityUtil.getUserKey(), mediaId);
+            case OSS   -> mediaServiceOss.getReadUrl(SecurityUtil.getUserKey(), mediaId);
+        };
+    }
 
     private MediaUploadResponse doUpload(String userKey, MultipartFile file, String contentType,
                                           boolean encrypted, boolean autoExpire,
