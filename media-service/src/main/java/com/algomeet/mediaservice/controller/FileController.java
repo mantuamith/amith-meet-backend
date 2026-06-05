@@ -230,7 +230,7 @@ public class FileController implements FileControllerDoc {
     @DeleteMapping("/{mediaId}/access")
     public ResponseEntity<CommonResponse<?>> delete(
             @PathVariable UUID mediaId,
-            @RequestParam(required = false) List<String> deleteWithUserKeys,
+            @RequestParam List<String> deleteWithUserKeys,
             @RequestParam UUID messageId
     ) {
         try {

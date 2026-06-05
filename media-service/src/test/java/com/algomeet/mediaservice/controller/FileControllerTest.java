@@ -192,7 +192,7 @@ class FileControllerTest {
 		doc.setStorage(Storage.LOCAL.name());
 
 		when(userFileService.getFile(any(), any(), any())).thenReturn(doc);
-		mockMvc.perform(delete("/media/" + MEDIA_ID1 + "/access").param("messageId", MESSAGE_ID.toString())).andExpect(status().isOk())
+		mockMvc.perform(delete("/media/" + MEDIA_ID1 + "/access").param("messageId", MESSAGE_ID.toString()).param("deleteWithUserKeys", "u1", "u2")).andExpect(status().isOk())
 				.andExpect(jsonPath("$.code").value("SUCCESS"));
 
 		verify(userFileService).softDeleteAndMarkForCleanupIfOrphaned(any(), any(), any(), any());

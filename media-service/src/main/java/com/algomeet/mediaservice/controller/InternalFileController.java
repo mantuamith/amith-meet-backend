@@ -79,7 +79,7 @@ public class InternalFileController implements InternalFileControllerDoc {
     public ResponseEntity<CommonResponse<?>> delete(
             @PathVariable UUID mediaId,
             @RequestParam String userKey,
-            @RequestParam(required = false) List<String> deleteWithUserKeys,
+            @RequestParam List<String> deleteWithUserKeys,
             @RequestParam UUID messageId
     ) {
         try {

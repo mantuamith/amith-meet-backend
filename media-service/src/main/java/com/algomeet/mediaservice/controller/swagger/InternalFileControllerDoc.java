@@ -87,8 +87,8 @@ public interface InternalFileControllerDoc {
             @Parameter(description = "User key of the caller", required = true)
             @RequestParam String userKey,
 
-            @Parameter(description = "Additional user keys whose access should also be revoked")
-            @RequestParam(required = false)
+            @Parameter(description = "Add owner's and additional user keys whose access should also be revoked")
+            @RequestParam(required = true)
             List<String> deleteWithUserKeys,
             
             @Parameter(description = "Chat message ID associated with the file attachment. Used to track file references and manage attachment lifecycle.", required = true)
