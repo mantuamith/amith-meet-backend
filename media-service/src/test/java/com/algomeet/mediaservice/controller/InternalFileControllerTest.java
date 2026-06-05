@@ -78,7 +78,7 @@ class InternalFileControllerTest {
 	void delete_returnsOkOnSuccess() {
 		ResponseEntity<CommonResponse<?>> response = controller.delete("media-1", "user-1", List.of("user-2"), MESSAGE_ID);
 
-		verify(userFileService).softDeleteAndMarkForCleanupIfOrphaned("media-1", "user-1", List.of("user-2"), MESSAGE_ID);
+		verify(userFileService).softDeleteAndMarkForCleanupIfOrphaned(List.of("media-1"), "user-1", List.of("user-2"), MESSAGE_ID);
 		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
 		assertThat(response.getBody().getCode()).isEqualTo(ResponseCode.SUCCESS.getCode());
 	}
@@ -86,7 +86,7 @@ class InternalFileControllerTest {
 	@Test
 	void delete_returnsNotFoundWhenMediaMissing() {
 		doThrow(new IllegalArgumentException("missing")).when(userFileService)
-				.softDeleteAndMarkForCleanupIfOrphaned("media-1", "user-1", List.of("user-2"), MESSAGE_ID);
+				.softDeleteAndMarkForCleanupIfOrphaned(List.of("media-1"), "user-1", List.of("user-2"), MESSAGE_ID);
 
 		ResponseEntity<CommonResponse<?>> response = controller.delete("media-1", "user-1", List.of("user-2"), MESSAGE_ID);
 
@@ -97,7 +97,7 @@ class InternalFileControllerTest {
 	@Test
 	void delete_returnsForbiddenWhenAccessDenied() {
 		doThrow(new AccessDeniedException("denied")).when(userFileService)
-				.softDeleteAndMarkForCleanupIfOrphaned("media-1", "user-1", List.of("user-2"), MESSAGE_ID);
+				.softDeleteAndMarkForCleanupIfOrphaned(List.of("media-1"), "user-1", List.of("user-2"), MESSAGE_ID);
 
 		ResponseEntity<CommonResponse<?>> response = controller.delete("media-1", "user-1", List.of("user-2"), MESSAGE_ID);
 
