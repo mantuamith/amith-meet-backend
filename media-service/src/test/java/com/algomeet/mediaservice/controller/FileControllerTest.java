@@ -1,33 +1,26 @@
 package com.algomeet.mediaservice.controller;
 
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
-
-import com.algomeet.mediaservice.config.LocalizationConfig;
-import com.algomeet.mediaservice.config.StorageProperties;
-import com.algomeet.mediaservice.document.FilePermission;
-import com.algomeet.mediaservice.document.UserFileDocument;
-import com.algomeet.mediaservice.dto.MediaUploadResponse;
-import com.algomeet.mediaservice.enums.Storage;
-import com.algomeet.mediaservice.exceptions.FileTypeNotSupportedException;
-import com.algomeet.mediaservice.repository.UserFileRepository;
-import com.algomeet.mediaservice.service.MediaServiceLocal;
-import com.algomeet.mediaservice.service.MediaServiceOss;
-import com.algomeet.mediaservice.service.MediaServiceS3;
-import com.algomeet.mediaservice.service.UserFileService;
-import com.algomeet.mediaservice.service.impl.UserStorageUsageService;
-import com.algomeet.mediaservice.util.FileValidator;
-import com.algomeet.mediaservice.util.MessageUtil;
-import com.algomeet.mediaservice.util.SecurityUtil;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -49,6 +42,23 @@ import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.web.servlet.MockMvc;
+
+import com.algomeet.mediaservice.config.LocalizationConfig;
+import com.algomeet.mediaservice.config.StorageProperties;
+import com.algomeet.mediaservice.document.FilePermission;
+import com.algomeet.mediaservice.document.UserFileDocument;
+import com.algomeet.mediaservice.dto.MediaUploadResponse;
+import com.algomeet.mediaservice.enums.Storage;
+import com.algomeet.mediaservice.exceptions.FileTypeNotSupportedException;
+import com.algomeet.mediaservice.repository.UserFileRepository;
+import com.algomeet.mediaservice.service.MediaServiceLocal;
+import com.algomeet.mediaservice.service.MediaServiceOss;
+import com.algomeet.mediaservice.service.MediaServiceS3;
+import com.algomeet.mediaservice.service.UserFileService;
+import com.algomeet.mediaservice.service.impl.UserStorageUsageService;
+import com.algomeet.mediaservice.util.FileValidator;
+import com.algomeet.mediaservice.util.MessageUtil;
+import com.algomeet.mediaservice.util.SecurityUtil;
 
 @WebMvcTest(controllers = FileController.class, excludeFilters = {
 		@ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE, classes = {}) })
