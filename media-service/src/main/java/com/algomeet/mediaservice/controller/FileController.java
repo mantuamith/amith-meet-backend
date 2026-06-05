@@ -216,9 +216,6 @@ public class FileController implements FileControllerDoc {
                 return ResponseEntity.status(HttpStatus.FOUND).location(URI.create(presignedUrl)).build();
             }
 
-            String presignedUrl = resolveThumbnailUrl(fileDoc, mediaId);
-            return ResponseEntity.status(HttpStatus.FOUND).location(URI.create(presignedUrl)).build();
-
         } catch (AccessDeniedException e) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(CommonResponse.from(ResponseCode.MEDIA_ACCESS_DENIED));
