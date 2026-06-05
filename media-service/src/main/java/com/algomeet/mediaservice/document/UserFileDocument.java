@@ -1,6 +1,7 @@
 package com.algomeet.mediaservice.document;
 
 import java.time.Instant;
+import java.util.List;
 
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.index.CompoundIndex;
@@ -16,20 +17,25 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @Document(collection = "user-files")
 @CompoundIndexes({
-	// 1. For looking up an owner's files sorted by creation date (Dashboard/File Manager view)
+	 @CompoundIndex(
+		        name = "idx_acl_userKey",
+		        def = "{ 'access_control_list.userKey': 1 }"
+		    ),
+	 
+	// For looking up an owner's files sorted by creation date (Dashboard/File Manager view)
 	@CompoundIndex(
 			name = "idx_owner_dateCreated", 
 			def = "{ 'owner': 1, 'dateCreated': -1 }"
 			),
 
-	// 2. Optimized partial index for background retention/cleanup workers
+	// Optimized partial index for background retention/cleanup workers
 	@CompoundIndex(
 			name = "idx_cleanup_partial", 
 			def = "{ 'cleanupEligibleAt': 1, 'storage': 1 }",
 			partialFilter = "{ 'cleanupEligibleAt': { $exists: true } }"
 			),
 
-	// 3. For identifying storage system distributions and tracking file space metrics
+	// For identifying storage system distributions and tracking file space metrics
 	@CompoundIndex(
 			name = "idx_owner_storage_size", 
 			def = "{ 'owner': 1, 'storage': 1, 'size': 1 }"
@@ -72,6 +78,13 @@ public class UserFileDocument {
     @Indexed
     @Field("owner")
     private String owner;
+
+    /**
+     * Access Control List
+     */
+    @Deprecated
+    @Field("access_control_list")
+    private List<FileAccessEntry> accessControlList;
     
     @Field("storage")
     private String storage;

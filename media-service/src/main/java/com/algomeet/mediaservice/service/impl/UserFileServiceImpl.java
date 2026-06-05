@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -15,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
 
+import com.algomeet.mediaservice.document.FileAccessEntry;
 import com.algomeet.mediaservice.document.FileAccessEntryDocument;
 import com.algomeet.mediaservice.document.FilePermission;
 import com.algomeet.mediaservice.document.UserFileDocument;
@@ -109,9 +111,29 @@ public class UserFileServiceImpl implements UserFileService {
 	        return true;
 	    }
 
+	    // Backward compatibility
+	    if (!CollectionUtils.isEmpty(file.getAccessControlList())) {
+	    	if(hasPermissionAcl(file, userKey, permission)) {
+	    		return true;
+	    	}
+	    }
+	    
 	    // 4. Fallback to Access Control Matrix (MongoDB) for shared users
 		Set<FilePermission> permissions = fileAccessEntryService.getPermissions(UUID.fromString(userKey), UUID.fromString(file.getId()));
 		return permissions.contains(permission);
+	}
+	
+	@Deprecated
+	public boolean hasPermissionAcl(UserFileDocument file, String userKey, FilePermission permission) {
+		// Null-safe check for the ACL list
+	    if (file.getAccessControlList() == null) {
+	        return false;
+	    }
+
+	    // Optimized, null-safe Stream
+	    return file.getAccessControlList().stream()
+	            .filter(entry -> entry != null && userKey.equals(entry.getUserKey()))
+	            .anyMatch(entry -> entry.getPermissions() != null && entry.getPermissions().contains(permission));
 	}
 
 	@Override	
@@ -241,7 +263,8 @@ public class UserFileServiceImpl implements UserFileService {
 	    }
 
 	    List<UserFileDocument> modifiedFiles = new ArrayList<>();
-	    for (UserFileDocument file : files) {
+	    for (UserFileDocument file : files) {  	    		   	
+	    	
 	        UUID fileId = UUID.fromString(file.getId());
 
 	        // DELETE permission allows revoking access for any user; otherwise,
@@ -266,12 +289,23 @@ public class UserFileServiceImpl implements UserFileService {
 
 	            if (revoked) {
 	                adjustUserStorageUsage(targetUserId, file);
+	            }	            	
+	            
+	            
+	            // Support backward compatibility
+	            // New logic has safety net using messageId, that's why it must be executed first.
+	            if(!revoked) {
+	            	if(!CollectionUtils.isEmpty(file.getAccessControlList())) {
+	            		softDeleteAndMarkForCleanupIfOrphanedAcl(file, userKey, List.of(targetUserId.toString()));
+	            	}
 	            }
 	        }
 
 	        // Mark the file for cleanup once all access references have been removed.
 	        // Actual deletion is handled by the cleanup process.
-	        if (canDeleteForOthers && fileAccessEntryService.countByFileId(fileId) == 0) {
+	        if (canDeleteForOthers && fileAccessEntryService.countByFileId(fileId) == 0
+	        		// Backward compatibility
+	        		&& CollectionUtils.isEmpty(file.getAccessControlList())) {
 	            file.setCleanupEligibleAt(Instant.now());
 	            modifiedFiles.add(file);
 	        }
@@ -298,5 +332,47 @@ public class UserFileServiceImpl implements UserFileService {
 	    }
 
 	    userStorageUsageService.adjustUsage(userId, request);
+	}
+	
+	@Deprecated
+	public void softDeleteAndMarkForCleanupIfOrphanedAcl(UserFileDocument file, String userKey, List<String> deleteWithUserKeys) {
+		if (!hasPermissionAcl(file, userKey, FilePermission.DELETE)) {
+			return;
+		}
+        
+		for (String uKey : deleteWithUserKeys) {
+			Iterator<FileAccessEntry> itAccControl = file.getAccessControlList().iterator();
+
+			while (itAccControl.hasNext()) {
+				FileAccessEntry accControl = itAccControl.next();
+				if (uKey.equalsIgnoreCase(accControl.getUserKey())) {
+					accControl.setRefCount((accControl.getRefCount() - 1));
+				}
+
+				if (accControl.getRefCount() <= 0) {
+					itAccControl.remove();
+
+					// Debit the correct quota bucket — must mirror the bucket used at upload time.
+					// Files uploaded with uploadContext=CHAT were credited to chatStorageUsed;
+					// everything else goes to mediaStorageUsed.
+					StorageUsageAdjustmentRequest storageUsageAdjustment = new StorageUsageAdjustmentRequest();
+					if (UploadContext.CHAT.name().equals(file.getUploadContext())) {
+						storageUsageAdjustment.setChatStorageBytesDelta(-file.getSize());
+						storageUsageAdjustment.setChatMessageCountDelta(-1L);
+					} else {
+						storageUsageAdjustment.setMediaStorageBytesDelta(-file.getSize());
+						storageUsageAdjustment.setMediaFileCountDelta(-1L);
+					}
+					userStorageUsageService.adjustUsage(UUID.fromString(uKey), storageUsageAdjustment);
+				}
+			}
+		}
+		
+		if (CollectionUtils.isEmpty(file.getAccessControlList())) {
+			// set eligible for batch job clean up
+			file.setCleanupEligibleAt(Instant.now());
+		}
+
+		repository.save(file);
 	}
 }

@@ -81,7 +81,7 @@ public class FileController implements FileControllerDoc {
         try {
             fileValidator.validate(file, encrypted != null && encrypted);
         } catch (FileTypeNotSupportedException ex) {
-            log.error("File type not supported: {}", ex.getMessage());
+            log.error("File type not supported: {}", ex.getMessage(), ex);
             return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE)
                     .body(CommonResponse.from(ResponseCode.MEDIA_FILE_TYPE_NOT_SUPPORTED));
         }
@@ -116,7 +116,7 @@ public class FileController implements FileControllerDoc {
                         conversationId, uploadContext);
                 results.add(resp);
             } catch (FileTypeNotSupportedException ex) {
-                log.warn("Batch item rejected (unsupported type): {}", file.getOriginalFilename());
+                log.warn("Batch item rejected (unsupported type): {}", file.getOriginalFilename(), ex);
                 failures.add(file.getOriginalFilename());
             } catch (Exception ex) {
                 log.error("Batch item failed: {}", file.getOriginalFilename(), ex);
@@ -170,7 +170,7 @@ public class FileController implements FileControllerDoc {
             };
 
         } catch (IOException e) {
-            log.error("Error reading media {}: {}", mediaId, e.getMessage());
+            log.error("Error reading media {}: {}", mediaId, e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
         }
     }
@@ -220,7 +220,7 @@ public class FileController implements FileControllerDoc {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(CommonResponse.from(ResponseCode.MEDIA_NOT_FOUND));
         } catch (IOException e) {
-            log.error("Error generating thumbnail for {}: {}", mediaId, e.getMessage());
+            log.error("Error generating thumbnail for {}: {}", mediaId, e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
         }
     }
@@ -237,7 +237,7 @@ public class FileController implements FileControllerDoc {
             userFileService.softDeleteAndMarkForCleanupIfOrphaned(List.of(mediaId.toString()), SecurityUtil.getUserKey(), deleteWithUserKeys, messageId);
             return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
         } catch (IllegalArgumentException e) {
-            log.error("Error: {}", e.getMessage());
+            log.error("Error: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.MEDIA_NOT_FOUND));
         } 
     }
@@ -252,7 +252,7 @@ public class FileController implements FileControllerDoc {
             
             return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
         } catch (IllegalArgumentException e) {
-            log.error("Error: {}", e.getMessage());
+            log.error("Error: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.MEDIA_NOT_FOUND));
         } 
     }
@@ -269,10 +269,10 @@ public class FileController implements FileControllerDoc {
             userFileService.shareFile(List.of(mediaId.toString()), SecurityUtil.getUserKey(), shareWithUserKeys, messageId);
             return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
         } catch (IllegalArgumentException e) {
-            log.error("Error: {}", e.getMessage());
+            log.error("Error: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.MEDIA_NOT_FOUND));
         } catch (AccessDeniedException e) {
-            log.error("Error: {}", e.getMessage());
+            log.error("Error: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(CommonResponse.from(ResponseCode.MEDIA_ACCESS_DENIED));
         }
     }
@@ -285,10 +285,10 @@ public class FileController implements FileControllerDoc {
             userFileService.shareFile(request.getMediaIds(), SecurityUtil.getUserKey(), request.getShareWithUserKeys(), request.getMessageId());
             return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
         } catch (IllegalArgumentException e) {
-            log.error("Error: {}", e.getMessage());
+            log.error("Error: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.MEDIA_NOT_FOUND));
         } catch (AccessDeniedException e) {
-            log.error("Error: {}", e.getMessage());
+            log.error("Error: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(CommonResponse.from(ResponseCode.MEDIA_ACCESS_DENIED));
         }
     }

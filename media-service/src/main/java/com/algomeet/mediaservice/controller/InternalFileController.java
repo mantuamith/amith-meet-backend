@@ -46,11 +46,11 @@ public class InternalFileController implements InternalFileControllerDoc {
             userFileService.shareFile(List.of(mediaId.toString()), userKey, shareWithUserKeys, messageId);
             return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
         } catch (IllegalArgumentException e) {
-            log.error("Error: {}", e.getMessage());
+            log.error("Error: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(CommonResponse.from(ResponseCode.MEDIA_NOT_FOUND));
         } catch (AccessDeniedException e) {
-            log.error("Error: {}", e.getMessage());
+            log.error("Error: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(CommonResponse.from(ResponseCode.MEDIA_ACCESS_DENIED));
         }
@@ -66,10 +66,10 @@ public class InternalFileController implements InternalFileControllerDoc {
             userFileService.shareFile(request.getMediaIds(), userKey, request.getShareWithUserKeys(), request.getMessageId());
             return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
         } catch (IllegalArgumentException e) {
-            log.error("Error: {}", e.getMessage());
+            log.error("Error: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.MEDIA_NOT_FOUND));
         } catch (AccessDeniedException e) {
-            log.error("Error: {}", e.getMessage());
+            log.error("Error: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(CommonResponse.from(ResponseCode.MEDIA_ACCESS_DENIED));
         }
     }
@@ -86,7 +86,7 @@ public class InternalFileController implements InternalFileControllerDoc {
             userFileService.softDeleteAndMarkForCleanupIfOrphaned(List.of(mediaId.toString()), userKey, deleteWithUserKeys, messageId);
             return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
         } catch (IllegalArgumentException e) {
-            log.error("Error: {}", e.getMessage());
+            log.error("Error: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(CommonResponse.from(ResponseCode.MEDIA_NOT_FOUND));
         }
