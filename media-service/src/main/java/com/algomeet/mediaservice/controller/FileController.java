@@ -234,15 +234,27 @@ public class FileController implements FileControllerDoc {
             @RequestParam UUID messageId
     ) {
         try {
-            userFileService.softDeleteAndMarkForCleanupIfOrphaned(mediaId.toString(), SecurityUtil.getUserKey(), deleteWithUserKeys, messageId);
+            userFileService.softDeleteAndMarkForCleanupIfOrphaned(List.of(mediaId.toString()), SecurityUtil.getUserKey(), deleteWithUserKeys, messageId);
             return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
         } catch (IllegalArgumentException e) {
             log.error("Error: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.MEDIA_NOT_FOUND));
-        } catch (AccessDeniedException e) {
+        } 
+    }
+    
+    @DeleteMapping("/access")
+    public ResponseEntity<CommonResponse<?>> batchDelete(
+            @RequestBody @Valid BatchMediaDeleteRequest request
+    ) {
+        try {
+            userFileService.softDeleteAndMarkForCleanupIfOrphaned(request.getMediaIds(), 
+            		SecurityUtil.getUserKey(), request.getDeleteWithUserKeys(), request.getMessageId());
+            
+            return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
+        } catch (IllegalArgumentException e) {
             log.error("Error: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(CommonResponse.from(ResponseCode.MEDIA_ACCESS_DENIED));
-        }
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.MEDIA_NOT_FOUND));
+        } 
     }
 
     // ========================= SHARE =========================
@@ -280,91 +292,7 @@ public class FileController implements FileControllerDoc {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(CommonResponse.from(ResponseCode.MEDIA_ACCESS_DENIED));
         }
     }
-    
-    @DeleteMapping("/{mediaId}")
-   	public ResponseEntity<CommonResponse<?>> delete(@PathVariable String mediaId) {
-   		try {			
-   			String userKey = SecurityUtil.getUserKey();			
-   			
-   			UserFileDocument fileDoc = userFileService.getFile(mediaId, userKey, FilePermission.OWNER);
-
-   			switch (Storage.valueOf(fileDoc.getStorage())) {
-   			case LOCAL -> {
-   				mediaServiceLocal.deleteIfExists(fileDoc.getAbsolutePath());
-   				userFileService.deleteFile(mediaId, userKey);				
-   			}
-
-   			case S3 -> {
-   				mediaServiceS3.deleteIfExists(fileDoc.getAbsolutePath());
-   				userFileService.deleteFile(mediaId, userKey);	
-   			}
-
-   			case OSS -> {
-   				mediaServiceOss.deleteIfExists(fileDoc.getAbsolutePath());
-   				userFileService.deleteFile(mediaId, userKey);	
-
-   			}
-
-   			default -> throw new IllegalArgumentException("Unexpected value: " + Storage.valueOf(fileDoc.getStorage()));
-   			};
-
-   			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
-   		} catch (IllegalArgumentException e) {
-   			log.error("Error ", e.getMessage(), e);
-   			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.MEDIA_NOT_FOUND));
-   		} catch (AccessDeniedException e) {
-   			log.error("Error ", e.getMessage(), e);
-   			return ResponseEntity.status(HttpStatus.FORBIDDEN)
-   					.body(CommonResponse.from(ResponseCode.MEDIA_ACCESS_DENIED));
-   		} catch (Exception e) {
-   			log.error("Error ", e.getMessage(), e);
-   			throw new RuntimeException(e);
-   		}
-   	}
-    
-    @DeleteMapping
-   	public ResponseEntity<CommonResponse<?>> batchDelete(@RequestBody @Valid BatchMediaDeleteRequest request) {
-   		try {	
-   			String userKey = SecurityUtil.getUserKey();		
-				
-   			for (String mediaId : request.getMediaIds()) {
-   				UserFileDocument fileDoc = userFileService.getFile(mediaId, userKey, FilePermission.OWNER);
-
-   				switch (Storage.valueOf(fileDoc.getStorage())) {
-   				case LOCAL -> {
-   					mediaServiceLocal.deleteIfExists(fileDoc.getAbsolutePath());
-   					userFileService.deleteFile(mediaId, userKey);				
-   				}
-
-   				case S3 -> {
-   					mediaServiceS3.deleteIfExists(fileDoc.getAbsolutePath());
-   					userFileService.deleteFile(mediaId, userKey);	
-   				}
-
-   				case OSS -> {
-   					mediaServiceOss.deleteIfExists(fileDoc.getAbsolutePath());
-   					userFileService.deleteFile(mediaId, userKey);	
-
-   				}
-
-   				default -> throw new IllegalArgumentException("Unexpected value: " + Storage.valueOf(fileDoc.getStorage()));
-   				};
-   			}
-
-   			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
-   		} catch (IllegalArgumentException e) {
-   			log.error("Error ", e.getMessage(), e);
-   			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.MEDIA_NOT_FOUND));
-   		} catch (AccessDeniedException e) {
-   			log.error("Error ", e.getMessage(), e);
-   			return ResponseEntity.status(HttpStatus.FORBIDDEN)
-   					.body(CommonResponse.from(ResponseCode.MEDIA_ACCESS_DENIED));
-   		} catch (Exception e) {
-   			log.error("Error ", e.getMessage(), e);
-   			throw new RuntimeException(e);
-   		}
-   	}
-
+        
     // ========================= helpers =========================
 
     private MediaUploadResponse doUpload(String userKey, MultipartFile file, String contentType,

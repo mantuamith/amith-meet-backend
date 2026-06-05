@@ -22,7 +22,7 @@ public interface UserFileService {
 
     boolean hasPermission(UserFileDocument file, String userKey, FilePermission permission);
     
-    void softDeleteAndMarkForCleanupIfOrphaned(String fileId, String userKey, List<String> deleteWithUserKeys, UUID messageId);
+    void softDeleteAndMarkForCleanupIfOrphaned(List<String> fileIds, String userKey, List<String> deleteWithUserKeys, UUID messageId);
     
     void shareFile(List<String> fileIds, String userKey, List<String> shareWithUserKeys, UUID messageId);
 }

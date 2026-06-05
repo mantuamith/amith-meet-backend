@@ -1,6 +1,7 @@
 package com.algomeet.mediaservice.service.impl;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -11,6 +12,7 @@ import java.util.stream.Collectors;
 
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
 
 import com.algomeet.mediaservice.document.FileAccessEntryDocument;
@@ -24,7 +26,9 @@ import com.algomeet.mediaservice.service.FileAccessEntryService;
 import com.algomeet.mediaservice.service.UserFileService;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class UserFileServiceImpl implements UserFileService {
@@ -89,123 +93,212 @@ public class UserFileServiceImpl implements UserFileService {
 
 	@Override
 	public boolean hasPermission(UserFileDocument file, String userKey, FilePermission permission) {
-		// Owner has full access but don't show the file that is already eligible for cleanup
-		if ((file.getOwner().equals(userKey) && file.getCleanupEligibleAt() == null)
-				|| (file.getOwner().equals(userKey) && file.getCleanupEligibleAt().isAfter(Instant.now()))) {
-			return true;
-		}
+		// 1. Determine if the file is currently expired/scheduled for cleanup
+	    boolean isExpired = file.getCleanupEligibleAt() != null 
+	            && file.getCleanupEligibleAt().isBefore(Instant.now());
 
+	    // 2. Check Ownership (Safe against NullPointerException)
+	    boolean isOwner = userKey.equals(file.getOwner());
+
+	    if (isExpired) {
+	        return false;
+	    }
+
+	    // 3. If not expired, Owner has full wildcard access to everything
+	    if (isOwner) {			
+	        return true;
+	    }
+
+	    // 4. Fallback to Access Control Matrix (MongoDB) for shared users
 		Set<FilePermission> permissions = fileAccessEntryService.getPermissions(UUID.fromString(userKey), UUID.fromString(file.getId()));
-
 		return permissions.contains(permission);
 	}
 
-	@Override
+	@Override	
+	@Transactional(rollbackFor = Exception.class)
 	public void shareFile(List<String> fileIds, String userKey, List<String> shareWithUserKeys, UUID messageId) {
 	    if (CollectionUtils.isEmpty(fileIds)) {
 	        return;
 	    }
 
-	    // 1. Pre-parse and prepare the distinct target users
 	    UUID ownerUuid = UUID.fromString(userKey);
 	    Set<UUID> targetUserUuids = Optional.ofNullable(shareWithUserKeys)
 	            .orElse(Collections.emptyList())
 	            .stream()
 	            .map(UUID::fromString)
 	            .collect(Collectors.toSet());
-	    
-	    targetUserUuids.add(ownerUuid); // Include owner
+	    targetUserUuids.add(ownerUuid);
 
-	    // Default permissions for sharing
 	    Set<FilePermission> permissions = Set.of(FilePermission.SHARE, FilePermission.READ, FilePermission.DELETE);
 
-	    // 2. Fetch all files in a single batch query to avoid N+1 problem
 	    List<UserFileDocument> files = repository.findAllById(fileIds);
-	    if (files.size() != fileIds.size()) {
+	    if (CollectionUtils.isEmpty(files)) {
 	        throw new IllegalArgumentException("One or more files were not found");
 	    }
 
-	    // 3. Process permissions and storage
-	    for (UserFileDocument file : files) {
-	        if (!hasPermission(file, userKey, FilePermission.SHARE)) {
-	            throw new AccessDeniedException("User is not allowed to share the media/file: " + file.getId());
+	    // Track successful grants for manual rollback on failure to keep
+	    // MongoDB and PostgreSQL data consistent.
+	    List<CompensatingAction> successfulActions = new ArrayList<>();
+
+	    try {
+	        for (UserFileDocument file : files) {
+	            if (!hasPermission(file, userKey, FilePermission.SHARE)) {
+	                throw new AccessDeniedException("User is not allowed to share the media/file: " + file.getId());
+	            }
+
+	            UUID fileUuid = UUID.fromString(file.getId());
+
+	            for (UUID targetUserUuid : targetUserUuids) {
+	                // Modifies MongoDB
+	                boolean isGranted = fileAccessEntryService.grantAccess(targetUserUuid, fileUuid, permissions, messageId);
+
+	                if (isGranted) {
+	                    StorageUsageAdjustmentRequest adjustment = new StorageUsageAdjustmentRequest();
+	                    if (UploadContext.CHAT.name().equals(file.getUploadContext())) {
+	                        adjustment.setChatStorageBytesDelta(file.getSize());
+	                        adjustment.setChatMessageCountDelta(1L);
+	                    } else {
+	                        adjustment.setMediaStorageBytesDelta(file.getSize());
+	                        adjustment.setMediaFileCountDelta(1L);
+	                    }
+	                    
+	                    // Modifies External Storage Service
+	                    userStorageUsageService.adjustUsage(targetUserUuid, adjustment);
+	                    
+	                    // Record that BOTH MongoDB and Quotas were updated for this user/file combo
+	                    successfulActions.add(new CompensatingAction(targetUserUuid, fileUuid, file));
+	                }
+	            }
+	            file.setCleanupEligibleAt(null);
 	        }
+	        repository.saveAll(files);
 
-	        UUID fileUuid = UUID.fromString(file.getId());
-
-	        for (UUID targetUserUuid : targetUserUuids) {
-	            boolean isGranted = fileAccessEntryService.grantAccess(targetUserUuid, fileUuid, permissions, messageId);
-
-	            // Double check: Do you really want to adjust storage for the owner again? 
-	            // If it's a new grant for a recipient, adjust their storage.
-	            if (isGranted) {
-	                StorageUsageAdjustmentRequest adjustment = new StorageUsageAdjustmentRequest();
-	                if (UploadContext.CHAT.name().equals(file.getUploadContext())) {
-	                	adjustment.setChatStorageBytesDelta(-file.getSize());
-	                	adjustment.setChatMessageCountDelta(-1L);
-					} else {
-						adjustment.setMediaStorageBytesDelta(-file.getSize());
-						adjustment.setMediaFileCountDelta(-1L);
-					}
-	                userStorageUsageService.adjustUsage(targetUserUuid, adjustment);
+	    } catch (Exception ex) {
+	        log.error("Error encountered during batch file sharing. Initiating compensating actions for MongoDB and Storage quotas.", ex);
+	        
+	        // Reverse actions in backward order
+	        for (int i = successfulActions.size() - 1; i >= 0; i--) {
+	            CompensatingAction action = successfulActions.get(i);
+	            try {
+	                // 1. Manually roll back MongoDB permissions safely
+	                fileAccessEntryService.revokeAccess(action.userId, action.fileId, messageId);
+	                
+	                // 2. Manually roll back the quota adjustment
+	                StorageUsageAdjustmentRequest rollbackAdjustment = new StorageUsageAdjustmentRequest();
+	                if (UploadContext.CHAT.name().equals(action.file.getUploadContext())) {
+	                    rollbackAdjustment.setChatStorageBytesDelta(-action.file.getSize());
+	                    rollbackAdjustment.setChatMessageCountDelta(-1L);
+	                } else {
+	                    rollbackAdjustment.setMediaStorageBytesDelta(-action.file.getSize());
+	                    rollbackAdjustment.setMediaFileCountDelta(-1L);
+	                }
+	                userStorageUsageService.adjustUsage(action.userId, rollbackAdjustment);
+	                
+	            } catch (Exception rollbackEx) {
+	                log.error("CRITICAL: Failed to reverse changes for user: {} and file: {}", 
+	                        action.userId, action.fileId, rollbackEx);
 	            }
 	        }
-
-	        // Disable auto-deletion
-	        file.setCleanupEligibleAt(null);
+	        throw ex; 
 	    }
+	}
 
-	    // 4. Batch save all modified file documents at once
-	    repository.saveAll(files);
+	private static class CompensatingAction {
+	    final UUID userId;
+	    final UUID fileId;
+	    final UserFileDocument file;
+
+	    CompensatingAction(UUID userId, UUID fileId, UserFileDocument file) {
+	        this.userId = userId;
+	        this.fileId = fileId;
+	        this.file = file;
+	    }
 	}
 
 	@Override
-	public void softDeleteAndMarkForCleanupIfOrphaned(String fileId, String userKey, List<String> deleteWithUserKeys, UUID messageId) {
-		UserFileDocument file = repository.findById(fileId)
-				.orElseThrow(() -> new IllegalArgumentException("File not found"));
+	public void softDeleteAndMarkForCleanupIfOrphaned(
+	        List<String> fileIds,
+	        String userKey,
+	        List<String> deleteWithUserKeys,
+	        UUID messageId) {
 
-		if (!hasPermission(file, userKey, FilePermission.DELETE)) {
-			throw new AccessDeniedException("User is not allowed to delete the media/file");
-		}
+	    if (CollectionUtils.isEmpty(fileIds)) {
+	        return;
+	    }
 
-		Set<String> forDeleteUserKeys = new HashSet<>();
+	    // Build the set of users whose access should be revoked.
+	    // The requesting user is always included.
+	    Set<String> targetUserKeys = new HashSet<>();
+	    targetUserKeys.add(userKey);
 
-		if (!CollectionUtils.isEmpty(deleteWithUserKeys)) {
-			deleteWithUserKeys.forEach(ukey -> {
-				forDeleteUserKeys.add(ukey);
-			});
-		}
+	    if (!CollectionUtils.isEmpty(deleteWithUserKeys)) {
+	        targetUserKeys.addAll(deleteWithUserKeys);
+	    }
 
-		// Add owner it self if list is empty
-		if(CollectionUtils.isEmpty(deleteWithUserKeys)) {
-			forDeleteUserKeys.add(userKey);
-		}
+	    // Batch load all files to avoid N+1 database queries.
+	    List<UserFileDocument> files = repository.findAllById(fileIds);
 
-		for (String uKey : forDeleteUserKeys) {
-			boolean isRevoked = fileAccessEntryService.revokeAccess(UUID.fromString(uKey), UUID.fromString(fileId), messageId);
+	    if (CollectionUtils.isEmpty(files)) {
+	        throw new IllegalArgumentException("One or more files were not found");
+	    }
 
-			// Debit the correct quota bucket — must mirror the bucket used at upload time.
-			// Files uploaded with uploadContext=CHAT were credited to chatStorageUsed;
-			// everything else goes to mediaStorageUsed.
-			if (isRevoked) {
-				StorageUsageAdjustmentRequest storageUsageAdjustment = new StorageUsageAdjustmentRequest();
-				if (UploadContext.CHAT.name().equals(file.getUploadContext())) {
-					storageUsageAdjustment.setChatStorageBytesDelta(-file.getSize());
-					storageUsageAdjustment.setChatMessageCountDelta(-1L);
-				} else {
-					storageUsageAdjustment.setMediaStorageBytesDelta(-file.getSize());
-					storageUsageAdjustment.setMediaFileCountDelta(-1L);
-				}
-				userStorageUsageService.adjustUsage(UUID.fromString(uKey), storageUsageAdjustment);
-			}
-		}
+	    List<UserFileDocument> modifiedFiles = new ArrayList<>();
+	    for (UserFileDocument file : files) {
+	        UUID fileId = UUID.fromString(file.getId());
 
-		// Mark for clean up if file has 0 user access entry.
-		if (fileAccessEntryService.countByFileId(UUID.fromString(fileId)) == 0) {
-			// Set eligible for batch job clean up
-			file.setCleanupEligibleAt(Instant.now());
-		}
+	        // DELETE permission allows revoking access for any user; otherwise,
+	        // users may revoke only their own access.
+	        // In batch deletes, permission failures for other users should not stop
+	        // processing so the caller's own access link can still be removed and
+	        // orphaned files can be cleaned up.
+	        boolean canDeleteForOthers = hasPermission(file, userKey, FilePermission.DELETE);
 
-		repository.save(file);
-	}	
+	        for (String targetUserKey : targetUserKeys) {
+	            boolean deletingOtherUser =
+	                    userKey != null && !userKey.equals(targetUserKey);
+
+	            if (deletingOtherUser && !canDeleteForOthers) {
+	                continue;
+	            }
+
+	            UUID targetUserId = UUID.fromString(targetUserKey);
+
+	            boolean revoked =
+	                    fileAccessEntryService.revokeAccess(targetUserId, fileId, messageId);
+
+	            if (revoked) {
+	                adjustUserStorageUsage(targetUserId, file);
+	            }
+	        }
+
+	        // Mark the file for cleanup once all access references have been removed.
+	        // Actual deletion is handled by the cleanup process.
+	        if (canDeleteForOthers && fileAccessEntryService.countByFileId(fileId) == 0) {
+	            file.setCleanupEligibleAt(Instant.now());
+	            modifiedFiles.add(file);
+	        }
+	    }
+
+	    // Persist all modified documents in a single batch operation.
+	    repository.saveAll(modifiedFiles);
+	}
+
+	/**
+	 * Updates the user's storage quota after a file access entry is removed.
+	 * The quota bucket depends on the file upload context.
+	 */
+	private void adjustUserStorageUsage(UUID userId, UserFileDocument file) {
+
+	    StorageUsageAdjustmentRequest request = new StorageUsageAdjustmentRequest();
+
+	    if (UploadContext.CHAT.name().equals(file.getUploadContext())) {
+	        request.setChatStorageBytesDelta(-file.getSize());
+	        request.setChatMessageCountDelta(-1L);
+	    } else {
+	        request.setMediaStorageBytesDelta(-file.getSize());
+	        request.setMediaFileCountDelta(-1L);
+	    }
+
+	    userStorageUsageService.adjustUsage(userId, request);
+	}
 }

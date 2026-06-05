@@ -23,6 +23,7 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 
@@ -325,6 +326,26 @@ public interface FileControllerDoc {
             @Parameter(description = "The chat message ID where this file was originally attached", required = true)
             @RequestParam UUID messageId
     );
+    
+    @Operation(
+        summary = "Batch delete media files", 
+        description = "Soft deletes specified media files and queues them for background cleanup if orphaned."
+    )
+    @ApiResponses(value = {
+        @ApiResponse(
+            responseCode = "200", 
+            description = "Media successfully processed",
+            content = @Content(schema = @Schema(implementation = CommonResponse.class))
+        ),
+        @ApiResponse(
+            responseCode = "404", 
+            description = "Media file(s) not found",
+            content = @Content(schema = @Schema(implementation = CommonResponse.class))
+        )
+    })
+    public ResponseEntity<CommonResponse<?>> batchDelete(
+            @RequestBody @Valid BatchMediaDeleteRequest request
+    );
 
 
     // ========================= SHARE =========================
@@ -375,22 +396,5 @@ public interface FileControllerDoc {
                 required = true
             )
             @RequestBody @Valid BatchMediaShareRequest request
-    );
-    
-    @Operation(
-        summary = "Batch delete media files",
-        description = "Permanently deletes multiple media files from both database and physical storage engines (S3, OSS, or Local filesystem). Requires ownership.",
-        responses = {
-            @ApiResponse(responseCode = "200", description = "All specified files successfully deleted"),
-            @ApiResponse(responseCode = "403", description = "Access denied (caller is not the owner of one or more files)"),
-            @ApiResponse(responseCode = "404", description = "One or more media files were not found")
-        }
-    )
-   	public ResponseEntity<CommonResponse<?>> batchDelete(
-            @io.swagger.v3.oas.annotations.parameters.RequestBody(
-                description = "List of media IDs to be deleted", 
-                required = true
-            )
-            @RequestBody @Valid BatchMediaDeleteRequest request
-    );
+    );    
 }

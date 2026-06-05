@@ -58,7 +58,7 @@ public class InternalFileController implements InternalFileControllerDoc {
             @RequestParam UUID messageId
     ) {
         try {
-            userFileService.softDeleteAndMarkForCleanupIfOrphaned(mediaId, userKey, deleteWithUserKeys, messageId);
+            userFileService.softDeleteAndMarkForCleanupIfOrphaned(List.of(mediaId), userKey, deleteWithUserKeys, messageId);
             return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
         } catch (IllegalArgumentException e) {
             log.error("Error: {}", e.getMessage());
