@@ -187,22 +187,7 @@ class FileControllerTest {
 
 		verify(userFileService).softDeleteAndMarkForCleanupIfOrphaned(any(), any(), any(), any());
 	}
-
-	@Test
-	void delete_accessDenied() throws Exception {
-		UserFileDocument doc = new UserFileDocument();
-		doc.setStorage(Storage.LOCAL.name());
-
-		when(userFileRepository.findById(doc.getId())).thenReturn(Optional.of(doc));
-		
-		doThrow(new org.springframework.security.access.AccessDeniedException("denied")).when(userFileService)
-				.softDeleteAndMarkForCleanupIfOrphaned(any(), any(), any(), any());
-
-		mockMvc.perform(delete("/media/" + MEDIA_ID1 + "/access").param("messageId", MESSAGE_ID.toString())).andExpect(status().isForbidden())
-				.andExpect(jsonPath("$.code").value("MEDIA_ACCESS_DENIED"));
-
-	}
-
+	
 	/*
 	 * ========================= SHARE =========================
 	 */
@@ -215,4 +200,123 @@ class FileControllerTest {
 
 		verify(userFileService).shareFile(List.of(MEDIA_ID1.toString()), USER_KEY, List.of("u1", "u2"), MESSAGE_ID);
 	}
+
+	/*
+	 * ========================= BATCH SHARE =========================
+	 */
+
+	@Test
+	void batchShare_success() throws Exception {
+	    String request = """
+	        {
+	          "mediaIds": ["%s"],
+	          "shareWithUserKeys": ["u1", "u2"],
+	          "messageId": "%s"
+	        }
+	        """.formatted(MEDIA_ID1, MESSAGE_ID);
+
+	    mockMvc.perform(post("/media/share")
+	            .contentType(MediaType.APPLICATION_JSON)
+	            .content(request))
+	            .andExpect(status().isOk())
+	            .andExpect(jsonPath("$.code").value("SUCCESS"));
+
+	    verify(userFileService).shareFile(
+	            List.of(MEDIA_ID1.toString()),
+	            USER_KEY,
+	            List.of("u1", "u2"),
+	            MESSAGE_ID);
+	}
+
+	@Test
+	void batchShare_mediaNotFound() throws Exception {
+	    doThrow(new IllegalArgumentException("missing"))
+	            .when(userFileService)
+	            .shareFile(anyList(), anyString(), anyList(), any());
+
+	    String request = """
+	        {
+	          "mediaIds": ["%s"],
+	          "shareWithUserKeys": ["u1"],
+	          "messageId": "%s"
+	        }
+	        """.formatted(MEDIA_ID1, MESSAGE_ID);
+
+	    mockMvc.perform(post("/media/share")
+	            .contentType(MediaType.APPLICATION_JSON)
+	            .content(request))
+	            .andExpect(status().isNotFound())
+	            .andExpect(jsonPath("$.code").value("MEDIA_NOT_FOUND"));
+	}
+
+	@Test
+	void batchShare_accessDenied() throws Exception {
+	    doThrow(new org.springframework.security.access.AccessDeniedException("denied"))
+	            .when(userFileService)
+	            .shareFile(anyList(), anyString(), anyList(), any());
+
+	    String request = """
+	        {
+	          "mediaIds": ["%s"],
+	          "shareWithUserKeys": ["u1"],
+	          "messageId": "%s"
+	        }
+	        """.formatted(MEDIA_ID1, MESSAGE_ID);
+
+	    mockMvc.perform(post("/media/share")
+	            .contentType(MediaType.APPLICATION_JSON)
+	            .content(request))
+	            .andExpect(status().isForbidden())
+	            .andExpect(jsonPath("$.code").value("MEDIA_ACCESS_DENIED"));
+	}
+	
+	
+	
+	/*
+	 * ========================= BATCH DELETE =========================
+	 */
+
+	@Test
+	void batchDelete_success() throws Exception {
+	    String request = """
+	        {
+	          "mediaIds": ["%s"],
+	          "deleteWithUserKeys": ["u1", "u2"],
+	          "messageId": "%s"
+	        }
+	        """.formatted(MEDIA_ID1, MESSAGE_ID);
+
+	    mockMvc.perform(delete("/media/access")
+	            .contentType(MediaType.APPLICATION_JSON)
+	            .content(request))
+	            .andExpect(status().isOk())
+	            .andExpect(jsonPath("$.code").value("SUCCESS"));
+
+	    verify(userFileService).softDeleteAndMarkForCleanupIfOrphaned(
+	            List.of(MEDIA_ID1.toString()),
+	            USER_KEY,
+	            List.of("u1", "u2"),
+	            MESSAGE_ID);
+	}
+
+	@Test
+	void batchDelete_mediaNotFound() throws Exception {
+	    doThrow(new IllegalArgumentException("missing"))
+	            .when(userFileService)
+	            .softDeleteAndMarkForCleanupIfOrphaned(anyList(), anyString(), anyList(), any());
+
+	    String request = """
+	        {
+	          "mediaIds": ["%s"],
+	          "deleteWithUserKeys": ["u1"],
+	          "messageId": "%s"
+	        }
+	        """.formatted(MEDIA_ID1, MESSAGE_ID);
+
+	    mockMvc.perform(delete("/media/access")
+	            .contentType(MediaType.APPLICATION_JSON)
+	            .content(request))
+	            .andExpect(status().isNotFound())
+	            .andExpect(jsonPath("$.code").value("MEDIA_NOT_FOUND"));
+	}	
 }
