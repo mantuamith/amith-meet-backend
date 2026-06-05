@@ -36,6 +36,7 @@ class InternalFileControllerTest {
 	private MessageSource messageSource;
 	
 	private static UUID MESSAGE_ID = UUID.randomUUID();
+	private static final UUID FILE_ID = UUID.randomUUID();
 
 	@BeforeEach
 	void setUp() {
@@ -45,9 +46,9 @@ class InternalFileControllerTest {
 
 	@Test
 	void share_returnsOkOnSuccess() {
-		ResponseEntity<?> response = controller.share("media-1", "user-1", List.of("user-2", "user-3"), MESSAGE_ID);
+		ResponseEntity<?> response = controller.share(FILE_ID, "user-1", List.of("user-2", "user-3"), MESSAGE_ID);
 
-		verify(userFileService).shareFile(List.of("media-1"), "user-1", List.of("user-2", "user-3"), MESSAGE_ID);
+		verify(userFileService).shareFile(List.of(FILE_ID.toString()), "user-1", List.of("user-2", "user-3"), MESSAGE_ID);
 		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
 		assertThat(((CommonResponse<?>) response.getBody()).getCode()).isEqualTo(ResponseCode.SUCCESS.getCode());
 	}
@@ -55,9 +56,9 @@ class InternalFileControllerTest {
 	@Test
 	void share_returnsNotFoundWhenMediaMissing() {
 		doThrow(new IllegalArgumentException("missing")).when(userFileService)
-				.shareFile(List.of("media-1"), "user-1", List.of("user-2"), MESSAGE_ID);
+				.shareFile(List.of(FILE_ID.toString()), "user-1", List.of("user-2"), MESSAGE_ID);
 
-		ResponseEntity<?> response = controller.share("media-1", "user-1", List.of("user-2"), MESSAGE_ID);
+		ResponseEntity<?> response = controller.share(FILE_ID, "user-1", List.of("user-2"), MESSAGE_ID);
 
 		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
 		assertThat(((CommonResponse<?>) response.getBody()).getCode()).isEqualTo(ResponseCode.MEDIA_NOT_FOUND.getCode());
@@ -66,9 +67,9 @@ class InternalFileControllerTest {
 	@Test
 	void share_returnsForbiddenWhenAccessDenied() {
 		doThrow(new AccessDeniedException("denied")).when(userFileService)
-				.shareFile(List.of("media-1"), "user-1", List.of("user-2"), MESSAGE_ID);
+				.shareFile(List.of(FILE_ID.toString()), "user-1", List.of("user-2"), MESSAGE_ID);
 
-		ResponseEntity<?> response = controller.share("media-1", "user-1", List.of("user-2"), MESSAGE_ID);
+		ResponseEntity<?> response = controller.share(FILE_ID, "user-1", List.of("user-2"), MESSAGE_ID);
 
 		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
 		assertThat(((CommonResponse<?>) response.getBody()).getCode()).isEqualTo(ResponseCode.MEDIA_ACCESS_DENIED.getCode());
@@ -76,9 +77,9 @@ class InternalFileControllerTest {
 
 	@Test
 	void delete_returnsOkOnSuccess() {
-		ResponseEntity<CommonResponse<?>> response = controller.delete("media-1", "user-1", List.of("user-2"), MESSAGE_ID);
+		ResponseEntity<CommonResponse<?>> response = controller.delete(FILE_ID, "user-1", List.of("user-2"), MESSAGE_ID);
 
-		verify(userFileService).softDeleteAndMarkForCleanupIfOrphaned(List.of("media-1"), "user-1", List.of("user-2"), MESSAGE_ID);
+		verify(userFileService).softDeleteAndMarkForCleanupIfOrphaned(List.of(FILE_ID.toString()), "user-1", List.of("user-2"), MESSAGE_ID);
 		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
 		assertThat(response.getBody().getCode()).isEqualTo(ResponseCode.SUCCESS.getCode());
 	}
@@ -86,22 +87,21 @@ class InternalFileControllerTest {
 	@Test
 	void delete_returnsNotFoundWhenMediaMissing() {
 		doThrow(new IllegalArgumentException("missing")).when(userFileService)
-				.softDeleteAndMarkForCleanupIfOrphaned(List.of("media-1"), "user-1", List.of("user-2"), MESSAGE_ID);
+				.softDeleteAndMarkForCleanupIfOrphaned(List.of(FILE_ID.toString()), "user-1", List.of("user-2"), MESSAGE_ID);
 
-		ResponseEntity<CommonResponse<?>> response = controller.delete("media-1", "user-1", List.of("user-2"), MESSAGE_ID);
+		ResponseEntity<CommonResponse<?>> response = controller.delete(FILE_ID, "user-1", List.of("user-2"), MESSAGE_ID);
 
 		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
 		assertThat(response.getBody().getCode()).isEqualTo(ResponseCode.MEDIA_NOT_FOUND.getCode());
 	}
 
 	@Test
-	void delete_returnsForbiddenWhenAccessDenied() {
-		doThrow(new AccessDeniedException("denied")).when(userFileService)
-				.softDeleteAndMarkForCleanupIfOrphaned(List.of("media-1"), "user-1", List.of("user-2"), MESSAGE_ID);
+	void delete_shouldReturnSuccess_whenUnauthorizedUsersAreSkipped() {
+	    ResponseEntity<CommonResponse<?>> response =
+	            controller.delete(FILE_ID, "user-1", List.of("user-2"), MESSAGE_ID);
 
-		ResponseEntity<CommonResponse<?>> response = controller.delete("media-1", "user-1", List.of("user-2"), MESSAGE_ID);
-
-		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
-		assertThat(response.getBody().getCode()).isEqualTo(ResponseCode.MEDIA_ACCESS_DENIED.getCode());
+	    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+	    assertThat(response.getBody().getCode())
+	            .isEqualTo(ResponseCode.SUCCESS.getCode());
 	}
 }

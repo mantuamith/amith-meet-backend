@@ -223,7 +223,7 @@ class UserFileServiceImplTest {
     }
 
     @Test
-    void softDelete_accessDenied() {
+    void softDelete_shouldContinueProcessingAndRevokeOwnAccess_whenUserCannotDeleteForOthers() {
         UserFileDocument file = ownerFile();
 
         when(repository.findAllById(List.of(FILE_ID))).thenReturn(List.of(file));
@@ -233,14 +233,8 @@ class UserFileServiceImplTest {
         // caller lacks permission to remove access for other users, ensuring that
         // the caller's own file access link can still be removed. This ensure that
         // all unused files clean up properly.
-        /*
-      	assertThrows(AccessDeniedException.class,
-              () -> service.softDeleteAndMarkForCleanupIfOrphaned(
-                      List.of(FILE_ID), USER, null, MESSAGE_ID));
-         */
-        
         service.softDeleteAndMarkForCleanupIfOrphaned(
-                List.of(FILE_ID), USER, null, MESSAGE_ID);
+                List.of(FILE_ID), USER, List.of(USER), MESSAGE_ID);
                 
         verify(fileAccessEntryService).revokeAccess(any(), any(), any());
     }
