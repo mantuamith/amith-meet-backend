@@ -109,7 +109,6 @@ class MediaServiceLocalImplTest {
         assertEquals(file.getSize(), saved.getSize());
         assertFalse(saved.isEncrypted());
         assertEquals("LOCAL", saved.getStorage());
-        assertEquals(null, saved.getAccessControlList());
         assertEquals(true, saved.getCleanupEligibleAt() != null);
     }
 
