@@ -2,6 +2,7 @@ package com.algomeet.chatservice.document;
 
 import com.algomeet.chatservice.dto.MessageStatusUpdate;
 import com.algomeet.chatservice.dto.UserStatus;
+import com.algomeet.chatservice.model.MessageMediaType;
 import com.algomeet.chatservice.model.MessageStatus;
 import com.algomeet.chatservice.model.MessageType;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -20,6 +21,7 @@ public class MessageResponse {
     private String to; // for group chats this is the group id
     private Long timestamp;
     private MessageType type;
+    private MessageMediaType messageMediaType;;
     private MessageStatus status;
     private String content;
     private String text;
