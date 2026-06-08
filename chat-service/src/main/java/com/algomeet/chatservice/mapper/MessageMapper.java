@@ -19,6 +19,7 @@ public class MessageMapper {
                 .toKey(document.getReceiverKey())          // NEW
                 .timestamp(document.getTimestamp() != null ? document.getTimestamp(): System.currentTimeMillis())
                 .type(document.getType())
+                .messageMediaType(document.getMessageMediaType())
                 .clientMessageId(document.getClientMessageId())
                 .status(document.getStatus())
                 .text(document.getContent())
