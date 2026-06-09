@@ -73,6 +73,12 @@ public class ChatWebSocketController {
         String username = up.username();
         message.setSenderKey(userKey);
         message.setSender(username);
+        // Resolve receiverKey from session store if the client did not send it
+        if (!message.isGroupMessage()
+                && (message.getReceiverKey() == null || message.getReceiverKey().isBlank())
+                && message.getReceiver() != null) {
+            message.setReceiverKey(userSessionService.getUserKey(message.getReceiver()));
+        }
         message.setTimestamp(message.getTimestamp());
         if (message.getStatus() == null) {
             message.setStatus(MessageStatus.SENT);
