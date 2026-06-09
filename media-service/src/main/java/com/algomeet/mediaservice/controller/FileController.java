@@ -319,10 +319,12 @@ public class FileController implements FileControllerDoc {
             throw new IllegalArgumentException("Active upload storage is not configured");
         }
 
-        return switch (Storage.valueOf(active.trim().toUpperCase())) {
+        MediaUploadResponse resp = switch (Storage.valueOf(active.trim().toUpperCase())) {
             case LOCAL -> mediaServiceLocal.upload(userKey, file, contentType, encrypted, autoExpire, conversationId, uploadContext);
             case S3    -> mediaServiceS3.upload(userKey, file, contentType, encrypted, autoExpire, conversationId, uploadContext);
             case OSS   -> mediaServiceOss.upload(userKey, file, contentType, encrypted, autoExpire, conversationId, uploadContext);
         };
+        resp.setUrl(mediaBaseUrl + resp.getUrl());
+        return resp;
     }   
 }
