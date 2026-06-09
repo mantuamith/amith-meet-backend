@@ -99,9 +99,8 @@ public class MediaService {
 			shareWithUserKeys = Set.of(message.getReceiverKey());
 		}
 
-		// Delete
 		for (MediaItem item : message.getMediaGroup()) {
-			share(item.getMediaId(), message.getSenderKey(), new ArrayList<>(shareWithUserKeys), UUID.fromString(message.getId()));
+			share(item.getMediaId(), message.getSenderKey(), new ArrayList<>(shareWithUserKeys), UUID.fromString(message.getClientMessageId()));
 		}
 	}
 
@@ -114,7 +113,7 @@ public class MediaService {
 		}
 		
 		for (MediaItem item : message.getMediaGroup()) {
-			delete(item.getMediaId(), requesterKey, List.of(requesterKey), UUID.fromString(message.getId()));
+			delete(item.getMediaId(), requesterKey, List.of(requesterKey), UUID.fromString(message.getClientMessageId()));
 		}
 	}
 
@@ -136,9 +135,8 @@ public class MediaService {
 			deleteWithUserKeys = Set.of(message.getSenderKey(), message.getReceiverKey());
 		}
 
-		// Delete
 		for (MediaItem item : message.getMediaGroup()) {
-			delete(item.getMediaId(), requesterKey, new ArrayList<>(deleteWithUserKeys), UUID.fromString(message.getId()));
-		}		
+			delete(item.getMediaId(), requesterKey, new ArrayList<>(deleteWithUserKeys), UUID.fromString(message.getClientMessageId()));
+		}
 	}
 }
