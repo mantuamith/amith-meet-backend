@@ -13,6 +13,7 @@ import org.springframework.web.socket.messaging.SessionUnsubscribeEvent;
 
 import com.algomeet.chatservice.service.MessageService;
 import com.algomeet.chatservice.service.UserSessionService;
+import com.algomeet.chatservice.config.StompUserPrincipal;
 
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -38,7 +39,8 @@ public class WebSocketEventListener {
         String username = null;
         Principal user = accessor.getUser();
         if (user != null) {
-        	userSessionService.addSession(user.getName(), accessor.getSessionId());
+            String userKey = (user instanceof StompUserPrincipal sup) ? sup.userKey() : null;
+            userSessionService.addSession(user.getName(), accessor.getSessionId(), userKey);
             username = user.getName();
             try {
                 // NEW: auto-mark all SENT→DELIVERED for this user
