@@ -305,7 +305,7 @@ public class FileController implements FileControllerDoc {
 
     private String resolveThumbnailUrl(UserFileDocument fileDoc, String mediaId) {
         return switch (Storage.valueOf(fileDoc.getStorage())) {
-            case LOCAL -> mediaBaseUrl + "/media/" + mediaId + "/thumbnail/thumb_" + mediaId + ".jpg";
+            case LOCAL -> mediaBaseUrl + "/media/" + mediaId + "/thumbnail";
             case S3    -> mediaServiceS3.getReadUrl(SecurityUtil.getUserKey(), mediaId);
             case OSS   -> mediaServiceOss.getReadUrl(SecurityUtil.getUserKey(), mediaId);
         };
