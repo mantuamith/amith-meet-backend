@@ -47,6 +47,8 @@ import com.algomeet.mediaservice.util.FileValidator;
 import com.algomeet.mediaservice.util.SecurityUtil;
 
 import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Value;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -55,6 +57,9 @@ import lombok.extern.slf4j.Slf4j;
 @RequestMapping("/media")
 @RequiredArgsConstructor
 public class FileController implements FileControllerDoc {
+
+    @Value("${media.base-url}")
+    private String mediaBaseUrl;
 
     private final MediaServiceLocal mediaServiceLocal;
     @Autowired(required = false)
@@ -300,7 +305,7 @@ public class FileController implements FileControllerDoc {
 
     private String resolveThumbnailUrl(UserFileDocument fileDoc, String mediaId) {
         return switch (Storage.valueOf(fileDoc.getStorage())) {
-            case LOCAL -> "/media/" + mediaId + "/thumbnail";
+            case LOCAL -> mediaBaseUrl + "/media/" + mediaId + "/thumbnail/thumb_" + mediaId + ".jpg";
             case S3    -> mediaServiceS3.getReadUrl(SecurityUtil.getUserKey(), mediaId);
             case OSS   -> mediaServiceOss.getReadUrl(SecurityUtil.getUserKey(), mediaId);
         };
