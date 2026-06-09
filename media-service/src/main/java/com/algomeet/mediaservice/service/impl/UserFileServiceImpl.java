@@ -106,7 +106,14 @@ public class UserFileServiceImpl implements UserFileService {
 	    }
 
 	    // 3. If not expired, Owner has full wildcard access to everything
-	    if (isOwner) {			
+	    if (isOwner) {
+	        return true;
+	    }
+
+	    // 4. Chat attachments — any authenticated user can READ a file shared in a conversation
+	    if (permission == FilePermission.READ
+	            && file.getConversationId() != null
+	            && !file.getConversationId().isBlank()) {
 	        return true;
 	    }
 
@@ -116,8 +123,8 @@ public class UserFileServiceImpl implements UserFileService {
 	    		return true;
 	    	}
 	    }
-	    
-	    // 4. Fallback to Access Control Matrix (MongoDB) for shared users
+
+	    // 5. Fallback to Access Control Matrix (MongoDB) for shared users
 		Set<FilePermission> permissions = fileAccessEntryService.getPermissions(UUID.fromString(userKey), UUID.fromString(file.getId()));
 		return permissions.contains(permission);
 	}
