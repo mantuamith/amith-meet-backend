@@ -74,6 +74,11 @@ media:
     video-extensions: [mp4, m4v, mkv, webm, avi, mov, wmv, flv, f4v, mpeg, mpg, 3gp, 3g2, ogv]
     audio-extensions: [mp3, wav, m4a, aac, ogg, opus, flac, amr, wma, aiff, aif, au]
     document-extensions: [pdf, doc, docx, xls, xlsx, ppt, pptx, txt, rtf, csv, odt, ods, odp, epub, md, zip, rar, 7z, tar, gz, tgz, bz2, tbz, xz, txz, lz, lzma, zst]
+    # Per-type size limits (bytes) — aligned with product requirements
+    max-image-size: 20971520       # 20 MB
+    max-video-size: 209715200      # 200 MB
+    max-audio-size: 52428800       # 50 MB
+    max-document-size: 104857600   # 100 MB
 
 server:
   port: 8095

@@ -22,6 +22,7 @@ import feign.FeignException;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 @Slf4j
 @ControllerAdvice
@@ -151,6 +152,34 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(body);
     }
     
+    // Handle per-type size limit exceeded (e.g. image > 20MB, video > 200MB)
+    @ExceptionHandler(FileSizeExceededException.class)
+    public ResponseEntity<Map<String, Object>> handleFileSizeExceeded(FileSizeExceededException ex, HttpServletRequest req) {
+        log.warn("413 File size exceeded path={} method={} msg={}", req.getRequestURI(), req.getMethod(), ex.getMessage());
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("status", 413);
+        body.put("error", "Payload Too Large");
+        body.put("message", ex.getMessage());
+        body.put("path", req.getRequestURI());
+        body.put("method", req.getMethod());
+        body.put("timestamp", Instant.now().toString());
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body(body);
+    }
+
+    // Handle file too large (exceeds Spring multipart limit)
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<Map<String, Object>> handleMaxUploadSize(MaxUploadSizeExceededException ex, HttpServletRequest req) {
+        log.warn("413 File too large path={} method={} maxSize={}", req.getRequestURI(), req.getMethod(), ex.getMaxUploadSize());
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("status", 413);
+        body.put("error", "Payload Too Large");
+        body.put("message", "File size exceeds the maximum allowed limit");
+        body.put("path", req.getRequestURI());
+        body.put("method", req.getMethod());
+        body.put("timestamp", Instant.now().toString());
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body(body);
+    }
+
     // Handle method params validation errors (e.g. @NotNull)
     @ExceptionHandler(MissingServletRequestParameterException.class)
     public ResponseEntity<?> requestParamValidationErrors(MissingServletRequestParameterException ex, HttpServletRequest req) {        
