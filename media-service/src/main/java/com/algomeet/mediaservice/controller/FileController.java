@@ -126,6 +126,9 @@ public class FileController implements FileControllerDoc {
             } catch (FileTypeNotSupportedException ex) {
                 log.warn("Batch item rejected (unsupported type): {}", file.getOriginalFilename(), ex);
                 failures.add(file.getOriginalFilename());
+            } catch (org.springframework.web.multipart.MaxUploadSizeExceededException ex) {
+                // Rethrow — client must reduce file size, 413 returned by GlobalExceptionHandler
+                throw ex;
             } catch (Exception ex) {
                 log.error("Batch item failed: {}", file.getOriginalFilename(), ex);
                 failures.add(file.getOriginalFilename());

@@ -8,6 +8,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -47,11 +48,13 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import com.algomeet.mediaservice.config.LocalizationConfig;
 import com.algomeet.mediaservice.config.StorageProperties;
+import com.algomeet.mediaservice.exceptions.GlobalExceptionHandler;
 import com.algomeet.mediaservice.document.FilePermission;
 import com.algomeet.mediaservice.document.UserFileDocument;
 import com.algomeet.mediaservice.dto.MediaUploadResponse;
 import com.algomeet.mediaservice.enums.Storage;
 import com.algomeet.mediaservice.exceptions.FileTypeNotSupportedException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import com.algomeet.mediaservice.repository.UserFileRepository;
 import com.algomeet.mediaservice.service.MediaServiceLocal;
 import com.algomeet.mediaservice.service.MediaServiceOss;
@@ -64,7 +67,7 @@ import com.algomeet.mediaservice.util.SecurityUtil;
 
 @WebMvcTest(controllers = FileController.class, excludeFilters = {
 		@ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE, classes = {}) })
-@ContextConfiguration(classes = FileController.class)
+@ContextConfiguration(classes = { FileController.class, GlobalExceptionHandler.class })
 @Import(LocalizationConfig.class)
 @EnableAutoConfiguration(exclude = { MongoAutoConfiguration.class, MongoDataAutoConfiguration.class })
 @AutoConfigureMockMvc(addFilters = false)
@@ -309,6 +312,105 @@ class FileControllerTest {
 	            USER_KEY,
 	            Set.of("u1", "u2"),
 	            MESSAGE_ID);
+	}
+
+	/*
+	 * ========================= BATCH UPLOAD =========================
+	 */
+
+	@Test
+	void batchUpload_allSuccess_returns200() throws Exception {
+		MockMultipartFile file1 = new MockMultipartFile("files", "photo1.jpg", MediaType.IMAGE_JPEG_VALUE, "img1".getBytes());
+		MockMultipartFile file2 = new MockMultipartFile("files", "photo2.jpg", MediaType.IMAGE_JPEG_VALUE, "img2".getBytes());
+
+		MediaUploadResponse resp1 = MediaUploadResponse.builder().mediaId(UUID.randomUUID().toString()).originalFilename("photo1.jpg").build();
+		MediaUploadResponse resp2 = MediaUploadResponse.builder().mediaId(UUID.randomUUID().toString()).originalFilename("photo2.jpg").build();
+
+		UserFileDocument doc = new UserFileDocument();
+		doc.setStorage(Storage.LOCAL.name());
+
+		when(storageProperties.getActiveUploadStorage()).thenReturn(Storage.LOCAL.name());
+		when(mediaServiceLocal.upload(any(), any(), any(), anyBoolean(), anyBoolean(), any(), any()))
+				.thenReturn(resp1).thenReturn(resp2);
+		when(userFileService.getFile(any(), any(), any())).thenReturn(doc);
+
+		mockMvc.perform(multipart("/media/batch")
+						.file(file1).file(file2)
+						.param("uploadContext", "CHAT")
+						.param("conversationId", "conv-123"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.code").value("SUCCESS"))
+				.andExpect(jsonPath("$.data").isArray());
+	}
+
+	@Test
+	void batchUpload_partialFailure_returns207() throws Exception {
+		MockMultipartFile validFile   = new MockMultipartFile("files", "photo.jpg",  MediaType.IMAGE_JPEG_VALUE,             "img".getBytes());
+		MockMultipartFile invalidFile = new MockMultipartFile("files", "virus.exe",  MediaType.APPLICATION_OCTET_STREAM_VALUE, "x".getBytes());
+
+		MediaUploadResponse resp = MediaUploadResponse.builder().mediaId(UUID.randomUUID().toString()).originalFilename("photo.jpg").build();
+
+		UserFileDocument doc = new UserFileDocument();
+		doc.setStorage(Storage.LOCAL.name());
+
+		when(storageProperties.getActiveUploadStorage()).thenReturn(Storage.LOCAL.name());
+
+		// first call (virus.exe) throws, second call (photo.jpg) succeeds
+		doThrow(new FileTypeNotSupportedException("not allowed"))
+				.doNothing()
+				.when(fileValidator).validate(any(), anyBoolean());
+
+		when(mediaServiceLocal.upload(any(), any(), any(), anyBoolean(), anyBoolean(), any(), any())).thenReturn(resp);
+		when(userFileService.getFile(any(), any(), any())).thenReturn(doc);
+
+		mockMvc.perform(multipart("/media/batch")
+						.file(invalidFile).file(validFile)
+						.param("uploadContext", "CHAT"))
+				.andExpect(status().is(207))
+				.andExpect(jsonPath("$.data").isArray());
+	}
+
+	@Test
+	void batchUpload_allFilesRejected_returns415() throws Exception {
+		MockMultipartFile file1 = new MockMultipartFile("files", "a.exe", MediaType.APPLICATION_OCTET_STREAM_VALUE, "x".getBytes());
+		MockMultipartFile file2 = new MockMultipartFile("files", "b.exe", MediaType.APPLICATION_OCTET_STREAM_VALUE, "y".getBytes());
+
+		doThrow(new FileTypeNotSupportedException("not allowed"))
+				.when(fileValidator).validate(any(), anyBoolean());
+
+		mockMvc.perform(multipart("/media/batch").file(file1).file(file2))
+				.andExpect(status().isUnsupportedMediaType())
+				.andExpect(jsonPath("$.code").value("MEDIA_FILE_TYPE_NOT_SUPPORTED"));
+	}
+
+	@Test
+	void upload_fileTooLarge_returns413() throws Exception {
+		MockMultipartFile file = new MockMultipartFile("file", "big.jpg", MediaType.IMAGE_JPEG_VALUE, "data".getBytes());
+
+		doThrow(new MaxUploadSizeExceededException(50 * 1024 * 1024L))
+				.when(fileValidator).validate(any(), anyBoolean());
+
+		mockMvc.perform(multipart("/media").file(file))
+				.andExpect(status().isPayloadTooLarge())
+				.andExpect(jsonPath("$.error").value("Payload Too Large"))
+				.andExpect(jsonPath("$.message").value("File size exceeds the maximum allowed limit"));
+
+		verify(mediaServiceLocal, never()).upload(any(), any(), any(), anyBoolean(), anyBoolean(), any(), any());
+	}
+
+	@Test
+	void batchUpload_fileTooLarge_returns413() throws Exception {
+		MockMultipartFile file = new MockMultipartFile("files", "big.jpg", MediaType.IMAGE_JPEG_VALUE, "data".getBytes());
+
+		doThrow(new MaxUploadSizeExceededException(50 * 1024 * 1024L))
+				.when(fileValidator).validate(any(), anyBoolean());
+
+		mockMvc.perform(multipart("/media/batch").file(file))
+				.andExpect(status().isPayloadTooLarge())
+				.andExpect(jsonPath("$.error").value("Payload Too Large"))
+				.andExpect(jsonPath("$.message").value("File size exceeds the maximum allowed limit"));
+
+		verify(mediaServiceLocal, never()).upload(any(), any(), any(), anyBoolean(), anyBoolean(), any(), any());
 	}
 
 	@Test

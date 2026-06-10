@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.algomeet.mediaservice.config.AcceptedFileProperties;
+import com.algomeet.mediaservice.exceptions.FileSizeExceededException;
 import com.algomeet.mediaservice.exceptions.FileTypeNotSupportedException;
 
 import lombok.RequiredArgsConstructor;
@@ -57,12 +58,16 @@ public class FileValidator {
 
 		if (detectedType.startsWith("image/")) {
 			validateExtension(extension, props.getImageExtensions());
+			validateSize(file, props.getMaxImageSize(), "image", 20);
 		} else if (detectedType.startsWith("video/")) {
 			validateExtension(extension, props.getVideoExtensions());
+			validateSize(file, props.getMaxVideoSize(), "video", 200);
 		} else if (detectedType.startsWith("audio/")) {
 			validateExtension(extension, props.getAudioExtensions());
+			validateSize(file, props.getMaxAudioSize(), "audio", 50);
 		} else if (detectedType.startsWith("application/") || detectedType.startsWith("text/")) {
 			validateExtension(extension, props.getDocumentExtensions());
+			validateSize(file, props.getMaxDocumentSize(), "document", 100);
 		} else {
 			throw new FileTypeNotSupportedException("Unsupported MIME type: " + detectedType);
 		}
@@ -71,6 +76,15 @@ public class FileValidator {
 	private void validateExtension(String extension, Set<String> allowed) {
 		if (!allowed.contains(extension)) {
 			throw new FileTypeNotSupportedException("File type not supported: ." + extension);
+		}
+	}
+
+	private void validateSize(MultipartFile file, long maxBytes, String fileType, int maxMB) {
+		if (file.getSize() > maxBytes) {
+			throw new FileSizeExceededException(
+				String.format("The file has exceeded the upload size limit. Maximum allowed for %s is %d MB, but received %.1f MB.",
+					fileType, maxMB, file.getSize() / (1024.0 * 1024.0))
+			);
 		}
 	}
 }
