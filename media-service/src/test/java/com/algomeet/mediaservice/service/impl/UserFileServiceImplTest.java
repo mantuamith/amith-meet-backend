@@ -212,11 +212,17 @@ class UserFileServiceImplTest {
 
     @Test
     void softDelete_removesAclAndMarksForCleanup() {
+        // "Delete for everyone" (owner + another participant) with no remaining access entries
+        // → file must be marked for cleanup.
         UserFileDocument file = ownerFile();
+        String otherUser = "00111111-1111-1111-1111-111111111111";
 
         when(repository.findAllById(Set.of(FILE_ID))).thenReturn(List.of(file));
+        when(fileAccessEntryService.revokeAccess(any(), any(), any())).thenReturn(true);
+        when(fileAccessEntryService.countByFileId(any())).thenReturn(0L);
 
-        service.softDeleteAndMarkForCleanupIfOrphaned(Set.of(FILE_ID), OWNER, Set.of(OWNER), MESSAGE_ID);
+        service.softDeleteAndMarkForCleanupIfOrphaned(
+                Set.of(FILE_ID), OWNER, Set.of(OWNER, otherUser), MESSAGE_ID);
 
         assertNotNull(file.getCleanupEligibleAt());
         verify(repository).saveAll(List.of(file));
