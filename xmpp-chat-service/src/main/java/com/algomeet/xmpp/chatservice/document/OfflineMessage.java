@@ -19,19 +19,19 @@ import lombok.Data;
 @Document(collection = "offline_messages")
 @CompoundIndexes({
 	/**
-	 * Used for findByToAndDeletedAtIsNullOrderByIdAsc
+	 * Used for findByToAndDeliveredAtIsNullOrderByIdAsc
 	 */
-	@CompoundIndex(name = "idxOffline_to_idAsc", def = "{'to': 1, 'id': 1}", partialFilter = "{'deletedAt': null}"),
+	@CompoundIndex(name = "idxOffline_to_idAsc", def = "{'to': 1, 'id': 1}", partialFilter = "{'deliveredAt': null}"),
 
 	/**
-	 * Used for findByIdAndFromAndDeletedAtIsNull
+	 * Used for findByIdAndFromAndDeliveredAtIsNull
 	 */
-	@CompoundIndex(name = "idxOffline_from_id", def = "{'from': 1, 'id': 1}", partialFilter = "{'deletedAt': null}"),
+	@CompoundIndex(name = "idxOffline_from_id", def = "{'from': 1, 'id': 1}", partialFilter = "{'deliveredAt': null}"),
 
 	/**
-	 * Used for deleteByToAndFromAndStanzaIdLessThanEqualAndDeletedAtIsNotNull
+	 * Used for deleteByToAndFromAndStanzaIdLessThanEqualAndDeliveredAtIsNotNull
 	 */
-	@CompoundIndex(name = "idxOffline_to_from_deletedAt_stanzaId", def = "{'to': 1, 'from': 1, 'deletedAt': 1, 'stanzaId': 1}"),
+	@CompoundIndex(name = "idxOffline_to_from_deliveredAt_stanzaId", def = "{'to': 1, 'from': 1, 'deliveredAt': 1, 'stanzaId': 1}"),
 
 	/**
 	 * Used for countByToAndFromAndStanzaIdGreaterThanAndCountableTrue
@@ -54,7 +54,13 @@ import lombok.Data;
 	@CompoundIndex(
 	    name = "idxOffline_from_stanzaIdDesc", 
 	    def = "{'from': 1, 'stanzaId': -1}"
-	)
+	),
+	/**
+	 * Used for deleteByToAndFromAndDeliveredAtIsNotNullAndStanzaIdLessThanEqual
+	 * Follows ESR: Equality (to, from, deliveredAt) -> Range (id)
+	 */
+	@CompoundIndex(name = "idxOffline_to_from_deliveredAt_stanzaId", def = "{'to': 1, 'from': 1, 'deliveredAt': 1, 'stanzaId': 1}")
+
 })
 public class OfflineMessage {
 	@Id
@@ -75,7 +81,11 @@ public class OfflineMessage {
 	@Builder.Default
 	private Instant createdAt = Instant.now(); // Used for XEP-0203 Delayed Delivery stamp
 
-	private Instant deletedAt;
+	/**
+	 * Timestamp indicating when the message was marked as delivered to the client.
+	 * Presence of this value indicates the message is ready for permanent deletion/cleanup.
+	 */
+	private Instant deliveredAt;
 
 	private Boolean isAckStanza;
 

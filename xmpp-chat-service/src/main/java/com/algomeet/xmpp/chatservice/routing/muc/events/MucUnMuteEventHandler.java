@@ -15,6 +15,7 @@ import com.algomeet.xmpp.chatservice.routing.muc.MucMessageRouter;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.algomeet.xmpp.chatservice.util.MucCommandUtil;
 import com.algomeet.xmpp.chatservice.util.MucRoleUtil;
+import com.algomeet.xmpp.chatservice.util.SearchUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
 
@@ -56,10 +57,8 @@ public class MucUnMuteEventHandler {
 		log.info("Admin {} attempting to unmute {} from {}", senderJid, victimJid, roomJid);
 
 		// 2. Identify the target member (victim) based on the provided JID
-		String victimUserKey = XmppUtil.getUserKey(victimJid);
-		Optional<MucMember> victimOpt = group.getMembers().stream()
-				.filter(m -> m.getUserKey() != null && m.getUserKey().equalsIgnoreCase(victimUserKey))
-				.findFirst();        
+		String victimUserKey = XmppUtil.getUserKey(victimJid); 
+		Optional<MucMember> victimOpt = SearchUtil.findMember(group, victimUserKey);
 		
 		// 3. Authorization Check
 		// Ensure the moderator has the authority to unmute the target.

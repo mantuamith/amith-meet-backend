@@ -14,6 +14,7 @@ import com.algomeet.xmpp.chatservice.routing.dispacher.LocalStanzaDispatcher;
 import com.algomeet.xmpp.chatservice.routing.muc.MucMessageRouter;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.algomeet.xmpp.chatservice.util.MucCommandUtil;
+import com.algomeet.xmpp.chatservice.util.SearchUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
 
@@ -55,10 +56,8 @@ public class MucMuteEventHandler {
 		log.info("Admin {} attempting to mute {} from {}", senderJid, victimJid, roomJid);
 
 		// 2. Identify the target occupant (victim) by their user key
-		String victimUserKey = XmppUtil.getUserKey(victimJid);
-		Optional<MucMember> victimOpt = group.getMembers().stream()
-				.filter(m -> m.getUserKey() != null && m.getUserKey().equalsIgnoreCase(victimUserKey))
-				.findFirst();        
+		String victimUserKey = XmppUtil.getUserKey(victimJid); 
+		Optional<MucMember> victimOpt = SearchUtil.findMember(group, victimUserKey);
 		
 		// 3. Authority Validation
 		// Ensure the moderator has sufficient permission to mute the target

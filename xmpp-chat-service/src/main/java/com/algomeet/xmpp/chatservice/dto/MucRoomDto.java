@@ -19,4 +19,9 @@ public class MucRoomDto {
 
     @JsonDeserialize(as = TreeSet.class)
     private SortedSet<MucMember> members = new TreeSet<>();    
+    
+    /**
+     * TODO: Add to group-service configuration.
+     */
+    private boolean historyVisibleToNewMembers = true;
 }

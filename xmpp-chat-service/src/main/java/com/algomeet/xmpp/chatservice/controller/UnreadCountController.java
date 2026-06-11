@@ -57,6 +57,7 @@ public class UnreadCountController implements UnreadCountControllerDoc{
     /**
      * Resets the counter when a user opens a conversation or clear the conversation without opening the messagea.
      */
+    @Deprecated
     @PostMapping("/sender/{senderKey}/timeline-cutoff")
     public Mono<ResponseEntity<CommonResponse<?>>> timelineCutoff(
     		@PathVariable String senderKey,

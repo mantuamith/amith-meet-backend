@@ -135,7 +135,7 @@ public class MucMessageRouter {
 	/**
 	 * Iterates through all room occupants and publishes the presence update to the cluster.
 	 */
-	public void broadcastToOccupants(String id, String senderKey, MucRoomDto group, String presence, boolean isAllowEcho) {
+	public void broadcastToOccupants(String id, String senderKey, MucRoomDto group, String payload, boolean isAllowEcho) {
 		if(group == null || group.getMembers() == null) {
 			return;
 		}
@@ -147,7 +147,7 @@ public class MucMessageRouter {
 				}
 			}
 			
-			clusterMessagePublisher.convertAndSendToUser(id, receiver.getUserKey(), senderKey, ChatType.GROUPCHAT, presence);
+			clusterMessagePublisher.convertAndSendToUser(id, receiver.getUserKey(), senderKey, ChatType.GROUPCHAT, payload);
 		}
 	}	
 

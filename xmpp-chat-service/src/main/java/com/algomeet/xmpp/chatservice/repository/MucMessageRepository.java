@@ -7,6 +7,7 @@ import java.util.UUID;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.mongodb.repository.Query;
 import org.springframework.data.mongodb.repository.ReactiveMongoRepository;
+import org.springframework.data.repository.query.Param;
 
 import com.algomeet.xmpp.chatservice.document.MucMessage;
 import com.algomeet.xmpp.chatservice.repository.projection.MucMessageView;
@@ -70,6 +71,7 @@ public interface MucMessageRepository extends ReactiveMongoRepository<MucMessage
 			UUID roomId, 
 			UUID afterUpdateCursorId, 
 			UUID limitId,
+			
 			Instant createdAt,
 			Pageable pageable
 			);
@@ -132,12 +134,16 @@ public interface MucMessageRepository extends ReactiveMongoRepository<MucMessage
 			"}", count = true)
 	Mono<Long> countUnreadMessages(UUID roomId, UUID lastReadStanzaId, UUID userKey, Instant historyCutoff);
 	
-	Mono<MucMessageView> findMucMessageViewByMessageId(UUID messageId);
-	/**
-	 * Retrieve reactions and edit messages
-	 * @param roomId
-	 * @param targetMessageId
-	 * @return
-	 */
-	List<MucMessageView> findByRoomIdAndTargetMessageId(UUID roomId, UUID targetMessageId);
+	/** * Finds the largest cutoff stanza ID used to sync with other online accounts.
+     * Filters strictly by the room identity and historical timeline cutoff point.
+     */
+    @Query(value = "{"
+            + "  'roomId': :roomId,"
+            + "  'createdAt': { '$lte': :historyCutoff }"
+            + "}", 
+           sort = "{ 'id': -1 }")
+    Mono<MucMessageView> findCutoffStanza(
+            @Param("roomId") UUID roomId, 
+            @Param("historyCutoff") Instant historyCutoff
+    );
 }

@@ -1,8 +1,10 @@
 package com.algomeet.xmpp.chatservice.service;
 
+import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
@@ -13,12 +15,16 @@ import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.enums.MucAffiliation;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
+import com.algomeet.xmpp.chatservice.repository.MucMessageRepository;
+import com.algomeet.xmpp.chatservice.repository.projection.MucMessageView;
 import com.algomeet.xmpp.chatservice.util.SearchUtil;
 import com.algomeet.xmpp.chatservice.util.XmppSyncStanzaComposer;
 import com.github.f4b6a3.uuid.UuidCreator;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 @Slf4j
 @Service
@@ -29,52 +35,61 @@ public class MucRoomService {
     private final GroupCacheService groupCacheService; // Inject the passive cache provider
     private final ClusterMessagePublisher clusterMessagePublisher;
     private final DomainProperties domainProperties;
-
+    private final MucMessageRepository mucMessageRepository;
+    
     /**
      * Handles the business flow for clearing a member's history timeline.
-     * Orchestrates the remote mutation and ensures the local cache consistency.
+     * Orchestrates the remote mutation, local cache consistency, and device push notifications.
+     *
+     * @return A Mono emitting true if the operation succeeded, false otherwise.
      */
-    public Boolean clearMemberHistoryTimeline(UUID groupId, UUID userKey, Long historyCutoff) {
-        // 1. Execute the remote core business mutation
-        boolean isCleared = groupClient.clearMemberHistoryTimeline(groupId, userKey, historyCutoff);
-        
-        // 2. Manage side-effects (Cache Eviction) safely on this side of the boundary
-        if (isCleared) {            
+    public Mono<Boolean> clearMemberHistoryTimeline(UUID groupId, UUID userKey, Instant historyCutoff) {
+
+        // 1. Offload the blocking groupClient network call
+        return Mono.fromCallable(() -> 
+            groupClient.clearMemberHistoryTimeline(groupId, userKey, historyCutoff.toEpochMilli())
+        )
+        .subscribeOn(Schedulers.boundedElastic())
+        .flatMap(isCleared -> {
+            // Handle Cache Side Effects
+            if (!isCleared) {            
+                log.warn("Remote group service reported no state changes for user {} in group {}. Cache eviction skipped.", userKey, groupId);
+                return Mono.just(false);
+            }
+
             groupCacheService.evictGroup(groupId.toString());
             log.debug("Successfully updated remote timeline cutoff parameters for user {} in group {}. Evicting cache...", userKey, groupId);
-        } else {
-            log.warn("Remote group service reported no state changes for user {} in group {}. Cache eviction skipped.", userKey, groupId);
-        }
-        
-        /**
-         * <message from='conference.algomeet.app'
-         *          type='headline'>
-         *     <sync xmlns='urn:xmpp:algomeet:sync:history'>
-         *         <conversation room-id='ROOM ID'
-         *                       cleared-until='xxxxxx' />
-         *     </sync>
-         * </message>
-         */
 
-        String payload = XmppSyncStanzaComposer.createMucClearanceStanza(
-        		domainProperties.getGroupChatDomain(),
-        		groupId.toString(), 
-        		historyCutoff
-        );
+            // 2. Fetch the cutoff stanza message view from the repository
+            return mucMessageRepository.findCutoffStanza(
+                    groupId, 
+                    historyCutoff
+            )
+            // Extract the ID string if a message is found, or default to an empty string/null if history is empty
+            .map(view -> view.getId() != null ? view.getId().toString() : "")
+            .defaultIfEmpty("") 
+            .doOnNext(cutoffStanzaId -> {
+                // 3. Compose and send the Synchronization Stanza to user's secondary devices
+            	if(!StringUtils.isEmpty(cutoffStanzaId)) {
+            		
+            		String payload = XmppSyncStanzaComposer.createMucClearanceStanza(
+            				domainProperties.getGroupChatDomain(),
+            				groupId.toString(), 
+            				cutoffStanzaId
+            				);
 
-        // 3. Generate unique tracking identifier for cluster delivery routing
-        String clusterMessageId = UuidCreator.getTimeOrderedEpoch().toString();
-        
-        // 4. Dispatch the timeline clearance payload to secondary user devices
-        clusterMessagePublisher.convertAndSendToUser(
-                clusterMessageId,
-                userKey.toString(), 
-                userKey.toString(), 
-                ChatType.GROUPCHAT, 
-                payload
-        );
-        
-        return isCleared;
+            		String messageId = UuidCreator.getTimeOrderedEpoch().toString();
+            		clusterMessagePublisher.convertAndSendToUser(
+            				messageId,
+            				userKey.toString(), 
+            				userKey.toString(), 
+            				ChatType.GROUPCHAT, 
+            				payload
+            				);
+            	}
+            })
+            .map(ignored -> true); // Retain original isCleared (true) status
+        });
     }
         
     /**
@@ -117,31 +132,35 @@ public class MucRoomService {
          * client engines evaluate all local message records as obsolete.
          * * <message from='conference.algomeet.app' type='headline'>
          * <sync xmlns='urn:xmpp:algomeet:sync:history'>
-         * <conversation room-id='ROOM_ID' cleared-until='CURRENT_TIME_MS' purged='true' />
+         * <conversation room-id='ROOM_ID' cleared-until-stanza-id='STANZA_ID' />
          * </sync>
          * </message>
          */
-        long systemPurgeTimestamp = System.currentTimeMillis();
-        String payload = XmppSyncStanzaComposer.createMucClearanceStanza(
-                domainProperties.getGroupChatDomain(),
-                groupId.toString(),
-                systemPurgeTimestamp
-        );
 
-        // Injecting an analytical modifier property if your Stanza Composer allows string expansions, 
-        // or rely on standard cleared-until evaluation on the client app layouts.
-        String clusterMessageId = UuidCreator.getTimeOrderedEpoch().toString();
+        Optional<MucMessageView> lastMessageOpt = mucMessageRepository.findCutoffStanza(
+                groupId, 
+                Instant.now()).blockOptional();
+        
+        if (lastMessageOpt.isPresent()) {
+        	String payload = XmppSyncStanzaComposer.createMucClearanceStanza(
+        			domainProperties.getGroupChatDomain(),
+        			groupId.toString(),
+        			lastMessageOpt.get().getId().toString());
 
-        // 3. Broadcast to your cluster messaging bridge. 
-        // Since this is a global room history drop, route the event to the room's channel space 
-        // so all active online occupants process the viewport clearance concurrently.
-        clusterMessagePublisher.convertAndSendToUser(
-                clusterMessageId,
-                groupId.toString(), // Targets the common group distribution key routing string
-                groupId.toString(), 
-                ChatType.GROUPCHAT, 
-                payload
-        );
+        	// Injecting an analytical modifier property if your Stanza Composer allows string expansions, 
+        	// or rely on standard cleared-until evaluation on the client app layouts.
+        	String clusterMessageId = UuidCreator.getTimeOrderedEpoch().toString();
+
+        	// 3. Broadcast to your cluster messaging bridge. 
+        	// Since this is a global room history drop, route the event to the room's channel space 
+        	// so all active online occupants process the viewport clearance concurrently.
+        	clusterMessagePublisher.convertAndSendToUser(
+        			clusterMessageId,
+        			groupId.toString(), // Targets the common group distribution key routing string
+        			groupId.toString(), 
+        			ChatType.GROUPCHAT, 
+        			payload);
+        }
 
         log.info("Successfully completed global purge operations and synchronized timeline resets for group: {}", groupId);
         return true;

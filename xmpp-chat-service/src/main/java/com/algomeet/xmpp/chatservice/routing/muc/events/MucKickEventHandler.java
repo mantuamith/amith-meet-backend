@@ -18,6 +18,7 @@ import com.algomeet.xmpp.chatservice.routing.muc.MucMessageRouter;
 import com.algomeet.xmpp.chatservice.service.XmppArchiveService;
 import com.algomeet.xmpp.chatservice.stanza.events.MucSystemEventLogMessageStanza;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
+import com.algomeet.xmpp.chatservice.util.SearchUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
 import com.github.f4b6a3.uuid.UuidCreator;
@@ -60,10 +61,8 @@ public class MucKickEventHandler {
 
 		log.info("Admin {} attempting to kick {} from {}", senderJid, victimJid, roomJid);
 
-		String victimUserKey = XmppUtil.getUserKey(victimJid);
-		Optional<MucMember> victimOpt = group.getMembers().stream()
-				.filter(m -> m.getUserKey() != null && m.getUserKey().equalsIgnoreCase(victimUserKey))
-				.findFirst();        
+		String victimUserKey = XmppUtil.getUserKey(victimJid);  
+		Optional<MucMember> victimOpt = SearchUtil.findMember(group, victimUserKey);
 		
 		// Prerequisite: the member must have already been removed from the group using group-service API.
 		if (victimOpt.isPresent()) {        	

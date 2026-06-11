@@ -14,6 +14,7 @@ import org.springframework.util.CollectionUtils;
 import com.algomeet.xmpp.chatservice.constant.Constants;
 import com.algomeet.xmpp.chatservice.document.MucRoomReadCursor;
 import com.algomeet.xmpp.chatservice.dto.MucMember;
+import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
 import com.algomeet.xmpp.chatservice.dto.MucUnreadCount;
 import com.algomeet.xmpp.chatservice.repository.MucMessageRepository;
 import com.algomeet.xmpp.chatservice.repository.MucRoomReadCursorRepository;
@@ -74,12 +75,13 @@ public class MucUnreadCountService {
 					UUID lastReadMid = context.cursor != null ? context.cursor.getLastReadMid() : Constants.SMALLEST_UUID_V7;
 					
 					// Retrieve group info
-					Optional<MucMember> member = SearchUtil.findMember(groupCacheService.getCachedGroup(roomId), userKey.toString());
+					MucRoomDto room = groupCacheService.getCachedGroup(roomId);
+					Optional<MucMember> member = SearchUtil.findMember(room, userKey.toString());
 					if (member.isEmpty()) {
 						return Mono.empty();
 					}
 
-					Instant historyCutoff = MucMemberUtil.getHistoryCutoff(member.get());
+					Instant historyCutoff = MucMemberUtil.getHistoryCutoff(room, member.get());
 
 					return mucMessageRepository.countUnreadMessages(UUID.fromString(roomId), lastReadMid, userKey, historyCutoff)
 							.map(count -> {

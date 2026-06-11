@@ -16,6 +16,10 @@ public class MucMember implements Comparable<MucMember> {
     private String username;
     private String nickname;
     private String role;
+    
+    /**
+     * TODO: Add to group-service configuration.
+     */
     private boolean muted;
 
     private Long memberStartDate;

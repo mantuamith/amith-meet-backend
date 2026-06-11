@@ -27,6 +27,7 @@ import com.algomeet.xmpp.chatservice.session.model.UserSession;
 import com.algomeet.xmpp.chatservice.stanza.events.MucSystemEventLogMessageStanza;
 import com.algomeet.xmpp.chatservice.stanza.presence.MucUserPresenceBuilder;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
+import com.algomeet.xmpp.chatservice.util.SearchUtil;
 import com.algomeet.xmpp.chatservice.util.UserStateUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
@@ -134,14 +135,7 @@ public class MucAddMemberEventHandler {
 		 * ----------------------------------------------------------
 		 * Ensures user exists in system before processing.
 		 */
-		Optional<MucMember> newMemberOpt =
-				group.getMembers().stream()
-				.filter(m ->
-				m.getUserKey() != null
-				&& m.getUserKey().equalsIgnoreCase(
-						XmppUtil.getUserKey(newMemberJid)
-						))
-				.findFirst();
+		Optional<MucMember> newMemberOpt = SearchUtil.findMember(group, XmppUtil.getUserKey(newMemberJid));
 		
 		// Prerequisite: the member must have already been added to the group using group-service API.
 		if (newMemberOpt.isEmpty()) {        	

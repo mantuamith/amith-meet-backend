@@ -61,12 +61,13 @@ public class MucMessageService {
 		Pageable pageable = PageRequest.of(page, size);
 
 		// Retrieve group info
-		Optional<MucMember>  member = SearchUtil.findMember(groupCacheService.getCachedGroup(groupId.toString()), userKey.toString());
+		MucRoomDto room = groupCacheService.getCachedGroup(groupId.toString());
+		Optional<MucMember>  member = SearchUtil.findMember(room, userKey.toString());
 		if (member.isEmpty()) {
 			return List.of();
 		}
 		
-		Instant historyCutoff = MucMemberUtil.getHistoryCutoff(member.get());
+		Instant historyCutoff = MucMemberUtil.getHistoryCutoff(room, member.get());
 		// Collect into a standard ArrayList so it is safe to interact with during processing
 		List<MucMessageResponse> messages = 
 				mucMessageRepository.findByRoomIdAndIdGreaterThanAndToIsNullOrEqualtoUserkeyAndNotHiddenOrderByIdAsc(
@@ -98,12 +99,13 @@ public class MucMessageService {
 		Pageable pageable = PageRequest.of(page, size);
 
 		// Retrieve group info
-		Optional<MucMember>  member = SearchUtil.findMember(groupCacheService.getCachedGroup(groupId.toString()), userKey.toString());
+		MucRoomDto room = groupCacheService.getCachedGroup(groupId.toString());
+		Optional<MucMember>  member = SearchUtil.findMember(room, userKey.toString());
 		if (member.isEmpty()) {
 			return List.of();
 		}
 
-		Instant historyCutoff = MucMemberUtil.getHistoryCutoff(member.get());
+		Instant historyCutoff = MucMemberUtil.getHistoryCutoff(room, member.get());
 		List<MucMessageResponse> processedMessages = mucMessageRepository
 				.findByRoomIdAndIdLessThanAndToIsNullOrEqualtoUserkeyAndNotHiddenOrderByIdDesc(
 						groupId, beforeStanzaId, userKey, historyCutoff, pageable)
@@ -143,7 +145,7 @@ public class MucMessageService {
 			return List.of();
 		}
 
-		Instant historyCutoff = MucMemberUtil.getHistoryCutoff(member.get());
+		Instant historyCutoff = MucMemberUtil.getHistoryCutoff(group, member.get());
 		
 		/**
 		 * Retrieves message state updates (edit, delete, read, etc.)
@@ -203,7 +205,7 @@ public class MucMessageService {
 			return emptyRoomAnchor;
 		}
 
-		Instant historyCutoff = MucMemberUtil.getHistoryCutoff(member.get());
+		Instant historyCutoff = MucMemberUtil.getHistoryCutoff(group, member.get());
 		
 		MucMessage firstMessage = mucMessageRepository
                 .findFirstByRoomIdAndCreatedAtGreaterThanOrderByCreatedAtAsc(groupId, historyCutoff)
@@ -486,6 +488,7 @@ public class MucMessageService {
 				// 6. Root Error Handling Boundary
 				.doOnError(e -> log.error("Critical failure in processing read update for message ID: {}", lastReadMessageId, e));
 	}
+	
 
 	/**
 	 * Helper to handle safe, reactive unlocking to prevent throwing errors if already unlocked.

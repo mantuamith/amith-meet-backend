@@ -166,12 +166,11 @@ public class MucMessageController implements MucMessageControllerDoc{
 			@PathVariable UUID groupId) {
 
 		UUID userKey = UUID.fromString(SecurityUtil.getUserKey());        
-		long historyCutoff = Instant.now().toEpochMilli();
 
 		boolean cleared = mucRoomService.clearMemberHistoryTimeline(
 				groupId,
 				userKey,
-				historyCutoff);
+				Instant.now()).block();
 				
 		return ResponseEntity.ok(
 				CommonResponse.from(ResponseCode.SUCCESS, cleared));

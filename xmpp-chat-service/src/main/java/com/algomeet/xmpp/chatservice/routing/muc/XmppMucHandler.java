@@ -23,6 +23,7 @@ import com.algomeet.xmpp.chatservice.service.MucRetractionService;
 import com.algomeet.xmpp.chatservice.service.XmppArchiveService;
 import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
+import com.algomeet.xmpp.chatservice.util.SearchUtil;
 import com.algomeet.xmpp.chatservice.util.XmppCustomStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppReadUtil;
 import com.algomeet.xmpp.chatservice.util.XmppServerAckUtil;
@@ -91,9 +92,7 @@ public class XmppMucHandler {
 		MucRoomDto group = groupCacheService.getCachedGroup(toRoomId);
 
 		// Verify if the sender is an authorized member and is not muted
-		Optional<MucMember> senderMucMember = group.getMembers().stream()
-				.filter(m -> m.getUserKey().equals(principal.getUserKey())).findFirst();
-
+		Optional<MucMember> senderMucMember = SearchUtil.findMember(group, principal.getUserKey());
 
 		if((senderMucMember.isEmpty() || senderMucMember.get().isMuted())
 				// Ignore unavailable presence stanzas used for member-leave broadcasts

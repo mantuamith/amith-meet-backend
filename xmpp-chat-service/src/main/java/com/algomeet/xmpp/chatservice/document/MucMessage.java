@@ -26,7 +26,7 @@ import lombok.NoArgsConstructor;
 	 * Latest messages, history pagination, conversation feed.
 	 * 
 	 * Used for retrieving messages findByRoomIdAndIdGreaterThan...Asc(), findByRoomIdAndIdLessThan...Desc() 
-	 * queries
+	 * and findFirstByRoomIdAndIdLessThanAndToIsNullOrEqualtoUserkeyAndNotHiddenOrderByIdDesc
 	 */
 	// Index A: For public/room-wide messages
 	@CompoundIndex(name = "idxMuc_roomId_idDesc_createdA_publicPartial", 
@@ -117,8 +117,6 @@ public class MucMessage {
 	private String stanzaXml;
 
 	private Long deletedAt;
-	
-	private Long readAt;
 
 	private Set<UUID> hiddenFromUserKeys = new HashSet<>();
 
