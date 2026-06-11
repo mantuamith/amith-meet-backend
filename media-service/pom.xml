@@ -193,6 +193,12 @@
 			<artifactId>jave-nativebin-linux64</artifactId>
 			<version>3.5.0</version>
 		</dependency>
+		<!-- ARM64 binary for Apple Silicon / AWS Graviton / k8s arm64 nodes -->
+		<dependency>
+			<groupId>ws.schild</groupId>
+			<artifactId>jave-nativebin-linux-arm64</artifactId>
+			<version>3.5.0</version>
+		</dependency>
 		<dependency>
 			<groupId>io.github.openfeign</groupId>
 			<artifactId>feign-okhttp</artifactId>
