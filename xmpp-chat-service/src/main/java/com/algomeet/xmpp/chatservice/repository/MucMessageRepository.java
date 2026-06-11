@@ -137,13 +137,13 @@ public interface MucMessageRepository extends ReactiveMongoRepository<MucMessage
 	/** * Finds the largest cutoff stanza ID used to sync with other online accounts.
      * Filters strictly by the room identity and historical timeline cutoff point.
      */
-    @Query(value = "{"
-            + "  'roomId': :roomId,"
-            + "  'createdAt': { '$lte': :historyCutoff }"
+	@Query(value = "{"
+            + "  'roomId': ?0,"
+            + "  'createdAt': { '$lte': ?1 }"
             + "}", 
-           sort = "{ 'id': -1 }")
+           sort = "{ '_id': -1 }") 
     Mono<MucMessageView> findCutoffStanza(
-            @Param("roomId") UUID roomId, 
-            @Param("historyCutoff") Instant historyCutoff
+           UUID roomId, 
+           Instant historyCutoff
     );
 }
