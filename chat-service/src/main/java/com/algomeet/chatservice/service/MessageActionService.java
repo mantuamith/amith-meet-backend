@@ -297,7 +297,10 @@ public class MessageActionService {
 
         // Grant media access to recipients BEFORE dispatching so they can
         // download/thumbnail immediately upon receiving the forwarded messages.
+        log.info("[ForwardBatch] Processing {} saved docs for media share", savedDocs.size());
         for (MessageDocument doc : savedDocs) {
+            log.info("[ForwardBatch] doc={} mediaGroup={} receiverKey={} groupMessage={}",
+                    doc.getId(), doc.getMediaGroup(), doc.getReceiverKey(), doc.isGroupMessage());
             if (org.springframework.util.CollectionUtils.isEmpty(doc.getMediaGroup())) continue;
             try {
                 if (doc.isGroupMessage()) {
@@ -306,6 +309,7 @@ public class MessageActionService {
                 } else {
                     mediaService.share(doc);
                 }
+                log.info("[ForwardBatch] Media share completed for messageId={}", doc.getId());
             } catch (Exception ex) {
                 log.warn("[ForwardBatch] Media share failed for messageId={} error={}",
                         doc.getId(), ex.getMessage());

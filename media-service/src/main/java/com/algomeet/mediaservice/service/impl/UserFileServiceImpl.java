@@ -95,18 +95,21 @@ public class UserFileServiceImpl implements UserFileService {
 	@Override
 	public boolean hasPermission(UserFileDocument file, String userKey, FilePermission permission) {
 		// 1. Determine if the file is currently expired/scheduled for cleanup
-	    boolean isExpired = file.getCleanupEligibleAt() != null 
+	    boolean isExpired = file.getCleanupEligibleAt() != null
 	            && file.getCleanupEligibleAt().isBefore(Instant.now());
 
 	    // 2. Check Ownership (Safe against NullPointerException)
 	    boolean isOwner = userKey.equals(file.getOwner());
 
 	    if (isExpired) {
+	        log.info("[HasPermission] DENIED fileId={} userKey={} permission={} reason=EXPIRED cleanupEligibleAt={}",
+	                file.getId(), userKey, permission, file.getCleanupEligibleAt());
 	        return false;
 	    }
 
 	    // 3. If not expired, Owner has full wildcard access to everything
 	    if (isOwner) {
+	        log.debug("[HasPermission] GRANTED fileId={} userKey={} permission={} reason=OWNER", file.getId(), userKey, permission);
 	        return true;
 	    }
 
@@ -114,19 +117,25 @@ public class UserFileServiceImpl implements UserFileService {
 	    if (permission == FilePermission.READ
 	            && file.getConversationId() != null
 	            && !file.getConversationId().isBlank()) {
+	        log.debug("[HasPermission] GRANTED fileId={} userKey={} permission={} reason=CONVERSATION_ID conversationId={}",
+	                file.getId(), userKey, permission, file.getConversationId());
 	        return true;
 	    }
 
 	    // Backward compatibility
 	    if (!CollectionUtils.isEmpty(file.getAccessControlList())) {
 	    	if(hasPermissionAcl(file, userKey, permission)) {
+	    	    log.debug("[HasPermission] GRANTED fileId={} userKey={} permission={} reason=ACL", file.getId(), userKey, permission);
 	    		return true;
 	    	}
 	    }
 
 	    // 5. Fallback to Access Control Matrix (MongoDB) for shared users
 		Set<FilePermission> permissions = fileAccessEntryService.getPermissions(UUID.fromString(userKey), UUID.fromString(file.getId()));
-		return permissions.contains(permission);
+		boolean granted = permissions.contains(permission);
+		log.info("[HasPermission] {} fileId={} userKey={} permission={} reason=FILE_ACCESS_ENTRY entryPermissions={}",
+		        granted ? "GRANTED" : "DENIED", file.getId(), userKey, permission, permissions);
+		return granted;
 	}
 	
 	@Deprecated
@@ -142,9 +151,10 @@ public class UserFileServiceImpl implements UserFileService {
 	            .anyMatch(entry -> entry.getPermissions() != null && entry.getPermissions().contains(permission));
 	}
 
-	@Override	
+	@Override
 	@Transactional(rollbackFor = Exception.class)
 	public void shareFile(Set<String> fileIds, String userKey, List<String> shareWithUserKeys, UUID messageId) {
+	    log.info("[ShareFile] fileIds={} ownerKey={} shareWith={} messageId={}", fileIds, userKey, shareWithUserKeys, messageId);
 	    if (CollectionUtils.isEmpty(fileIds)) {
 	        return;
 	    }
