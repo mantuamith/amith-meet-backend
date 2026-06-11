@@ -248,6 +248,99 @@ class MessageActionServiceTest {
         verify(simp, never()).convertAndSendToUser(eq("alice"), eq("/queue/messages"), any());
     }
 
+    // ── forwardBatch: media sharing ──────────────────────────────────────────
+
+    @Test
+    void forwardBatch_directWithMedia_sharesMediaWithReceiver() {
+        // Arrange: original message with a media item
+        MediaItem item = new MediaItem();
+        item.setMediaId("media-123");
+        MessageDocument original = new MessageDocument();
+        original.setId("orig1");
+        original.setSender("alice");
+        original.setContent("check this");
+        original.setMediaGroup(List.of(item));
+        when(repo.findById("orig1")).thenReturn(Optional.of(original));
+        when(repo.save(any())).thenAnswer(inv -> {
+            MessageDocument d = inv.getArgument(0);
+            d.setId("fwd1");
+            return d;
+        });
+        when(mapper.toResponse(any())).thenReturn(null);
+
+        ForwardRequest req = makeForward("orig1", "bob", null);
+        req.setClientMessageId("client-uuid-1");
+        req.setToKey("bob-key");
+
+        // Act
+        service.forwardBatch(List.of(req), "alice", "alice-key");
+
+        // Assert: share was called for the forwarded doc
+        verify(mediaService).share(argThat(doc ->
+                "fwd1".equals(doc.getId()) && !doc.getMediaGroup().isEmpty()
+        ));
+    }
+
+    @Test
+    void forwardBatch_groupWithMedia_sharesMediaWithGroup() {
+        // Arrange
+        MediaItem item = new MediaItem();
+        item.setMediaId("media-456");
+        MessageDocument original = new MessageDocument();
+        original.setId("orig2");
+        original.setSender("alice");
+        original.setContent("group media");
+        original.setMediaGroup(List.of(item));
+        when(repo.findById("orig2")).thenReturn(Optional.of(original));
+        when(repo.save(any())).thenAnswer(inv -> {
+            MessageDocument d = inv.getArgument(0);
+            d.setId("fwd2");
+            return d;
+        });
+        when(mapper.toResponse(any())).thenReturn(null);
+
+        GroupDto grp = group("g1", "alice", "bob", "carol");
+        when(groupClient.getGroupById("g1")).thenReturn(grp);
+
+        ForwardRequest req = makeForward("orig2", null, "g1");
+        req.setClientMessageId("client-uuid-2");
+
+        // Act
+        service.forwardBatch(List.of(req), "alice", "alice-key");
+
+        // Assert: group-overload share was called
+        verify(mediaService).share(
+                argThat(doc -> "fwd2".equals(doc.getId())),
+                argThat(g -> "g1".equals(g.getId()))
+        );
+    }
+
+    @Test
+    void forwardBatch_noMedia_doesNotCallShare() {
+        // Arrange: original with NO mediaGroup
+        MessageDocument original = new MessageDocument();
+        original.setId("orig3");
+        original.setSender("alice");
+        original.setContent("plain text");
+        when(repo.findById("orig3")).thenReturn(Optional.of(original));
+        when(repo.save(any())).thenAnswer(inv -> {
+            MessageDocument d = inv.getArgument(0);
+            d.setId("fwd3");
+            return d;
+        });
+        when(mapper.toResponse(any())).thenReturn(null);
+
+        ForwardRequest req = makeForward("orig3", "bob", null);
+        req.setClientMessageId("client-uuid-3");
+
+        // Act
+        service.forwardBatch(List.of(req), "alice", "alice-key");
+
+        // Assert: share never called (mediaGroup is empty/null)
+        verify(mediaService, never()).share(any(MessageDocument.class));
+        verify(mediaService, never()).share(any(MessageDocument.class), any(GroupDto.class));
+    }
+
     @Test
     void forward_missingOriginal_returnsNull() {
         MessageDocument result = service.forward(makeForward("missing","bob", null), "alice", null);
