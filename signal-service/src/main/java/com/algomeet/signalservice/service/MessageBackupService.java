@@ -17,6 +17,7 @@ import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_US
 
 import java.nio.charset.Charset;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -164,7 +165,7 @@ public class MessageBackupService {
 		mediaService.adjustStorageUsage(userKey.toString(), req);
 
 		// Persist message backup into MongoDB
-		return repository.save(backup);
+		return repository.insert(backup);
 	}
 
 	public List<MessageBackupDocument> getConversationMessagesBefore(UUID userKey, UUID peerKey, UUID stanzaId, int page, int size) {
@@ -390,7 +391,9 @@ public class MessageBackupService {
 
 			// Note: timestamp is usually 'Instant.now()' on creation, 
 			// but you can update it here if you want to track 'last modified'
-
+			
+			backup.setModifiedAt(Instant.now());
+			
 			return existing;
 		}).get());
 	}
