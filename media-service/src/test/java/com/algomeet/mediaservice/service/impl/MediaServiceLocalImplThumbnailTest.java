@@ -220,7 +220,8 @@ class MediaServiceLocalImplThumbnailTest {
 
             // verify seek was 10 % of 30 000 ms = 3 000 ms (≥ 1 000 ms floor)
             ScreenExtractor extractor = mockedExtractor.constructed().get(0);
-            verify(extractor).renderOneImage(any(), eq(320), eq(-1), eq(3_000L), any(File.class), eq(1));
+            // height falls back to maxWidth (320) because MultimediaInfo.getVideo() is null in the mock
+            verify(extractor).renderOneImage(any(), eq(320), eq(320), eq(3_000L), any(File.class), eq(1));
         }
     }
 
@@ -249,7 +250,8 @@ class MediaServiceLocalImplThumbnailTest {
 
             assertNotNull(result);
             ScreenExtractor extractor = mockedExtractor.constructed().get(0);
-            verify(extractor).renderOneImage(any(), eq(320), eq(-1), eq(1_000L), any(File.class), eq(1));
+            // height falls back to maxWidth (320) because MultimediaInfo.getVideo() is null in the mock
+            verify(extractor).renderOneImage(any(), eq(320), eq(320), eq(1_000L), any(File.class), eq(1));
         }
     }
 
