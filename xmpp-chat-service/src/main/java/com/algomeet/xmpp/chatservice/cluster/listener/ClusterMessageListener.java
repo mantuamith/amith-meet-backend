@@ -119,7 +119,7 @@ public class ClusterMessageListener {
             .doOnNext(isSuccess -> {
                 if (Boolean.TRUE.equals(isSuccess) && isAckStanza) {
                 	// Delete if record is ACK stanza
-                	offlineMessageRepository.deleteByIdAndIsAckStanzaTrue(id).
+                	offlineMessageRepository.deleteByMessageIdAndIsAckStanzaTrue(id).
                 	delayElement(Duration.ofMillis(100))
                 	.subscribe(); // Delays the completion of the deletion by 300ms
                 }

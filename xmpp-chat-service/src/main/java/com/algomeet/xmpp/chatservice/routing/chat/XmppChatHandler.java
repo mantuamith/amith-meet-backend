@@ -231,7 +231,7 @@ public class XmppChatHandler {
 	}
 	
 	public Mono<Void> processRetraction(String retractId, String toUserKey, String fromUserKey, XmppPrincipal principal) {
-		return offlineMessageService.findByIdAndSender(UUID.fromString(retractId), UUID.fromString(fromUserKey))
+		return offlineMessageService.findByMessageIdAndSender(UUID.fromString(retractId), UUID.fromString(fromUserKey))
 				.flatMap(message -> {
 
 					// Decrement the unread counter for this specific sender-recipient pair.

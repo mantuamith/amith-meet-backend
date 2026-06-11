@@ -56,9 +56,9 @@ public class OfflineMessageService {
      * @param originalXml The raw XML payload to be stored.
      * @return A {@link Mono} emitting the saved {@link OfflineMessage}.
      */
-    public Mono<OfflineMessage> save(UUID id, UUID stanzaId, String to, String from, String type, Boolean isAckStanza, boolean isCountable, String originalXml) {
+    public Mono<OfflineMessage> save(UUID messageId, UUID stanzaId, String to, String from, String type, Boolean isAckStanza, boolean isCountable, String originalXml) {
         OfflineMessage offlineMessage = OfflineMessage.builder()
-                .id(id)
+                .messageId(messageId)
                 .stanzaId(stanzaId)
                 .to(UUID.fromString(to))
                 .from(UUID.fromString(from))
@@ -81,9 +81,9 @@ public class OfflineMessageService {
      * @param originalXml The raw XML payload to be stored.
      * @return A {@link Mono} emitting the saved {@link OfflineMessage}.
      */
-    public Mono<OfflineMessage> save(UUID id, UUID stanzaId, String to, String from, String type, String originalXml) {
+    public Mono<OfflineMessage> save(UUID messageId, UUID stanzaId, String to, String from, String type, String originalXml) {
         OfflineMessage offlineMessage = OfflineMessage.builder()
-                .id(id)
+                .messageId(messageId)
                 .stanzaId(stanzaId)
                 .to(UUID.fromString(to))
                 .from(UUID.fromString(from))
@@ -102,7 +102,7 @@ public class OfflineMessageService {
      * @return A list of {@link OfflineMessage} objects in the order they were originally sent.
      */
     public Flux<OfflineMessage> getOfflineMessages(UUID to) {
-        return offlineMessageRepository.findByToAndDeliveredAtIsNullOrderByIdAsc(to);
+        return offlineMessageRepository.findByToAndDeliveredAtIsNullOrderByStanzaIdAsc(to);
     }
     
     /**
@@ -118,7 +118,7 @@ public class OfflineMessageService {
         // Leverage your compound index {'to': 1, 'id': 1} for an efficient O(1) look-up
         Query query = Query.query(
             Criteria.where("to").is(to)
-                    .and("id").is(messageId)
+                    .and("messageId").is(messageId)
         );
 
         // Atomically clear the raw XML payload to reclaim storage and record the delivery timestamp.
@@ -151,9 +151,9 @@ public class OfflineMessageService {
         return offlineMessageRepository.deleteAllById(messageIds);
     }
         
-    public Mono<OfflineMessage> findByIdAndSender(UUID id, UUID sender) {
+    public Mono<OfflineMessage> findByMessageIdAndSender(UUID id, UUID sender) {
         // Ensuring we check both ID and the 'from' JID for security
-        return offlineMessageRepository.findByIdAndFromAndDeliveredAtIsNull(id, sender);
+        return offlineMessageRepository.findByMessageIdAndFromAndDeliveredAtIsNull(id, sender);
     }
     
     public Mono<OfflineMessage> save(OfflineMessage message) {

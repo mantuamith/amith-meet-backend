@@ -13,12 +13,12 @@ import reactor.core.publisher.Mono;
 public interface OfflineMessageRepository extends ReactiveMongoRepository<OfflineMessage, UUID> {
     
     // Use Flux for a stream of reactive results
-    Flux<OfflineMessage> findByToAndDeliveredAtIsNullOrderByIdAsc(UUID to);
+    Flux<OfflineMessage> findByToAndDeliveredAtIsNullOrderByStanzaIdAsc(UUID to);
     
     // Use Mono<Void> for reactive deletion
     Mono<Void> deleteByTo(UUID to);
     
-    Mono<OfflineMessage> findByIdAndFromAndDeliveredAtIsNull(UUID id, UUID from);
+    Mono<OfflineMessage> findByMessageIdAndFromAndDeliveredAtIsNull(UUID id, UUID from);
     
     /**
      * Deletes all delivered and read messages
@@ -35,9 +35,9 @@ public interface OfflineMessageRepository extends ReactiveMongoRepository<Offlin
      * @param id The unique message UUID checkpoint
      * @return A Mono<Void> signaling completion when the operation finishes
      */
-    Mono<Void> deleteByIdAndIsAckStanzaTrue(UUID id);
+    Mono<Void> deleteByMessageIdAndIsAckStanzaTrue(UUID id);
     
-    Mono<OfflineMessageView> findOfflineMessageViewById(UUID id);
+    Mono<OfflineMessageView> findOfflineMessageViewByMessageId(UUID id);
     
     Mono<OfflineMessageView> findByFromOrderByStanzaIdDesc(UUID from);
     

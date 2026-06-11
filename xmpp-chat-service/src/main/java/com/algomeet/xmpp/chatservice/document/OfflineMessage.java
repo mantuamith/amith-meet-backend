@@ -18,15 +18,15 @@ import lombok.Data;
 @Builder
 @Document(collection = "offline_messages")
 @CompoundIndexes({
-	/**
-	 * Used for findByToAndDeliveredAtIsNullOrderByIdAsc
+	/**         
+	 * Used for findByToAndDeliveredAtIsNullOrderByStanzaIdAsc
 	 */
-	@CompoundIndex(name = "idxOffline_to_idAsc", def = "{'to': 1, 'id': 1}", partialFilter = "{'deliveredAt': null}"),
+	@CompoundIndex(name = "idxOffline_to_stanzaIdAsc", def = "{'to': 1, 'stanzaId': 1}", partialFilter = "{'deliveredAt': null}"),
 
 	/**
-	 * Used for findByIdAndFromAndDeliveredAtIsNull
+	 * Used for findByMessageIdAndFromAndDeliveredAtIsNull
 	 */
-	@CompoundIndex(name = "idxOffline_from_id", def = "{'from': 1, 'id': 1}", partialFilter = "{'deliveredAt': null}"),
+	@CompoundIndex(name = "idxOffline_from_messageId", def = "{'from': 1, 'messageId': 1}", partialFilter = "{'deliveredAt': null}"),
 
 	/**
 	 * Used for deleteByToAndFromAndStanzaIdLessThanEqualAndDeliveredAtIsNotNull
@@ -39,11 +39,11 @@ import lombok.Data;
 	@CompoundIndex(name = "idxOffline_to_from_stanzaId", def = "{'to': 1, 'from': 1, 'stanzaId': 1}", partialFilter = "{'countable': true}"),
 
 	/**
-	 * Used for deleteByIdAndIsAckStanzaTrue
+	 * Used for deleteByMessageIdAndIsAckStanzaTrue
 	 */
 	@CompoundIndex(
-			name = "idxOffline_id", 
-			def = "{'id': 1}", 
+			name = "idxOffline_messageId", 
+			def = "{'messageId': 1}", 
 			partialFilter = "{'isAck': true}"
 			),
 	
@@ -62,11 +62,12 @@ import lombok.Data;
 	@CompoundIndex(name = "idxOffline_to_from_deliveredAt_stanzaId", def = "{'to': 1, 'from': 1, 'deliveredAt': 1, 'stanzaId': 1}")
 
 })
-public class OfflineMessage {
+public class OfflineMessage {	
 	@Id
-	private UUID id;          // The Message ID from the <message id='...'> attribute
-
 	private UUID stanzaId; 
+	
+	@Indexed(unique = true)
+	private UUID messageId;          // The Message ID from the <message id='...'> attribute
 
 	private UUID from;        // Sender user key / ID
 
