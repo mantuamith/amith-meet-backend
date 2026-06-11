@@ -18,6 +18,7 @@ import java.awt.RenderingHints;
 
 import ws.schild.jave.MultimediaObject;
 import ws.schild.jave.ScreenExtractor;
+import ws.schild.jave.info.VideoSize;
 
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -192,20 +193,32 @@ public class MediaServiceLocalImpl implements MediaServiceLocal {
             // renderOneImage() takes millis — no conversion needed.
             long seekMs = Math.max(1_000L, durationMs / 10);
 
-            // Use renderOneImage() — writes a single frame to an output FILE.
-            // IMPORTANT: do NOT pre-create the file. renderOneImage() invokes ffmpeg without -y,
-            // so if the output path already exists ffmpeg refuses to overwrite it and writes 0 bytes.
-            // We generate a unique path via createTempFile then immediately delete the placeholder
-            // so ffmpeg can create the file itself.
+            // Compute actual pixel dimensions.
+            // renderOneImage() passes -s <width>x<height> to ffmpeg, which does NOT support -1
+            // as an "auto" value (unlike -vf scale=W:-1). Passing -s 320x-1 causes ffmpeg to
+            // exit with an error → empty output file. We must supply exact integer dimensions.
+            int thumbWidth = maxWidth;
+            int thumbHeight = maxWidth; // fallback square; overwritten when video info is available
+            try {
+                VideoSize vs = media.getInfo().getVideo().getSize();
+                if (vs != null && vs.getWidth() > 0 && vs.getHeight() > 0) {
+                    thumbWidth  = Math.min(maxWidth, vs.getWidth());
+                    thumbHeight = (int) Math.round((double) vs.getHeight() / vs.getWidth() * thumbWidth);
+                    if (thumbHeight < 1) thumbHeight = 1;
+                }
+            } catch (Exception ignored) {
+                // if video info unavailable, fall back to square crop
+            }
+
             Path thumbPath = Files.createTempFile("thumb_" + mediaId + "_", ".jpg");
             Files.delete(thumbPath); // remove placeholder — ffmpeg must create it fresh
             ScreenExtractor extractor = new ScreenExtractor();
             extractor.renderOneImage(
                 media,
-                maxWidth, -1,   // width = maxWidth, height auto-scaled (-1 = keep aspect ratio)
-                seekMs,         // seek position in milliseconds
+                thumbWidth, thumbHeight, // exact dimensions — no -1 allowed in -s flag
+                seekMs,                  // seek position in milliseconds
                 thumbPath.toFile(),
-                1               // quality: 1 = best, 31 = worst
+                1                        // quality: 1 = best, 31 = worst
             );
 
             // If the file doesn't exist or is empty, extraction silently failed.
