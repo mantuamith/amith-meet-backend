@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+import java.io.FileOutputStream;
+
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
@@ -202,19 +204,23 @@ class MediaServiceLocalImplThumbnailTest {
                 mockConstruction(MultimediaObject.class,
                     (mock, ctx) -> when(mock.getInfo()).thenReturn(info));
             MockedConstruction<ScreenExtractor> mockedExtractor =
-                mockConstruction(ScreenExtractor.class,
-                    (mock, ctx) -> doNothing().when(mock)
-                        .render(any(), anyInt(), anyInt(), anyInt(), any(File.class), anyInt()))
+                mockConstruction(ScreenExtractor.class, (mock, ctx) ->
+                    doAnswer(inv -> {
+                        // Write minimal non-empty bytes so the empty-file guard passes
+                        File out = inv.getArgument(4);
+                        try (FileOutputStream fos = new FileOutputStream(out)) { fos.write(new byte[]{0x42}); }
+                        return null;
+                    }).when(mock).renderOneImage(any(), anyInt(), anyInt(), anyLong(), any(File.class), anyInt()))
         ) {
             Path result = mediaService.thumbnail(USER_KEY, MEDIA_ID, 320);
 
             assertNotNull(result);
-            assertTrue(Files.exists(result));   // temp file created before render()
+            assertTrue(Files.exists(result));
             assertTrue(result.getFileName().toString().endsWith(".jpg"));
 
             // verify seek was 10 % of 30 000 ms = 3 000 ms (≥ 1 000 ms floor)
             ScreenExtractor extractor = mockedExtractor.constructed().get(0);
-            verify(extractor).render(any(), eq(320), eq(-1), eq(3_000), any(File.class), eq(1));
+            verify(extractor).renderOneImage(any(), eq(320), eq(-1), eq(3_000L), any(File.class), eq(1));
         }
     }
 
@@ -232,15 +238,18 @@ class MediaServiceLocalImplThumbnailTest {
                 mockConstruction(MultimediaObject.class,
                     (mock, ctx) -> when(mock.getInfo()).thenReturn(info));
             MockedConstruction<ScreenExtractor> mockedExtractor =
-                mockConstruction(ScreenExtractor.class,
-                    (mock, ctx) -> doNothing().when(mock)
-                        .render(any(), anyInt(), anyInt(), anyInt(), any(File.class), anyInt()))
+                mockConstruction(ScreenExtractor.class, (mock, ctx) ->
+                    doAnswer(inv -> {
+                        File out = inv.getArgument(4);
+                        try (FileOutputStream fos = new FileOutputStream(out)) { fos.write(new byte[]{0x42}); }
+                        return null;
+                    }).when(mock).renderOneImage(any(), anyInt(), anyInt(), anyLong(), any(File.class), anyInt()))
         ) {
             Path result = mediaService.thumbnail(USER_KEY, MEDIA_ID, 320);
 
             assertNotNull(result);
             ScreenExtractor extractor = mockedExtractor.constructed().get(0);
-            verify(extractor).render(any(), eq(320), eq(-1), eq(1_000), any(File.class), eq(1));
+            verify(extractor).renderOneImage(any(), eq(320), eq(-1), eq(1_000L), any(File.class), eq(1));
         }
     }
 
@@ -259,7 +268,7 @@ class MediaServiceLocalImplThumbnailTest {
             MockedConstruction<ScreenExtractor> mockedExtractor =
                 mockConstruction(ScreenExtractor.class,
                     (mock, ctx) -> doThrow(new RuntimeException("ffmpeg error"))
-                        .when(mock).render(any(), anyInt(), anyInt(), anyInt(), any(File.class), anyInt()))
+                        .when(mock).renderOneImage(any(), anyInt(), anyInt(), anyLong(), any(File.class), anyInt()))
         ) {
             Path result = mediaService.thumbnail(USER_KEY, MEDIA_ID, 320);
             assertNull(result);

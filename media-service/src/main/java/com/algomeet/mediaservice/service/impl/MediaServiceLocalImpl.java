@@ -16,7 +16,6 @@ import java.awt.image.BufferedImage;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 
-import ws.schild.jave.Encoder;
 import ws.schild.jave.MultimediaObject;
 import ws.schild.jave.ScreenExtractor;
 
@@ -186,22 +185,34 @@ public class MediaServiceLocalImpl implements MediaServiceLocal {
 
     private Path generateVideoThumbnail(Path source, String mediaId, int maxWidth) {
         try {
-            Path thumbPath = Files.createTempFile("thumb_" + mediaId + "_", ".jpg");
-
             MultimediaObject media = new MultimediaObject(source.toFile());
             long durationMs = media.getInfo().getDuration();
-            // Seek to 10 % of the video (or 1 s, whichever is later) to avoid
-            // a black frame at the very start.
+
+            // Seek to 10 % of the video duration (min 1 s) to avoid black opening frames.
+            // renderOneImage() takes millis — no conversion needed.
             long seekMs = Math.max(1_000L, durationMs / 10);
 
+            // Use renderOneImage() — writes a single frame to an output FILE.
+            // Fixes two bugs vs the old render() call:
+            //   1. render() expected a DIRECTORY; renderOneImage() takes the output FILE directly.
+            //   2. render() parameter is seconds; renderOneImage() parameter is millis.
+            Path thumbPath = Files.createTempFile("thumb_" + mediaId + "_", ".jpg");
             ScreenExtractor extractor = new ScreenExtractor();
-            extractor.render(
+            extractor.renderOneImage(
                 media,
-                maxWidth, -1,             // width = maxWidth, height auto-scaled
-                (int) Math.min(seekMs, Integer.MAX_VALUE),
+                maxWidth, -1,   // width = maxWidth, height auto-scaled (-1 = keep aspect ratio)
+                seekMs,         // seek position in milliseconds
                 thumbPath.toFile(),
-                1                         // quality 1 = best
+                1               // quality: 1 = best, 31 = worst
             );
+
+            // renderOneImage deletes and rewrites the target file.
+            // If the file is empty the extraction silently failed.
+            if (!Files.exists(thumbPath) || Files.size(thumbPath) == 0) {
+                log.warn("Video thumbnail empty after extraction for {}", mediaId);
+                Files.deleteIfExists(thumbPath);
+                return null;
+            }
 
             return thumbPath;
 
