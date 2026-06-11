@@ -43,8 +43,10 @@ public class InternalFileController implements InternalFileControllerDoc {
             @RequestParam List<String> shareWithUserKeys,
             @RequestParam UUID messageId
     ) {
+        log.info("[Share] mediaId={} ownerKey={} shareWith={} messageId={}", mediaId, userKey, shareWithUserKeys, messageId);
         try {
             userFileService.shareFile(Set.of(mediaId.toString()), userKey, shareWithUserKeys, messageId);
+            log.info("[Share] Success mediaId={}", mediaId);
             return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
         } catch (IllegalArgumentException e) {
             log.error("Error: {}", e.getMessage(), e);
