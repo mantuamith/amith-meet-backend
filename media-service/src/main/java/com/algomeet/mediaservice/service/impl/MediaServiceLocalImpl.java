@@ -193,10 +193,12 @@ public class MediaServiceLocalImpl implements MediaServiceLocal {
             long seekMs = Math.max(1_000L, durationMs / 10);
 
             // Use renderOneImage() — writes a single frame to an output FILE.
-            // Fixes two bugs vs the old render() call:
-            //   1. render() expected a DIRECTORY; renderOneImage() takes the output FILE directly.
-            //   2. render() parameter is seconds; renderOneImage() parameter is millis.
+            // IMPORTANT: do NOT pre-create the file. renderOneImage() invokes ffmpeg without -y,
+            // so if the output path already exists ffmpeg refuses to overwrite it and writes 0 bytes.
+            // We generate a unique path via createTempFile then immediately delete the placeholder
+            // so ffmpeg can create the file itself.
             Path thumbPath = Files.createTempFile("thumb_" + mediaId + "_", ".jpg");
+            Files.delete(thumbPath); // remove placeholder — ffmpeg must create it fresh
             ScreenExtractor extractor = new ScreenExtractor();
             extractor.renderOneImage(
                 media,
@@ -206,8 +208,7 @@ public class MediaServiceLocalImpl implements MediaServiceLocal {
                 1               // quality: 1 = best, 31 = worst
             );
 
-            // renderOneImage deletes and rewrites the target file.
-            // If the file is empty the extraction silently failed.
+            // If the file doesn't exist or is empty, extraction silently failed.
             if (!Files.exists(thumbPath) || Files.size(thumbPath) == 0) {
                 log.warn("Video thumbnail empty after extraction for {}", mediaId);
                 Files.deleteIfExists(thumbPath);
