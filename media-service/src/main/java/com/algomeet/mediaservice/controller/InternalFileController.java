@@ -100,8 +100,8 @@ public class InternalFileController implements InternalFileControllerDoc {
             @RequestBody @Valid BatchMediaDeleteRequest request
     ) {
         try {
-            userFileService.softDeleteAndMarkForCleanupIfOrphaned(request.getMediaIds(), 
-            		SecurityUtil.getUserKey(), request.getDeleteWithUserKeys(), request.getMessageId());
+            userFileService.softDeleteAndMarkForCleanupIfOrphaned(request.getMediaIds(),
+            		userKey, request.getDeleteWithUserKeys(), request.getMessageId());
             
             return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
         } catch (IllegalArgumentException e) {
