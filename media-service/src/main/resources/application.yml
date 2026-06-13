@@ -86,3 +86,7 @@ server:
 jwt:
   secret: ${JWT_SECRET:Y0h4TkFxWkd6Um9TTktOVlFobU9naFN3SzY5cWhVY08=}
 
+feign:
+  client:
+    group-service:
+      url: http://localhost:8087

@@ -124,11 +124,12 @@ class MediaServiceLocalImplTest {
         when(userFileService.getFile(
                 eq("media-id"),
                 eq("11111111-1111-1111-1111-111111111111"),
+                eq(UUID.fromString("22211111-1111-1111-1111-111111111111")),
                 eq(FilePermission.READ))
         ).thenReturn(doc);
 
         // when
-        Path result = mediaService.read("11111111-1111-1111-1111-111111111111", "media-id");
+        Path result = mediaService.read("11111111-1111-1111-1111-111111111111", UUID.fromString("22211111-1111-1111-1111-111111111111"), "media-id");
 
         // then
         assertEquals(filePath, result);
@@ -142,13 +143,13 @@ class MediaServiceLocalImplTest {
         doc.setAbsolutePath(tempDir.resolve("missing.file").toString());
         doc.setFilename("missing.file");
 
-        when(userFileService.getFile(any(), any(), any()))
+        when(userFileService.getFile(any(), any(), any(), any()))
                 .thenReturn(doc);
 
         // then
         RuntimeException ex = assertThrows(
                 RuntimeException.class,
-                () -> mediaService.read("11111111-1111-1111-1111-111111111111", "media-id")
+                () -> mediaService.read("11111111-1111-1111-1111-111111111111", UUID.fromString("22211111-1111-1111-1111-111111111111"), "media-id")
         );
 
         assertTrue(ex.getMessage().contains("File not found"));

@@ -9,12 +9,15 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.util.CollectionUtils;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -24,7 +27,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.algomeet.mediaservice.config.StorageProperties;
@@ -47,8 +49,6 @@ import com.algomeet.mediaservice.util.FileValidator;
 import com.algomeet.mediaservice.util.SecurityUtil;
 
 import jakarta.validation.Valid;
-import org.springframework.beans.factory.annotation.Value;
-
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -120,7 +120,7 @@ public class FileController implements FileControllerDoc {
                 MediaUploadResponse resp = doUpload(SecurityUtil.getUserKey(), file, null,
                         encrypted != null && encrypted, autoExpire != null && autoExpire,
                         conversationId, uploadContext);
-                UserFileDocument fileDoc = userFileService.getFile(resp.getMediaId(), SecurityUtil.getUserKey(), FilePermission.READ);
+                UserFileDocument fileDoc = userFileService.getFile(resp.getMediaId(), SecurityUtil.getUserKey(), null, FilePermission.READ);
                 resp.setThumbnailUrl(resolveThumbnailUrl(fileDoc, resp.getMediaId()));
                 results.add(resp);
             } catch (FileTypeNotSupportedException ex) {
@@ -152,13 +152,14 @@ public class FileController implements FileControllerDoc {
     // ========================= GET/READ =========================
 
     @GetMapping("/{mediaId}")
-    public ResponseEntity<?> getMedia(@PathVariable UUID mediaId) {
+    public ResponseEntity<?> getMedia(@PathVariable UUID mediaId,
+    		@RequestParam(required = false) UUID groupId) {
         try {
-            UserFileDocument fileDoc = userFileService.getFile(mediaId.toString(), SecurityUtil.getUserKey(), FilePermission.READ);
+            UserFileDocument fileDoc = userFileService.getFile(mediaId.toString(), SecurityUtil.getUserKey(), groupId, FilePermission.READ);
 
             return switch (Storage.valueOf(fileDoc.getStorage())) {
                 case LOCAL -> {
-                    Path filePath = mediaServiceLocal.read(SecurityUtil.getUserKey(), mediaId.toString());
+                    Path filePath = mediaServiceLocal.read(SecurityUtil.getUserKey(), groupId, mediaId.toString());
                     String ct = Files.probeContentType(filePath);
                     if (ct == null) ct = MediaType.APPLICATION_OCTET_STREAM_VALUE;
 
@@ -170,11 +171,11 @@ public class FileController implements FileControllerDoc {
                             .body(resource);
                 }
                 case S3 -> {
-                    String presignedUrl = mediaServiceS3.getReadUrl(SecurityUtil.getUserKey(), mediaId.toString());
+                    String presignedUrl = mediaServiceS3.getReadUrl(SecurityUtil.getUserKey(), groupId, mediaId.toString());
                     yield ResponseEntity.status(HttpStatus.FOUND).location(URI.create(presignedUrl)).build();
                 }
                 case OSS -> {
-                    String presignedUrl = mediaServiceOss.getReadUrl(SecurityUtil.getUserKey(), mediaId.toString());
+                    String presignedUrl = mediaServiceOss.getReadUrl(SecurityUtil.getUserKey(), groupId, mediaId.toString());
                     yield ResponseEntity.status(HttpStatus.FOUND).location(URI.create(presignedUrl)).build();
                 }
                 default -> throw new IllegalArgumentException("Unexpected storage value: " + fileDoc.getStorage());
@@ -191,14 +192,15 @@ public class FileController implements FileControllerDoc {
     @GetMapping("/{mediaId}/thumbnail")
     public ResponseEntity<?> getThumbnail(
             @PathVariable UUID mediaId,
+            @RequestParam(required = false) UUID groupId,
             @RequestParam(required = false, defaultValue = "320") int maxWidth
     ) {
         try {
-            UserFileDocument fileDoc = userFileService.getFile(mediaId.toString(), SecurityUtil.getUserKey(), FilePermission.READ);
+            UserFileDocument fileDoc = userFileService.getFile(mediaId.toString(), SecurityUtil.getUserKey(), groupId, FilePermission.READ);
             Storage storage = Storage.valueOf(fileDoc.getStorage());
 
             if (storage == Storage.LOCAL) {
-                Path thumbPath = mediaServiceLocal.thumbnail(SecurityUtil.getUserKey(), mediaId.toString(), maxWidth);
+                Path thumbPath = mediaServiceLocal.thumbnail(SecurityUtil.getUserKey(), groupId, mediaId.toString(), maxWidth);
                 if (thumbPath == null) {
                     return ResponseEntity.status(HttpStatus.NOT_FOUND)
                             .body(CommonResponse.from(ResponseCode.MEDIA_THUMBNAIL_NOT_AVAILABLE));
@@ -216,11 +218,11 @@ public class FileController implements FileControllerDoc {
 
             } else if (storage == Storage.S3) {
                 // For S3/OSS, redirect to the full-size URL — CDN/client handles resizing
-                String presignedUrl = mediaServiceS3.getReadUrl(SecurityUtil.getUserKey(), mediaId.toString());
+                String presignedUrl = mediaServiceS3.getReadUrl(SecurityUtil.getUserKey(), groupId, mediaId.toString());
                 return ResponseEntity.status(HttpStatus.FOUND).location(URI.create(presignedUrl)).build();
 
             } else {
-                String presignedUrl = mediaServiceOss.getReadUrl(SecurityUtil.getUserKey(), mediaId.toString());
+                String presignedUrl = mediaServiceOss.getReadUrl(SecurityUtil.getUserKey(), groupId, mediaId.toString());
                 return ResponseEntity.status(HttpStatus.FOUND).location(URI.create(presignedUrl)).build();
             }
 
@@ -241,11 +243,18 @@ public class FileController implements FileControllerDoc {
     @DeleteMapping("/{mediaId}")
     public ResponseEntity<CommonResponse<?>> delete(
             @PathVariable UUID mediaId,
-            @RequestParam Set<String> deleteWithUserKeys,
+            @RequestParam(required = false) Set<String> deleteWithUserKeys,
+            @RequestParam(required = false) UUID groupId,
             @RequestParam UUID messageId
     ) {
         try {
-            userFileService.softDeleteAndMarkForCleanupIfOrphaned(Set.of(mediaId.toString()), SecurityUtil.getUserKey(), deleteWithUserKeys, messageId);
+        	if (CollectionUtils.isEmpty(deleteWithUserKeys) && groupId == null) {
+        		throw new RuntimeException(
+        				"Either deleteWithUserKeys or groupId must be provided.");
+        	}
+
+            userFileService.softDeleteAndMarkForCleanupIfOrphaned(Set.of(mediaId.toString()), SecurityUtil.getUserKey(), deleteWithUserKeys, 
+            		groupId, messageId);
             return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
         } catch (IllegalArgumentException e) {
             log.error("Error: {}", e.getMessage(), e);
@@ -259,7 +268,7 @@ public class FileController implements FileControllerDoc {
     ) {
         try {
             userFileService.softDeleteAndMarkForCleanupIfOrphaned(request.getMediaIds(), 
-            		SecurityUtil.getUserKey(), request.getDeleteWithUserKeys(), request.getMessageId());
+            		SecurityUtil.getUserKey(), request.getDeleteWithUserKeys(), request.getGroupId(), request.getMessageId());
             
             return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
         } catch (IllegalArgumentException e) {
@@ -273,11 +282,18 @@ public class FileController implements FileControllerDoc {
     @PostMapping("/{mediaId}/share")
     public ResponseEntity<?> share(
             @PathVariable UUID mediaId,
-            @RequestParam List<String> shareWithUserKeys,
+            @RequestParam(required = false) List<String> shareWithUserKeys,
+            @RequestParam(required = false) UUID groupId,
             @RequestParam UUID messageId
     ) {
         try {
-            userFileService.shareFile(Set.of(mediaId.toString()), SecurityUtil.getUserKey(), shareWithUserKeys, messageId);
+        	if (CollectionUtils.isEmpty(shareWithUserKeys) && groupId == null) {
+        		 throw new RuntimeException(
+        		            "Either shareWithUserKeys or groupId must be provided.");
+        	}
+        	
+            userFileService.shareFile(Set.of(mediaId.toString()), SecurityUtil.getUserKey(), shareWithUserKeys, 
+            		groupId, messageId);
             return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
         } catch (IllegalArgumentException e) {
             log.error("Error: {}", e.getMessage(), e);
@@ -293,7 +309,13 @@ public class FileController implements FileControllerDoc {
             @RequestBody @Valid BatchMediaShareRequest request
     ) {
         try {
-            userFileService.shareFile(request.getMediaIds(), SecurityUtil.getUserKey(), request.getShareWithUserKeys(), request.getMessageId());
+        	if (CollectionUtils.isEmpty(request.getShareWithUserKeys()) && request.getGroupId() == null) {
+        		throw new RuntimeException(
+        				"Either shareWithUserKeys or groupId must be provided.");
+        	}
+        	
+            userFileService.shareFile(request.getMediaIds(), SecurityUtil.getUserKey(), request.getShareWithUserKeys(), 
+            		request.getGroupId(), request.getMessageId());
             return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
         } catch (IllegalArgumentException e) {
             log.error("Error: {}", e.getMessage(), e);
@@ -309,8 +331,8 @@ public class FileController implements FileControllerDoc {
     private String resolveThumbnailUrl(UserFileDocument fileDoc, String mediaId) {
         return switch (Storage.valueOf(fileDoc.getStorage())) {
             case LOCAL -> mediaBaseUrl + "/media/" + mediaId + "/thumbnail";
-            case S3    -> mediaServiceS3.getReadUrl(SecurityUtil.getUserKey(), mediaId);
-            case OSS   -> mediaServiceOss.getReadUrl(SecurityUtil.getUserKey(), mediaId);
+            case S3    -> mediaServiceS3.getReadUrl(SecurityUtil.getUserKey(), null, mediaId);
+            case OSS   -> mediaServiceOss.getReadUrl(SecurityUtil.getUserKey(), null, mediaId);
         };
     }
 

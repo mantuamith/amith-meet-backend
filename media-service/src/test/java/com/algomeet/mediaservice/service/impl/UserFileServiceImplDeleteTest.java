@@ -18,6 +18,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.algomeet.common.service.GroupCacheService;
 import com.algomeet.mediaservice.document.FilePermission;
 import com.algomeet.mediaservice.document.UserFileDocument;
 import com.algomeet.mediaservice.repository.FileAccessEntryRepository;
@@ -46,6 +47,7 @@ class UserFileServiceImplDeleteTest {
     @Mock private UserStorageUsageService userStorageUsageService;
     @Mock private FileAccessEntryService fileAccessEntryService;
     @Mock private FileAccessEntryRepository fileAccessEntryRepository;
+    @Mock private GroupCacheService groupCacheService;
 
     @InjectMocks
     private UserFileServiceImpl service;
@@ -53,6 +55,7 @@ class UserFileServiceImplDeleteTest {
     private static final String SENDER_KEY   = UUID.randomUUID().toString();
     private static final String RECEIVER_KEY = UUID.randomUUID().toString();
     private static final UUID   MESSAGE_ID   = UUID.randomUUID();
+    private static final UUID   GROUP_ID   = UUID.randomUUID();
 
     private UserFileDocument makeFile(String owner, String conversationId) {
         UserFileDocument f = new UserFileDocument();
@@ -82,7 +85,7 @@ class UserFileServiceImplDeleteTest {
 
             // Sender deletes "for me" — only their own key in deleteWithUserKeys
             service.softDeleteAndMarkForCleanupIfOrphaned(
-                    Set.of(file.getId()), SENDER_KEY, Set.of(SENDER_KEY), MESSAGE_ID);
+                    Set.of(file.getId()), SENDER_KEY, Set.of(SENDER_KEY), GROUP_ID, MESSAGE_ID);
 
             // cleanupEligibleAt must NOT be set — receiver still has implicit access
             verify(repository).saveAll(argThat(files -> {
@@ -103,7 +106,7 @@ class UserFileServiceImplDeleteTest {
                     .thenReturn(true);
 
             service.softDeleteAndMarkForCleanupIfOrphaned(
-                    Set.of(file.getId()), SENDER_KEY, Set.of(SENDER_KEY), MESSAGE_ID);
+                    Set.of(file.getId()), SENDER_KEY, Set.of(SENDER_KEY), GROUP_ID, MESSAGE_ID);
 
             assertNull(file.getCleanupEligibleAt(),
                     "File must not be marked for cleanup while receiver entry still exists");
@@ -119,7 +122,7 @@ class UserFileServiceImplDeleteTest {
             when(fileAccessEntryService.countByFileId(any())).thenReturn(1L);
 
             service.softDeleteAndMarkForCleanupIfOrphaned(
-                    Set.of(file.getId()), SENDER_KEY, Set.of(RECEIVER_KEY), MESSAGE_ID);
+                    Set.of(file.getId()), SENDER_KEY, Set.of(RECEIVER_KEY), GROUP_ID, MESSAGE_ID);
 
             assertNull(file.getCleanupEligibleAt());
         }
@@ -149,6 +152,7 @@ class UserFileServiceImplDeleteTest {
                     Set.of(file.getId()),
                     SENDER_KEY,
                     Set.of(SENDER_KEY, RECEIVER_KEY),   // ← both users = delete for everyone
+                    GROUP_ID,
                     MESSAGE_ID);
 
             assertNotNull(file.getCleanupEligibleAt(),
@@ -169,6 +173,7 @@ class UserFileServiceImplDeleteTest {
                     Set.of(file.getId()),
                     SENDER_KEY,
                     Set.of(SENDER_KEY, RECEIVER_KEY),
+                    GROUP_ID,
                     MESSAGE_ID);
 
             assertNull(file.getCleanupEligibleAt());

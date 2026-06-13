@@ -117,12 +117,12 @@ public class MediaServiceS3Impl implements MediaServiceS3 {
         }
     }
 
-    public String getReadUrl(String userKey, String mediaId) {
+    public String getReadUrl(String userKey, UUID groupId, String mediaId) {
         if (!StringUtils.hasText(mediaId)) {
             throw new RuntimeException("Media Id is required");
         }
 
-        UserFileDocument fileDoc = userFileService.getFile(mediaId, userKey, FilePermission.READ);
+        UserFileDocument fileDoc = userFileService.getFile(mediaId, userKey, groupId, FilePermission.READ);
         String objectKey = fileDoc.getAbsolutePath();
 
         GetObjectRequest getObjectRequest = GetObjectRequest.builder()

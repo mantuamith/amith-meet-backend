@@ -13,6 +13,7 @@ import java.io.File;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.UUID;
 
 import javax.imageio.ImageIO;
 
@@ -51,6 +52,7 @@ class MediaServiceLocalImplThumbnailTest {
 
     private static final String USER_KEY = "user-123";
     private static final String MEDIA_ID = "media-abc";
+    private static final UUID GROUP_ID = UUID.fromString("22211111-1111-1111-1111-111111111111");
 
     // ── helpers ───────────────────────────────────────────────────────────────
 
@@ -87,7 +89,7 @@ class MediaServiceLocalImplThumbnailTest {
         UserFileDocument doc = new UserFileDocument();
         doc.setContentType(contentType);
         doc.setAbsolutePath(absolutePath != null ? absolutePath.toString() : "/nonexistent/missing.jpg");
-        when(userFileService.getFile(eq(MEDIA_ID), eq(USER_KEY), eq(FilePermission.READ)))
+        when(userFileService.getFile(eq(MEDIA_ID), eq(USER_KEY), eq(GROUP_ID), eq(FilePermission.READ)))
                 .thenReturn(doc);
     }
 
@@ -96,19 +98,19 @@ class MediaServiceLocalImplThumbnailTest {
     @Test
     void thumbnail_nullContentType_returnsNull() {
         stubFile(null, tempDir.resolve("x.jpg"));
-        assertNull(mediaService.thumbnail(USER_KEY, MEDIA_ID, 320));
+        assertNull(mediaService.thumbnail(USER_KEY, GROUP_ID, MEDIA_ID, 320));
     }
 
     @Test
     void thumbnail_audioContentType_returnsNull() {
         stubFile("audio/mpeg", tempDir.resolve("x.mp3"));
-        assertNull(mediaService.thumbnail(USER_KEY, MEDIA_ID, 320));
+        assertNull(mediaService.thumbnail(USER_KEY, GROUP_ID, MEDIA_ID, 320));
     }
 
     @Test
     void thumbnail_documentContentType_returnsNull() {
         stubFile("application/pdf", tempDir.resolve("x.pdf"));
-        assertNull(mediaService.thumbnail(USER_KEY, MEDIA_ID, 320));
+        assertNull(mediaService.thumbnail(USER_KEY, GROUP_ID, MEDIA_ID, 320));
     }
 
     // ── image — file missing ──────────────────────────────────────────────────
@@ -116,7 +118,7 @@ class MediaServiceLocalImplThumbnailTest {
     @Test
     void thumbnail_imageMissingOnDisk_returnsNull() {
         stubFile("image/jpeg", null);   // path set to /nonexistent/…
-        assertNull(mediaService.thumbnail(USER_KEY, MEDIA_ID, 320));
+        assertNull(mediaService.thumbnail(USER_KEY, GROUP_ID, MEDIA_ID, 320));
     }
 
     // ── image — happy paths ───────────────────────────────────────────────────
@@ -126,7 +128,7 @@ class MediaServiceLocalImplThumbnailTest {
         Path img = writeJpeg(640, 480);
         stubFile("image/jpeg", img);
 
-        Path result = mediaService.thumbnail(USER_KEY, MEDIA_ID, 320);
+        Path result = mediaService.thumbnail(USER_KEY, GROUP_ID, MEDIA_ID, 320);
 
         assertNotNull(result);
         assertTrue(Files.exists(result));
@@ -138,7 +140,7 @@ class MediaServiceLocalImplThumbnailTest {
         Path img = writePng(400, 300);
         stubFile("image/png", img);
 
-        Path result = mediaService.thumbnail(USER_KEY, MEDIA_ID, 320);
+        Path result = mediaService.thumbnail(USER_KEY, GROUP_ID, MEDIA_ID, 320);
 
         assertNotNull(result);
         assertTrue(Files.exists(result));
@@ -151,7 +153,7 @@ class MediaServiceLocalImplThumbnailTest {
         Path img = writeJpeg(640, 480);
         stubFile("image/jpeg", img);
 
-        Path result = mediaService.thumbnail(USER_KEY, MEDIA_ID, 100);
+        Path result = mediaService.thumbnail(USER_KEY, GROUP_ID, MEDIA_ID, 100);
 
         assertNotNull(result);
         BufferedImage thumb = ImageIO.read(result.toFile());
@@ -167,7 +169,7 @@ class MediaServiceLocalImplThumbnailTest {
         Path img = writeJpeg(50, 40);
         stubFile("image/jpeg", img);
 
-        Path result = mediaService.thumbnail(USER_KEY, MEDIA_ID, 320);
+        Path result = mediaService.thumbnail(USER_KEY, GROUP_ID, MEDIA_ID, 320);
 
         assertNotNull(result);
         BufferedImage thumb = ImageIO.read(result.toFile());
@@ -181,7 +183,7 @@ class MediaServiceLocalImplThumbnailTest {
         Path img = writeJpeg(320, 240);
         stubFile("image/jpeg", img);
 
-        Path result = mediaService.thumbnail(USER_KEY, MEDIA_ID, 320);
+        Path result = mediaService.thumbnail(USER_KEY, GROUP_ID, MEDIA_ID, 320);
 
         assertNotNull(result);
         BufferedImage thumb = ImageIO.read(result.toFile());
@@ -212,7 +214,7 @@ class MediaServiceLocalImplThumbnailTest {
                         return null;
                     }).when(mock).renderOneImage(any(), anyInt(), anyInt(), anyLong(), any(File.class), anyInt()))
         ) {
-            Path result = mediaService.thumbnail(USER_KEY, MEDIA_ID, 320);
+            Path result = mediaService.thumbnail(USER_KEY, GROUP_ID, MEDIA_ID, 320);
 
             assertNotNull(result);
             assertTrue(Files.exists(result));
@@ -246,7 +248,7 @@ class MediaServiceLocalImplThumbnailTest {
                         return null;
                     }).when(mock).renderOneImage(any(), anyInt(), anyInt(), anyLong(), any(File.class), anyInt()))
         ) {
-            Path result = mediaService.thumbnail(USER_KEY, MEDIA_ID, 320);
+            Path result = mediaService.thumbnail(USER_KEY, GROUP_ID, MEDIA_ID, 320);
 
             assertNotNull(result);
             ScreenExtractor extractor = mockedExtractor.constructed().get(0);
@@ -272,7 +274,7 @@ class MediaServiceLocalImplThumbnailTest {
                     (mock, ctx) -> doThrow(new RuntimeException("ffmpeg error"))
                         .when(mock).renderOneImage(any(), anyInt(), anyInt(), anyLong(), any(File.class), anyInt()))
         ) {
-            Path result = mediaService.thumbnail(USER_KEY, MEDIA_ID, 320);
+            Path result = mediaService.thumbnail(USER_KEY, GROUP_ID, MEDIA_ID, 320);
             assertNull(result);
         }
     }

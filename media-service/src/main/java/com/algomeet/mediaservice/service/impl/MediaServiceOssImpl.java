@@ -97,8 +97,8 @@ public class MediaServiceOssImpl implements MediaServiceOss {
         }
     }
 
-    public String getReadUrl(String userKey, String mediaId) {
-        UserFileDocument fileDoc = userFileService.getFile(mediaId, userKey, FilePermission.READ);
+    public String getReadUrl(String userKey, UUID groupId, String mediaId) {
+        UserFileDocument fileDoc = userFileService.getFile(mediaId, userKey, groupId, FilePermission.READ);
         String objectKey = fileDoc.getAbsolutePath();
 
         Date expiration = new Date(

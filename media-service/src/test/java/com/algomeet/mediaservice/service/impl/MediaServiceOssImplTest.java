@@ -138,6 +138,7 @@ class MediaServiceOssImplTest {
         when(userFileService.getFile(
                 eq("media-id"),
                 eq("11111111-1111-1111-1111-111111111111"),
+                eq(UUID.fromString("22211111-1111-1111-1111-111111111111")),
                 eq(FilePermission.READ))
         ).thenReturn(doc);
 
@@ -150,7 +151,7 @@ class MediaServiceOssImplTest {
         )).thenReturn(signedUrl);
 
         // when
-        String url = mediaService.getReadUrl("11111111-1111-1111-1111-111111111111", "media-id");
+        String url = mediaService.getReadUrl("11111111-1111-1111-1111-111111111111", UUID.fromString("22211111-1111-1111-1111-111111111111"), "media-id");
 
         // then
         assertEquals("https://oss-signed-url", url);

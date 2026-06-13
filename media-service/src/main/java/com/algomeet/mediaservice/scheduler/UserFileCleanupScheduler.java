@@ -2,6 +2,7 @@ package com.algomeet.mediaservice.scheduler;
 
 import com.algomeet.mediaservice.document.UserFileDocument;
 import com.algomeet.mediaservice.enums.Storage;
+import com.algomeet.mediaservice.repository.GroupFileAccessEntryRepository;
 import com.algomeet.mediaservice.repository.UserFileRepository;
 import com.algomeet.mediaservice.service.MediaServiceLocal;
 import com.algomeet.mediaservice.service.MediaServiceOss;
@@ -36,6 +37,7 @@ public class UserFileCleanupScheduler {
 	private MediaServiceOss mediaServiceOss;
 	private final UserFileRepository userFileRepository;
     private final StringRedisTemplate redisTemplate; 
+    private final GroupFileAccessEntryRepository groupFileAccessEntryRepository;
 	
     private static final int BATCH_SIZE = 500;
     private static final String LOCK_KEY = "lock:scheduler:user-file-cleanup";
@@ -124,6 +126,10 @@ public class UserFileCleanupScheduler {
                     }
 
                     userFileRepository.deleteById(file.getId());
+                    
+                    // Remove group permissions
+                    groupFileAccessEntryRepository.deleteByFileId(UUID.fromString(file.getId()));
+                    
                     totalCleaned++;
 
                 } catch (Exception ex) {

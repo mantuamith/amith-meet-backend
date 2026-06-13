@@ -40,12 +40,13 @@ public class InternalFileController implements InternalFileControllerDoc {
     public ResponseEntity<?> share(
             @PathVariable UUID mediaId,
             @RequestParam String userKey,
-            @RequestParam List<String> shareWithUserKeys,
+            @RequestParam(required = false) List<String> shareWithUserKeys,
+            @RequestParam(required = false) UUID groupId,
             @RequestParam UUID messageId
     ) {
-        log.info("[Share] mediaId={} ownerKey={} shareWith={} messageId={}", mediaId, userKey, shareWithUserKeys, messageId);
+        log.info("[Share] mediaId={} ownerKey={} shareWith={} groupId={}  messageId={}", mediaId, userKey, shareWithUserKeys, groupId, messageId);
         try {
-            userFileService.shareFile(Set.of(mediaId.toString()), userKey, shareWithUserKeys, messageId);
+            userFileService.shareFile(Set.of(mediaId.toString()), userKey, shareWithUserKeys, groupId, messageId);
             log.info("[Share] Success mediaId={}", mediaId);
             return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
         } catch (IllegalArgumentException e) {
@@ -66,7 +67,8 @@ public class InternalFileController implements InternalFileControllerDoc {
             @RequestBody @Valid BatchMediaShareRequest request
     ) {
         try {
-            userFileService.shareFile(request.getMediaIds(), userKey, request.getShareWithUserKeys(), request.getMessageId());
+            userFileService.shareFile(request.getMediaIds(), userKey, request.getShareWithUserKeys(), 
+            		request.getGroupId(), request.getMessageId());
             return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
         } catch (IllegalArgumentException e) {
             log.error("Error: {}", e.getMessage(), e);
@@ -82,11 +84,13 @@ public class InternalFileController implements InternalFileControllerDoc {
     public ResponseEntity<CommonResponse<?>> delete(
             @PathVariable UUID mediaId,
             @RequestParam String userKey,
-            @RequestParam Set<String> deleteWithUserKeys,
+            @RequestParam(required = false) Set<String> deleteWithUserKeys,
+            @RequestParam(required = false) UUID groupId, 
             @RequestParam UUID messageId
     ) {
         try {
-            userFileService.softDeleteAndMarkForCleanupIfOrphaned(Set.of(mediaId.toString()), userKey, deleteWithUserKeys, messageId);
+            userFileService.softDeleteAndMarkForCleanupIfOrphaned(Set.of(mediaId.toString()), userKey, deleteWithUserKeys,
+            		groupId, messageId);
             return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
         } catch (IllegalArgumentException e) {
             log.error("Error: {}", e.getMessage(), e);
@@ -103,7 +107,7 @@ public class InternalFileController implements InternalFileControllerDoc {
     ) {
         try {
             userFileService.softDeleteAndMarkForCleanupIfOrphaned(request.getMediaIds(),
-            		userKey, request.getDeleteWithUserKeys(), request.getMessageId());
+            		userKey, request.getDeleteWithUserKeys(), request.getGroupId(), request.getMessageId());
             
             return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
         } catch (IllegalArgumentException e) {

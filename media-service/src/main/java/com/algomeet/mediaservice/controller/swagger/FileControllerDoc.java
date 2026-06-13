@@ -257,7 +257,8 @@ public interface FileControllerDoc {
     )
     ResponseEntity<?> getMedia(
             @Parameter(description = "Media ID returned by the upload endpoint", required = true, example = "3fa85f64-5717-4562-b3fc-2c963f66afa6")
-            @PathVariable UUID mediaId
+            @PathVariable UUID mediaId,
+            @RequestParam(required = false) UUID groupId
     );
 
 
@@ -290,6 +291,9 @@ public interface FileControllerDoc {
     ResponseEntity<?> getThumbnail(
             @Parameter(description = "Media ID", required = true, example = "3fa85f64-5717-4562-b3fc-2c963f66afa6")
             @PathVariable UUID mediaId,
+            
+            @Parameter(description = "Chat Group ID the file(s) is access. Typically used for group chats.")
+            @RequestParam(required = false) UUID groupId,
 
             @Parameter(description = "Maximum thumbnail width in pixels", schema = @Schema(defaultValue = "320", example = "320"))
             @RequestParam(required = false, defaultValue = "320") int maxWidth
@@ -306,6 +310,8 @@ public interface FileControllerDoc {
 
             Pass `deleteWithUserKeys` to simultaneously remove other users' access entries
             (e.g., when a chat message is retracted for all participants).
+            
+            Or pass `groupId` for removing all group members access simultaneously.
             """,
         responses = {
             @ApiResponse(responseCode = "200", description = "Delete successful",
@@ -321,8 +327,11 @@ public interface FileControllerDoc {
             @Parameter(description = "Media ID", required = true, example = "3fa85f64-5717-4562-b3fc-2c963f66afa6")
             @PathVariable UUID mediaId,
 
-            @Parameter(description = "Add owner's and additional user keys whose access should also be revoked (e.g., chat participants when retracting a message)")
-            @RequestParam(required = true) Set<String> deleteWithUserKeys,
+            @Parameter(description = "Add owner's and additional user keys whose access should also be revoked (e.g., chat participants when retracting a message). Typically used for one-to-one chats.")
+            @RequestParam(required = false) Set<String> deleteWithUserKeys,
+            
+            @Parameter(description = "Chat Group ID the file(s) access to be revoked, removing all group members access simultaneously. Typically used for group chats.")
+            @RequestParam(required = false) UUID groupId,
             
             @Parameter(description = "Chat message ID associated with the file attachment. Used to track file references and manage attachment lifecycle.", required = true)
             @RequestParam UUID messageId
@@ -374,9 +383,12 @@ public interface FileControllerDoc {
             @Parameter(description = "Media ID", required = true, example = "3fa85f64-5717-4562-b3fc-2c963f66afa6")
             @PathVariable UUID mediaId,
 
-            @Parameter(description = "User keys (UUIDs) to share the file with", required = true,
+            @Parameter(description = "User keys of the recipients to share the file(s) with. Typically used for one-to-one chats.", required = false,
                 example = "[\"550e8400-e29b-41d4-a716-446655440000\", \"660e8400-e29b-41d4-a716-446655440001\"]")
-            @RequestParam List<String> shareWithUserKeys,
+            @RequestParam(required = false) List<String> shareWithUserKeys,
+            
+            @Parameter(description = "ID of the group chat to share the file(s) with, adding all group members access simultaneously. Typically used for group chats.")
+            @RequestParam(required = false) UUID groupId,
             
             @Parameter(description = "Chat message ID associated with the file attachment. Used to track file references and manage attachment lifecycle.", required = true)
             @PathVariable UUID messageId

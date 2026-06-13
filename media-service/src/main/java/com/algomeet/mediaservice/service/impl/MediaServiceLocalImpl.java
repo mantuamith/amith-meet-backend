@@ -115,8 +115,8 @@ public class MediaServiceLocalImpl implements MediaServiceLocal {
     }
 
     @Override
-    public Path read(String userKey, String mediaId) {
-        UserFileDocument file = userFileService.getFile(mediaId, userKey, FilePermission.READ);
+    public Path read(String userKey, UUID groupId, String mediaId) {
+        UserFileDocument file = userFileService.getFile(mediaId, userKey, groupId, FilePermission.READ);
 
         Path filePath = Paths.get(file.getAbsolutePath());
         if (!Files.exists(filePath) || !Files.isReadable(filePath)) {
@@ -133,8 +133,8 @@ public class MediaServiceLocalImpl implements MediaServiceLocal {
      * Returns null for unsupported content types or on any error.
      */
     @Override
-    public Path thumbnail(String userKey, String mediaId, int maxWidth) {
-        UserFileDocument fileDoc = userFileService.getFile(mediaId, userKey, FilePermission.READ);
+    public Path thumbnail(String userKey, UUID groupId, String mediaId, int maxWidth) {
+        UserFileDocument fileDoc = userFileService.getFile(mediaId, userKey, groupId, FilePermission.READ);
 
         String ct = fileDoc.getContentType();
         // the file is neither an image nor a video.

@@ -14,6 +14,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.net.URL;
+import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -118,6 +119,7 @@ class MediaServiceS3ImplTest {
 	    when(userFileService.getFile(
 	            eq("media-id"),
 	            eq("11111111-1111-1111-1111-111111111111"),
+	            eq(UUID.fromString("22211111-1111-1111-1111-111111111111")),
 	            eq(FilePermission.READ)))
 	        .thenReturn(doc);
 
@@ -142,7 +144,7 @@ class MediaServiceS3ImplTest {
 	        mocked.when(S3Presigner::builder).thenReturn(builder);
 
 	        // when
-	        String url = mediaService.getReadUrl("11111111-1111-1111-1111-111111111111", "media-id");
+	        String url = mediaService.getReadUrl("11111111-1111-1111-1111-111111111111", UUID.fromString("22211111-1111-1111-1111-111111111111"), "media-id");
 
 	        // then
 	        assertEquals("https://signed-url", url);
@@ -152,7 +154,7 @@ class MediaServiceS3ImplTest {
 
 	@Test
 	void getDownloadUrl_shouldFail_whenMediaIdMissing() {
-		RuntimeException ex = assertThrows(RuntimeException.class, () -> mediaService.getReadUrl("user-1", ""));
+		RuntimeException ex = assertThrows(RuntimeException.class, () -> mediaService.getReadUrl("user-1", UUID.fromString("22211111-1111-1111-1111-111111111111"), ""));
 		assertTrue(ex.getMessage().contains("Media Id"));
 	}
 

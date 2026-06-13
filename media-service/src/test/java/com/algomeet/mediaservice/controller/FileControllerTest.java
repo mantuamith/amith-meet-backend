@@ -103,6 +103,7 @@ class FileControllerTest {
 	private static final String USER_KEY = UUID.randomUUID().toString();
 	private static final UUID MESSAGE_ID = UUID.randomUUID();
 	private static final UUID MEDIA_ID1 = UUID.randomUUID();
+	private static final UUID GROUP_ID = UUID.randomUUID();
 
 	private MockedStatic<SecurityUtil> securityUtilMock;
 
@@ -168,10 +169,10 @@ class FileControllerTest {
 		Path tempFile = Files.createTempFile("media-", ".txt");
 		Files.write(tempFile, "hello".getBytes());
 
-		when(userFileService.getFile(MEDIA_ID1.toString() , USER_KEY, FilePermission.READ)).thenReturn(doc);
-		when(mediaServiceLocal.read(USER_KEY, MEDIA_ID1.toString())).thenReturn(tempFile);
+		when(userFileService.getFile(MEDIA_ID1.toString(), USER_KEY, GROUP_ID, FilePermission.READ)).thenReturn(doc);
+		when(mediaServiceLocal.read(USER_KEY, GROUP_ID, MEDIA_ID1.toString())).thenReturn(tempFile);
 
-		mockMvc.perform(get("/media/" + MEDIA_ID1)).andExpect(status().isOk()).andExpect(
+		mockMvc.perform(get("/media/" + MEDIA_ID1).param("groupId", GROUP_ID.toString())).andExpect(status().isOk()).andExpect(
 				header().string("Content-Disposition", "inline; filename=\"" + tempFile.getFileName() + "\""));
 	}
 
@@ -180,11 +181,12 @@ class FileControllerTest {
 		UserFileDocument doc = new UserFileDocument();
 		doc.setStorage(Storage.S3.name());
 
-		when(userFileService.getFile(any(), any(), any())).thenReturn(doc);
-		when(mediaServiceS3.getReadUrl(any(), any())).thenReturn("https://s3/presigned-url");
+		when(userFileService.getFile(any(), any(), any(), any())).thenReturn(doc);
+		when(mediaServiceS3.getReadUrl(any(), any(), any())).thenReturn("https://s3/presigned-url");
 
-		mockMvc.perform(get("/media/" + MEDIA_ID1 )).andExpect(status().isFound())
-				.andExpect(header().string("Location", "https://s3/presigned-url"));
+		mockMvc.perform(get("/media/" + MEDIA_ID1).param("groupId", GROUP_ID.toString()))
+		.andExpect(status().isFound())
+		.andExpect(header().string("Location", "https://s3/presigned-url"));
 	}
 
 	/*
@@ -196,11 +198,11 @@ class FileControllerTest {
 		UserFileDocument doc = new UserFileDocument();
 		doc.setStorage(Storage.LOCAL.name());
 
-		when(userFileService.getFile(any(), any(), any())).thenReturn(doc);
+		when(userFileService.getFile(any(), any(), any(), any())).thenReturn(doc);
 		mockMvc.perform(delete("/media/" + MEDIA_ID1).param("messageId", MESSAGE_ID.toString()).param("deleteWithUserKeys", "u1", "u2")).andExpect(status().isOk())
 				.andExpect(jsonPath("$.code").value("SUCCESS"));
 
-		verify(userFileService).softDeleteAndMarkForCleanupIfOrphaned(any(), any(), any(), any());
+		verify(userFileService).softDeleteAndMarkForCleanupIfOrphaned(any(), any(), any(), any(), any());
 	}
 	
 	/*
@@ -210,10 +212,11 @@ class FileControllerTest {
 	@Test
 	void share_success() throws Exception {
 		mockMvc.perform(post("/media/" + MEDIA_ID1 + "/share").param("shareWithUserKeys", "u1", "u2")
+				.param("groupId", GROUP_ID.toString())
 				.param("messageId", MESSAGE_ID.toString())).andExpect(status().isOk())
 				.andExpect(jsonPath("$.code").value("SUCCESS"));
 
-		verify(userFileService).shareFile(Set.of(MEDIA_ID1.toString()), USER_KEY, List.of("u1", "u2"), MESSAGE_ID);
+		verify(userFileService).shareFile(Set.of(MEDIA_ID1.toString()), USER_KEY, List.of("u1", "u2"), GROUP_ID, MESSAGE_ID);
 	}
 
 	/*
@@ -226,9 +229,10 @@ class FileControllerTest {
 	        {
 	          "mediaIds": ["%s"],
 	          "shareWithUserKeys": ["u1", "u2"],
-	          "messageId": "%s"
+	          "groupId":"%s",
+	          "messageId": "%s"	          
 	        }
-	        """.formatted(MEDIA_ID1, MESSAGE_ID);
+	        """.formatted(MEDIA_ID1, GROUP_ID, MESSAGE_ID);
 
 	    mockMvc.perform(post("/media/share")
 	            .contentType(MediaType.APPLICATION_JSON)
@@ -240,6 +244,7 @@ class FileControllerTest {
 	    		Set.of(MEDIA_ID1.toString()),
 	            USER_KEY,
 	            List.of("u1", "u2"),
+	            GROUP_ID,
 	            MESSAGE_ID);
 	}
 
@@ -247,7 +252,7 @@ class FileControllerTest {
 	void batchShare_mediaNotFound() throws Exception {
 	    doThrow(new IllegalArgumentException("missing"))
 	            .when(userFileService)
-	            .shareFile(anySet(), anyString(), anyList(), any());
+	            .shareFile(anySet(), anyString(), anyList(), any(), any());
 
 	    String request = """
 	        {
@@ -268,7 +273,7 @@ class FileControllerTest {
 	void batchShare_accessDenied() throws Exception {
 	    doThrow(new org.springframework.security.access.AccessDeniedException("denied"))
 	            .when(userFileService)
-	            .shareFile(anySet(), anyString(), anyList(), any());
+	            .shareFile(anySet(), anyString(), anyList(), any(), any());
 
 	    String request = """
 	        {
@@ -297,9 +302,10 @@ class FileControllerTest {
 	        {
 	          "mediaIds": ["%s"],
 	          "deleteWithUserKeys": ["u1", "u2"],
+	          "groupId":"%s",
 	          "messageId": "%s"
 	        }
-	        """.formatted(MEDIA_ID1, MESSAGE_ID);
+	        """.formatted(MEDIA_ID1, GROUP_ID, MESSAGE_ID);
 
 	    mockMvc.perform(delete("/media")
 	            .contentType(MediaType.APPLICATION_JSON)
@@ -311,6 +317,7 @@ class FileControllerTest {
 	            Set.of(MEDIA_ID1.toString()),
 	            USER_KEY,
 	            Set.of("u1", "u2"),
+	            GROUP_ID,
 	            MESSAGE_ID);
 	}
 
@@ -332,7 +339,7 @@ class FileControllerTest {
 		when(storageProperties.getActiveUploadStorage()).thenReturn(Storage.LOCAL.name());
 		when(mediaServiceLocal.upload(any(), any(), any(), anyBoolean(), anyBoolean(), any(), any()))
 				.thenReturn(resp1).thenReturn(resp2);
-		when(userFileService.getFile(any(), any(), any())).thenReturn(doc);
+		when(userFileService.getFile(any(), any(), any(), any())).thenReturn(doc);
 
 		mockMvc.perform(multipart("/media/batch")
 						.file(file1).file(file2)
@@ -361,7 +368,7 @@ class FileControllerTest {
 				.when(fileValidator).validate(any(), anyBoolean());
 
 		when(mediaServiceLocal.upload(any(), any(), any(), anyBoolean(), anyBoolean(), any(), any())).thenReturn(resp);
-		when(userFileService.getFile(any(), any(), any())).thenReturn(doc);
+		when(userFileService.getFile(any(), any(), any(), any())).thenReturn(doc);
 
 		mockMvc.perform(multipart("/media/batch")
 						.file(invalidFile).file(validFile)
@@ -417,7 +424,7 @@ class FileControllerTest {
 	void batchDelete_mediaNotFound() throws Exception {
 	    doThrow(new IllegalArgumentException("missing"))
 	            .when(userFileService)
-	            .softDeleteAndMarkForCleanupIfOrphaned(anySet(), anyString(), anySet(), any());
+	            .softDeleteAndMarkForCleanupIfOrphaned(anySet(), anyString(), anySet(), any(), any());
 
 	    String request = """
 	        {

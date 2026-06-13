@@ -75,3 +75,8 @@ jwt:
 
 server:
   port: 8095
+
+feign:
+  client:
+    group-service:
+      url: http://localhost:8087
