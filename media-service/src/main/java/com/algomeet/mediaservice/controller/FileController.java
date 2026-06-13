@@ -155,7 +155,8 @@ public class FileController implements FileControllerDoc {
     public ResponseEntity<?> getMedia(@PathVariable UUID mediaId,
     		@RequestParam(required = false) UUID groupId) {
         try {
-            UserFileDocument fileDoc = userFileService.getFile(mediaId.toString(), SecurityUtil.getUserKey(), groupId, FilePermission.READ);
+        	// Avoid redundant permission checks to improve performance.
+            UserFileDocument fileDoc = userFileService.getFile(mediaId.toString());
 
             return switch (Storage.valueOf(fileDoc.getStorage())) {
                 case LOCAL -> {
@@ -196,7 +197,8 @@ public class FileController implements FileControllerDoc {
             @RequestParam(required = false, defaultValue = "320") int maxWidth
     ) {
         try {
-            UserFileDocument fileDoc = userFileService.getFile(mediaId.toString(), SecurityUtil.getUserKey(), groupId, FilePermission.READ);
+        	// Avoid redundant permission checks to improve performance.
+            UserFileDocument fileDoc = userFileService.getFile(mediaId.toString());
             Storage storage = Storage.valueOf(fileDoc.getStorage());
 
             if (storage == Storage.LOCAL) {

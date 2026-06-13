@@ -169,7 +169,7 @@ class FileControllerTest {
 		Path tempFile = Files.createTempFile("media-", ".txt");
 		Files.write(tempFile, "hello".getBytes());
 
-		when(userFileService.getFile(MEDIA_ID1.toString(), USER_KEY, GROUP_ID, FilePermission.READ)).thenReturn(doc);
+		when(userFileService.getFile(MEDIA_ID1.toString())).thenReturn(doc);
 		when(mediaServiceLocal.read(USER_KEY, GROUP_ID, MEDIA_ID1.toString())).thenReturn(tempFile);
 
 		mockMvc.perform(get("/media/" + MEDIA_ID1).param("groupId", GROUP_ID.toString())).andExpect(status().isOk()).andExpect(
@@ -181,7 +181,7 @@ class FileControllerTest {
 		UserFileDocument doc = new UserFileDocument();
 		doc.setStorage(Storage.S3.name());
 
-		when(userFileService.getFile(any(), any(), any(), any())).thenReturn(doc);
+		when(userFileService.getFile(any())).thenReturn(doc);
 		when(mediaServiceS3.getReadUrl(any(), any(), any())).thenReturn("https://s3/presigned-url");
 
 		mockMvc.perform(get("/media/" + MEDIA_ID1).param("groupId", GROUP_ID.toString()))

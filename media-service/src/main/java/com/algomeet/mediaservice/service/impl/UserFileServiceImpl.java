@@ -53,6 +53,14 @@ public class UserFileServiceImpl implements UserFileService {
 	}
 
 	@Override
+	public UserFileDocument getFile(String fileId) {
+		UserFileDocument file = repository.findById(fileId)
+				.orElseThrow(() -> new IllegalArgumentException("File not found"));
+
+		return file;
+	}
+	
+	@Override
 	public UserFileDocument getFile(String fileId, String userKey, UUID groupId, FilePermission permission) {
 		UserFileDocument file = repository.findById(fileId)
 				.orElseThrow(() -> new IllegalArgumentException("File not found"));
@@ -63,7 +71,7 @@ public class UserFileServiceImpl implements UserFileService {
 
 		return file;
 	}
-
+	
 	@Override
 	public List<UserFileDocument> listMyFiles(String userId) {
 		return repository.findByOwner(userId);

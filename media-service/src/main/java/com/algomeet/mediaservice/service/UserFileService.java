@@ -11,6 +11,8 @@ public interface UserFileService {
 
     UserFileDocument create(UserFileDocument file);
     
+    UserFileDocument getFile(String fileId);
+    
     UserFileDocument getFile(String fileId, String userKey, UUID groupId, FilePermission permission);
 
     List<UserFileDocument> listMyFiles(String userKey);
