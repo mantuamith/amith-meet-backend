@@ -53,7 +53,7 @@ public class FileAccessEntryServiceImpl implements FileAccessEntryService {
         Update update = new Update()
                 .setOnInsert("userKey", userKey)
                 .setOnInsert("fileId", fileId)
-                .addToSet("permissions").each(permissions);
+                .addToSet("permissions").each(permissions.toArray());
 
         // If the document is brand new, or it exists but doesn't have this messageId yet,
         // we increment the refCount and append the new message token.

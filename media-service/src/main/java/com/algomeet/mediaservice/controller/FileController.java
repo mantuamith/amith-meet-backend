@@ -47,6 +47,8 @@ import com.algomeet.mediaservice.util.FileValidator;
 import com.algomeet.mediaservice.util.SecurityUtil;
 
 import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Value;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -55,6 +57,9 @@ import lombok.extern.slf4j.Slf4j;
 @RequestMapping("/media")
 @RequiredArgsConstructor
 public class FileController implements FileControllerDoc {
+
+    @Value("${media.base-url}")
+    private String mediaBaseUrl;
 
     private final MediaServiceLocal mediaServiceLocal;
     @Autowired(required = false)
@@ -121,6 +126,9 @@ public class FileController implements FileControllerDoc {
             } catch (FileTypeNotSupportedException ex) {
                 log.warn("Batch item rejected (unsupported type): {}", file.getOriginalFilename(), ex);
                 failures.add(file.getOriginalFilename());
+            } catch (org.springframework.web.multipart.MaxUploadSizeExceededException ex) {
+                // Rethrow — client must reduce file size, 413 returned by GlobalExceptionHandler
+                throw ex;
             } catch (Exception ex) {
                 log.error("Batch item failed: {}", file.getOriginalFilename(), ex);
                 failures.add(file.getOriginalFilename());
@@ -300,7 +308,7 @@ public class FileController implements FileControllerDoc {
 
     private String resolveThumbnailUrl(UserFileDocument fileDoc, String mediaId) {
         return switch (Storage.valueOf(fileDoc.getStorage())) {
-            case LOCAL -> "/media/" + mediaId + "/thumbnail";
+            case LOCAL -> mediaBaseUrl + "/media/" + mediaId + "/thumbnail";
             case S3    -> mediaServiceS3.getReadUrl(SecurityUtil.getUserKey(), mediaId);
             case OSS   -> mediaServiceOss.getReadUrl(SecurityUtil.getUserKey(), mediaId);
         };
@@ -314,10 +322,12 @@ public class FileController implements FileControllerDoc {
             throw new IllegalArgumentException("Active upload storage is not configured");
         }
 
-        return switch (Storage.valueOf(active.trim().toUpperCase())) {
+        MediaUploadResponse resp = switch (Storage.valueOf(active.trim().toUpperCase())) {
             case LOCAL -> mediaServiceLocal.upload(userKey, file, contentType, encrypted, autoExpire, conversationId, uploadContext);
             case S3    -> mediaServiceS3.upload(userKey, file, contentType, encrypted, autoExpire, conversationId, uploadContext);
             case OSS   -> mediaServiceOss.upload(userKey, file, contentType, encrypted, autoExpire, conversationId, uploadContext);
         };
+        resp.setUrl(mediaBaseUrl + resp.getUrl());
+        return resp;
     }   
 }

@@ -198,7 +198,7 @@ class InternalFileControllerTest {
 	            .when(userFileService)
 	            .softDeleteAndMarkForCleanupIfOrphaned(
 	                    request.getMediaIds(),
-	                    null,
+	                    "user-1",   // Fix: controller now correctly passes @RequestParam userKey
 	                    request.getDeleteWithUserKeys(),
 	                    MESSAGE_ID);
 

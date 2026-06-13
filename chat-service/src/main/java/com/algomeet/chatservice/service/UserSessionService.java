@@ -19,16 +19,17 @@ public class UserSessionService {
         this.redisTemplate = redisTemplate;
     }
 
-    private String userKey(String userId) {
+    private String redisKey(String userId) {
         return USER_SESSION_REDIS_KEY_PREFIX + userId;
     }
 
-    public void addSession(String userId, String sessionId) {
-        String key = userKey(userId);
-        
+    public void addSession(String userId, String sessionId, String userKey) {
+        String key = redisKey(userId);
+
         SessionMetadata session = SessionMetadata.builder()
         		.sessionId(sessionId)
         		.isActive(true)
+        		.userKey(userKey)
         		.build();
 
         Set<SessionMetadata> sessions = redisTemplate.opsForValue().get(key);
@@ -40,16 +41,27 @@ public class UserSessionService {
         redisTemplate.opsForValue().set(key, sessions);
     }
 
+    /** Returns the userKey (UUID) for the given username, or null if not found / not connected. */
+    public String getUserKey(String username) {
+        Set<SessionMetadata> sessions = getSessions(username);
+        if (CollectionUtils.isEmpty(sessions)) return null;
+        return sessions.stream()
+                .filter(s -> s.getUserKey() != null)
+                .map(SessionMetadata::getUserKey)
+                .findFirst()
+                .orElse(null);
+    }
+
     public Set<SessionMetadata> getSessions(String userId) {
-        return redisTemplate.opsForValue().get(userKey(userId));
+        return redisTemplate.opsForValue().get(redisKey(userId));
     }
     
     public void updateSessions(String userId, Set<SessionMetadata> sessions) {
-    	redisTemplate.opsForValue().set(userKey(userId), sessions);
+    	redisTemplate.opsForValue().set(redisKey(userId), sessions);
     }
 
     public void removeSession(String userId, String sessionId) {
-        String key = userKey(userId);
+        String key = redisKey(userId);
 
         Set<SessionMetadata> sessions = redisTemplate.opsForValue().get(key);
         if (sessions != null) {
@@ -66,6 +78,6 @@ public class UserSessionService {
     }
 
     public void deleteAllSessions(String userId) {
-        redisTemplate.delete(userKey(userId));
+        redisTemplate.delete(redisKey(userId));
     }
 }

@@ -63,6 +63,7 @@ storage:
     sig-expiration-in-minutes: 15
 
 media:
+  base-url: ${MEDIA_BASE_URL:https://fat-api.algomeet.app}
   file:
     image-extensions: [jpg, jpeg, png, webp, gif, bmp, tiff, tif, heic, heif, svg, ico]
     video-extensions: [mp4, m4v, mkv, webm, avi, mov, wmv, flv, f4v, mpeg, mpg, 3gp, 3g2, ogv]

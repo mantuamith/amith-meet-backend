@@ -96,12 +96,29 @@ public class MediaService {
 			// Add logic for group message
 			shareWithUserKeys = group.members.stream().map(m -> m.getUserKey()).collect(Collectors.toSet());
 		} else {
-			shareWithUserKeys = Set.of(message.getReceiverKey());
+			String receiverKey = message.getReceiverKey();
+			if (!StringUtils.hasText(receiverKey)) {
+				log.warn("Cannot share media: receiverKey is null/empty for messageId={}", message.getId());
+				return;
+			}
+			shareWithUserKeys = Set.of(receiverKey);
 		}
 
-		// Delete
+		// clientMessageId may be null for forwarded messages — fall back to a random UUID
+		// so UUID.fromString(null) doesn't NPE and silently drop the entire share call.
+		UUID msgUuid;
+		try {
+			msgUuid = message.getClientMessageId() != null
+					? UUID.fromString(message.getClientMessageId())
+					: UUID.randomUUID();
+		} catch (IllegalArgumentException e) {
+			log.warn("Invalid clientMessageId '{}', using random UUID for share", message.getClientMessageId());
+			msgUuid = UUID.randomUUID();
+		}
+		final UUID finalMsgUuid = msgUuid;
+
 		for (MediaItem item : message.getMediaGroup()) {
-			share(item.getMediaId(), message.getSenderKey(), new ArrayList<>(shareWithUserKeys), UUID.fromString(message.getId()));
+			share(item.getMediaId(), message.getSenderKey(), new ArrayList<>(shareWithUserKeys), finalMsgUuid);
 		}
 	}
 
@@ -114,7 +131,7 @@ public class MediaService {
 		}
 		
 		for (MediaItem item : message.getMediaGroup()) {
-			delete(item.getMediaId(), requesterKey, List.of(requesterKey), UUID.fromString(message.getId()));
+			delete(item.getMediaId(), requesterKey, List.of(requesterKey), UUID.fromString(message.getClientMessageId()));
 		}
 	}
 
@@ -136,9 +153,8 @@ public class MediaService {
 			deleteWithUserKeys = Set.of(message.getSenderKey(), message.getReceiverKey());
 		}
 
-		// Delete
 		for (MediaItem item : message.getMediaGroup()) {
-			delete(item.getMediaId(), requesterKey, new ArrayList<>(deleteWithUserKeys), UUID.fromString(message.getId()));
-		}		
+			delete(item.getMediaId(), requesterKey, new ArrayList<>(deleteWithUserKeys), UUID.fromString(message.getClientMessageId()));
+		}
 	}
 }

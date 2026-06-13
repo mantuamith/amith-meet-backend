@@ -16,4 +16,5 @@ public class SessionMetadata implements Serializable{
 	
 	private String sessionId;
 	private boolean isActive;
+	private String userKey;
 }

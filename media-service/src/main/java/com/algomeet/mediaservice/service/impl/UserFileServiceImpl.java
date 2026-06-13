@@ -95,31 +95,51 @@ public class UserFileServiceImpl implements UserFileService {
 	@Override
 	public boolean hasPermission(UserFileDocument file, String userKey, FilePermission permission) {
 		// 1. Determine if the file is currently expired/scheduled for cleanup
-	    boolean isExpired = file.getCleanupEligibleAt() != null 
+	    boolean isExpired = file.getCleanupEligibleAt() != null
 	            && file.getCleanupEligibleAt().isBefore(Instant.now());
 
 	    // 2. Check Ownership (Safe against NullPointerException)
 	    boolean isOwner = userKey.equals(file.getOwner());
 
 	    if (isExpired) {
+	        log.info("[HasPermission] DENIED fileId={} userKey={} permission={} reason=EXPIRED cleanupEligibleAt={}",
+	                file.getId(), userKey, permission, file.getCleanupEligibleAt());
 	        return false;
 	    }
 
 	    // 3. If not expired, Owner has full wildcard access to everything
-	    if (isOwner) {			
+	    if (isOwner) {
+	        log.debug("[HasPermission] GRANTED fileId={} userKey={} permission={} reason=OWNER", file.getId(), userKey, permission);
 	        return true;
+	    }
+
+	    // 4. Chat attachments — only participants who have an active FileAccessEntry may
+	    //    READ a file shared in a conversation. The conversationId is used as a signal
+	    //    that the file is chat-attached, but we still require an explicit access entry
+	    //    so that non-participants cannot read files just by guessing a mediaId.
+	    if (permission == FilePermission.READ
+	            && file.getConversationId() != null
+	            && !file.getConversationId().isBlank()) {
+	        log.debug("[HasPermission] GRANTED fileId={} userKey={} permission={} reason=CONVERSATION_ID conversationId={}",
+	                file.getId(), userKey, permission, file.getConversationId());
+
+	        return fileAccessEntryService.hasAccess(UUID.fromString(userKey), UUID.fromString(file.getId()));
 	    }
 
 	    // Backward compatibility
 	    if (!CollectionUtils.isEmpty(file.getAccessControlList())) {
 	    	if(hasPermissionAcl(file, userKey, permission)) {
+	    	    log.debug("[HasPermission] GRANTED fileId={} userKey={} permission={} reason=ACL", file.getId(), userKey, permission);
 	    		return true;
 	    	}
 	    }
-	    
-	    // 4. Fallback to Access Control Matrix (MongoDB) for shared users
+
+	    // 5. Fallback to Access Control Matrix (MongoDB) for shared users
 		Set<FilePermission> permissions = fileAccessEntryService.getPermissions(UUID.fromString(userKey), UUID.fromString(file.getId()));
-		return permissions.contains(permission);
+		boolean granted = permissions.contains(permission);
+		log.info("[HasPermission] {} fileId={} userKey={} permission={} reason=FILE_ACCESS_ENTRY entryPermissions={}",
+		        granted ? "GRANTED" : "DENIED", file.getId(), userKey, permission, permissions);
+		return granted;
 	}
 	
 	@Deprecated
@@ -135,9 +155,10 @@ public class UserFileServiceImpl implements UserFileService {
 	            .anyMatch(entry -> entry.getPermissions() != null && entry.getPermissions().contains(permission));
 	}
 
-	@Override	
+	@Override
 	@Transactional(rollbackFor = Exception.class)
 	public void shareFile(Set<String> fileIds, String userKey, List<String> shareWithUserKeys, UUID messageId) {
+	    log.info("[ShareFile] fileIds={} ownerKey={} shareWith={} messageId={}", fileIds, userKey, shareWithUserKeys, messageId);
 	    if (CollectionUtils.isEmpty(fileIds)) {
 	        return;
 	    }
@@ -243,6 +264,13 @@ public class UserFileServiceImpl implements UserFileService {
 	        Set<String> deleteWithUserKeys,
 	        UUID messageId) {
 
+	    // A "delete for everyone" intent is signalled by the caller explicitly listing
+	    // more than one user (sender + at least one recipient), or by listing someone
+	    // other than the caller themselves.
+	    boolean isDeletingForEveryone = deleteWithUserKeys != null
+	            && (deleteWithUserKeys.size() > 1
+	                || (deleteWithUserKeys.size() == 1 && !deleteWithUserKeys.contains(userKey)));
+
 	    if (CollectionUtils.isEmpty(fileIds)) {
 	        return;
 	    }
@@ -293,9 +321,15 @@ public class UserFileServiceImpl implements UserFileService {
 	            }
 	        }
 
-	        // Mark the file for cleanup once all access references have been removed.
-	        // Actual deletion is handled by the cleanup process.
-	        if (canDeleteForOthers && fileAccessEntryService.countByFileId(fileId) == 0
+	        // Mark the file for cleanup only when:
+	        //  (a) the caller intended to delete for EVERYONE (not just "for me"), AND
+	        //  (b) no more access entries remain.
+	        // Guarding on (a) prevents a "delete for me" from the owner silently
+	        // expiring the file for all other participants when shareFile() was never
+	        // called (countByFileId == 0 even though recipients should still have access).
+	        if (isDeletingForEveryone
+	        		&& canDeleteForOthers
+	        		&& fileAccessEntryService.countByFileId(fileId) == 0
 	        		// Backward compatibility
 	        		&& CollectionUtils.isEmpty(file.getAccessControlList())) {
 	            file.setCleanupEligibleAt(Instant.now());

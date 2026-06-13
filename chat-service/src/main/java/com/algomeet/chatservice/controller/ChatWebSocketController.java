@@ -73,6 +73,12 @@ public class ChatWebSocketController {
         String username = up.username();
         message.setSenderKey(userKey);
         message.setSender(username);
+        // Resolve receiverKey from session store if the client did not send it
+        if (!message.isGroupMessage()
+                && (message.getReceiverKey() == null || message.getReceiverKey().isBlank())
+                && message.getReceiver() != null) {
+            message.setReceiverKey(userSessionService.getUserKey(message.getReceiver()));
+        }
         message.setTimestamp(message.getTimestamp());
         if (message.getStatus() == null) {
             message.setStatus(MessageStatus.SENT);
@@ -103,9 +109,7 @@ public class ChatWebSocketController {
 
                         }
                     } catch (Exception e) {
-                        e.printStackTrace();
-                        // Fallback if one group member fails
-                        log.error("Failed to deliver to group member {}: {}", member, e.getMessage());
+                        log.error("Failed to deliver to group member {}: {}", member, e.getMessage(), e);
                         failedMembers.add(member.getUsername());
                     }
                     if (!failedMembers.isEmpty()) {
@@ -154,11 +158,12 @@ public class ChatWebSocketController {
                 sendPushNotification(message.getReceiverKey(), message.getContent(), NotificationType.DIRECT_MESSAGE, message.getReceiver());
             }
         } catch (Exception ex) {
-            // Mark as FAILED and log
+            log.error("[STOMP /chat] Message delivery failed: sender={}, receiver={}, clientMsgId={}, mediaType={}, error={}",
+                    message.getSender(), message.getReceiver(), message.getClientMessageId(),
+                    message.getMessageMediaType(), ex.getMessage(), ex);
             message.setStatus(MessageStatus.FAILED);
-            messageRepository.save(message);  // Update message with FAILED status
+            messageRepository.save(message);
 
-            // notify the sender
             messagingTemplate.convertAndSendToUser(
                     principal.getName(),
                     "/queue/errors",
