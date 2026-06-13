@@ -7,16 +7,16 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
+import com.algomeet.common.dto.GroupMember;
+import com.algomeet.common.service.GroupCacheService;
+import com.algomeet.common.dto.Group;
 import com.algomeet.multitenancy.context.TenantContext;
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.constant.XmppErrorConditions;
-import com.algomeet.xmpp.chatservice.dto.MucMember;
-import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
 import com.algomeet.xmpp.chatservice.enums.PresenceType;
 import com.algomeet.xmpp.chatservice.enums.XmppErrorType;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
-import com.algomeet.xmpp.chatservice.service.GroupCacheService;
 import com.algomeet.xmpp.chatservice.service.MucMessageReadCursorService;
 import com.algomeet.xmpp.chatservice.service.MucMessageService;
 import com.algomeet.xmpp.chatservice.service.MucRetractionService;
@@ -89,10 +89,10 @@ public class XmppMucHandler {
 		// Set tenant Id to support multi-tenancy 
 		TenantContext.setCurrentTenant(principal.getTenantId());
 
-		MucRoomDto group = groupCacheService.getCachedGroup(toRoomId);
+		Group group = groupCacheService.getCachedGroup(toRoomId);
 
 		// Verify if the sender is an authorized member and is not muted
-		Optional<MucMember> senderMucMember = SearchUtil.findMember(group, principal.getUserKey());
+		Optional<GroupMember> senderMucMember = SearchUtil.findMember(group, principal.getUserKey());
 
 		if((senderMucMember.isEmpty() || senderMucMember.get().isMuted())
 				// Ignore unavailable presence stanzas used for member-leave broadcasts
@@ -102,7 +102,7 @@ public class XmppMucHandler {
 					XmppErrorConditions.FORBIDDEN, "You are not allowed to send messages to this room");
 
 			log.error("Access Denied: User {} in room {}. (Member: {}, Muted: {})", 
-					principal.getUserKey(), toRoomId, senderMucMember.isPresent(), senderMucMember.map(MucMember::isMuted).orElse(false));
+					principal.getUserKey(), toRoomId, senderMucMember.isPresent(), senderMucMember.map(GroupMember::isMuted).orElse(false));
 			return;
 		}
 
@@ -119,7 +119,7 @@ public class XmppMucHandler {
 		} else {
 
 			// 2. DIRECT PRIVATE MESSAGE (PM) WITHIN MUC CHECK
-			MucMember pmToMucMember = resolveDirectPmRecipient(ctx, id, fromJid, toRoomJid, group);
+			GroupMember pmToMucMember = resolveDirectPmRecipient(ctx, id, fromJid, toRoomJid, group);
 
 			// 3. ARCHIVING (MAM - XEP-0313)
 			// Only archive messages that are storage-eligible (e.g., contain a <body>)
@@ -214,7 +214,7 @@ public class XmppMucHandler {
 	 * Returns the member if found, or null if the message is a standard group broadcast.
 	 * If a nickname was provided but the user isn't found, it handles the error response and throws an exception.
 	 */
-	private MucMember resolveDirectPmRecipient(ChannelHandlerContext ctx, String id, String fromJid, String toRoomJid, MucRoomDto group) {
+	private GroupMember resolveDirectPmRecipient(ChannelHandlerContext ctx, String id, String fromJid, String toRoomJid, Group group) {
 		String nickname = jidUtil.getNickname(toRoomJid);
 
 		// If no nickname is present, this is a standard group message, not a PM.

@@ -4,9 +4,9 @@ import java.util.Optional;
 
 import org.springframework.stereotype.Component;
 
+import com.algomeet.common.dto.GroupMember;
+import com.algomeet.common.dto.Group;
 import com.algomeet.xmpp.chatservice.constant.XmppErrorConditions;
-import com.algomeet.xmpp.chatservice.dto.MucMember;
-import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
 import com.algomeet.xmpp.chatservice.enums.MucAffiliation;
 import com.algomeet.xmpp.chatservice.enums.XmppErrorType;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
@@ -46,7 +46,7 @@ public class MucUnMuteEventHandler {
 	 * @param group     The current MUC room state (DTO).
 	 * @param sender    The MUC profile of the moderator.
 	 */
-	public void handleUnMuteRequest(ChannelHandlerContext ctx, String roomJid, String xml, MucRoomDto group, MucMember sender) {
+	public void handleUnMuteRequest(ChannelHandlerContext ctx, String roomJid, String xml, Group group, GroupMember sender) {
 		String senderJid = jidUtil.getBareJid(sender.getUserKey());
 		
 		// 1. Extract request details
@@ -58,7 +58,7 @@ public class MucUnMuteEventHandler {
 
 		// 2. Identify the target member (victim) based on the provided JID
 		String victimUserKey = XmppUtil.getUserKey(victimJid); 
-		Optional<MucMember> victimOpt = SearchUtil.findMember(group, victimUserKey);
+		Optional<GroupMember> victimOpt = SearchUtil.findMember(group, victimUserKey);
 		
 		// 3. Authorization Check
 		// Ensure the moderator has the authority to unmute the target.

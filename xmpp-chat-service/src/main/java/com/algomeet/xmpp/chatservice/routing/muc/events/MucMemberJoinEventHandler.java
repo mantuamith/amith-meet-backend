@@ -4,9 +4,9 @@ import java.util.UUID;
 
 import org.springframework.stereotype.Component;
 
+import com.algomeet.common.dto.GroupMember;
+import com.algomeet.common.dto.Group;
 import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
-import com.algomeet.xmpp.chatservice.dto.MucMember;
-import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.enums.MucRole;
 import com.algomeet.xmpp.chatservice.enums.PresenceStatusCode;
@@ -44,7 +44,7 @@ public class MucMemberJoinEventHandler {
      * @param group     The Data Transfer Object representing the current room state.
      * @param sender    The MUC member profile of the person joining.
      */
-    public void handleMemberJoinRequest(ChannelHandlerContext ctx, String roomJid, String xml, MucRoomDto group, MucMember sender) { 	 
+    public void handleMemberJoinRequest(ChannelHandlerContext ctx, String roomJid, String xml, Group group, GroupMember sender) { 	 
      	UserState newState = determineState(xml);    	
         if (newState == null) {return;}
          

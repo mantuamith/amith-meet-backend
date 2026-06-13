@@ -4,9 +4,9 @@ import java.util.UUID;
 
 import org.springframework.stereotype.Component;
 
+import com.algomeet.common.dto.Group;
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
-import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.enums.MucAffiliation;
 import com.algomeet.xmpp.chatservice.enums.MucEventType;
@@ -48,7 +48,7 @@ public class MucMemberLeftEventHandler {
      * @param group     The Data Transfer Object representing the current room state.
      * @param principal 
      */
-    public void handleMemberLeftRoom(ChannelHandlerContext ctx, String roomJid, String xml, MucRoomDto group, XmppPrincipal principal) { 	        
+    public void handleMemberLeftRoom(ChannelHandlerContext ctx, String roomJid, String xml, Group group, XmppPrincipal principal) { 	        
         String roomBareJid = XmppUtil.getRoomBareJid(roomJid);
         
         // 1. Send "Self-Presence" back to the leaving user.
@@ -153,7 +153,7 @@ public class MucMemberLeftEventHandler {
 			String id,
 			String roomBareJid,
 			String senderJid,
-			MucRoomDto group,
+			Group group,
 			XmppPrincipal principal,
 			UUID stanzaId,
 			String xml) {

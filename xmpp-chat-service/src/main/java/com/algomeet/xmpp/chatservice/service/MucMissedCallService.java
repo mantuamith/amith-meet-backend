@@ -16,14 +16,15 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
+import com.algomeet.common.dto.GroupMember;
+import com.algomeet.common.service.GroupCacheService;
+import com.algomeet.common.dto.Group;
 import com.algomeet.multitenancy.context.TenantContext;
 import com.algomeet.notificationservice.dto.Notification;
 import com.algomeet.notificationservice.enums.NotificationType;
 import com.algomeet.notificationservice.service.NotificationService;
 import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.document.CallSession;
-import com.algomeet.xmpp.chatservice.dto.MucMember;
-import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
 import com.algomeet.xmpp.chatservice.enums.CallSessionMetadata;
 import com.algomeet.xmpp.chatservice.enums.CallSessionRedisKey;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
@@ -301,8 +302,8 @@ public class MucMissedCallService {
 		String fromUserKey = XmppUtil.getUserKey(fromJid);
 		String toUserKey = XmppUtil.getUserKey(toJid);	
 
-		MucRoomDto group = groupCacheService.getCachedGroup(groupId);
-		Optional<MucMember> callerMucMember = group.getMembers().stream()
+		Group group = groupCacheService.getCachedGroup(groupId);
+		Optional<GroupMember> callerMucMember = group.getMembers().stream()
 				.filter(m -> m.getUserKey().equals(fromUserKey)).findFirst();
 
 		String fromRoomJid = jidUtil.getGroupBareJid(groupId) + "/" + 

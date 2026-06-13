@@ -11,10 +11,10 @@ import java.util.UUID;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 
+import com.algomeet.common.dto.GroupMember;
+import com.algomeet.common.dto.Group;
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.client.GroupClient;
-import com.algomeet.xmpp.chatservice.dto.MucMember;
-import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
 import com.algomeet.xmpp.chatservice.enums.MucRole;
 import com.algomeet.xmpp.chatservice.enums.UserState;
 import com.algomeet.xmpp.chatservice.routing.dispacher.LocalStanzaDispatcher;
@@ -63,10 +63,10 @@ public class MucPresenceService {
 	public void broadcastPresenceToAllJoinedGroups(ChannelHandlerContext ctx, String userkey, UserState newState) {    
 		try {
 			// 1. Fetch all room memberships to identify broadcast targets
-			List<MucRoomDto> groups = groupClient.getGroupsForUserKey(userkey);
+			List<Group> groups = groupClient.getGroupsForUserKey(userkey);
 
 			if (!CollectionUtils.isEmpty(groups)) {
-				for (MucRoomDto group : groups) {
+				for (Group group : groups) {
 					broadcastPresenceToGroupParticipants(ctx, userkey, group, newState);
 				}
 			}
@@ -79,12 +79,12 @@ public class MucPresenceService {
 	 * Pushes a presence update for a specific user to all occupants of a targeted MUC room.
 	 * This method acts as the "Outbound Broadcast" to the group.
 	 */
-	public void broadcastPresenceToGroupParticipants(ChannelHandlerContext ctx, String userkey, MucRoomDto group, UserState newState) {    
+	public void broadcastPresenceToGroupParticipants(ChannelHandlerContext ctx, String userkey, Group group, UserState newState) {    
 		try {
 			String roomJid = jidUtil.getGroupBareJid(group.getId().toString());
 
 			// 2. Identify the sender's membership details for specific room metadata (nickname/role)
-			Optional<MucMember> senderMucMember = group.getMembers().stream()
+			Optional<GroupMember> senderMucMember = group.getMembers().stream()
 					.filter(m -> m.getUserKey().equals(userkey))
 					.findFirst();
 
@@ -112,7 +112,7 @@ public class MucPresenceService {
 
 	public void pushGroupParticipantsPresenceToUser(ChannelHandlerContext ctx, String groupId, String userKey) {    
 		try {
-			MucRoomDto group = groupClient.getGroupById(groupId);
+			Group group = groupClient.getGroupById(groupId);
 			pushGroupParticipantsPresenceToUser(ctx, group, userKey);
 		} catch (Exception ex) {
 			log.error("Error syncing MUC participant presence for group {}: {}", groupId, ex.getMessage());
@@ -127,14 +127,14 @@ public class MucPresenceService {
 	 * has orphan or "zombie" records in Redis, the most relevant state is sent.
 	 * </p>
 	 */
-	public void pushGroupParticipantsPresenceToUser(ChannelHandlerContext ctx, MucRoomDto group, String userKey) { 
+	public void pushGroupParticipantsPresenceToUser(ChannelHandlerContext ctx, Group group, String userKey) { 
 		try {	
 			if (CollectionUtils.isEmpty(group.getMembers())) {
 				return;
 			}
 
 			// Validate that the receiving user is a member of the target group
-			Optional<MucMember> userMucInfoOpt = group.getMembers().stream()
+			Optional<GroupMember> userMucInfoOpt = group.getMembers().stream()
 					.filter(m -> m.getUserKey().equalsIgnoreCase(userKey))
 					.findFirst();
 
@@ -147,7 +147,7 @@ public class MucPresenceService {
 
 			// 2. Collect all keys for batch fetching from Redis (Performance Optimization)
 			List<String> memberKeys = group.getMembers().stream()
-					.map(MucMember::getUserKey)
+					.map(GroupMember::getUserKey)
 					.toList();
 
 			// 3. Batch fetch session/state data for all occupants to avoid N+1 queries
@@ -155,7 +155,7 @@ public class MucPresenceService {
 
 			String toJid = jidUtil.getBareJid(userKey);
 					
-			for (MucMember member : group.getMembers()) {
+			for (GroupMember member : group.getMembers()) {
 				// Skip the recipient themselves (Standard MUC self-presence is handled separately)
 				if (member.getUserKey().equalsIgnoreCase(userKey) ) {
 					continue;

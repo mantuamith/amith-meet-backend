@@ -9,16 +9,16 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
-import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
+import com.algomeet.common.dto.Group;
 
 @FeignClient(name = "group-service", url = "${feign.client.group-service.url}")
 public interface GroupClient {
 
     @GetMapping("/internal/groups/{groupId}")
-    MucRoomDto getGroupById(@PathVariable("groupId") String groupId);
+    Group getGroupById(@PathVariable("groupId") String groupId);
     
     @GetMapping("/internal/groups/member/userkey/{userkey}")
-	List<MucRoomDto> getGroupsForUserKey(@PathVariable String userkey);
+	List<Group> getGroupsForUserKey(@PathVariable String userkey);
     
     /**
      * Dispatches an internal inter-service call to update a target member's timeline 

@@ -6,13 +6,13 @@ import java.util.UUID;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 
+import com.algomeet.common.dto.GroupMember;
+import com.algomeet.common.dto.Group;
 import com.algomeet.notificationservice.dto.Notification;
 import com.algomeet.notificationservice.enums.NotificationType;
 import com.algomeet.notificationservice.service.NotificationService;
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
-import com.algomeet.xmpp.chatservice.dto.MucMember;
-import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.enums.UserState;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
@@ -48,8 +48,8 @@ public class MucMessageRouter {
 	 * Handles distribution logic. Iterates through members or targets a specific occupant 
 	 * for Private Messages.
 	 */
-	public void broadcastToOccupants(ChannelHandlerContext ctx, String id, String toRoomJid, String fromJid, XmppMessageType msgType, MucRoomDto group, 
-			MucMember directReceiverMucMember, String originalXml) {
+	public void broadcastToOccupants(ChannelHandlerContext ctx, String id, String toRoomJid, String fromJid, XmppMessageType msgType, Group group, 
+			GroupMember directReceiverMucMember, String originalXml) {
 
 		XmppPrincipal principal = ctx.channel().attr(XmppSessionAttributes.PRINCIPAL).get();
 		boolean isJingleStanza = XmppStanzaUtil.isJingleStanza(msgType, originalXml);
@@ -61,7 +61,7 @@ public class MucMessageRouter {
 					directReceiverMucMember.getUserKey(), isJingleStanza, isJingleSessionInitiate, principal);
 		} else {						
 			// Target: All room members (Broadcast)
-			for(MucMember receiverMucMember : group.getMembers()) {
+			for(GroupMember receiverMucMember : group.getMembers()) {
 				publishOrNotify(ctx, id, toRoomJid, fromJid, msgType, originalXml, 
 						receiverMucMember.getUserKey(), isJingleStanza, isJingleSessionInitiate, principal);
 			}
@@ -135,12 +135,12 @@ public class MucMessageRouter {
 	/**
 	 * Iterates through all room occupants and publishes the presence update to the cluster.
 	 */
-	public void broadcastToOccupants(String id, String senderKey, MucRoomDto group, String payload, boolean isAllowEcho) {
+	public void broadcastToOccupants(String id, String senderKey, Group group, String payload, boolean isAllowEcho) {
 		if(group == null || group.getMembers() == null) {
 			return;
 		}
 		
-		for(MucMember receiver : group.getMembers()) {
+		for(GroupMember receiver : group.getMembers()) {
 			if (!isAllowEcho) {
 				if (receiver.getUserKey().equalsIgnoreCase(senderKey)) {
 					continue;

@@ -1,10 +1,9 @@
-package com.algomeet.xmpp.chatservice.service;
+package com.algomeet.common.service;
 
 import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.TreeSet;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
@@ -12,16 +11,13 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
+import com.algomeet.common.dto.Group;
 import com.algomeet.xmpp.chatservice.client.GroupClient;
-import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.jsontype.BasicPolymorphicTypeValidator;
-import com.fasterxml.jackson.databind.jsontype.PolymorphicTypeValidator;
 
 
 /**
@@ -52,21 +48,21 @@ public class GroupCacheService {
     private final ReactiveRedisTemplate<String, Object> reactiveRedisTemplate;
 
     /** Prefix for all group-related keys in Redis to prevent namespace collisions. */
-    private static final String CACHE_KEY_PREFIX = "xmpp:group:";
+    private static final String CACHE_KEY_PREFIX = "common:groups:";
     
     /** * Time-to-live for cached group metadata. 
      * Configured via {@code xmpp.cache.group-ttl} in application.yml.
      */
-    @Value("${group.cache.ttl:30m}")
+    @Value("${common.groups.cache.ttl:30m}")
     private Duration cacheTtl;    
     
     /**
      * Retrieves group metadata from the cache.
      *
      * @param groupId The unique identifier of the room/group.
-     * @return {@link MucRoomDto} containing room configuration and member list.
+     * @return {@link Group} containing room configuration and member list.
      */
-    public MucRoomDto refreshGroupCache(String groupId) {
+    public Group refreshGroupCache(String groupId) {
     	// Clean up first
     	evictGroup(groupId);
     	
@@ -78,21 +74,21 @@ public class GroupCacheService {
      * <p>
      * <b>Execution Flow:</b>
      * <ol>
-     * <li>Check Redis for existing {@code MucRoomDto} (unless {@code isForceRefreshCache} is true).</li>
+     * <li>Check Redis for existing {@code Group} (unless {@code isForceRefreshCache} is true).</li>
      * <li>If absent (Cache Miss), fetch data from {@link GroupClient}.</li>
      * <li>Asynchronously/Sequentially populate Redis with the retrieved data for future requests.</li>
      * </ol>
      * </p>
      *
      * @param groupId              The unique identifier of the room.
-     * @return The {@link MucRoomDto} retrieved from cache or the source service.
+     * @return The {@link Group} retrieved from cache or the source service.
      */
-    public MucRoomDto getCachedGroup(String groupId) {
+    public Group getCachedGroup(String groupId) {
         String key = getCacheKey(groupId);
 
         // 1. Try to get from Redis
             try {
-                MucRoomDto cachedDto = (MucRoomDto) redisTemplate.opsForValue().get(key);
+                Group cachedDto = (Group) redisTemplate.opsForValue().get(key);
                 if (cachedDto != null) {
                     log.debug("Cache hit for group ID: {}", groupId);
                     return cachedDto;
@@ -104,7 +100,7 @@ public class GroupCacheService {
 
         // 2. Cache miss or forced refresh - Call Feign Client
         log.debug("Fetching group ID: {} from group-service", groupId);
-        MucRoomDto roomDto = groupClient.getGroupById(groupId);
+        Group roomDto = groupClient.getGroupById(groupId);
 
         // 3. Populate Redis for next time
         if (roomDto != null) {
@@ -141,16 +137,16 @@ public class GroupCacheService {
      * Iterates through each room, generates a dedicated cache key, and stores the 
      * room object with the configured Time-To-Live (TTL).
      *
-     * @param rooms The list of {@link MucRoomDto} objects to be cached.
+     * @param rooms The list of {@link Group} objects to be cached.
      */
     /**
      * Reactively caches a list of MUC rooms, skipping any rooms whose 
      * keys already exist in the cache.
      *
-     * @param rooms The list of {@link MucRoomDto} objects to be cached.
+     * @param rooms The list of {@link Group} objects to be cached.
      * @return A {@link Mono<Void>} that completes when the operation finishes.
      */
-    public Mono<Void> addToCache(List<MucRoomDto> rooms) {  
+    public Mono<Void> addToCache(List<Group> rooms) {  
         if (CollectionUtils.isEmpty(rooms)) {
             return Mono.empty();
         }
@@ -191,9 +187,9 @@ public class GroupCacheService {
      * Bulk retrieves multiple group configurations 
      *
      * @param groupIds List of unique room identifiers (e.g., JID components).
-     * @return A {@link List<MucRoomDto>}
+     * @return A {@link List<Group>}
      */
-    public List<MucRoomDto> getGroups(List<String> groupIds) {
+    public List<Group> getGroups(List<String> groupIds) {
 
         if (CollectionUtils.isEmpty(groupIds)) {
             return Collections.emptyList();
@@ -216,7 +212,7 @@ public class GroupCacheService {
 
         return values.stream()
                 .filter(Objects::nonNull)
-                .map(v -> (MucRoomDto) v)
+                .map(v -> (Group) v)
                 .toList();
     }   
 }

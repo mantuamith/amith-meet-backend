@@ -1,4 +1,4 @@
-package com.algomeet.xmpp.chatservice.dto;
+package com.algomeet.common.dto;
 
 import java.util.Objects;
 
@@ -10,7 +10,7 @@ import lombok.NoArgsConstructor;
 @JsonIgnoreProperties(ignoreUnknown = true)
 @Data
 @NoArgsConstructor
-public class MucMember implements Comparable<MucMember> {
+public class GroupMember implements Comparable<GroupMember> {
 
     private String userKey;
     private String username;
@@ -41,13 +41,13 @@ public class MucMember implements Comparable<MucMember> {
             return false;
         }
 
-        MucMember other = (MucMember) obj;
+        GroupMember other = (GroupMember) obj;
 
         return Objects.equals(this.userKey, other.userKey);
     }
 
     @Override
-    public int compareTo(MucMember other) {
+    public int compareTo(GroupMember other) {
         if (this == other) return 0;
         if (other == null) return 1;
 

@@ -7,7 +7,7 @@ import javax.xml.stream.XMLStreamConstants;
 import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamReader;
 
-import com.algomeet.xmpp.chatservice.dto.MucMember;
+import com.algomeet.common.dto.GroupMember;
 import com.algomeet.xmpp.chatservice.enums.MucAffiliation;
 
 import lombok.extern.slf4j.Slf4j;
@@ -16,7 +16,7 @@ import lombok.extern.slf4j.Slf4j;
 public class MucCommandUtil {
 	private static final XMLInputFactory XML_FACTORY = XMLInputFactory.newInstance();
 
-	public static boolean isAuthorized(MucMember sender, MucMember victim) {
+	public static boolean isAuthorized(GroupMember sender, GroupMember victim) {
 		// Sender is doing the action to itself
 		if(sender.getUserKey().equals(victim.getUserKey())) {
 			return true;

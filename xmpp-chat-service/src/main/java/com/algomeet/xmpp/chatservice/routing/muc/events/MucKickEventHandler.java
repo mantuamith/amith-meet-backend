@@ -5,9 +5,9 @@ import java.util.UUID;
 
 import org.springframework.stereotype.Component;
 
+import com.algomeet.common.dto.GroupMember;
+import com.algomeet.common.dto.Group;
 import com.algomeet.xmpp.chatservice.constant.XmppErrorConditions;
-import com.algomeet.xmpp.chatservice.dto.MucMember;
-import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
 import com.algomeet.xmpp.chatservice.enums.MucEventType;
 import com.algomeet.xmpp.chatservice.enums.PresenceStatusCode;
 import com.algomeet.xmpp.chatservice.enums.XmppErrorType;
@@ -53,7 +53,7 @@ public class MucKickEventHandler {
 	 * @param group     The room DTO.
 	 * @param sender    The moderator's profile.
 	 */
-	public void handleKickMemberRequest(ChannelHandlerContext ctx, String roomJid, String xml, MucRoomDto group, MucMember sender) {
+	public void handleKickMemberRequest(ChannelHandlerContext ctx, String roomJid, String xml, Group group, GroupMember sender) {
 		String id = XmppStanzaUtil.getAttribute(xml, "id");
 		String victimJid = XmppStanzaUtil.getAttribute(xml, "item", "jid");
 		String reason = extractReason(xml);
@@ -62,7 +62,7 @@ public class MucKickEventHandler {
 		log.info("Admin {} attempting to kick {} from {}", senderJid, victimJid, roomJid);
 
 		String victimUserKey = XmppUtil.getUserKey(victimJid);  
-		Optional<MucMember> victimOpt = SearchUtil.findMember(group, victimUserKey);
+		Optional<GroupMember> victimOpt = SearchUtil.findMember(group, victimUserKey);
 		
 		// Prerequisite: the member must have already been removed from the group using group-service API.
 		if (victimOpt.isPresent()) {        	
@@ -185,7 +185,7 @@ public class MucKickEventHandler {
 	    private void saveToDatabase(
 				String id,
 				String roomBareJid,
-				MucMember sender,
+				GroupMember sender,
 				UUID stanzaId,
 				String xml) {
 

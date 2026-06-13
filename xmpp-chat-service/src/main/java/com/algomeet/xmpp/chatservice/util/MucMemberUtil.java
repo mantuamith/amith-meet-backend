@@ -2,12 +2,12 @@ package com.algomeet.xmpp.chatservice.util;
 
 import java.time.Instant;
 
-import com.algomeet.xmpp.chatservice.dto.MucMember;
-import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
+import com.algomeet.common.dto.GroupMember;
+import com.algomeet.common.dto.Group;
 
 public class MucMemberUtil {
 	
-	public static Instant getHistoryCutoff(MucRoomDto room, MucMember member) {
+	public static Instant getHistoryCutoff(Group room, GroupMember member) {
 		
 		if(member.getMessageHistoryCutoff() != null) {
 			return Instant.ofEpochMilli(member.getMessageHistoryCutoff());
@@ -19,7 +19,7 @@ public class MucMemberUtil {
 		}		
 	}
 	
-	public static Long getHistoryCutoffLong(MucMember member) {
+	public static Long getHistoryCutoffLong(GroupMember member) {
 		if(member.getMessageHistoryCutoff() != null) {
 			return Instant.ofEpochMilli(member.getMessageHistoryCutoff()).toEpochMilli();
 		

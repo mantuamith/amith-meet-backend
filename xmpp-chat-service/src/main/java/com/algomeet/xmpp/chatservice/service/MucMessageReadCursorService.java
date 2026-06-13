@@ -40,8 +40,8 @@ public class MucMessageReadCursorService {
     public Mono<Long> getUnreadCount(final UUID userKey, final UUID roomId) {
         final String cursorId = String.format("%s_%s", userKey.toString(), roomId.toString());
 
-		/* TODO: Value should be coming from MucMember class, returned from Group-service API.
-		public class MucMember {		    
+		/* TODO: Value should be coming from GroupMember class, returned from Group-service API.
+		public class GroupMember {		    
 		    // The magic field: Anything before this timestamp is "deleted" for this user
 		    private Instant historyCutoffAt; 
 		}*/

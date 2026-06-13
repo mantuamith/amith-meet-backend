@@ -8,10 +8,11 @@ import org.apache.commons.lang3.StringUtils;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
+import com.algomeet.common.dto.GroupMember;
+import com.algomeet.common.service.GroupCacheService;
+import com.algomeet.common.dto.Group;
 import com.algomeet.xmpp.chatservice.client.GroupClient;
 import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
-import com.algomeet.xmpp.chatservice.dto.MucMember;
-import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.enums.MucAffiliation;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
@@ -101,8 +102,8 @@ public class MucRoomService {
     public Boolean purgeAllGroupMessages(UUID groupId, UUID userKey) {
         log.warn("Executing administrative database purge for all messages in group: {}", groupId);
 
-        MucRoomDto group = groupCacheService.getCachedGroup(groupId.toString());
-        Optional<MucMember> memberOpt = SearchUtil.findMember(group, userKey.toString());
+        Group group = groupCacheService.getCachedGroup(groupId.toString());
+        Optional<GroupMember> memberOpt = SearchUtil.findMember(group, userKey.toString());
         
         // If group is null meaning group has been deleted and anyone can delete the messages
         // otherwise validate the authority.

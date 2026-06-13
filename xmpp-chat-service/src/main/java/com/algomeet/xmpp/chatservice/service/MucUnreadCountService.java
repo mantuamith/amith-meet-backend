@@ -11,10 +11,11 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
+import com.algomeet.common.dto.GroupMember;
+import com.algomeet.common.service.GroupCacheService;
+import com.algomeet.common.dto.Group;
 import com.algomeet.xmpp.chatservice.constant.Constants;
 import com.algomeet.xmpp.chatservice.document.MucRoomReadCursor;
-import com.algomeet.xmpp.chatservice.dto.MucMember;
-import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
 import com.algomeet.xmpp.chatservice.dto.MucUnreadCount;
 import com.algomeet.xmpp.chatservice.repository.MucMessageRepository;
 import com.algomeet.xmpp.chatservice.repository.MucRoomReadCursorRepository;
@@ -75,8 +76,8 @@ public class MucUnreadCountService {
 					UUID lastReadMid = context.cursor != null ? context.cursor.getLastReadMid() : Constants.SMALLEST_UUID_V7;
 					
 					// Retrieve group info
-					MucRoomDto room = groupCacheService.getCachedGroup(roomId);
-					Optional<MucMember> member = SearchUtil.findMember(room, userKey.toString());
+					Group room = groupCacheService.getCachedGroup(roomId);
+					Optional<GroupMember> member = SearchUtil.findMember(room, userKey.toString());
 					if (member.isEmpty()) {
 						return Mono.empty();
 					}
@@ -128,8 +129,8 @@ public class MucUnreadCountService {
 	 */
 	public Integer getUnreadCount(UUID userKey, UUID roomId) {
 
-		/* TODO: Value should be coming from MucMember class, returned from Group-service API.
-		public class MucMember {		    
+		/* TODO: Value should be coming from GroupMember class, returned from Group-service API.
+		public class GroupMember {		    
 		    // The magic field: Anything before this timestamp is "deleted" for this user
 		    private Instant historyCutoffAt; 
 		}*/

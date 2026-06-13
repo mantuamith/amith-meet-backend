@@ -6,11 +6,12 @@ import java.util.UUID;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
+import com.algomeet.common.dto.Group;
+import com.algomeet.common.service.GroupCacheService;
 import com.algomeet.multitenancy.context.TenantContext;
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.constant.XmppErrorConditions;
-import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.enums.XmppErrorType;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
@@ -71,7 +72,7 @@ public class MucRetractionService {
         TenantContext.setCurrentTenant(principal.getTenantId());	
 
         // Fetch room metadata to identify members for the broadcast
-        MucRoomDto group = groupCacheService.getCachedGroup(XmppUtil.getRoomId(roomJid));
+        Group group = groupCacheService.getCachedGroup(XmppUtil.getRoomId(roomJid));
         
         // Extract the target message ID (the 'retracted-id') from the XML payload
         String retractMessageId = xmppRetractUtil.getRetractMessageId(xml);
@@ -136,7 +137,7 @@ public class MucRetractionService {
      * @param principal        The initiator's principal.
      */
     private void composeAndSendRetractStanza(ChannelHandlerContext ctx, String id, String stanzaId, String roomJid, 
-            MucRoomDto group, String retractMessageId, XmppPrincipal principal) {
+            Group group, String retractMessageId, XmppPrincipal principal) {
         
         // Standard UTC timestamp for the retraction event
         String stamp = Instant.now().toString();
