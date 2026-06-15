@@ -27,6 +27,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.algomeet.mediaservice.config.AcceptedFileProperties;
 import com.algomeet.mediaservice.config.StorageProperties;
 import com.algomeet.mediaservice.controller.swagger.FileControllerDoc;
 import com.algomeet.mediaservice.document.FilePermission;
@@ -67,6 +68,7 @@ public class FileController implements FileControllerDoc {
     @Autowired(required = false)
     private MediaServiceOss mediaServiceOss;
     private final StorageProperties storageProperties;
+    private final AcceptedFileProperties acceptedFileProperties;
     private final UserFileService userFileService;
     private final FileValidator fileValidator;
 
@@ -110,6 +112,11 @@ public class FileController implements FileControllerDoc {
     ) throws Exception {
 
         log.info("Batch upload: fileCount={}, context={}", files.size(), uploadContext);
+
+        if (files.size() > acceptedFileProperties.getMaxFilesPerUpload()) {
+            return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
+                    .body(CommonResponse.from(ResponseCode.MEDIA_BATCH_LIMIT_EXCEEDED));
+        }
 
         List<MediaUploadResponse> results = new ArrayList<>();
         List<String> failures = new ArrayList<>();

@@ -135,9 +135,7 @@ import jakarta.validation.Valid;
                 List<MessageDocument> pageAsc = new ArrayList<>(pageDesc); // ensure mutable
                 Collections.reverse(pageAsc);
 
-                return pageAsc.stream()
-                        .map(messageMapper::toResponse)
-                        .collect(Collectors.toList());
+                return toVisibleGroupResponses(pageAsc, currentUser);
             } else {
                 // Non-paged: fetch latest 100 (DESC) then present ASC
                 Pageable p = PageRequest.of(0, 100, descSort);
@@ -147,9 +145,7 @@ import jakarta.validation.Valid;
                 List<MessageDocument> latestAsc = new ArrayList<>(latestDesc); // mutable copy
                 Collections.reverse(latestAsc);
 
-                return latestAsc.stream()
-                        .map(messageMapper::toResponse)
-                        .collect(Collectors.toList());
+                return toVisibleGroupResponses(latestAsc, currentUser);
             }
         }
 
@@ -193,6 +189,13 @@ import jakarta.validation.Valid;
             if (!isMember) {
                 throw new ResponseStatusException(org.springframework.http.HttpStatus.FORBIDDEN, "Not a member of the group");
             }
+        }
+
+        private List<MessageResponse> toVisibleGroupResponses(List<MessageDocument> docs, String currentUser) {
+            return docs.stream()
+                    .filter(message -> message != null && message.isVisibleTo(currentUser))
+                    .map(messageMapper::toResponse)
+                    .collect(Collectors.toList());
         }
 
         @PostMapping("/clear")
