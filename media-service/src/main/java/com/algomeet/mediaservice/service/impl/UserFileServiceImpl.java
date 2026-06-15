@@ -111,7 +111,7 @@ public class UserFileServiceImpl implements UserFileService {
 	public boolean hasPermission(UserFileDocument file, String userKey, FilePermission permission) {
 		return hasPermission(file, userKey, null, permission);
 	}
-
+	
 	public boolean hasPermission(UserFileDocument file, String userKey, UUID groupId, FilePermission permission) {
 		// 1. Determine if the file is currently expired/scheduled for cleanup
 	    boolean isExpired = file.getCleanupEligibleAt() != null
@@ -170,6 +170,15 @@ public class UserFileServiceImpl implements UserFileService {
 		return granted;
 	}
 	
+	private boolean hasGroupPermission(Group group, String userKey, String fileId, FilePermission permission) {
+		if (group == null) {
+			return false;
+		}
+		
+		Set<FilePermission> groupPermissions = groupFileAccessEntryService.getPermissions(group.getId(), UUID.fromString(fileId));			
+		return groupPermissions.contains(permission) && isGroupMember(group, userKey);
+	}
+	
 	@Deprecated
 	public boolean hasPermissionAcl(UserFileDocument file, String userKey, FilePermission permission) {
 		// Null-safe check for the ACL list
@@ -200,9 +209,13 @@ public class UserFileServiceImpl implements UserFileService {
 	    targetUserUuids.add(ownerUuid);
 	    
 	    // Check if group ID has value, this is used for sharing file(s) to group chat.
+	    Group group = null;
 	    if (groupId != null) {
 	    	// Add group member user keys
-	    	targetUserUuids.addAll(getGroupMemberKeys(groupId));	    	   		    	
+	    	targetUserUuids.addAll(getGroupMemberKeys(groupId));	
+	    	
+	    	// Get group
+	    	group = groupCacheService.getCachedGroup(groupId.toString());
 	    }
 
 	    Set<FilePermission> permissions = Set.of(FilePermission.SHARE, FilePermission.READ, FilePermission.DELETE);
@@ -221,7 +234,8 @@ public class UserFileServiceImpl implements UserFileService {
 
 	    try {
 	        for (UserFileDocument file : files) {
-	            if (!hasPermission(file, userKey, groupId, FilePermission.SHARE)) {
+	            if (!hasPermission(file, userKey, FilePermission.SHARE)
+	            		|| hasGroupPermission(group, userKey, file.getId(), FilePermission.SHARE) ) {
 	                throw new AccessDeniedException("User is not allowed to share the media/file: " + file.getId());
 	            }
 
@@ -483,6 +497,10 @@ public class UserFileServiceImpl implements UserFileService {
 	
 	private boolean isGroupMember(UUID groupId, String userKey) {
 		Group group = groupCacheService.getCachedGroup(groupId.toString());
+		return SearchUtil.findMember(group, userKey).isPresent();
+	}
+	
+	private boolean isGroupMember(Group group, String userKey) {
 		return SearchUtil.findMember(group, userKey).isPresent();
 	}
 }
