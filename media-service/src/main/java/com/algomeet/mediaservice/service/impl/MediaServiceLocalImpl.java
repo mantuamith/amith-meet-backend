@@ -1,7 +1,9 @@
 package com.algomeet.mediaservice.service.impl;
 
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
+import java.awt.image.BufferedImage;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -12,13 +14,6 @@ import java.time.Instant;
 import java.util.UUID;
 
 import javax.imageio.ImageIO;
-import java.awt.image.BufferedImage;
-import java.awt.Graphics2D;
-import java.awt.RenderingHints;
-
-import ws.schild.jave.MultimediaObject;
-import ws.schild.jave.ScreenExtractor;
-import ws.schild.jave.info.VideoSize;
 
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -37,6 +32,9 @@ import com.algomeet.mediaservice.util.MediaMetadataExtractor;
 
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import ws.schild.jave.MultimediaObject;
+import ws.schild.jave.ScreenExtractor;
+import ws.schild.jave.info.VideoSize;
 
 @Slf4j
 @Service
