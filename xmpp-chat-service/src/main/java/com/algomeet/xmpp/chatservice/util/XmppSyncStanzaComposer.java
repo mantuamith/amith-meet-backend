@@ -1,5 +1,9 @@
 package com.algomeet.xmpp.chatservice.util;
 
+/**
+ * Utility for composing XMPP headline stanzas used to propagate
+ * conversation clearance events to a user's online devices.
+ */
 public class XmppSyncStanzaComposer {
 
     /**
