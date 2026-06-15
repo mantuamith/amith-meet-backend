@@ -26,12 +26,13 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
+import com.algomeet.common.dto.GroupMember;
+import com.algomeet.common.service.GroupCacheService;
+import com.algomeet.common.dto.Group;
 import com.algomeet.xmpp.chatservice.constant.Constants;
 import com.algomeet.xmpp.chatservice.document.MucMessage;
 import com.algomeet.xmpp.chatservice.document.MucRoomReadCursor;
-import com.algomeet.xmpp.chatservice.dto.MucMember;
 import com.algomeet.xmpp.chatservice.dto.MucMessageResponse;
-import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
 import com.algomeet.xmpp.chatservice.mapper.MucMessageMapper;
 import com.algomeet.xmpp.chatservice.repository.MucMessageRepository;
 import com.algomeet.xmpp.chatservice.repository.MucRoomReadCursorRepository;
@@ -61,12 +62,13 @@ public class MucMessageService {
 		Pageable pageable = PageRequest.of(page, size);
 
 		// Retrieve group info
-		Optional<MucMember>  member = SearchUtil.findMember(groupCacheService.getCachedGroup(groupId.toString()), userKey.toString());
+		Group room = groupCacheService.getCachedGroup(groupId.toString());
+		Optional<GroupMember>  member = SearchUtil.findMember(room, userKey.toString());
 		if (member.isEmpty()) {
 			return List.of();
 		}
 		
-		Instant historyCutoff = MucMemberUtil.getHistoryCutoff(member.get());
+		Instant historyCutoff = MucMemberUtil.getHistoryCutoff(room, member.get());
 		// Collect into a standard ArrayList so it is safe to interact with during processing
 		List<MucMessageResponse> messages = 
 				mucMessageRepository.findByRoomIdAndIdGreaterThanAndToIsNullOrEqualtoUserkeyAndNotHiddenOrderByIdAsc(
@@ -98,12 +100,13 @@ public class MucMessageService {
 		Pageable pageable = PageRequest.of(page, size);
 
 		// Retrieve group info
-		Optional<MucMember>  member = SearchUtil.findMember(groupCacheService.getCachedGroup(groupId.toString()), userKey.toString());
+		Group room = groupCacheService.getCachedGroup(groupId.toString());
+		Optional<GroupMember>  member = SearchUtil.findMember(room, userKey.toString());
 		if (member.isEmpty()) {
 			return List.of();
 		}
 
-		Instant historyCutoff = MucMemberUtil.getHistoryCutoff(member.get());
+		Instant historyCutoff = MucMemberUtil.getHistoryCutoff(room, member.get());
 		List<MucMessageResponse> processedMessages = mucMessageRepository
 				.findByRoomIdAndIdLessThanAndToIsNullOrEqualtoUserkeyAndNotHiddenOrderByIdDesc(
 						groupId, beforeStanzaId, userKey, historyCutoff, pageable)
@@ -125,7 +128,7 @@ public class MucMessageService {
 			int size) {    
 		List<MucMessageResponse> resultList = new ArrayList<>();
 
-		MucRoomDto group = groupCacheService.getCachedGroup(groupId.toString());
+		Group group = groupCacheService.getCachedGroup(groupId.toString());
 		
 		if (page == 0) {
 	        MucMessageResponse startMessage = getStartOfConversation(userKey, groupId, group);
@@ -138,12 +141,12 @@ public class MucMessageService {
 		Pageable pageable = PageRequest.of(page, size);
 
 		// Retrieve group info
-		Optional<MucMember>  member = SearchUtil.findMember(group, userKey.toString());
+		Optional<GroupMember>  member = SearchUtil.findMember(group, userKey.toString());
 		if (member.isEmpty()) {
 			return List.of();
 		}
 
-		Instant historyCutoff = MucMemberUtil.getHistoryCutoff(member.get());
+		Instant historyCutoff = MucMemberUtil.getHistoryCutoff(group, member.get());
 		
 		/**
 		 * Retrieves message state updates (edit, delete, read, etc.)
@@ -189,7 +192,7 @@ public class MucMessageService {
 	    return Collections.unmodifiableList(resultList);
 	}
 
-	private MucMessageResponse getStartOfConversation(UUID userKey, UUID groupId, MucRoomDto group) {
+	private MucMessageResponse getStartOfConversation(UUID userKey, UUID groupId, Group group) {
 		// Scenario B: The room is brand new / completely empty. Return a structural anchor.
 		MucMessageResponse emptyRoomAnchor = new MucMessageResponse();
 		emptyRoomAnchor.setStanzaId(Constants.NIL_UUID);
@@ -198,12 +201,12 @@ public class MucMessageService {
 		emptyRoomAnchor.setStartOfRoomConversation(true);
 		
 		// Retrieve group info
-		Optional<MucMember>  member = SearchUtil.findMember(group, userKey.toString());
+		Optional<GroupMember>  member = SearchUtil.findMember(group, userKey.toString());
 		if (member.isEmpty()) {
 			return emptyRoomAnchor;
 		}
 
-		Instant historyCutoff = MucMemberUtil.getHistoryCutoff(member.get());
+		Instant historyCutoff = MucMemberUtil.getHistoryCutoff(group, member.get());
 		
 		MucMessage firstMessage = mucMessageRepository
                 .findFirstByRoomIdAndCreatedAtGreaterThanOrderByCreatedAtAsc(groupId, historyCutoff)
@@ -349,7 +352,7 @@ public class MucMessageService {
         }
 
         // 2. Fetch ALL required groups
-        List<MucRoomDto> groups = groupCacheService.getGroups(new java.util.ArrayList<>(allTargetGroupIds));
+        List<Group> groups = groupCacheService.getGroups(new java.util.ArrayList<>(allTargetGroupIds));
                 
         if (CollectionUtils.isEmpty(groups)) {
             mucConversations.clear();
@@ -357,7 +360,7 @@ public class MucMessageService {
         }
 
         // 3. Build the O(1) Lookup Map for high-speed node pairing
-        java.util.Map<String, MucRoomDto> activeGroupMap = groups.stream()
+        java.util.Map<String, Group> activeGroupMap = groups.stream()
                 .collect(java.util.stream.Collectors.toMap(
                         room -> room.getId().toString(),
                         group -> group,
@@ -374,7 +377,7 @@ public class MucMessageService {
             }
 
             String roomIdStr = conversation.getRoomId().toString();
-            MucRoomDto group = activeGroupMap.get(roomIdStr);
+            Group group = activeGroupMap.get(roomIdStr);
             
             // Fail-safe fallback: If the group was missing from the batch payload, try an isolated point lookup
             if (group == null) {
@@ -385,10 +388,10 @@ public class MucMessageService {
             }
 
             // Fast O(log N) balanced tree traversal to extract member configuration profile
-            Optional<MucMember> memberOpt = SearchUtil.findMember(group, targetUserKeyStr);
+            Optional<GroupMember> memberOpt = SearchUtil.findMember(group, targetUserKeyStr);
             
             if (memberOpt.isPresent()) {
-                MucMember member = memberOpt.get();
+                GroupMember member = memberOpt.get();
                 long historyCutoff = MucMemberUtil.getHistoryCutoffLong(member);
                 
                 // Evict conversation if the message timestamp falls strictly behind the user's timeline clearance point
@@ -486,6 +489,7 @@ public class MucMessageService {
 				// 6. Root Error Handling Boundary
 				.doOnError(e -> log.error("Critical failure in processing read update for message ID: {}", lastReadMessageId, e));
 	}
+	
 
 	/**
 	 * Helper to handle safe, reactive unlocking to prevent throwing errors if already unlocked.

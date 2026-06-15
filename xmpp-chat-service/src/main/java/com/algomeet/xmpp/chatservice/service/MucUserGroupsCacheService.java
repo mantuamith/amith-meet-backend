@@ -8,8 +8,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
+import com.algomeet.common.dto.Group;
+import com.algomeet.common.service.GroupCacheService;
 import com.algomeet.xmpp.chatservice.client.GroupClient;
-import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -49,7 +50,7 @@ public class MucUserGroupsCacheService {
 
         // 2. Cache miss - Call Feign Client
         log.debug("Cache miss. Fetching user groups for: {} from MUC user-group-service", userKey);
-        List<MucRoomDto> roomDtos = groupClient.getGroupsForUserKey(userKey);
+        List<Group> roomDtos = groupClient.getGroupsForUserKey(userKey);
         
         // Add group all group objects to cache
         groupCacheService.addToCache(roomDtos).subscribe();
@@ -58,7 +59,7 @@ public class MucUserGroupsCacheService {
         List<String> groupIdList = Optional.ofNullable(roomDtos)
                 .orElse(List.of())
                 .stream()
-                .map(MucRoomDto::getId)
+                .map(Group::getId)
                 .map(String::valueOf)
                 .toList();
 

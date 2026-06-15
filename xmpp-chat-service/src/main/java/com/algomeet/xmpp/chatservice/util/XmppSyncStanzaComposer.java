@@ -5,12 +5,12 @@ public class XmppSyncStanzaComposer {
     /**
      * Composes a MUC timeline sync headline stanza.
      */
-    public static String createMucClearanceStanza(String domain, String roomId, Long clearedUntilTimestamp) {
+    public static String createMucClearanceStanza(String domain, String roomId, String cutoffStanzaId) {
         return new StringBuilder(256)
                 .append("<message from='").append(domain).append("' type='headline'>")
                 .append("<sync xmlns='urn:xmpp:algomeet:sync:history'>")
                 .append("<conversation room-id='").append(roomId).append("' ") // FIX: Changed from 'from' to 'roomId'
-                .append("cleared-until='").append(clearedUntilTimestamp).append("' />")
+                .append("cleared-until-stanza-id='").append(cutoffStanzaId).append("' />")
                 .append("</sync>")
                 .append("</message>")
                 .toString();
@@ -19,12 +19,12 @@ public class XmppSyncStanzaComposer {
     /**
      * Composes a direct 1:1 chat timeline sync headline stanza.
      */
-    public static String createDirectClearanceStanza(String domain, String senderKey, String cutoffMessageId) {
+    public static String createDirectClearanceStanza(String domain, String peerKey, String cutoffStanzaId) {
         return new StringBuilder(256)
                 .append("<message from='").append(domain).append("' type='headline'>")
                 .append("<sync xmlns='urn:xmpp:algomeet:sync:history'>")
-                .append("<conversation peer-key='").append(senderKey).append("' ") // FIX: Changed from 'from' to 'senderKey'
-                .append("cleared-until-message-id='").append(cutoffMessageId).append("' />")
+                .append("<conversation peer-key='").append(peerKey).append("' ") 
+                .append("cleared-until-stanza-id='").append(cutoffStanzaId).append("' />")
                 .append("</sync>")
                 .append("</message>")
                 .toString();

@@ -18,20 +18,21 @@ import lombok.Data;
 @Builder
 @Document(collection = "offline_messages")
 @CompoundIndexes({
-	/**
-	 * Used for findByToAndDeletedAtIsNullOrderByIdAsc
+	/**         
+	 * Used for findByToAndDeliveredAtIsNullOrderByStanzaIdAsc
 	 */
-	@CompoundIndex(name = "idxOffline_to_idAsc", def = "{'to': 1, 'id': 1}", partialFilter = "{'deletedAt': null}"),
+	@CompoundIndex(name = "idxOffline_to_stanzaIdAsc", def = "{'to': 1, 'stanzaId': 1}", partialFilter = "{'deliveredAt': null}"),
 
 	/**
-	 * Used for findByIdAndFromAndDeletedAtIsNull
+	 * Used for findByMessageIdAndFromAndDeliveredAtIsNull
 	 */
-	@CompoundIndex(name = "idxOffline_from_id", def = "{'from': 1, 'id': 1}", partialFilter = "{'deletedAt': null}"),
+	@CompoundIndex(name = "idxOffline_from_messageId", def = "{'from': 1, 'messageId': 1}", partialFilter = "{'deliveredAt': null}"),
 
 	/**
-	 * Used for deleteByToAndFromAndStanzaIdLessThanEqualAndDeletedAtIsNotNull
+	 * Used for deleteByToAndFromAndStanzaIdLessThanEqualAndDeliveredAtIsNotNull
+	 * and deleteByToAndFromAndDeliveredAtIsNotNullAndStanzaIdLessThanEqual
 	 */
-	@CompoundIndex(name = "idxOffline_to_from_deletedAt_stanzaId", def = "{'to': 1, 'from': 1, 'deletedAt': 1, 'stanzaId': 1}"),
+	@CompoundIndex(name = "idxOffline_to_from_deliveredAt_stanzaId", def = "{'to': 1, 'from': 1, 'deliveredAt': 1, 'stanzaId': 1}"),
 
 	/**
 	 * Used for countByToAndFromAndStanzaIdGreaterThanAndCountableTrue
@@ -39,11 +40,11 @@ import lombok.Data;
 	@CompoundIndex(name = "idxOffline_to_from_stanzaId", def = "{'to': 1, 'from': 1, 'stanzaId': 1}", partialFilter = "{'countable': true}"),
 
 	/**
-	 * Used for deleteByIdAndIsAckStanzaTrue
+	 * Used for deleteByMessageIdAndIsAckStanzaTrue
 	 */
 	@CompoundIndex(
-			name = "idxOffline_id", 
-			def = "{'id': 1}", 
+			name = "idxOffline_messageId", 
+			def = "{'messageId': 1}", 
 			partialFilter = "{'isAck': true}"
 			),
 	
@@ -56,11 +57,12 @@ import lombok.Data;
 	    def = "{'from': 1, 'stanzaId': -1}"
 	)
 })
-public class OfflineMessage {
+public class OfflineMessage {	
 	@Id
-	private UUID id;          // The Message ID from the <message id='...'> attribute
-
 	private UUID stanzaId; 
+	
+	@Indexed(unique = true)
+	private UUID messageId;          // The Message ID from the <message id='...'> attribute
 
 	private UUID from;        // Sender user key / ID
 
@@ -75,7 +77,11 @@ public class OfflineMessage {
 	@Builder.Default
 	private Instant createdAt = Instant.now(); // Used for XEP-0203 Delayed Delivery stamp
 
-	private Instant deletedAt;
+	/**
+	 * Timestamp indicating when the message was marked as delivered to the client.
+	 * Presence of this value indicates the message is ready for permanent deletion/cleanup.
+	 */
+	private Instant deliveredAt;
 
 	private Boolean isAckStanza;
 

@@ -2,16 +2,16 @@ package com.algomeet.xmpp.chatservice.routing.muc;
 
 import org.springframework.stereotype.Component;
 
+import com.algomeet.common.dto.GroupMember;
+import com.algomeet.common.service.GroupCacheService;
+import com.algomeet.common.dto.Group;
 import com.algomeet.multitenancy.context.TenantContext;
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
-import com.algomeet.xmpp.chatservice.dto.MucMember;
-import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
 import com.algomeet.xmpp.chatservice.routing.muc.events.MucAddMemberEventHandler;
 import com.algomeet.xmpp.chatservice.routing.muc.events.MucKickEventHandler;
 import com.algomeet.xmpp.chatservice.routing.muc.events.MucMuteEventHandler;
 import com.algomeet.xmpp.chatservice.routing.muc.events.MucUnMuteEventHandler;
-import com.algomeet.xmpp.chatservice.service.GroupCacheService;
 import com.algomeet.xmpp.chatservice.util.MucCommandUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
 
@@ -52,14 +52,14 @@ public class MucAdminCommandRouter {
 	 * @param senderJid The real JID of the user initiating the command.
 	 * @param xml       The raw XML payload of the IQ stanza.
 	 * @param group     The data transfer object representing the current room state.
-	 * @param sender    The {@link MucMember} profile of the initiator for permission validation.
+	 * @param sender    The {@link GroupMember} profile of the initiator for permission validation.
 	 */
-	public void handleCommandStanza(ChannelHandlerContext ctx, String roomJid, String xml, MucMember sender, XmppPrincipal principal) {
+	public void handleCommandStanza(ChannelHandlerContext ctx, String roomJid, String xml, GroupMember sender, XmppPrincipal principal) {
     	// Set tenant Id to support multi-tenancy 
     	TenantContext.setCurrentTenant(principal.getTenantId());
     	
 		// Force refresh group cache
-		MucRoomDto group = groupCacheService.refreshGroupCache(XmppUtil.getRoomId(roomJid));
+		Group group = groupCacheService.refreshGroupCache(XmppUtil.getRoomId(roomJid));
 				
 		if (MucCommandUtil.isKickPayload(xml)) {
 			/**

@@ -1,4 +1,4 @@
-package com.algomeet.xmpp.chatservice.dto;
+package com.algomeet.common.dto;
 
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -12,11 +12,16 @@ import lombok.Data;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @Data
-public class MucRoomDto {
+public class Group {
     private UUID id;
 
     private String name;
 
     @JsonDeserialize(as = TreeSet.class)
-    private SortedSet<MucMember> members = new TreeSet<>();    
+    private SortedSet<GroupMember> members = new TreeSet<>();    
+    
+    /**
+     * TODO: Add to group-service configuration.
+     */
+    private boolean historyVisibleToNewMembers = true;
 }

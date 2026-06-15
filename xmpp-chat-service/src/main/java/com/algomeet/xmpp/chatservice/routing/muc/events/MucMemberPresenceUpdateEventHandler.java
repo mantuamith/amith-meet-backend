@@ -2,8 +2,8 @@ package com.algomeet.xmpp.chatservice.routing.muc.events;
 
 import org.springframework.stereotype.Component;
 
-import com.algomeet.xmpp.chatservice.dto.MucMember;
-import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
+import com.algomeet.common.dto.GroupMember;
+import com.algomeet.common.dto.Group;
 import com.algomeet.xmpp.chatservice.enums.MucRole;
 import com.algomeet.xmpp.chatservice.enums.UserState;
 import com.algomeet.xmpp.chatservice.parser.StateStanzaParser;
@@ -36,7 +36,7 @@ public class MucMemberPresenceUpdateEventHandler {
      * @param group     The Data Transfer Object representing the current room state.
      * @param sender    The MUC member profile of the person joining.
      */
-    public void handleMemberPresenceRequest(ChannelHandlerContext ctx, String roomJid, String xml, MucRoomDto group, MucMember sender) { 	 
+    public void handleMemberPresenceRequest(ChannelHandlerContext ctx, String roomJid, String xml, Group group, GroupMember sender) { 	 
      	UserState newState = determineState(xml);    	
         if (newState == null) {return;}
          

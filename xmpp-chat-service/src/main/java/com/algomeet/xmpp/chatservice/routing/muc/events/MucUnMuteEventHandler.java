@@ -4,9 +4,9 @@ import java.util.Optional;
 
 import org.springframework.stereotype.Component;
 
+import com.algomeet.common.dto.GroupMember;
+import com.algomeet.common.dto.Group;
 import com.algomeet.xmpp.chatservice.constant.XmppErrorConditions;
-import com.algomeet.xmpp.chatservice.dto.MucMember;
-import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
 import com.algomeet.xmpp.chatservice.enums.MucAffiliation;
 import com.algomeet.xmpp.chatservice.enums.XmppErrorType;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
@@ -15,6 +15,7 @@ import com.algomeet.xmpp.chatservice.routing.muc.MucMessageRouter;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.algomeet.xmpp.chatservice.util.MucCommandUtil;
 import com.algomeet.xmpp.chatservice.util.MucRoleUtil;
+import com.algomeet.xmpp.chatservice.util.SearchUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
 
@@ -45,7 +46,7 @@ public class MucUnMuteEventHandler {
 	 * @param group     The current MUC room state (DTO).
 	 * @param sender    The MUC profile of the moderator.
 	 */
-	public void handleUnMuteRequest(ChannelHandlerContext ctx, String roomJid, String xml, MucRoomDto group, MucMember sender) {
+	public void handleUnMuteRequest(ChannelHandlerContext ctx, String roomJid, String xml, Group group, GroupMember sender) {
 		String senderJid = jidUtil.getBareJid(sender.getUserKey());
 		
 		// 1. Extract request details
@@ -56,10 +57,8 @@ public class MucUnMuteEventHandler {
 		log.info("Admin {} attempting to unmute {} from {}", senderJid, victimJid, roomJid);
 
 		// 2. Identify the target member (victim) based on the provided JID
-		String victimUserKey = XmppUtil.getUserKey(victimJid);
-		Optional<MucMember> victimOpt = group.getMembers().stream()
-				.filter(m -> m.getUserKey() != null && m.getUserKey().equalsIgnoreCase(victimUserKey))
-				.findFirst();        
+		String victimUserKey = XmppUtil.getUserKey(victimJid); 
+		Optional<GroupMember> victimOpt = SearchUtil.findMember(group, victimUserKey);
 		
 		// 3. Authorization Check
 		// Ensure the moderator has the authority to unmute the target.

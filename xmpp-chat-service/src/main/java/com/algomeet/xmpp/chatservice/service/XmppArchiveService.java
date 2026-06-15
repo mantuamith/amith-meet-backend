@@ -15,11 +15,12 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import com.algomeet.common.dto.Group;
+import com.algomeet.common.service.GroupCacheService;
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.constant.Constants;
 import com.algomeet.xmpp.chatservice.constant.XmppErrorConditions;
 import com.algomeet.xmpp.chatservice.document.MucMessage;
-import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
 import com.algomeet.xmpp.chatservice.enums.XmppErrorType;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
@@ -138,7 +139,7 @@ public class XmppArchiveService {
 		String queryId = XmppStanzaUtil.getAttribute(xml, "id");
 
 		// Get room details
-		MucRoomDto room = groupCacheService.getCachedGroup(roomId.toString());
+		Group room = groupCacheService.getCachedGroup(roomId.toString());
 
 		if (room == null || !(room.getMembers().stream()
 				.anyMatch(m -> principal.getUserKey().equalsIgnoreCase(m.getUserKey())))) {

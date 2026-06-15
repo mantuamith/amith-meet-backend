@@ -3,8 +3,8 @@ package com.algomeet.xmpp.chatservice.routing.muc.events;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
-import com.algomeet.xmpp.chatservice.dto.MucMember;
-import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
+import com.algomeet.common.dto.GroupMember;
+import com.algomeet.common.dto.Group;
 import com.algomeet.xmpp.chatservice.enums.MucAffiliation;
 import com.algomeet.xmpp.chatservice.routing.muc.MucMessageRouter;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
@@ -39,7 +39,7 @@ public class MucChangeNickNameEventHandler {
      * @param group     Current room state and member list.
      * @param sender    Sender's current member metadata.
      */
-    public void handleChangeNicknameRequest(ChannelHandlerContext ctx, String roomJid, String xml, MucRoomDto group, MucMember sender) {
+    public void handleChangeNicknameRequest(ChannelHandlerContext ctx, String roomJid, String xml, Group group, GroupMember sender) {
         // 1. Extract metadata (nickname)
         String[] jidArr = roomJid.split("/");
         String newNickname = null;

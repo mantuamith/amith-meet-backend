@@ -5,10 +5,11 @@ import java.util.Optional;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
+import com.algomeet.common.dto.GroupMember;
+import com.algomeet.common.service.GroupCacheService;
+import com.algomeet.common.dto.Group;
 import com.algomeet.multitenancy.context.TenantContext;
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
-import com.algomeet.xmpp.chatservice.dto.MucMember;
-import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
 import com.algomeet.xmpp.chatservice.enums.PresenceMetaAction;
 import com.algomeet.xmpp.chatservice.enums.PresenceType;
 import com.algomeet.xmpp.chatservice.routing.muc.events.MucAcceptInviteEventHandler;
@@ -16,7 +17,6 @@ import com.algomeet.xmpp.chatservice.routing.muc.events.MucChangeNickNameEventHa
 import com.algomeet.xmpp.chatservice.routing.muc.events.MucMemberJoinEventHandler;
 import com.algomeet.xmpp.chatservice.routing.muc.events.MucMemberLeftEventHandler;
 import com.algomeet.xmpp.chatservice.routing.muc.events.MucMemberPresenceUpdateEventHandler;
-import com.algomeet.xmpp.chatservice.service.GroupCacheService;
 import com.algomeet.xmpp.chatservice.util.MucMetaActionParser;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
 
@@ -61,8 +61,8 @@ public class MucUserCommandRouter {
 		String action = actionOpt.orElse(null);
 		
 		// Force refresh group cache
-		MucRoomDto group = groupCacheService.refreshGroupCache(XmppUtil.getRoomId(roomJid));
-		Optional<MucMember> senderMucMember = group.getMembers().stream()
+		Group group = groupCacheService.refreshGroupCache(XmppUtil.getRoomId(roomJid));
+		Optional<GroupMember> senderMucMember = group.getMembers().stream()
 				.filter(m -> m.getUserKey().equals(principal.getUserKey()))
 				.findFirst();
 

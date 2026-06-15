@@ -31,7 +31,6 @@ public class MucMessageMapper {
 		// Map payload payloads
 		response.setStanzaXml(document.getStanzaXml());
 		response.setDeletedAt(document.getDeletedAt());
-		response.setReadAt(document.getReadAt());
 
 		if (document.getHiddenFromUserKeys() != null
 				&& document.getHiddenFromUserKeys().contains(

@@ -4,9 +4,9 @@ import java.util.UUID;
 
 import org.springframework.stereotype.Component;
 
+import com.algomeet.common.dto.GroupMember;
+import com.algomeet.common.dto.Group;
 import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
-import com.algomeet.xmpp.chatservice.dto.MucMember;
-import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.enums.MucEventType;
 import com.algomeet.xmpp.chatservice.enums.MucRole;
@@ -50,7 +50,7 @@ public class MucAcceptInviteEventHandler {
      * Entry point for handling an invitation acceptance. 
      * Orchestrates presence synchronization and system notification.
      */
-    public void handleAcceptedInvite(ChannelHandlerContext ctx, String roomJid, String xml, MucRoomDto group, MucMember sender) { 
+    public void handleAcceptedInvite(ChannelHandlerContext ctx, String roomJid, String xml, Group group, GroupMember sender) { 
         String roomBareJid = XmppUtil.getRoomBareJid(roomJid);
         String senderJid = jidUtil.getBareJid(sender.getUserKey());
         
@@ -101,7 +101,7 @@ public class MucAcceptInviteEventHandler {
      * Persists the join event to the archive. 
      * Injects a unique Stanza-ID (XEP-0359) using a monotonic UUIDv7 for stable ordering.
      */
-    private void saveToDatabase(String id, String roomBareJid, MucMember sender, UUID stanzaId, String xml) {      
+    private void saveToDatabase(String id, String roomBareJid, GroupMember sender, UUID stanzaId, String xml) {      
 
         xmppArchiveService.archiveEvent(xml, id, XmppUtil.getRoomId(roomBareJid), null, 
         		sender.getUserKey(), stanzaId)

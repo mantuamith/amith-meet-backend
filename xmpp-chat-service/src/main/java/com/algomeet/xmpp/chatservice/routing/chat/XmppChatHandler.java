@@ -77,7 +77,9 @@ public class XmppChatHandler {
 
 		// Persistence & XEP-0198 Acknowledgment
 		boolean isArchivable = XmppStanzaUtil.isArchivable(originalXml);
-		boolean isAckStanza = false;
+		// Determine if message is ACK stanza
+		boolean isAckStanza = XmppStanzaUtil.isMessageAckStanza(originalXml);
+		
 		if (msgType.supportsOfflineStorage() && isArchivable) {	
 			 /**
 	         * Generate a monotonic UUIDv7 used as the stanza-id value.
@@ -99,8 +101,7 @@ public class XmppChatHandler {
 			
 			boolean isCountable = XmppCustomStanzaUtil.isCountableMessage(originalXml);
 			
-			// Determine if message is ACK stanza
-			isAckStanza = XmppStanzaUtil.isMessageAckStanza(originalXml);
+			final String archivedXml = forArchiveXml;
 			offlineMessageService.save(messageId, stanzaId, toUserKey, fromUserKey, type, isAckStanza, isCountable, forArchiveXml)
 		            .doOnSuccess(saved -> {
 		            	// Send an immediate server-level acknowledgment to the sender.
@@ -113,6 +114,21 @@ public class XmppChatHandler {
 		            	// This is a custom acknowledgment (not client XEP-0198 ack),
 		            	// used to provide early delivery assurance back to the sender.
 		            	XmppServerAckUtil.send(ctx, id, domainProperties.getDomain(), stanzaId.toString());	
+		            	
+		            	/*
+		                 * CRITICAL TIMING SEQUENCE:
+		                 * This event must execute strictly AFTER the underlying database write has fully 
+		                 * completed to prevent "ghost data" or race conditions. 
+		                 * Sending this cluster broadcast notifies downstream microservices or websocket 
+		                 * connections to trigger cleanups (like messages sent to client acknowledgments). 
+		                 * If sent before a guaranteed DB commit, cleanup actions might execute too early 
+		                 * and target data that hasn't physically settled in the collection yet.
+		                 * ACKs cleanup logic under ClusterMessageListener.onMessage().
+		                 */
+		            	if (isAckStanza) {
+		            		clusterMessagePublisher.convertAndSendToUser(id, toUserKey, fromUserKey, ChatType.CHAT, false, true, isAckStanza,
+		            				archivedXml, principal);
+		            	}
 		            	
 		            	// Check if the message contains the XMPP Message Retraction namespace (XEP-0424 / urn:xmpp:message-retract:1)
 		            	if (XmppStanzaUtil.isRetractStanza(originalXml)) {		            	    
@@ -206,14 +222,16 @@ public class XmppChatHandler {
 		
 		// Broadast to Redis: Even if they are AWAY/DND, we attempt delivery 
 		// to their active WebSocket channels across the cluster.
-		clusterMessagePublisher.convertAndSendToUser(id, toUserKey, fromUserKey, ChatType.CHAT, false, shouldCarbon, isAckStanza,
-				(isArchivable ? forArchiveXml : originalXml), principal);
-						
-		pushNotification(ctx, id, toUserKey, fromUserKey, type, originalXml, sessions, principal);
+		if(!isAckStanza) {
+			clusterMessagePublisher.convertAndSendToUser(id, toUserKey, fromUserKey, ChatType.CHAT, false, shouldCarbon, isAckStanza,
+					(isArchivable ? forArchiveXml : originalXml), principal);
+
+			pushNotification(ctx, id, toUserKey, fromUserKey, type, originalXml, sessions, principal);
+		}
 	}
 	
 	public Mono<Void> processRetraction(String retractId, String toUserKey, String fromUserKey, XmppPrincipal principal) {
-		return offlineMessageService.findByIdAndSender(UUID.fromString(retractId), UUID.fromString(fromUserKey))
+		return offlineMessageService.findByMessageIdAndSender(UUID.fromString(retractId), UUID.fromString(fromUserKey))
 				.flatMap(message -> {
 
 					// Decrement the unread counter for this specific sender-recipient pair.

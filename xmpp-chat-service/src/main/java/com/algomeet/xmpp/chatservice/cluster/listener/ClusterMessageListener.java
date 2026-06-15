@@ -1,5 +1,6 @@
 package com.algomeet.xmpp.chatservice.cluster.listener;
 
+import java.time.Duration;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
@@ -118,7 +119,8 @@ public class ClusterMessageListener {
             .doOnNext(isSuccess -> {
                 if (Boolean.TRUE.equals(isSuccess) && isAckStanza) {
                 	// Delete if record is ACK stanza
-                	offlineMessageRepository.deleteByIdAndIsAckStanzaTrue(id).subscribe();
+                	offlineMessageRepository.deleteByMessageIdAndIsAckStanzaTrue(id)
+                	.subscribe(); 
                 }
             })
             // If this is the absolute end-point of an event listener/fire-and-forget handler,
@@ -141,7 +143,7 @@ public class ClusterMessageListener {
              * Therefore, only process carbon copy generation when the
              * message type is normal direct CHAT.
              */
-            if (ChatType.CHAT.name().equals(chatType.trim())) {
+            if (ChatType.CHAT.name().equals(chatType.trim()) && !(to.equals(from))) {
                 carbonCopyHandler.handleSentMessageCarbonCopy(
                         from,
                         userSessionId,

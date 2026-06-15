@@ -65,8 +65,8 @@ public class OfflineMessageHandler {
                     return Flux.empty();
                 }
 
-                // Sort the list explicitly in-memory by the OfflineMessage ID field
-                messageList.sort(Comparator.comparing(OfflineMessage::getId));
+                // Sort the list explicitly in-memory by the OfflineMessage stanza ID field
+                messageList.sort(Comparator.comparing(OfflineMessage::getStanzaId));
 
                 log.info("Collected and sorted {} offline messages. Beginning true sequential dispatch for user: {}", 
                         messageList.size(), userKey);
@@ -85,13 +85,13 @@ public class OfflineMessageHandler {
                             .doOnNext(isSuccess -> {
                                 if (Boolean.TRUE.equals(isSuccess) && msg.getIsAckStanza()) {
                                 	// Delete if record is ACK stanza
-                                	offlineMessageRepository.deleteByIdAndIsAckStanzaTrue(msg.getId()).subscribe();
+                                	offlineMessageRepository.deleteByMessageIdAndIsAckStanzaTrue(msg.getMessageId()).subscribe();
                                  }
                             });
                 })
                 // Error handling isolated per-message so a single transmission drop doesn't break the entire pipeline
                 .onErrorResume(e -> {
-                    log.error("Failed to deliver message stanza {} during sequential dispatch for user: {}", msg.getId(), userKey, e);
+                    log.error("Failed to deliver message stanza {} during sequential dispatch for user: {}", msg.getMessageId(), userKey, e);
                     return Mono.empty(); // Swallow error to allow the sequence to continue to the next message
                 });
             })

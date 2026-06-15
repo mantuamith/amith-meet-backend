@@ -8,9 +8,9 @@ import java.util.UUID;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 
+import com.algomeet.common.dto.GroupMember;
+import com.algomeet.common.dto.Group;
 import com.algomeet.xmpp.chatservice.constant.XmppErrorConditions;
-import com.algomeet.xmpp.chatservice.dto.MucMember;
-import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
 import com.algomeet.xmpp.chatservice.enums.MucAffiliation;
 import com.algomeet.xmpp.chatservice.enums.MucEventType;
 import com.algomeet.xmpp.chatservice.enums.MucRole;
@@ -27,6 +27,7 @@ import com.algomeet.xmpp.chatservice.session.model.UserSession;
 import com.algomeet.xmpp.chatservice.stanza.events.MucSystemEventLogMessageStanza;
 import com.algomeet.xmpp.chatservice.stanza.presence.MucUserPresenceBuilder;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
+import com.algomeet.xmpp.chatservice.util.SearchUtil;
 import com.algomeet.xmpp.chatservice.util.UserStateUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
@@ -100,8 +101,8 @@ public class MucAddMemberEventHandler {
 			ChannelHandlerContext ctx,
 			String roomJid,
 			String xml,
-			MucRoomDto group,
-			MucMember sender) {
+			Group group,
+			GroupMember sender) {
 
 		/**
 		 * ----------------------------------------------------------
@@ -134,14 +135,7 @@ public class MucAddMemberEventHandler {
 		 * ----------------------------------------------------------
 		 * Ensures user exists in system before processing.
 		 */
-		Optional<MucMember> newMemberOpt =
-				group.getMembers().stream()
-				.filter(m ->
-				m.getUserKey() != null
-				&& m.getUserKey().equalsIgnoreCase(
-						XmppUtil.getUserKey(newMemberJid)
-						))
-				.findFirst();
+		Optional<GroupMember> newMemberOpt = SearchUtil.findMember(group, XmppUtil.getUserKey(newMemberJid));
 		
 		// Prerequisite: the member must have already been added to the group using group-service API.
 		if (newMemberOpt.isEmpty()) {        	
@@ -301,7 +295,7 @@ public class MucAddMemberEventHandler {
 	private void saveToDatabase(
 			String id,
 			String roomBareJid,
-			MucMember sender,
+			GroupMember sender,
 			UUID stanzaId,
 			String xml) {
 

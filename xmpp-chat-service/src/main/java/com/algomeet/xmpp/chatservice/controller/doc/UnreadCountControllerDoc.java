@@ -55,6 +55,7 @@ public interface UnreadCountControllerDoc {
             @Parameter(description = "Unique sender identifier", example = "user-123")
             @PathVariable String senderKey);
 
+    @Deprecated
     @Operation(
             summary = "Advance conversation timeline cutoff checkpoint",
             description = "Advances the temporal visibility boundary for a specific conversation. " +

@@ -64,7 +64,7 @@ import lombok.NoArgsConstructor;
      */
     @CompoundIndex(
         name = "idxMsg_userKey", 
-        def = "{'userKey': 1, '_id': 1}"
+        def = "{'userKey': 1, 'messageId': 1}"
     ),
     
     /**
@@ -124,15 +124,15 @@ public class MessageBackupDocument {
     public static final String FIELD_TIMESTAMP = "timestamp";
     public static final String FIELD_SIZE = "size";
     
-	@Id
-	private UUID messageId;
-
 	/**
 	 * Globally unique and lexicographically sortable server-generated message identifier.
 	 * chronological sorting, pagination cursors, and cross-device synchronization.
 	 */
-	@Indexed
+	@Id
 	private UUID stanzaId;
+	
+	@Indexed(unique = true)
+	private UUID messageId;
 
 	/** 
 	 * Deterministic conversation identifier for this message record.
@@ -237,4 +237,6 @@ public class MessageBackupDocument {
 	 */
 	@Indexed(expireAfterSeconds = 12 * 2592000) 
 	private Instant expireAt;
+	
+	private Instant modifiedAt;
 }

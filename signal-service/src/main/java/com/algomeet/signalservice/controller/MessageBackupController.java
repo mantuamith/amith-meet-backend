@@ -13,6 +13,7 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
@@ -66,8 +67,10 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 	 */
 	@PostMapping
 	public ResponseEntity<CommonResponse<?>> saveMessage(@Validated @RequestBody MessageBackupDocument request) { 	
-		MessageBackupDocument saved = messageBackupService.insert(request);
+		
 		try {
+			MessageBackupDocument saved = messageBackupService.insert(request);
+			
 			if (saved == null) {
 				throw new RuntimeException("Error saving the message backup");
 			}
@@ -77,6 +80,9 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 		} catch (MessageInsertInProgressException ex) {
 			return ResponseEntity.status(HttpStatus.LOCKED)
 					.body(CommonResponse.from(ResponseCode.MESSAGE_SYNC_IN_PROGRESS));           
+		} catch (DuplicateKeyException ex) {
+			return ResponseEntity.status(HttpStatus.CONFLICT)
+					.body(CommonResponse.from(ResponseCode.DUPLICATE_MESSAGE_ID));
 		}
 	}              
 

@@ -15,6 +15,7 @@ import com.algomeet.xmpp.chatservice.repository.OfflineMessageRepository;
 import com.algomeet.xmpp.chatservice.util.XmppCustomStanzaUtil;
 
 import lombok.AllArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -37,6 +38,7 @@ import reactor.core.publisher.Mono;
  * 
  * @author Algomeet Core Team
  */
+@Slf4j
 @Service
 @AllArgsConstructor
 public class OfflineMessageService {	
@@ -54,9 +56,9 @@ public class OfflineMessageService {
      * @param originalXml The raw XML payload to be stored.
      * @return A {@link Mono} emitting the saved {@link OfflineMessage}.
      */
-    public Mono<OfflineMessage> save(UUID id, UUID stanzaId, String to, String from, String type, Boolean isAckStanza, boolean isCountable, String originalXml) {
+    public Mono<OfflineMessage> save(UUID messageId, UUID stanzaId, String to, String from, String type, Boolean isAckStanza, boolean isCountable, String originalXml) {
         OfflineMessage offlineMessage = OfflineMessage.builder()
-                .id(id)
+                .messageId(messageId)
                 .stanzaId(stanzaId)
                 .to(UUID.fromString(to))
                 .from(UUID.fromString(from))
@@ -79,9 +81,9 @@ public class OfflineMessageService {
      * @param originalXml The raw XML payload to be stored.
      * @return A {@link Mono} emitting the saved {@link OfflineMessage}.
      */
-    public Mono<OfflineMessage> save(UUID id, UUID stanzaId, String to, String from, String type, String originalXml) {
+    public Mono<OfflineMessage> save(UUID messageId, UUID stanzaId, String to, String from, String type, String originalXml) {
         OfflineMessage offlineMessage = OfflineMessage.builder()
-                .id(id)
+                .messageId(messageId)
                 .stanzaId(stanzaId)
                 .to(UUID.fromString(to))
                 .from(UUID.fromString(from))
@@ -100,7 +102,7 @@ public class OfflineMessageService {
      * @return A list of {@link OfflineMessage} objects in the order they were originally sent.
      */
     public Flux<OfflineMessage> getOfflineMessages(UUID to) {
-        return offlineMessageRepository.findByToAndDeletedAtIsNullOrderByIdAsc(to);
+        return offlineMessageRepository.findByToAndDeliveredAtIsNullOrderByStanzaIdAsc(to);
     }
     
     /**
@@ -116,13 +118,14 @@ public class OfflineMessageService {
         // Leverage your compound index {'to': 1, 'id': 1} for an efficient O(1) look-up
         Query query = Query.query(
             Criteria.where("to").is(to)
-                    .and("id").is(messageId)
+                    .and("messageId").is(messageId)
         );
 
-        // Atomically nullify the raw XML payload to reclaim space and mark deletion time
+        // Atomically clear the raw XML payload to reclaim storage and record the delivery timestamp.
+        // The document is retained because it is still required for unread message count reconciliation.
         Update update = new Update()
                 .set("stanzaXml", null)
-                .set("deletedAt", Instant.now());
+                .set("deliveredAt", Instant.now());
 
         return mongoTemplate.updateFirst(query, update, OfflineMessage.class)
                 .flatMap(updateResult -> {
@@ -148,9 +151,9 @@ public class OfflineMessageService {
         return offlineMessageRepository.deleteAllById(messageIds);
     }
         
-    public Mono<OfflineMessage> findByIdAndSender(UUID id, UUID sender) {
+    public Mono<OfflineMessage> findByMessageIdAndSender(UUID id, UUID sender) {
         // Ensuring we check both ID and the 'from' JID for security
-        return offlineMessageRepository.findByIdAndFromAndDeletedAtIsNull(id, sender);
+        return offlineMessageRepository.findByMessageIdAndFromAndDeliveredAtIsNull(id, sender);
     }
     
     public Mono<OfflineMessage> save(OfflineMessage message) {
@@ -172,6 +175,6 @@ public class OfflineMessageService {
      * @return A {@code Mono<Void>} that signals completion when the matching records have been permanently deleted from MongoDB.
      */
     public Mono<Void> purgeDeletedMessagesUpToCheckpoint(UUID to, UUID from, UUID stanzaId){
-    	return offlineMessageRepository.deleteByToAndFromAndStanzaIdLessThanEqualAndDeletedAtIsNotNull(to, from, stanzaId);
+    	return offlineMessageRepository.deleteByToAndFromAndStanzaIdLessThanEqualAndDeliveredAtIsNotNull(to, from, stanzaId);
     }
 }

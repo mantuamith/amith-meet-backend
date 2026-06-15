@@ -4,9 +4,9 @@ import java.util.Optional;
 
 import org.springframework.stereotype.Component;
 
+import com.algomeet.common.dto.GroupMember;
+import com.algomeet.common.dto.Group;
 import com.algomeet.xmpp.chatservice.constant.XmppErrorConditions;
-import com.algomeet.xmpp.chatservice.dto.MucMember;
-import com.algomeet.xmpp.chatservice.dto.MucRoomDto;
 import com.algomeet.xmpp.chatservice.enums.MucAffiliation;
 import com.algomeet.xmpp.chatservice.enums.XmppErrorType;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
@@ -14,6 +14,7 @@ import com.algomeet.xmpp.chatservice.routing.dispacher.LocalStanzaDispatcher;
 import com.algomeet.xmpp.chatservice.routing.muc.MucMessageRouter;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.algomeet.xmpp.chatservice.util.MucCommandUtil;
+import com.algomeet.xmpp.chatservice.util.SearchUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
 
@@ -45,7 +46,7 @@ public class MucMuteEventHandler {
 	 * @param group     The MUC room data object.
 	 * @param sender    The MUC profile of the moderator.
 	 */
-	public void handleMuteRequest(ChannelHandlerContext ctx, String roomJid, String xml, MucRoomDto group, MucMember sender) {
+	public void handleMuteRequest(ChannelHandlerContext ctx, String roomJid, String xml, Group group, GroupMember sender) {
 		String senderJid = jidUtil.getBareJid(sender.getUserKey());
 		// 1. Parse request attributes
 		String id = XmppStanzaUtil.getAttribute(xml, "id");
@@ -55,10 +56,8 @@ public class MucMuteEventHandler {
 		log.info("Admin {} attempting to mute {} from {}", senderJid, victimJid, roomJid);
 
 		// 2. Identify the target occupant (victim) by their user key
-		String victimUserKey = XmppUtil.getUserKey(victimJid);
-		Optional<MucMember> victimOpt = group.getMembers().stream()
-				.filter(m -> m.getUserKey() != null && m.getUserKey().equalsIgnoreCase(victimUserKey))
-				.findFirst();        
+		String victimUserKey = XmppUtil.getUserKey(victimJid); 
+		Optional<GroupMember> victimOpt = SearchUtil.findMember(group, victimUserKey);
 		
 		// 3. Authority Validation
 		// Ensure the moderator has sufficient permission to mute the target
