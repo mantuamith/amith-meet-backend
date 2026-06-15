@@ -116,12 +116,12 @@ class MediaServiceS3ImplTest {
 	    UserFileDocument doc = new UserFileDocument();
 	    doc.setAbsolutePath("media/key.txt");
 
-	    when(userFileService.getFile(
-	            eq("media-id"),
+	    when(userFileService.hasPermission(
+	            eq(doc),
 	            eq("11111111-1111-1111-1111-111111111111"),
 	            eq(UUID.fromString("22211111-1111-1111-1111-111111111111")),
 	            eq(FilePermission.READ)))
-	        .thenReturn(doc);
+	        .thenReturn(true);
 
 	    // presigned URL
 	    PresignedGetObjectRequest presigned =
@@ -144,7 +144,7 @@ class MediaServiceS3ImplTest {
 	        mocked.when(S3Presigner::builder).thenReturn(builder);
 
 	        // when
-	        String url = mediaService.getReadUrl("11111111-1111-1111-1111-111111111111", UUID.fromString("22211111-1111-1111-1111-111111111111"), "media-id");
+	        String url = mediaService.getReadUrl(doc, "11111111-1111-1111-1111-111111111111", UUID.fromString("22211111-1111-1111-1111-111111111111"));
 
 	        // then
 	        assertEquals("https://signed-url", url);

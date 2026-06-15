@@ -93,40 +93,42 @@ class MediaServiceLocalImplThumbnailTest {
     }
 
     /** Stubs userFileService.getFile() to return a doc with given content-type and path. */
-    private void stubFile(String contentType, Path absolutePath) {
+    private UserFileDocument stubFile(String contentType, Path absolutePath) {
         UserFileDocument doc = new UserFileDocument();
         doc.setContentType(contentType);
         doc.setAbsolutePath(absolutePath != null ? absolutePath.toString() : "/nonexistent/missing.jpg");
-        when(userFileService.getFile(eq(MEDIA_ID), eq(USER_KEY), eq(GROUP_ID), eq(FilePermission.READ)))
-                .thenReturn(doc);
+        when(userFileService.hasPermission(eq(doc), eq(USER_KEY), eq(GROUP_ID), eq(FilePermission.READ)))
+                .thenReturn(true);
+        
+        return doc;
     }
 
     // ── null / unsupported content-type ──────────────────────────────────────
 
     @Test
     void thumbnail_nullContentType_returnsNull() {
-        stubFile(null, tempDir.resolve("x.jpg"));
-        assertNull(mediaService.thumbnail(USER_KEY, GROUP_ID, MEDIA_ID, 320));
+    	UserFileDocument doc = stubFile(null, tempDir.resolve("x.jpg"));
+        assertNull(mediaService.thumbnail(doc, USER_KEY, GROUP_ID, MEDIA_ID, 320));
     }
 
     @Test
     void thumbnail_audioContentType_returnsNull() {
-        stubFile("audio/mpeg", tempDir.resolve("x.mp3"));
-        assertNull(mediaService.thumbnail(USER_KEY, GROUP_ID, MEDIA_ID, 320));
+    	UserFileDocument doc = stubFile("audio/mpeg", tempDir.resolve("x.mp3"));
+        assertNull(mediaService.thumbnail(doc, USER_KEY, GROUP_ID, MEDIA_ID, 320));
     }
 
     @Test
     void thumbnail_documentContentType_returnsNull() {
-        stubFile("application/pdf", tempDir.resolve("x.pdf"));
-        assertNull(mediaService.thumbnail(USER_KEY, GROUP_ID, MEDIA_ID, 320));
+    	UserFileDocument doc = stubFile("application/pdf", tempDir.resolve("x.pdf"));
+        assertNull(mediaService.thumbnail(doc, USER_KEY, GROUP_ID, MEDIA_ID, 320));
     }
 
     // ── image — file missing ──────────────────────────────────────────────────
 
     @Test
     void thumbnail_imageMissingOnDisk_returnsNull() {
-        stubFile("image/jpeg", null);   // path set to /nonexistent/…
-        assertNull(mediaService.thumbnail(USER_KEY, GROUP_ID, MEDIA_ID, 320));
+    	UserFileDocument doc = stubFile("image/jpeg", null);   // path set to /nonexistent/…
+        assertNull(mediaService.thumbnail(doc, USER_KEY, GROUP_ID, MEDIA_ID, 320));
     }
 
     // ── image — happy paths ───────────────────────────────────────────────────
@@ -134,9 +136,9 @@ class MediaServiceLocalImplThumbnailTest {
     @Test
     void thumbnail_validJpeg_returnsThumbnailPath() throws Exception {
         Path img = writeJpeg(640, 480);
-        stubFile("image/jpeg", img);
+        UserFileDocument doc = stubFile("image/jpeg", img);
 
-        Path result = mediaService.thumbnail(USER_KEY, GROUP_ID, MEDIA_ID, 320);
+        Path result = mediaService.thumbnail(doc, USER_KEY, GROUP_ID, MEDIA_ID, 320);
 
         assertNotNull(result);
         assertTrue(Files.exists(result));
@@ -146,9 +148,9 @@ class MediaServiceLocalImplThumbnailTest {
     @Test
     void thumbnail_validPng_returnsPngThumbnail() throws Exception {
         Path img = writePng(400, 300);
-        stubFile("image/png", img);
+        UserFileDocument doc = stubFile("image/png", img);
 
-        Path result = mediaService.thumbnail(USER_KEY, GROUP_ID, MEDIA_ID, 320);
+        Path result = mediaService.thumbnail(doc, USER_KEY, GROUP_ID, MEDIA_ID, 320);
 
         assertNotNull(result);
         assertTrue(Files.exists(result));
@@ -159,9 +161,9 @@ class MediaServiceLocalImplThumbnailTest {
     void thumbnail_imageWiderThanMaxWidth_isScaledDown() throws Exception {
         // 640 px wide → maxWidth 100 → thumb should be 100 px wide
         Path img = writeJpeg(640, 480);
-        stubFile("image/jpeg", img);
+        UserFileDocument doc = stubFile("image/jpeg", img);
 
-        Path result = mediaService.thumbnail(USER_KEY, GROUP_ID, MEDIA_ID, 100);
+        Path result = mediaService.thumbnail(doc, USER_KEY, GROUP_ID, MEDIA_ID, 100);
 
         assertNotNull(result);
         BufferedImage thumb = ImageIO.read(result.toFile());
@@ -175,9 +177,9 @@ class MediaServiceLocalImplThumbnailTest {
     void thumbnail_imageSmallerThanMaxWidth_isNotUpscaled() throws Exception {
         // 50 px wide, maxWidth 320 → thumb stays at 50 px wide
         Path img = writeJpeg(50, 40);
-        stubFile("image/jpeg", img);
+        UserFileDocument doc = stubFile("image/jpeg", img);
 
-        Path result = mediaService.thumbnail(USER_KEY, GROUP_ID, MEDIA_ID, 320);
+        Path result = mediaService.thumbnail(doc, USER_KEY, GROUP_ID, MEDIA_ID, 320);
 
         assertNotNull(result);
         BufferedImage thumb = ImageIO.read(result.toFile());
@@ -189,9 +191,9 @@ class MediaServiceLocalImplThumbnailTest {
     @Test
     void thumbnail_imageExactlyMaxWidth_isNotChanged() throws Exception {
         Path img = writeJpeg(320, 240);
-        stubFile("image/jpeg", img);
+        UserFileDocument doc = stubFile("image/jpeg", img);
 
-        Path result = mediaService.thumbnail(USER_KEY, GROUP_ID, MEDIA_ID, 320);
+        Path result = mediaService.thumbnail(doc, USER_KEY, GROUP_ID, MEDIA_ID, 320);
 
         assertNotNull(result);
         BufferedImage thumb = ImageIO.read(result.toFile());
@@ -204,7 +206,7 @@ class MediaServiceLocalImplThumbnailTest {
     @Test
     void thumbnail_videoContentType_returnsThumbnailPath() throws Exception {
         Path fakeVideo = Files.createTempFile(tempDir, "video-", ".mp4");
-        stubFile("video/mp4", fakeVideo);
+        UserFileDocument doc = stubFile("video/mp4", fakeVideo);
 
         MultimediaInfo info = new MultimediaInfo();
         info.setDuration(30_000L);  // 30-second video
@@ -222,7 +224,7 @@ class MediaServiceLocalImplThumbnailTest {
                         return null;
                     }).when(mock).renderOneImage(any(), anyInt(), anyInt(), anyLong(), any(File.class), anyInt()))
         ) {
-            Path result = mediaService.thumbnail(USER_KEY, GROUP_ID, MEDIA_ID, 320);
+            Path result = mediaService.thumbnail(doc, USER_KEY, GROUP_ID, MEDIA_ID, 320);
 
             assertNotNull(result);
             assertTrue(Files.exists(result));
@@ -238,7 +240,7 @@ class MediaServiceLocalImplThumbnailTest {
     @Test
     void thumbnail_shortVideo_seeksCappedAtOneSecond() throws Exception {
         Path fakeVideo = Files.createTempFile(tempDir, "video-", ".mp4");
-        stubFile("video/mp4", fakeVideo);
+        UserFileDocument doc = stubFile("video/mp4", fakeVideo);
 
         // 5-second video → 10 % = 500 ms, below the 1 000 ms floor → expect 1 000
         MultimediaInfo info = new MultimediaInfo();
@@ -256,7 +258,7 @@ class MediaServiceLocalImplThumbnailTest {
                         return null;
                     }).when(mock).renderOneImage(any(), anyInt(), anyInt(), anyLong(), any(File.class), anyInt()))
         ) {
-            Path result = mediaService.thumbnail(USER_KEY, GROUP_ID, MEDIA_ID, 320);
+            Path result = mediaService.thumbnail(doc, USER_KEY, GROUP_ID, MEDIA_ID, 320);
 
             assertNotNull(result);
             ScreenExtractor extractor = mockedExtractor.constructed().get(0);
@@ -268,7 +270,7 @@ class MediaServiceLocalImplThumbnailTest {
     @Test
     void thumbnail_videoExtractionFails_returnsNull() throws Exception {
         Path fakeVideo = Files.createTempFile(tempDir, "video-", ".mp4");
-        stubFile("video/mp4", fakeVideo);
+        UserFileDocument doc = stubFile("video/mp4", fakeVideo);
 
         MultimediaInfo info = new MultimediaInfo();
         info.setDuration(10_000L);
@@ -282,7 +284,7 @@ class MediaServiceLocalImplThumbnailTest {
                     (mock, ctx) -> doThrow(new RuntimeException("ffmpeg error"))
                         .when(mock).renderOneImage(any(), anyInt(), anyInt(), anyLong(), any(File.class), anyInt()))
         ) {
-            Path result = mediaService.thumbnail(USER_KEY, GROUP_ID, MEDIA_ID, 320);
+            Path result = mediaService.thumbnail(doc, USER_KEY, GROUP_ID, MEDIA_ID, 320);
             assertNull(result);
         }
     }
