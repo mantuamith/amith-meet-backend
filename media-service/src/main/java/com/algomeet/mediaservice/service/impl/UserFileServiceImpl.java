@@ -234,8 +234,8 @@ public class UserFileServiceImpl implements UserFileService {
 
 	    try {
 	        for (UserFileDocument file : files) {
-	            if (!hasPermission(file, userKey, FilePermission.SHARE)
-	            		|| hasGroupPermission(group, userKey, file.getId(), FilePermission.SHARE) ) {
+	            if (!(hasPermission(file, userKey, FilePermission.SHARE)
+	            		|| hasGroupPermission(group, userKey, file.getId(), FilePermission.SHARE))) {
 	                throw new AccessDeniedException("User is not allowed to share the media/file: " + file.getId());
 	            }
 
