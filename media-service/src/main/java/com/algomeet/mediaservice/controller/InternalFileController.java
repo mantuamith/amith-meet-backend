@@ -21,7 +21,6 @@ import com.algomeet.mediaservice.dto.BatchMediaShareRequest;
 import com.algomeet.mediaservice.dto.CommonResponse;
 import com.algomeet.mediaservice.enums.ResponseCode;
 import com.algomeet.mediaservice.service.UserFileService;
-import com.algomeet.mediaservice.util.SecurityUtil;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;

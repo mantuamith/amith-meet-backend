@@ -111,6 +111,22 @@ public class MediaServiceOssImpl implements MediaServiceOss {
 
         return signedUrl.toString();
     }
+    
+    public String getReadUrl(UserFileDocument fileDoc, String userKey, UUID groupId, String mediaId) {
+    	// Check read permission
+        userFileService.hasPermission(fileDoc, userKey, groupId, FilePermission.READ);
+        String objectKey = fileDoc.getAbsolutePath();
+
+        Date expiration = new Date(
+                System.currentTimeMillis()
+                        + storageProperties.getOss().getSigExpirationInMinutes() * 60_000L
+        );
+
+        URL signedUrl = ossClient.generatePresignedUrl(
+                storageProperties.getOss().getBucket(), objectKey, expiration);
+
+        return signedUrl.toString();
+    }
 
     public boolean deleteIfExists(String objectKey) {
         if (!StringUtils.hasText(objectKey)) return false;

@@ -25,6 +25,8 @@ public interface UserFileService {
 
     boolean hasPermission(UserFileDocument file, String userKey, FilePermission permission);
     
+    boolean hasPermission(UserFileDocument file, String userKey, UUID groupId, FilePermission permission);
+    
     void softDeleteAndMarkForCleanupIfOrphaned(Set<String> fileIds, String userKey, Set<String> deleteWithUserKeys, UUID groupId, UUID messageId);
     
     void shareFile(Set<String> fileIds, String userKey, List<String> shareWithUserKeys, UUID groupId, UUID messageId);

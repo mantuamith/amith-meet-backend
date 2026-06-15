@@ -125,6 +125,18 @@ public class MediaServiceLocalImpl implements MediaServiceLocal {
 
         return filePath;
     }
+    
+    @Override
+    public Path read(UserFileDocument file, String userKey, UUID groupId, String mediaId) {
+        userFileService.hasPermission(file, userKey, groupId, FilePermission.READ);
+
+        Path filePath = Paths.get(file.getAbsolutePath());
+        if (!Files.exists(filePath) || !Files.isReadable(filePath)) {
+            throw new RuntimeException("File not found: " + file.getFilename());
+        }
+
+        return filePath;
+    }
 
     /**
      * Generates a scaled thumbnail for image and video files.
@@ -136,6 +148,27 @@ public class MediaServiceLocalImpl implements MediaServiceLocal {
     public Path thumbnail(String userKey, UUID groupId, String mediaId, int maxWidth) {
         UserFileDocument fileDoc = userFileService.getFile(mediaId, userKey, groupId, FilePermission.READ);
 
+        String ct = fileDoc.getContentType();
+        // the file is neither an image nor a video.
+        if (ct == null || (!ct.startsWith("image/") && !ct.startsWith("video/"))) {
+            return null;
+        }
+
+        Path source = Paths.get(fileDoc.getAbsolutePath());
+        if (!Files.exists(source)) return null;
+
+        if (ct.startsWith("video/")) {
+            return generateVideoThumbnail(source, mediaId, maxWidth);
+        } else {
+            return generateImageThumbnail(source, ct, mediaId, maxWidth);
+        }
+    }
+    
+    @Override
+    public Path thumbnail(UserFileDocument fileDoc, String userKey, UUID groupId, String mediaId, int maxWidth) {
+    	// Check read permission
+    	userFileService.hasPermission(fileDoc, userKey, groupId, FilePermission.READ);
+    	
         String ct = fileDoc.getContentType();
         // the file is neither an image nor a video.
         if (ct == null || (!ct.startsWith("image/") && !ct.startsWith("video/"))) {

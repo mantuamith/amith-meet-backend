@@ -143,6 +143,33 @@ public class MediaServiceS3Impl implements MediaServiceS3 {
         presigner.close();
         return url;
     }
+    
+    public String getReadUrl(UserFileDocument fileDoc, String userKey, UUID groupId, String mediaId) {
+        if (!StringUtils.hasText(mediaId)) {
+            throw new RuntimeException("Media Id is required");
+        }
+
+        userFileService.hasPermission(fileDoc, userKey, groupId, FilePermission.READ);        
+        String objectKey = fileDoc.getAbsolutePath();
+
+        GetObjectRequest getObjectRequest = GetObjectRequest.builder()
+                .bucket(storageProperties.getS3().getBucket())
+                .key(objectKey)
+                .build();
+
+        S3Presigner presigner = S3Presigner.builder()
+                .region(Region.of(storageProperties.getS3().getRegion()))
+                .build();
+
+        GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
+                .signatureDuration(Duration.ofMinutes(storageProperties.getS3().getSigExpirationInMinutes()))
+                .getObjectRequest(getObjectRequest)
+                .build();
+
+        String url = presigner.presignGetObject(presignRequest).url().toString();
+        presigner.close();
+        return url;
+    }
 
     public boolean deleteIfExists(String objectKey) {
         if (!StringUtils.hasText(objectKey)) return false;

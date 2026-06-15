@@ -155,12 +155,12 @@ public class FileController implements FileControllerDoc {
     public ResponseEntity<?> getMedia(@PathVariable UUID mediaId,
     		@RequestParam(required = false) UUID groupId) {
         try {
-        	// Avoid redundant permission checks to improve performance.
+        	
             UserFileDocument fileDoc = userFileService.getFile(mediaId.toString());
 
             return switch (Storage.valueOf(fileDoc.getStorage())) {
                 case LOCAL -> {
-                    Path filePath = mediaServiceLocal.read(SecurityUtil.getUserKey(), groupId, mediaId.toString());
+                    Path filePath = mediaServiceLocal.read(fileDoc, SecurityUtil.getUserKey(), groupId, mediaId.toString());
                     String ct = Files.probeContentType(filePath);
                     if (ct == null) ct = MediaType.APPLICATION_OCTET_STREAM_VALUE;
 
@@ -172,11 +172,11 @@ public class FileController implements FileControllerDoc {
                             .body(resource);
                 }
                 case S3 -> {
-                    String presignedUrl = mediaServiceS3.getReadUrl(SecurityUtil.getUserKey(), groupId, mediaId.toString());
+                    String presignedUrl = mediaServiceS3.getReadUrl(fileDoc, SecurityUtil.getUserKey(), groupId, mediaId.toString());
                     yield ResponseEntity.status(HttpStatus.FOUND).location(URI.create(presignedUrl)).build();
                 }
                 case OSS -> {
-                    String presignedUrl = mediaServiceOss.getReadUrl(SecurityUtil.getUserKey(), groupId, mediaId.toString());
+                    String presignedUrl = mediaServiceOss.getReadUrl(fileDoc, SecurityUtil.getUserKey(), groupId, mediaId.toString());
                     yield ResponseEntity.status(HttpStatus.FOUND).location(URI.create(presignedUrl)).build();
                 }
                 default -> throw new IllegalArgumentException("Unexpected storage value: " + fileDoc.getStorage());
@@ -197,12 +197,12 @@ public class FileController implements FileControllerDoc {
             @RequestParam(required = false, defaultValue = "320") int maxWidth
     ) {
         try {
-        	// Avoid redundant permission checks to improve performance.
+
             UserFileDocument fileDoc = userFileService.getFile(mediaId.toString());
             Storage storage = Storage.valueOf(fileDoc.getStorage());
 
             if (storage == Storage.LOCAL) {
-                Path thumbPath = mediaServiceLocal.thumbnail(SecurityUtil.getUserKey(), groupId, mediaId.toString(), maxWidth);
+                Path thumbPath = mediaServiceLocal.thumbnail(fileDoc, SecurityUtil.getUserKey(), groupId, mediaId.toString(), maxWidth);
                 if (thumbPath == null) {
                     return ResponseEntity.status(HttpStatus.NOT_FOUND)
                             .body(CommonResponse.from(ResponseCode.MEDIA_THUMBNAIL_NOT_AVAILABLE));
@@ -220,11 +220,11 @@ public class FileController implements FileControllerDoc {
 
             } else if (storage == Storage.S3) {
                 // For S3/OSS, redirect to the full-size URL — CDN/client handles resizing
-                String presignedUrl = mediaServiceS3.getReadUrl(SecurityUtil.getUserKey(), groupId, mediaId.toString());
+                String presignedUrl = mediaServiceS3.getReadUrl(fileDoc, SecurityUtil.getUserKey(), groupId, mediaId.toString());
                 return ResponseEntity.status(HttpStatus.FOUND).location(URI.create(presignedUrl)).build();
 
             } else {
-                String presignedUrl = mediaServiceOss.getReadUrl(SecurityUtil.getUserKey(), groupId, mediaId.toString());
+                String presignedUrl = mediaServiceOss.getReadUrl(fileDoc, SecurityUtil.getUserKey(), groupId, mediaId.toString());
                 return ResponseEntity.status(HttpStatus.FOUND).location(URI.create(presignedUrl)).build();
             }
 
