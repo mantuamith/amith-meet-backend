@@ -66,13 +66,6 @@ public class GroupFileAccessEntryServiceImpl implements GroupFileAccessEntryServ
     }
 
     /**
-     * Direct check to verify access vectors
-     */
-    public boolean hasAccess(UUID userKey, UUID fileId) {
-        return repository.existsById(generateCompositeId(userKey, fileId));
-    }
-
-    /**
      * Fetch all active permissions for a target user-file match
      */
     public Set<FilePermission> getPermissions(UUID groupId, UUID fileId) {

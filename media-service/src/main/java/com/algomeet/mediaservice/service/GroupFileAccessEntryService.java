@@ -13,10 +13,6 @@ public interface GroupFileAccessEntryService {
 	     */
 	    public void revokeAccess(UUID groupId, UUID fileId);
 
-	    /**
-	     * Direct check to verify access vectors
-	     */
-	    public boolean hasAccess(UUID groupId, UUID fileId);
 
 	    /**
 	     * Fetch all active permissions for a target user-file match
