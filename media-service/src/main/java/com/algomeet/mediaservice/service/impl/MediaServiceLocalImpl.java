@@ -20,6 +20,7 @@ import ws.schild.jave.MultimediaObject;
 import ws.schild.jave.ScreenExtractor;
 import ws.schild.jave.info.VideoSize;
 
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -116,19 +117,21 @@ public class MediaServiceLocalImpl implements MediaServiceLocal {
 
     @Override
     public Path read(String userKey, UUID groupId, String mediaId) {
-        UserFileDocument file = userFileService.getFile(mediaId, userKey, groupId, FilePermission.READ);
+        UserFileDocument file = userFileService.getFile(mediaId);
 
         Path filePath = Paths.get(file.getAbsolutePath());
         if (!Files.exists(filePath) || !Files.isReadable(filePath)) {
             throw new RuntimeException("File not found: " + file.getFilename());
         }
 
-        return filePath;
+        return read(file, userKey, groupId);
     }
     
     @Override
-    public Path read(UserFileDocument file, String userKey, UUID groupId, String mediaId) {
-        userFileService.hasPermission(file, userKey, groupId, FilePermission.READ);
+    public Path read(UserFileDocument file, String userKey, UUID groupId) {
+        if (!userFileService.hasPermission(file, userKey, groupId, FilePermission.READ)) {
+    		throw new AccessDeniedException("Permission denied: " + FilePermission.READ + " ID: " + file.getId());
+    	}
 
         Path filePath = Paths.get(file.getAbsolutePath());
         if (!Files.exists(filePath) || !Files.isReadable(filePath)) {
@@ -146,28 +149,17 @@ public class MediaServiceLocalImpl implements MediaServiceLocal {
      */
     @Override
     public Path thumbnail(String userKey, UUID groupId, String mediaId, int maxWidth) {
-        UserFileDocument fileDoc = userFileService.getFile(mediaId, userKey, groupId, FilePermission.READ);
+        UserFileDocument fileDoc = userFileService.getFile(mediaId);
 
-        String ct = fileDoc.getContentType();
-        // the file is neither an image nor a video.
-        if (ct == null || (!ct.startsWith("image/") && !ct.startsWith("video/"))) {
-            return null;
-        }
-
-        Path source = Paths.get(fileDoc.getAbsolutePath());
-        if (!Files.exists(source)) return null;
-
-        if (ct.startsWith("video/")) {
-            return generateVideoThumbnail(source, mediaId, maxWidth);
-        } else {
-            return generateImageThumbnail(source, ct, mediaId, maxWidth);
-        }
+        return thumbnail(fileDoc, userKey, groupId, mediaId, maxWidth);
     }
     
     @Override
     public Path thumbnail(UserFileDocument fileDoc, String userKey, UUID groupId, String mediaId, int maxWidth) {
     	// Check read permission
-    	userFileService.hasPermission(fileDoc, userKey, groupId, FilePermission.READ);
+    	if(!userFileService.hasPermission(fileDoc, userKey, groupId, FilePermission.READ)) {
+    		throw new AccessDeniedException("Permission denied: " + FilePermission.READ + " ID: " + fileDoc.getId());
+    	}
     	
         String ct = fileDoc.getContentType();
         // the file is neither an image nor a video.

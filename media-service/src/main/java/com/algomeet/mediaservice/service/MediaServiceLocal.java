@@ -9,7 +9,7 @@ public interface MediaServiceLocal extends MediaService {
 
     Path read(String userKey, UUID groupId, String mediaId);
     
-    Path read(UserFileDocument file, String userKey, UUID groupId, String mediaId);
+    Path read(UserFileDocument file, String userKey, UUID groupId);
 
     /**
      * Returns a scaled-down thumbnail path for the given media.

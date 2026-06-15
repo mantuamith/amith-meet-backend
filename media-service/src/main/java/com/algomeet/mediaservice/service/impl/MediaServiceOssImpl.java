@@ -8,6 +8,7 @@ import java.util.Date;
 import java.util.UUID;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
@@ -98,23 +99,17 @@ public class MediaServiceOssImpl implements MediaServiceOss {
     }
 
     public String getReadUrl(String userKey, UUID groupId, String mediaId) {
-        UserFileDocument fileDoc = userFileService.getFile(mediaId, userKey, groupId, FilePermission.READ);
-        String objectKey = fileDoc.getAbsolutePath();
+        UserFileDocument fileDoc = userFileService.getFile(mediaId);
 
-        Date expiration = new Date(
-                System.currentTimeMillis()
-                        + storageProperties.getOss().getSigExpirationInMinutes() * 60_000L
-        );
-
-        URL signedUrl = ossClient.generatePresignedUrl(
-                storageProperties.getOss().getBucket(), objectKey, expiration);
-
-        return signedUrl.toString();
+        return getReadUrl(fileDoc, userKey, groupId);
     }
     
-    public String getReadUrl(UserFileDocument fileDoc, String userKey, UUID groupId, String mediaId) {
+    public String getReadUrl(UserFileDocument fileDoc, String userKey, UUID groupId) {
     	// Check read permission
-        userFileService.hasPermission(fileDoc, userKey, groupId, FilePermission.READ);
+        if (!userFileService.hasPermission(fileDoc, userKey, groupId, FilePermission.READ)) {
+    		throw new AccessDeniedException("Permission denied: " + FilePermission.READ + " ID: " + fileDoc.getId());
+    	}
+        
         String objectKey = fileDoc.getAbsolutePath();
 
         Date expiration = new Date(

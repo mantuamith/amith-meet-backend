@@ -11,5 +11,5 @@ public interface MediaServiceS3 extends MediaService{
             String mediaId
     );
     
-    String getReadUrl(UserFileDocument fileDoc, String userKey, UUID groupId, String mediaId);
+    String getReadUrl(UserFileDocument fileDoc, String userKey, UUID groupId);
 }

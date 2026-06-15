@@ -160,7 +160,7 @@ public class FileController implements FileControllerDoc {
 
             return switch (Storage.valueOf(fileDoc.getStorage())) {
                 case LOCAL -> {
-                    Path filePath = mediaServiceLocal.read(fileDoc, SecurityUtil.getUserKey(), groupId, mediaId.toString());
+                    Path filePath = mediaServiceLocal.read(fileDoc, SecurityUtil.getUserKey(), groupId);
                     String ct = Files.probeContentType(filePath);
                     if (ct == null) ct = MediaType.APPLICATION_OCTET_STREAM_VALUE;
 
@@ -172,11 +172,11 @@ public class FileController implements FileControllerDoc {
                             .body(resource);
                 }
                 case S3 -> {
-                    String presignedUrl = mediaServiceS3.getReadUrl(fileDoc, SecurityUtil.getUserKey(), groupId, mediaId.toString());
+                    String presignedUrl = mediaServiceS3.getReadUrl(fileDoc, SecurityUtil.getUserKey(), groupId);
                     yield ResponseEntity.status(HttpStatus.FOUND).location(URI.create(presignedUrl)).build();
                 }
                 case OSS -> {
-                    String presignedUrl = mediaServiceOss.getReadUrl(fileDoc, SecurityUtil.getUserKey(), groupId, mediaId.toString());
+                    String presignedUrl = mediaServiceOss.getReadUrl(fileDoc, SecurityUtil.getUserKey(), groupId);
                     yield ResponseEntity.status(HttpStatus.FOUND).location(URI.create(presignedUrl)).build();
                 }
                 default -> throw new IllegalArgumentException("Unexpected storage value: " + fileDoc.getStorage());
@@ -220,11 +220,11 @@ public class FileController implements FileControllerDoc {
 
             } else if (storage == Storage.S3) {
                 // For S3/OSS, redirect to the full-size URL — CDN/client handles resizing
-                String presignedUrl = mediaServiceS3.getReadUrl(fileDoc, SecurityUtil.getUserKey(), groupId, mediaId.toString());
+                String presignedUrl = mediaServiceS3.getReadUrl(fileDoc, SecurityUtil.getUserKey(), groupId);
                 return ResponseEntity.status(HttpStatus.FOUND).location(URI.create(presignedUrl)).build();
 
             } else {
-                String presignedUrl = mediaServiceOss.getReadUrl(fileDoc, SecurityUtil.getUserKey(), groupId, mediaId.toString());
+                String presignedUrl = mediaServiceOss.getReadUrl(fileDoc, SecurityUtil.getUserKey(), groupId);
                 return ResponseEntity.status(HttpStatus.FOUND).location(URI.create(presignedUrl)).build();
             }
 
