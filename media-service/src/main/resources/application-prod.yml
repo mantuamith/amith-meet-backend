@@ -79,4 +79,4 @@ server:
 feign:
   client:
     group-service:
-      url: http://localhost:8087
+      url: ${GROUP_SERVICE_URL:http://localhost:8087}
