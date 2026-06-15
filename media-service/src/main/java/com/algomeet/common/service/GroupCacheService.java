@@ -16,6 +16,9 @@ import com.algomeet.mediaservice.client.GroupClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+/**
+ * TODO: This will be move to common library project.
+ */
 
 /**
  * Service responsible for managing Multi-User Chat (MUC) room metadata via a distributed cache.

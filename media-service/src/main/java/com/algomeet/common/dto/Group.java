@@ -9,6 +9,9 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 
 import lombok.Data;
 
+/**
+ * TODO: This will be move to common library project.
+ */
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @Data
