@@ -29,7 +29,7 @@ public class ChatMessageService {
 	    String senderKeyStr = userKey.toString();
 	    String receiverKeyStr = userKey.toString();
 
-	    // 1. Compose the XMPP payload
+	    // 1. Compose the XMPP payload used to sync user's online devices with locally stored messages.
 	    String payload = XmppSyncStanzaComposer.createDirectClearanceStanza(
 	            domainProperties.getDomain(),
 	            peerUserKey.toString(), 
