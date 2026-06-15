@@ -11,6 +11,7 @@ import com.algomeet.xmpp.chatservice.service.ChatMessageService;
 import com.algomeet.xmpp.chatservice.util.SecurityUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.publisher.Mono;
 
 @Slf4j
 @RestController
@@ -23,7 +24,7 @@ public class ChatMessageController {
      * Resets the counter when a user opens a conversation or clears the conversation history.
      */
     @PostMapping("/{peerKey}/timeline-cutoff")
-    public ResponseEntity<CommonResponse<UnreadCount>> timelineCutoff(
+    public Mono<ResponseEntity<CommonResponse<UnreadCount>>> timelineCutoff(
             @PathVariable("peerKey") UUID peerKey,
             @RequestParam(value = "cutoffMessageId") UUID cutoffMessageId,
             @RequestParam(value = "cutoffStanzaId") UUID cutoffStanzaId) {
@@ -32,9 +33,7 @@ public class ChatMessageController {
 
         log.info("Executing timeline cutoff and resetting unread count for user: {} against peer: {}", userKey, peerKey);
 
-        return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, 
-        		chatMessageService.timelineCutoff(UUID.fromString(userKey), peerKey, cutoffMessageId, cutoffStanzaId).block()));
-        
-
+        return chatMessageService.timelineCutoff(UUID.fromString(userKey), peerKey, cutoffMessageId, cutoffStanzaId)
+                .map(unreadCount -> ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, unreadCount)));
     }
 }
