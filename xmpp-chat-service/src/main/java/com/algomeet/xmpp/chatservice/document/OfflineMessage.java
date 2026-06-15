@@ -30,6 +30,7 @@ import lombok.Data;
 
 	/**
 	 * Used for deleteByToAndFromAndStanzaIdLessThanEqualAndDeliveredAtIsNotNull
+	 * and deleteByToAndFromAndDeliveredAtIsNotNullAndStanzaIdLessThanEqual
 	 */
 	@CompoundIndex(name = "idxOffline_to_from_deliveredAt_stanzaId", def = "{'to': 1, 'from': 1, 'deliveredAt': 1, 'stanzaId': 1}"),
 
@@ -54,13 +55,7 @@ import lombok.Data;
 	@CompoundIndex(
 	    name = "idxOffline_from_stanzaIdDesc", 
 	    def = "{'from': 1, 'stanzaId': -1}"
-	),
-	/**
-	 * Used for deleteByToAndFromAndDeliveredAtIsNotNullAndStanzaIdLessThanEqual
-	 * Follows ESR: Equality (to, from, deliveredAt) -> Range (id)
-	 */
-	@CompoundIndex(name = "idxOffline_to_from_deliveredAt_stanzaId", def = "{'to': 1, 'from': 1, 'deliveredAt': 1, 'stanzaId': 1}")
-
+	)
 })
 public class OfflineMessage {	
 	@Id
