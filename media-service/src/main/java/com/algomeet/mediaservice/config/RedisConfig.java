@@ -2,39 +2,18 @@ package com.algomeet.mediaservice.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.data.redis.connection.ReactiveRedisConnectionFactory;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.data.redis.listener.ReactiveRedisMessageListenerContainer;
 import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
-/**
- * <p>Combined Redis Configuration for Algomeet Cluster Synchronization.</p>
- * * <p>This class serves as the backbone for horizontal scaling in the Algomeet environment. 
- * It manages two primary responsibilities:</p>
- * <ul>
- * <li><b>Outbound:</b> Providing a shared {@link RedisTemplate} for publishing 
- * XMPP stanzas to other nodes in the cluster.</li>
- * <li><b>Inbound:</b> Setting up a localized, self-starting subscriber container 
- * that listens for synchronization events from the Redis Pub/Sub fabric.</li>
- * </ul>
- * * @author Algomeet Core Team
- */
 @Slf4j
 @Configuration
 @RequiredArgsConstructor
 public class RedisConfig {
-
-	@Bean
-    public ReactiveRedisMessageListenerContainer reactiveRedisMessageListenerContainer(
-            ReactiveRedisConnectionFactory connectionFactory) {
-
-        return new ReactiveRedisMessageListenerContainer(connectionFactory);
-    }
 	
 	@Bean
     public RedisTemplate<String, Object> redisTemplate(RedisConnectionFactory connectionFactory) {
