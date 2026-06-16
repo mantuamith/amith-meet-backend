@@ -45,16 +45,15 @@ import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import com.algomeet.mediaservice.config.LocalizationConfig;
 import com.algomeet.mediaservice.config.StorageProperties;
-import com.algomeet.mediaservice.exceptions.GlobalExceptionHandler;
-import com.algomeet.mediaservice.document.FilePermission;
 import com.algomeet.mediaservice.document.UserFileDocument;
 import com.algomeet.mediaservice.dto.MediaUploadResponse;
 import com.algomeet.mediaservice.enums.Storage;
 import com.algomeet.mediaservice.exceptions.FileTypeNotSupportedException;
-import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import com.algomeet.mediaservice.exceptions.GlobalExceptionHandler;
 import com.algomeet.mediaservice.repository.UserFileRepository;
 import com.algomeet.mediaservice.service.MediaServiceLocal;
 import com.algomeet.mediaservice.service.MediaServiceOss;
