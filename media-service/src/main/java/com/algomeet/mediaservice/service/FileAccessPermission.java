@@ -11,7 +11,7 @@ public interface FileAccessPermission {
     
     boolean hasPermission(UserFileDocument file, String userKey, UUID groupId, FilePermission permission);
     
-    public boolean hasGroupPermission(Group group, String userKey, String fileId, FilePermission permission);
+    boolean hasGroupPermission(Group group, String userKey, String fileId, FilePermission permission);
 	
 	@Deprecated
 	boolean hasPermissionAcl(UserFileDocument file, String userKey, FilePermission permission);
