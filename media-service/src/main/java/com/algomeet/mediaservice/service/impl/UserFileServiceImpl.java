@@ -27,9 +27,9 @@ import com.algomeet.mediaservice.enums.UploadContext;
 import com.algomeet.mediaservice.repository.FileAccessEntryRepository;
 import com.algomeet.mediaservice.repository.UserFileRepository;
 import com.algomeet.mediaservice.service.FileAccessEntryService;
+import com.algomeet.mediaservice.service.FileAccessPermission;
 import com.algomeet.mediaservice.service.GroupFileAccessEntryService;
 import com.algomeet.mediaservice.service.UserFileService;
-import com.algomeet.mediaservice.util.SearchUtil;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -44,6 +44,7 @@ public class UserFileServiceImpl implements UserFileService {
 	private final FileAccessEntryRepository fileAccessEntryRepository;
 	private final GroupCacheService groupCacheService;
 	private final GroupFileAccessEntryService groupFileAccessEntryService;
+	private final FileAccessPermission fileAccessPermission;
 
 	@Override
 	public UserFileDocument create(UserFileDocument file) {
@@ -65,7 +66,7 @@ public class UserFileServiceImpl implements UserFileService {
 		UserFileDocument file = repository.findById(fileId)
 				.orElseThrow(() -> new IllegalArgumentException("File not found"));
 
-		if (!hasPermission(file, userKey, groupId, permission)) {
+		if (!fileAccessPermission.hasPermission(file, userKey, groupId, permission)) {
 			throw new AccessDeniedException("Permission denied: " + permission);
 		}
 
@@ -105,92 +106,7 @@ public class UserFileServiceImpl implements UserFileService {
 		
 		// Delete the file metadata
 		repository.deleteById(fileId);
-	}
-	
-	@Override
-	public boolean hasPermission(UserFileDocument file, String userKey, FilePermission permission) {
-		return hasPermission(file, userKey, null, permission);
-	}
-	
-	public boolean hasPermission(UserFileDocument file, String userKey, UUID groupId, FilePermission permission) {
-		// 1. Determine if the file is currently expired/scheduled for cleanup
-	    boolean isExpired = file.getCleanupEligibleAt() != null
-	            && file.getCleanupEligibleAt().isBefore(Instant.now());
-
-	    // 2. Check Ownership (Safe against NullPointerException)
-	    boolean isOwner = userKey.equals(file.getOwner());
-
-	    if (isExpired) {
-	        log.info("[HasPermission] DENIED fileId={} userKey={} permission={} reason=EXPIRED cleanupEligibleAt={}",
-	                file.getId(), userKey, permission, file.getCleanupEligibleAt());
-	        return false;
-	    }
-
-	    // 3. If not expired, Owner has full wildcard access to everything
-	    if (isOwner) {
-	        log.debug("[HasPermission] GRANTED fileId={} userKey={} permission={} reason=OWNER", file.getId(), userKey, permission);
-	        return true;
-	    }
-
-	    // 4. Chat attachments — only participants who have an active FileAccessEntry may
-	    //    READ a file shared in a conversation. The conversationId is used as a signal
-	    //    that the file is chat-attached, but we still require an explicit access entry
-	    //    so that non-participants cannot read files just by guessing a mediaId.
-	    if (permission == FilePermission.READ
-	            && file.getConversationId() != null
-	            && !file.getConversationId().isBlank()) {
-	        log.debug("[HasPermission] GRANTED fileId={} userKey={} permission={} reason=CONVERSATION_ID conversationId={}",
-	                file.getId(), userKey, permission, file.getConversationId());
-
-	        return fileAccessEntryService.hasAccess(UUID.fromString(userKey), UUID.fromString(file.getId()));
-	    }
-
-	    // Backward compatibility
-	    if (!CollectionUtils.isEmpty(file.getAccessControlList())) {
-	    	if(hasPermissionAcl(file, userKey, permission)) {
-	    	    log.debug("[HasPermission] GRANTED fileId={} userKey={} permission={} reason=ACL", file.getId(), userKey, permission);
-	    		return true;
-	    	}
-	    }
-
-	    // 5. Fallback to Access Control Matrix (MongoDB) for shared users
-		Set<FilePermission> permissions = fileAccessEntryService.getPermissions(UUID.fromString(userKey), UUID.fromString(file.getId()));
-		boolean granted = permissions.contains(permission);		
-		
-		// 6. Check for chat group permissions
-		Set<FilePermission> groupPermissions = null;
-		if (!(granted) && groupId != null) {
-			groupPermissions = groupFileAccessEntryService.getPermissions(groupId, UUID.fromString(file.getId()));			
-			granted = groupPermissions.contains(permission) && isGroupMember(groupId, userKey);
-		}
-		
-		log.info("[HasPermission] {} fileId={} userKey={} permission={} reason=FILE_ACCESS_ENTRY entryPermissions={}, groupPermissions={}",
-		        granted ? "GRANTED" : "DENIED", file.getId(), userKey, permission, permissions, groupPermissions);
-		
-		return granted;
-	}
-	
-	private boolean hasGroupPermission(Group group, String userKey, String fileId, FilePermission permission) {
-		if (group == null) {
-			return false;
-		}
-		
-		Set<FilePermission> groupPermissions = groupFileAccessEntryService.getPermissions(group.getId(), UUID.fromString(fileId));			
-		return groupPermissions.contains(permission) && isGroupMember(group, userKey);
-	}
-	
-	@Deprecated
-	public boolean hasPermissionAcl(UserFileDocument file, String userKey, FilePermission permission) {
-		// Null-safe check for the ACL list
-	    if (file.getAccessControlList() == null) {
-	        return false;
-	    }
-
-	    // Optimized, null-safe Stream
-	    return file.getAccessControlList().stream()
-	            .filter(entry -> entry != null && userKey.equals(entry.getUserKey()))
-	            .anyMatch(entry -> entry.getPermissions() != null && entry.getPermissions().contains(permission));
-	}
+	}		
 	
 	@Override
 	@Transactional(rollbackFor = Exception.class)
@@ -234,8 +150,8 @@ public class UserFileServiceImpl implements UserFileService {
 
 	    try {
 	        for (UserFileDocument file : files) {
-	            if (!(hasPermission(file, userKey, FilePermission.SHARE)
-	            		|| hasGroupPermission(group, userKey, file.getId(), FilePermission.SHARE))) {
+	            if (!(fileAccessPermission.hasPermission(file, userKey, FilePermission.SHARE)
+	            		|| fileAccessPermission.hasGroupPermission(group, userKey, file.getId(), FilePermission.SHARE))) {
 	                throw new AccessDeniedException("User is not allowed to share the media/file: " + file.getId());
 	            }
 
@@ -362,7 +278,7 @@ public class UserFileServiceImpl implements UserFileService {
 	        // In batch deletes, permission failures for other users should not stop
 	        // processing so the caller's own access link can still be removed and
 	        // orphaned files can be cleaned up.
-	        boolean canDeleteForOthers = hasPermission(file, userKey, FilePermission.DELETE);
+	        boolean canDeleteForOthers = fileAccessPermission.hasPermission(file, userKey, FilePermission.DELETE);
 
 	        for (String targetUserKey : forDeleteUserKeys) {
 	            boolean deletingOtherUser =
@@ -431,7 +347,7 @@ public class UserFileServiceImpl implements UserFileService {
 	
 	@Deprecated
 	public void softDeleteAndMarkForCleanupIfOrphanedAcl(UserFileDocument file, String userKey, Set<String> deleteWithUserKeys) {
-		if (!hasPermissionAcl(file, userKey, FilePermission.DELETE)) {
+		if (!fileAccessPermission.hasPermissionAcl(file, userKey, FilePermission.DELETE)) {
 			return;
 		}
         
@@ -493,14 +409,5 @@ public class UserFileServiceImpl implements UserFileService {
 		}
 
 		return Set.of();
-	}
-	
-	private boolean isGroupMember(UUID groupId, String userKey) {
-		Group group = groupCacheService.getCachedGroup(groupId.toString());
-		return SearchUtil.findMember(group, userKey).isPresent();
-	}
-	
-	private boolean isGroupMember(Group group, String userKey) {
-		return SearchUtil.findMember(group, userKey).isPresent();
 	}
 }

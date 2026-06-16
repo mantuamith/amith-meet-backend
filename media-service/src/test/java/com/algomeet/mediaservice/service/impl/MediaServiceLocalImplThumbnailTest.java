@@ -37,6 +37,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import com.algomeet.mediaservice.config.StorageProperties;
 import com.algomeet.mediaservice.document.FilePermission;
 import com.algomeet.mediaservice.document.UserFileDocument;
+import com.algomeet.mediaservice.service.FileAccessPermission;
 import com.algomeet.mediaservice.service.UserFileService;
 import com.algomeet.mediaservice.util.MediaMetadataExtractor;
 
@@ -54,6 +55,9 @@ class MediaServiceLocalImplThumbnailTest {
     @Mock private UserFileService userFileService;
     @Mock private UserStorageUsageService userStorageUsageService;
     @Mock private MediaMetadataExtractor metadataExtractor;
+    
+    @Mock
+	private FileAccessPermission fileAccessPermission;
 
     @InjectMocks
     private MediaServiceLocalImpl mediaService;
@@ -97,7 +101,7 @@ class MediaServiceLocalImplThumbnailTest {
         UserFileDocument doc = new UserFileDocument();
         doc.setContentType(contentType);
         doc.setAbsolutePath(absolutePath != null ? absolutePath.toString() : "/nonexistent/missing.jpg");
-        when(userFileService.hasPermission(eq(doc), eq(USER_KEY), eq(GROUP_ID), eq(FilePermission.READ)))
+        when(fileAccessPermission.hasPermission(eq(doc), eq(USER_KEY), eq(GROUP_ID), eq(FilePermission.READ)))
                 .thenReturn(true);
         
         return doc;

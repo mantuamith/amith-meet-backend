@@ -22,10 +22,6 @@ public interface UserFileService {
     void updateLastRead(String fileId);
 
     void deleteFile(String fileId, String userKey);
-
-    boolean hasPermission(UserFileDocument file, String userKey, FilePermission permission);
-    
-    boolean hasPermission(UserFileDocument file, String userKey, UUID groupId, FilePermission permission);
     
     void softDeleteAndMarkForCleanupIfOrphaned(Set<String> fileIds, String userKey, Set<String> deleteWithUserKeys, UUID groupId, UUID messageId);
     

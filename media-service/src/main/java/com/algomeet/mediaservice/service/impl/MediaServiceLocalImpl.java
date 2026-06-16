@@ -26,6 +26,7 @@ import com.algomeet.mediaservice.dto.MediaUploadResponse;
 import com.algomeet.mediaservice.dto.StorageUsageAdjustmentRequest;
 import com.algomeet.mediaservice.enums.Storage;
 import com.algomeet.mediaservice.enums.UploadContext;
+import com.algomeet.mediaservice.service.FileAccessPermission;
 import com.algomeet.mediaservice.service.MediaServiceLocal;
 import com.algomeet.mediaservice.service.UserFileService;
 import com.algomeet.mediaservice.util.MediaMetadataExtractor;
@@ -43,6 +44,7 @@ public class MediaServiceLocalImpl implements MediaServiceLocal {
 
     private StorageProperties storageProperties;
     private UserFileService userFileService;
+    private FileAccessPermission fileAccessPermission;
     private UserStorageUsageService userStorageUsageService;
     private MediaMetadataExtractor metadataExtractor;
 
@@ -127,7 +129,7 @@ public class MediaServiceLocalImpl implements MediaServiceLocal {
     
     @Override
     public Path read(UserFileDocument file, String userKey, UUID groupId) {
-        if (!userFileService.hasPermission(file, userKey, groupId, FilePermission.READ)) {
+        if (!fileAccessPermission.hasPermission(file, userKey, groupId, FilePermission.READ)) {
     		throw new AccessDeniedException("Permission denied: " + FilePermission.READ + " ID: " + file.getId());
     	}
 
@@ -155,7 +157,7 @@ public class MediaServiceLocalImpl implements MediaServiceLocal {
     @Override
     public Path thumbnail(UserFileDocument fileDoc, String userKey, UUID groupId, String mediaId, int maxWidth) {
     	// Check read permission
-    	if(!userFileService.hasPermission(fileDoc, userKey, groupId, FilePermission.READ)) {
+    	if(!fileAccessPermission.hasPermission(fileDoc, userKey, groupId, FilePermission.READ)) {
     		throw new AccessDeniedException("Permission denied: " + FilePermission.READ + " ID: " + fileDoc.getId());
     	}
     	

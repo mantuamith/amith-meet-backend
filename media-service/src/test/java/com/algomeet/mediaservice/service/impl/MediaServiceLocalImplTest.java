@@ -27,9 +27,9 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.algomeet.mediaservice.config.StorageProperties;
-import com.algomeet.mediaservice.document.FilePermission;
 import com.algomeet.mediaservice.document.UserFileDocument;
 import com.algomeet.mediaservice.dto.MediaUploadResponse;
+import com.algomeet.mediaservice.service.FileAccessPermission;
 import com.algomeet.mediaservice.service.UserFileService;
 
 @ExtendWith(MockitoExtension.class)
@@ -52,6 +52,9 @@ class MediaServiceLocalImplTest {
     
 	@Mock
 	private UserStorageUsageService userStorageUsageService;
+	
+	@Mock
+	private FileAccessPermission fileAccessPermission;
 
 	@Mock
 	private com.algomeet.mediaservice.util.MediaMetadataExtractor metadataExtractor;
@@ -121,7 +124,7 @@ class MediaServiceLocalImplTest {
         doc.setAbsolutePath(filePath.toString());
         doc.setFilename("media.bin");
 
-        when(userFileService.hasPermission(eq(doc), any(), any(), any())).thenReturn(true);
+        when(fileAccessPermission.hasPermission(eq(doc), any(), any(), any())).thenReturn(true);
 
         // when
         Path result = mediaService.read(doc, "11111111-1111-1111-1111-111111111111", UUID.fromString("22211111-1111-1111-1111-111111111111"));
@@ -138,7 +141,7 @@ class MediaServiceLocalImplTest {
         doc.setAbsolutePath(tempDir.resolve("missing.file").toString());
         doc.setFilename("missing.file");
 
-        when(userFileService.hasPermission(any(), any(), any(), any()))
+        when(fileAccessPermission.hasPermission(any(), any(), any(), any()))
                 .thenReturn(true);
 
         // then

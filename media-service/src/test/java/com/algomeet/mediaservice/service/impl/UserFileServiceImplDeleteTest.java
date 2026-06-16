@@ -30,6 +30,7 @@ import com.algomeet.mediaservice.document.UserFileDocument;
 import com.algomeet.mediaservice.repository.FileAccessEntryRepository;
 import com.algomeet.mediaservice.repository.UserFileRepository;
 import com.algomeet.mediaservice.service.FileAccessEntryService;
+import com.algomeet.mediaservice.service.FileAccessPermission;
 
 /**
  * Tests for the three bugs fixed in UserFileServiceImpl:
@@ -54,6 +55,8 @@ class UserFileServiceImplDeleteTest {
     @Mock private FileAccessEntryService fileAccessEntryService;
     @Mock private FileAccessEntryRepository fileAccessEntryRepository;
     @Mock private GroupCacheService groupCacheService;
+    @Mock
+	private FileAccessPermission fileAccessPermission;
 
     @InjectMocks
     private UserFileServiceImpl service;
@@ -201,7 +204,7 @@ class UserFileServiceImplDeleteTest {
                     eq(UUID.fromString(RECEIVER_KEY)), eq(UUID.fromString(file.getId()))))
                     .thenReturn(true);
 
-            assertTrue(service.hasPermission(file, RECEIVER_KEY, FilePermission.READ),
+            assertTrue(fileAccessPermission.hasPermission(file, RECEIVER_KEY, FilePermission.READ),
                     "Receiver with FileAccessEntry must be granted READ");
         }
 
@@ -216,7 +219,7 @@ class UserFileServiceImplDeleteTest {
                     eq(UUID.fromString(strangerKey)), eq(UUID.fromString(file.getId()))))
                     .thenReturn(false);
 
-            assertFalse(service.hasPermission(file, strangerKey, FilePermission.READ),
+            assertFalse(fileAccessPermission.hasPermission(file, strangerKey, FilePermission.READ),
                     "User with no FileAccessEntry must be denied even when conversationId is set");
         }
 
@@ -229,7 +232,7 @@ class UserFileServiceImplDeleteTest {
                     eq(UUID.fromString(receiverKey)), eq(UUID.fromString(file.getId()))))
                     .thenReturn(Set.of(FilePermission.READ));
 
-            assertTrue(service.hasPermission(file, receiverKey, FilePermission.READ));
+            assertTrue(fileAccessPermission.hasPermission(file, receiverKey, FilePermission.READ));
         }
 
         @Test
@@ -237,7 +240,7 @@ class UserFileServiceImplDeleteTest {
             UserFileDocument file = makeFile(SENDER_KEY, "conv-001");
             file.setCleanupEligibleAt(Instant.now().minusSeconds(60)); // expired
 
-            assertFalse(service.hasPermission(file, RECEIVER_KEY, FilePermission.READ),
+            assertFalse(fileAccessPermission.hasPermission(file, RECEIVER_KEY, FilePermission.READ),
                     "Expired files must be denied regardless of access entries");
 
             // hasAccess must NOT be called — isExpired check short-circuits
@@ -248,9 +251,9 @@ class UserFileServiceImplDeleteTest {
         void hasPermission_owner_alwaysGranted() {
             UserFileDocument file = makeFile(SENDER_KEY, "conv-001");
             // Owner should not need FileAccessEntry
-            assertTrue(service.hasPermission(file, SENDER_KEY, FilePermission.READ));
-            assertTrue(service.hasPermission(file, SENDER_KEY, FilePermission.DELETE));
-            assertTrue(service.hasPermission(file, SENDER_KEY, FilePermission.SHARE));
+            assertTrue(fileAccessPermission.hasPermission(file, SENDER_KEY, FilePermission.READ));
+            assertTrue(fileAccessPermission.hasPermission(file, SENDER_KEY, FilePermission.DELETE));
+            assertTrue(fileAccessPermission.hasPermission(file, SENDER_KEY, FilePermission.SHARE));
         }
     }
 }

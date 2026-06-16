@@ -30,6 +30,7 @@ import com.algomeet.mediaservice.config.StorageProperties;
 import com.algomeet.mediaservice.document.FilePermission;
 import com.algomeet.mediaservice.document.UserFileDocument;
 import com.algomeet.mediaservice.dto.MediaUploadResponse;
+import com.algomeet.mediaservice.service.FileAccessPermission;
 import com.algomeet.mediaservice.service.UserFileService;
 import com.aliyun.oss.OSS;
 
@@ -56,6 +57,9 @@ class MediaServiceOssImplTest {
 
 	@Mock
 	private com.algomeet.mediaservice.util.MediaMetadataExtractor metadataExtractor;
+	
+	@Mock
+	private FileAccessPermission fileAccessPermission;
 
     @BeforeEach
     void setup() {
@@ -135,7 +139,7 @@ class MediaServiceOssImplTest {
         UserFileDocument doc = new UserFileDocument();
         doc.setAbsolutePath("media/key.txt");
 
-        when(userFileService.hasPermission(
+        when(fileAccessPermission.hasPermission(
         		eq(doc),
                 eq("11111111-1111-1111-1111-111111111111"),
                 eq(UUID.fromString("22211111-1111-1111-1111-111111111111")),

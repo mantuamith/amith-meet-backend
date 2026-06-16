@@ -19,6 +19,7 @@ import com.algomeet.mediaservice.dto.MediaUploadResponse;
 import com.algomeet.mediaservice.dto.StorageUsageAdjustmentRequest;
 import com.algomeet.mediaservice.enums.Storage;
 import com.algomeet.mediaservice.enums.UploadContext;
+import com.algomeet.mediaservice.service.FileAccessPermission;
 import com.algomeet.mediaservice.service.MediaServiceS3;
 import com.algomeet.mediaservice.service.UserFileService;
 import com.algomeet.mediaservice.util.MediaMetadataExtractor;
@@ -46,6 +47,7 @@ public class MediaServiceS3Impl implements MediaServiceS3 {
     private final StorageProperties storageProperties;
     private UserStorageUsageService userStorageUsageService;
     private MediaMetadataExtractor metadataExtractor;
+    private FileAccessPermission fileAccessPermission;
 
     @Override
     public MediaUploadResponse upload(
@@ -129,7 +131,7 @@ public class MediaServiceS3Impl implements MediaServiceS3 {
     }
     
     public String getReadUrl(UserFileDocument fileDoc, String userKey, UUID groupId) {
-        if (!userFileService.hasPermission(fileDoc, userKey, groupId, FilePermission.READ)) {
+        if (!fileAccessPermission.hasPermission(fileDoc, userKey, groupId, FilePermission.READ)) {
     		throw new AccessDeniedException("Permission denied: " + FilePermission.READ + " ID: " + fileDoc.getId());
     	}  
         

@@ -27,6 +27,7 @@ import com.algomeet.mediaservice.document.FilePermission;
 import com.algomeet.mediaservice.document.UserFileDocument;
 import com.algomeet.mediaservice.repository.UserFileRepository;
 import com.algomeet.mediaservice.service.FileAccessEntryService;
+import com.algomeet.mediaservice.service.FileAccessPermission;
 import com.algomeet.mediaservice.service.GroupFileAccessEntryService;
 
 class UserFileServiceImplTest {
@@ -46,9 +47,12 @@ class UserFileServiceImplTest {
     @Mock
     private GroupFileAccessEntryService groupFileAccessEntryService;
 
+    @Mock
+    private FileAccessPermissionImpl fileAccessPermission;
+    
     @InjectMocks
     private UserFileServiceImpl service;
-   
+       
     private static final String FILE_ID = "33222222-2222-2222-2222-222222222222";
     private static final String OWNER = "22222222-2222-2222-2222-222222222222";
     private static final String USER = "11111111-1111-1111-1111-111111111111";
@@ -86,7 +90,8 @@ class UserFileServiceImplTest {
         UserFileDocument file = ownerFile();
 
         when(repository.findById(FILE_ID)).thenReturn(Optional.of(file));
-
+        when(fileAccessPermission.hasPermission(any(), any(), any(), any())).thenReturn(true);
+        
         UserFileDocument result = service.getFile(FILE_ID, OWNER, GROUP_ID, FilePermission.READ);
 
         assertEquals(file, result);
@@ -170,8 +175,9 @@ class UserFileServiceImplTest {
     @Test
     void hasPermission_ownerAlwaysTrue() {
         UserFileDocument file = ownerFile();
-
-        assertTrue(service.hasPermission(file, OWNER, FilePermission.DELETE));
+        
+        FileAccessPermission fileAccessPermission = new FileAccessPermissionImpl(null, null, null);
+        assertTrue(fileAccessPermission.hasPermission(file, OWNER, FilePermission.DELETE));
     }
 
     @Test
@@ -184,8 +190,9 @@ class UserFileServiceImplTest {
         
         when(fileAccessEntryService.getPermissions(UUID.fromString(USER), UUID.fromString(file.getId()))).thenReturn(permissions);
 
-        assertTrue(service.hasPermission(file, USER, FilePermission.READ));
-        assertFalse(service.hasPermission(file, USER, FilePermission.DELETE));
+        FileAccessPermission fileAccessPermission = new FileAccessPermissionImpl(fileAccessEntryService, null, null);
+        assertTrue(fileAccessPermission.hasPermission(file, USER, FilePermission.READ));
+        assertFalse(fileAccessPermission.hasPermission(file, USER, FilePermission.DELETE));
     }
 
     /* =========================
@@ -196,6 +203,7 @@ class UserFileServiceImplTest {
     void shareFile_success() {
         UserFileDocument file = ownerFile();
         when(repository.findAllById(Set.of(FILE_ID))).thenReturn(List.of(file));
+        when(fileAccessPermission.hasPermission(any(), any(), any())).thenReturn(true);
 
         service.shareFile(Set.of(FILE_ID), OWNER, List.of(USER), GROUP_ID, UUID.randomUUID());
 
@@ -229,6 +237,8 @@ class UserFileServiceImplTest {
         when(repository.findAllById(Set.of(FILE_ID))).thenReturn(List.of(file));
         when(fileAccessEntryService.revokeAccess(any(), any(), any())).thenReturn(true);
         when(fileAccessEntryService.countByFileId(any())).thenReturn(0L);
+        
+        when(fileAccessPermission.hasPermission(any(), any(), any())).thenReturn(true);
 
         service.softDeleteAndMarkForCleanupIfOrphaned(
                 Set.of(FILE_ID), OWNER, Set.of(OWNER, otherUser), GROUP_ID, MESSAGE_ID);
