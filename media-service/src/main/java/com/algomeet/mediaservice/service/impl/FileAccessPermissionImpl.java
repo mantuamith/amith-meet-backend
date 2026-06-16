@@ -105,6 +105,10 @@ public class FileAccessPermissionImpl implements FileAccessPermission{
 	    if (file.getAccessControlList() == null) {
 	        return false;
 	    }
+	    
+	    if (userKey.equals(file.getOwner())) {
+	    	return true;
+	    }
 
 	    // Optimized, null-safe Stream
 	    return file.getAccessControlList().stream()
