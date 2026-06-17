@@ -14,6 +14,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.net.URL;
+import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -30,6 +31,7 @@ import com.algomeet.mediaservice.config.StorageProperties;
 import com.algomeet.mediaservice.document.FilePermission;
 import com.algomeet.mediaservice.document.UserFileDocument;
 import com.algomeet.mediaservice.dto.MediaUploadResponse;
+import com.algomeet.mediaservice.service.FileAccessPermission;
 import com.algomeet.mediaservice.service.UserFileService;
 
 import software.amazon.awssdk.core.sync.RequestBody;
@@ -65,6 +67,9 @@ class MediaServiceS3ImplTest {
 
 	@Mock
 	private com.algomeet.mediaservice.util.MediaMetadataExtractor metadataExtractor;
+	
+	@Mock
+	private FileAccessPermission fileAccessPermission;
 
 	@BeforeEach
 	void setup() {
@@ -115,11 +120,12 @@ class MediaServiceS3ImplTest {
 	    UserFileDocument doc = new UserFileDocument();
 	    doc.setAbsolutePath("media/key.txt");
 
-	    when(userFileService.getFile(
-	            eq("media-id"),
+	    when(fileAccessPermission.hasPermission(
+	            eq(doc),
 	            eq("11111111-1111-1111-1111-111111111111"),
+	            eq(UUID.fromString("22211111-1111-1111-1111-111111111111")),
 	            eq(FilePermission.READ)))
-	        .thenReturn(doc);
+	        .thenReturn(true);
 
 	    // presigned URL
 	    PresignedGetObjectRequest presigned =
@@ -142,7 +148,7 @@ class MediaServiceS3ImplTest {
 	        mocked.when(S3Presigner::builder).thenReturn(builder);
 
 	        // when
-	        String url = mediaService.getReadUrl("11111111-1111-1111-1111-111111111111", "media-id");
+	        String url = mediaService.getReadUrl(doc, "11111111-1111-1111-1111-111111111111", UUID.fromString("22211111-1111-1111-1111-111111111111"));
 
 	        // then
 	        assertEquals("https://signed-url", url);
@@ -152,7 +158,7 @@ class MediaServiceS3ImplTest {
 
 	@Test
 	void getDownloadUrl_shouldFail_whenMediaIdMissing() {
-		RuntimeException ex = assertThrows(RuntimeException.class, () -> mediaService.getReadUrl("user-1", ""));
+		RuntimeException ex = assertThrows(RuntimeException.class, () -> mediaService.getReadUrl("user-1", UUID.fromString("22211111-1111-1111-1111-111111111111"), ""));
 		assertTrue(ex.getMessage().contains("Media Id"));
 	}
 

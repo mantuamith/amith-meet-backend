@@ -3,6 +3,7 @@ package com.algomeet.mediaservice.service.impl;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
@@ -15,6 +16,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
 
+import com.algomeet.common.dto.Group;
+import com.algomeet.common.service.GroupCacheService;
 import com.algomeet.mediaservice.document.FileAccessEntry;
 import com.algomeet.mediaservice.document.FileAccessEntryDocument;
 import com.algomeet.mediaservice.document.FilePermission;
@@ -24,6 +27,8 @@ import com.algomeet.mediaservice.enums.UploadContext;
 import com.algomeet.mediaservice.repository.FileAccessEntryRepository;
 import com.algomeet.mediaservice.repository.UserFileRepository;
 import com.algomeet.mediaservice.service.FileAccessEntryService;
+import com.algomeet.mediaservice.service.FileAccessPermission;
+import com.algomeet.mediaservice.service.GroupFileAccessEntryService;
 import com.algomeet.mediaservice.service.UserFileService;
 
 import lombok.RequiredArgsConstructor;
@@ -37,6 +42,9 @@ public class UserFileServiceImpl implements UserFileService {
 	private final UserStorageUsageService userStorageUsageService;
 	private final FileAccessEntryService fileAccessEntryService;
 	private final FileAccessEntryRepository fileAccessEntryRepository;
+	private final GroupCacheService groupCacheService;
+	private final GroupFileAccessEntryService groupFileAccessEntryService;
+	private final FileAccessPermission fileAccessPermission;
 
 	@Override
 	public UserFileDocument create(UserFileDocument file) {
@@ -46,17 +54,25 @@ public class UserFileServiceImpl implements UserFileService {
 	}
 
 	@Override
-	public UserFileDocument getFile(String fileId, String userKey, FilePermission permission) {
+	public UserFileDocument getFile(String fileId) {
 		UserFileDocument file = repository.findById(fileId)
 				.orElseThrow(() -> new IllegalArgumentException("File not found"));
 
-		if (!hasPermission(file, userKey, permission)) {
+		return file;
+	}
+	
+	@Override
+	public UserFileDocument getFile(String fileId, String userKey, UUID groupId, FilePermission permission) {
+		UserFileDocument file = repository.findById(fileId)
+				.orElseThrow(() -> new IllegalArgumentException("File not found"));
+
+		if (!fileAccessPermission.hasPermission(file, userKey, groupId, permission)) {
 			throw new AccessDeniedException("Permission denied: " + permission);
 		}
 
 		return file;
 	}
-
+	
 	@Override
 	public List<UserFileDocument> listMyFiles(String userId) {
 		return repository.findByOwner(userId);
@@ -90,75 +106,12 @@ public class UserFileServiceImpl implements UserFileService {
 		
 		// Delete the file metadata
 		repository.deleteById(fileId);
-	}
-
-	@Override
-	public boolean hasPermission(UserFileDocument file, String userKey, FilePermission permission) {
-		// 1. Determine if the file is currently expired/scheduled for cleanup
-	    boolean isExpired = file.getCleanupEligibleAt() != null
-	            && file.getCleanupEligibleAt().isBefore(Instant.now());
-
-	    // 2. Check Ownership (Safe against NullPointerException)
-	    boolean isOwner = userKey.equals(file.getOwner());
-
-	    if (isExpired) {
-	        log.info("[HasPermission] DENIED fileId={} userKey={} permission={} reason=EXPIRED cleanupEligibleAt={}",
-	                file.getId(), userKey, permission, file.getCleanupEligibleAt());
-	        return false;
-	    }
-
-	    // 3. If not expired, Owner has full wildcard access to everything
-	    if (isOwner) {
-	        log.debug("[HasPermission] GRANTED fileId={} userKey={} permission={} reason=OWNER", file.getId(), userKey, permission);
-	        return true;
-	    }
-
-	    // 4. Chat attachments — only participants who have an active FileAccessEntry may
-	    //    READ a file shared in a conversation. The conversationId is used as a signal
-	    //    that the file is chat-attached, but we still require an explicit access entry
-	    //    so that non-participants cannot read files just by guessing a mediaId.
-	    if (permission == FilePermission.READ
-	            && file.getConversationId() != null
-	            && !file.getConversationId().isBlank()) {
-	        log.debug("[HasPermission] GRANTED fileId={} userKey={} permission={} reason=CONVERSATION_ID conversationId={}",
-	                file.getId(), userKey, permission, file.getConversationId());
-
-	        return fileAccessEntryService.hasAccess(UUID.fromString(userKey), UUID.fromString(file.getId()));
-	    }
-
-	    // Backward compatibility
-	    if (!CollectionUtils.isEmpty(file.getAccessControlList())) {
-	    	if(hasPermissionAcl(file, userKey, permission)) {
-	    	    log.debug("[HasPermission] GRANTED fileId={} userKey={} permission={} reason=ACL", file.getId(), userKey, permission);
-	    		return true;
-	    	}
-	    }
-
-	    // 5. Fallback to Access Control Matrix (MongoDB) for shared users
-		Set<FilePermission> permissions = fileAccessEntryService.getPermissions(UUID.fromString(userKey), UUID.fromString(file.getId()));
-		boolean granted = permissions.contains(permission);
-		log.info("[HasPermission] {} fileId={} userKey={} permission={} reason=FILE_ACCESS_ENTRY entryPermissions={}",
-		        granted ? "GRANTED" : "DENIED", file.getId(), userKey, permission, permissions);
-		return granted;
-	}
+	}		
 	
-	@Deprecated
-	public boolean hasPermissionAcl(UserFileDocument file, String userKey, FilePermission permission) {
-		// Null-safe check for the ACL list
-	    if (file.getAccessControlList() == null) {
-	        return false;
-	    }
-
-	    // Optimized, null-safe Stream
-	    return file.getAccessControlList().stream()
-	            .filter(entry -> entry != null && userKey.equals(entry.getUserKey()))
-	            .anyMatch(entry -> entry.getPermissions() != null && entry.getPermissions().contains(permission));
-	}
-
 	@Override
 	@Transactional(rollbackFor = Exception.class)
-	public void shareFile(Set<String> fileIds, String userKey, List<String> shareWithUserKeys, UUID messageId) {
-	    log.info("[ShareFile] fileIds={} ownerKey={} shareWith={} messageId={}", fileIds, userKey, shareWithUserKeys, messageId);
+	public void shareFile(Set<String> fileIds, String userKey, List<String> shareWithUserKeys, UUID groupId, UUID messageId) {
+	    log.info("[ShareFile] fileIds={} ownerKey={} shareWith={} groupId={} messageId={}", fileIds, userKey, shareWithUserKeys, groupId, messageId);
 	    if (CollectionUtils.isEmpty(fileIds)) {
 	        return;
 	    }
@@ -170,8 +123,21 @@ public class UserFileServiceImpl implements UserFileService {
 	            .map(UUID::fromString)
 	            .collect(Collectors.toSet());
 	    targetUserUuids.add(ownerUuid);
+	    
+	    // Check if group ID has value, this is used for sharing file(s) to group chat.
+	    Group group = null;
+	    if (groupId != null) {
+	    	// Add group member user keys
+	    	targetUserUuids.addAll(getGroupMemberKeys(groupId));	
+	    	
+	    	// Get group
+	    	group = groupCacheService.getCachedGroup(groupId.toString());
+	    }
 
 	    Set<FilePermission> permissions = Set.of(FilePermission.SHARE, FilePermission.READ, FilePermission.DELETE);
+	    
+	    // Chat group-level access permissions
+	    Set<FilePermission> groupPermissions = Set.of(FilePermission.SHARE, FilePermission.READ);	 
 
 	    List<UserFileDocument> files = repository.findAllById(fileIds);
 	    if (CollectionUtils.isEmpty(files)) {
@@ -184,11 +150,19 @@ public class UserFileServiceImpl implements UserFileService {
 
 	    try {
 	        for (UserFileDocument file : files) {
-	            if (!hasPermission(file, userKey, FilePermission.SHARE)) {
+	            if (!(fileAccessPermission.hasPermission(file, userKey, FilePermission.SHARE)
+	            		|| fileAccessPermission.hasGroupPermission(group, userKey, file.getId(), FilePermission.SHARE))) {
 	                throw new AccessDeniedException("User is not allowed to share the media/file: " + file.getId());
 	            }
 
 	            UUID fileUuid = UUID.fromString(file.getId());
+	            
+	            // If a group ID is provided, grant group-level access to the file(s).
+	            // This ensures that members who join the group after the file(s) are shared
+	            // can still access them without requiring individual permissions.
+	            if (groupId != null) {
+	            	groupFileAccessEntryService.grantAccess(groupId, UUID.fromString(file.getId()), groupPermissions);
+	            }
 
 	            for (UUID targetUserUuid : targetUserUuids) {
 	                // Modifies MongoDB
@@ -262,14 +236,26 @@ public class UserFileServiceImpl implements UserFileService {
 	        Set<String> fileIds,
 	        String userKey,
 	        Set<String> deleteWithUserKeys,
+	        UUID groupId,
 	        UUID messageId) {
 
+		Set<String> forDeleteUserKeys = new HashSet<>();
+		if (!CollectionUtils.isEmpty(deleteWithUserKeys)) {
+			forDeleteUserKeys.addAll(deleteWithUserKeys);
+		}
+		
+		// If group ID is pass
+		if (groupId != null) {
+			// Add group member user keys
+			forDeleteUserKeys.addAll(getGroupMemberStrKeys(groupId));
+		}
+		
 	    // A "delete for everyone" intent is signalled by the caller explicitly listing
 	    // more than one user (sender + at least one recipient), or by listing someone
 	    // other than the caller themselves.
-	    boolean isDeletingForEveryone = deleteWithUserKeys != null
-	            && (deleteWithUserKeys.size() > 1
-	                || (deleteWithUserKeys.size() == 1 && !deleteWithUserKeys.contains(userKey)));
+	    boolean isDeletingForEveryone = forDeleteUserKeys != null
+	            && (forDeleteUserKeys.size() > 1
+	                || (forDeleteUserKeys.size() == 1 && !forDeleteUserKeys.contains(userKey)));
 
 	    if (CollectionUtils.isEmpty(fileIds)) {
 	        return;
@@ -292,9 +278,9 @@ public class UserFileServiceImpl implements UserFileService {
 	        // In batch deletes, permission failures for other users should not stop
 	        // processing so the caller's own access link can still be removed and
 	        // orphaned files can be cleaned up.
-	        boolean canDeleteForOthers = hasPermission(file, userKey, FilePermission.DELETE);
+	        boolean canDeleteForOthers = fileAccessPermission.hasPermission(file, userKey, FilePermission.DELETE);
 
-	        for (String targetUserKey : deleteWithUserKeys) {
+	        for (String targetUserKey : forDeleteUserKeys) {
 	            boolean deletingOtherUser =
 	                    userKey != null && !userKey.equals(targetUserKey);
 
@@ -310,8 +296,7 @@ public class UserFileServiceImpl implements UserFileService {
 	            if (revoked) {
 	                adjustUserStorageUsage(targetUserId, file);
 	            }	            	
-	            
-	            
+	            	            
 	            // Support backward compatibility
 	            // New logic has safety net using messageId, that's why it must be executed first.
 	            if(!revoked) {
@@ -362,7 +347,7 @@ public class UserFileServiceImpl implements UserFileService {
 	
 	@Deprecated
 	public void softDeleteAndMarkForCleanupIfOrphanedAcl(UserFileDocument file, String userKey, Set<String> deleteWithUserKeys) {
-		if (!hasPermissionAcl(file, userKey, FilePermission.DELETE)) {
+		if (!fileAccessPermission.hasPermissionAcl(file, userKey, FilePermission.DELETE)) {
 			return;
 		}
         
@@ -400,5 +385,29 @@ public class UserFileServiceImpl implements UserFileService {
 		}
 
 		repository.save(file);
+	}
+	
+	private Set<UUID> getGroupMemberKeys(UUID groupId) {
+		Group group = groupCacheService.getCachedGroup(groupId.toString());
+
+		if (group != null && !CollectionUtils.isEmpty(group.getMembers())) {
+			return group.getMembers().stream()
+					.map(m -> UUID.fromString(m.getUserKey()))
+					.collect(Collectors.toSet());
+		}
+
+		return Set.of();
+	}
+	
+	private Set<String> getGroupMemberStrKeys(UUID groupId) {
+		Group group = groupCacheService.getCachedGroup(groupId.toString());
+
+		if (group != null && !CollectionUtils.isEmpty(group.getMembers())) {
+			return group.getMembers().stream()
+					.map(m -> m.getUserKey())
+					.collect(Collectors.toSet());
+		}
+
+		return Set.of();
 	}
 }

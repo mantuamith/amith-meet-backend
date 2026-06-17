@@ -1,7 +1,9 @@
 package com.algomeet.mediaservice.service.impl;
 
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
+import java.awt.image.BufferedImage;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -12,14 +14,8 @@ import java.time.Instant;
 import java.util.UUID;
 
 import javax.imageio.ImageIO;
-import java.awt.image.BufferedImage;
-import java.awt.Graphics2D;
-import java.awt.RenderingHints;
 
-import ws.schild.jave.MultimediaObject;
-import ws.schild.jave.ScreenExtractor;
-import ws.schild.jave.info.VideoSize;
-
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -30,12 +26,16 @@ import com.algomeet.mediaservice.dto.MediaUploadResponse;
 import com.algomeet.mediaservice.dto.StorageUsageAdjustmentRequest;
 import com.algomeet.mediaservice.enums.Storage;
 import com.algomeet.mediaservice.enums.UploadContext;
+import com.algomeet.mediaservice.service.FileAccessPermission;
 import com.algomeet.mediaservice.service.MediaServiceLocal;
 import com.algomeet.mediaservice.service.UserFileService;
 import com.algomeet.mediaservice.util.MediaMetadataExtractor;
 
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import ws.schild.jave.MultimediaObject;
+import ws.schild.jave.ScreenExtractor;
+import ws.schild.jave.info.VideoSize;
 
 @Slf4j
 @Service
@@ -44,6 +44,7 @@ public class MediaServiceLocalImpl implements MediaServiceLocal {
 
     private StorageProperties storageProperties;
     private UserFileService userFileService;
+    private FileAccessPermission fileAccessPermission;
     private UserStorageUsageService userStorageUsageService;
     private MediaMetadataExtractor metadataExtractor;
 
@@ -115,8 +116,22 @@ public class MediaServiceLocalImpl implements MediaServiceLocal {
     }
 
     @Override
-    public Path read(String userKey, String mediaId) {
-        UserFileDocument file = userFileService.getFile(mediaId, userKey, FilePermission.READ);
+    public Path read(String userKey, UUID groupId, String mediaId) {
+        UserFileDocument file = userFileService.getFile(mediaId);
+
+        Path filePath = Paths.get(file.getAbsolutePath());
+        if (!Files.exists(filePath) || !Files.isReadable(filePath)) {
+            throw new RuntimeException("File not found: " + file.getFilename());
+        }
+
+        return read(file, userKey, groupId);
+    }
+    
+    @Override
+    public Path read(UserFileDocument file, String userKey, UUID groupId) {
+        if (!fileAccessPermission.hasPermission(file, userKey, groupId, FilePermission.READ)) {
+    		throw new AccessDeniedException("Permission denied: " + FilePermission.READ + " ID: " + file.getId());
+    	}
 
         Path filePath = Paths.get(file.getAbsolutePath());
         if (!Files.exists(filePath) || !Files.isReadable(filePath)) {
@@ -133,9 +148,19 @@ public class MediaServiceLocalImpl implements MediaServiceLocal {
      * Returns null for unsupported content types or on any error.
      */
     @Override
-    public Path thumbnail(String userKey, String mediaId, int maxWidth) {
-        UserFileDocument fileDoc = userFileService.getFile(mediaId, userKey, FilePermission.READ);
+    public Path thumbnail(String userKey, UUID groupId, String mediaId, int maxWidth) {
+        UserFileDocument fileDoc = userFileService.getFile(mediaId);
 
+        return thumbnail(fileDoc, userKey, groupId, mediaId, maxWidth);
+    }
+    
+    @Override
+    public Path thumbnail(UserFileDocument fileDoc, String userKey, UUID groupId, String mediaId, int maxWidth) {
+    	// Check read permission
+    	if(!fileAccessPermission.hasPermission(fileDoc, userKey, groupId, FilePermission.READ)) {
+    		throw new AccessDeniedException("Permission denied: " + FilePermission.READ + " ID: " + fileDoc.getId());
+    	}
+    	
         String ct = fileDoc.getContentType();
         // the file is neither an image nor a video.
         if (ct == null || (!ct.startsWith("image/") && !ct.startsWith("video/"))) {

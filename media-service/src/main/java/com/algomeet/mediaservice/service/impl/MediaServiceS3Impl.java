@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
@@ -18,6 +19,7 @@ import com.algomeet.mediaservice.dto.MediaUploadResponse;
 import com.algomeet.mediaservice.dto.StorageUsageAdjustmentRequest;
 import com.algomeet.mediaservice.enums.Storage;
 import com.algomeet.mediaservice.enums.UploadContext;
+import com.algomeet.mediaservice.service.FileAccessPermission;
 import com.algomeet.mediaservice.service.MediaServiceS3;
 import com.algomeet.mediaservice.service.UserFileService;
 import com.algomeet.mediaservice.util.MediaMetadataExtractor;
@@ -45,6 +47,7 @@ public class MediaServiceS3Impl implements MediaServiceS3 {
     private final StorageProperties storageProperties;
     private UserStorageUsageService userStorageUsageService;
     private MediaMetadataExtractor metadataExtractor;
+    private FileAccessPermission fileAccessPermission;
 
     @Override
     public MediaUploadResponse upload(
@@ -117,12 +120,21 @@ public class MediaServiceS3Impl implements MediaServiceS3 {
         }
     }
 
-    public String getReadUrl(String userKey, String mediaId) {
+    public String getReadUrl(String userKey, UUID groupId, String mediaId) {
         if (!StringUtils.hasText(mediaId)) {
             throw new RuntimeException("Media Id is required");
         }
 
-        UserFileDocument fileDoc = userFileService.getFile(mediaId, userKey, FilePermission.READ);
+        UserFileDocument fileDoc = userFileService.getFile(mediaId);
+
+        return getReadUrl(fileDoc, userKey, groupId);
+    }
+    
+    public String getReadUrl(UserFileDocument fileDoc, String userKey, UUID groupId) {
+        if (!fileAccessPermission.hasPermission(fileDoc, userKey, groupId, FilePermission.READ)) {
+    		throw new AccessDeniedException("Permission denied: " + FilePermission.READ + " ID: " + fileDoc.getId());
+    	}  
+        
         String objectKey = fileDoc.getAbsolutePath();
 
         GetObjectRequest getObjectRequest = GetObjectRequest.builder()

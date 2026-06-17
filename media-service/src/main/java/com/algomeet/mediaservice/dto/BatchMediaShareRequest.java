@@ -18,13 +18,15 @@ public class BatchMediaShareRequest {
 	)
 	private Set<String> mediaIds;
 	
-
-    @NotNull(message = "The recipient list cannot be null")
-    @NotEmpty(message = "You must provide at least one recipient user key")
     @Schema(
-        description = "Recipient user keys that will be granted access to the media file."
+        description = "User keys of the recipients to share the file(s) with. Typically used for one-to-one chats."
     )
     private List<String> shareWithUserKeys;
+    
+    @Schema(
+            description = "ID of the group chat to share the file(s) with, adding all group members access simultaneously. Typically used for group chats."
+        )
+    private UUID groupId;
 
     @Schema(
     	    description = "Required chat message ID associated with the file attachment. Used to track file references and manage attachment lifecycle.",
