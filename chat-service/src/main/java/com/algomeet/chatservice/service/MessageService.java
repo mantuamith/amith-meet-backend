@@ -205,6 +205,7 @@ public class MessageService {
             result.add(new RecentReceivedMessageResponse(
                     contactId,
                     latest.getContent(),
+                    latest.getMessageMediaType(),
                     ts,
                     unread,
                     latest.getEncryptionMetadata()
