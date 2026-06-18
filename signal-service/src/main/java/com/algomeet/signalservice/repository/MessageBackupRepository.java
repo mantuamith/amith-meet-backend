@@ -1,5 +1,6 @@
 package com.algomeet.signalservice.repository;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -12,6 +13,7 @@ import org.springframework.data.mongodb.repository.Query;
 
 import com.algomeet.signalservice.document.MessageBackupDocument;
 import com.algomeet.signalservice.repository.projection.ConversationStorageStats;
+import com.algomeet.signalservice.repository.projection.MessageBackupPurgeView;
 import com.algomeet.signalservice.repository.projection.MessageBackupView;
 
 import jakarta.transaction.Transactional;
@@ -105,4 +107,10 @@ public interface MessageBackupRepository extends MongoRepository<MessageBackupDo
 		    String conversationId,
 		    UUID senderKey
 		);
+	
+	/**
+	 * Select messages where purgeAt <= paramter date
+	 * 
+	 */
+	List<MessageBackupPurgeView> findByPurgeAtLessThanEqual(Instant purgeAt);	
 }

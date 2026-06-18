@@ -12,6 +12,7 @@ import com.algomeet.xmpp.chatservice.repository.projection.MucMessageView;
 
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import com.algomeet.xmpp.chatservice.repository.projection.MucMessagePurgeView;
 
 public interface MucMessageRepository extends ReactiveMongoRepository<MucMessage, UUID> {
 
@@ -144,4 +145,10 @@ public interface MucMessageRepository extends ReactiveMongoRepository<MucMessage
            UUID roomId, 
            Instant historyCutoff
     );
+	
+	/**
+	 * Select messages where purgeAt <= paramter date
+	 * 
+	 */
+	Flux<MucMessagePurgeView> findByPurgeAtLessThanEqual(Instant purgeAt);	
 }

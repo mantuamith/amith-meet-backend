@@ -1,16 +1,16 @@
 package com.algomeet.xmpp.chatservice.document;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 
+import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import jakarta.validation.constraints.Size;
-
-import org.springframework.data.annotation.Id;
 import lombok.Builder;
 import lombok.Data;
 
@@ -56,6 +56,14 @@ import lombok.Data;
 	    name = "idxOffline_from_stanzaIdDesc", 
 	    def = "{'from': 1, 'stanzaId': -1}"
 	)
+	,
+	/**
+	 * Used for findByPurgeAtLessThanEqual
+	 */
+	@CompoundIndex(
+		    name = "idxOffline_purgeAt_id", 
+		    def = "{ 'purgeAt': 1, 'stanzaId': 1 }"
+		)
 })
 public class OfflineMessage {	
 	@Id
@@ -102,11 +110,9 @@ public class OfflineMessage {
 	 * - retraction events
 	 */
 	private Boolean countable;
-
-	/**
-	 * Optional: MongoDB TTL (Time To Live) index.
-	 * Automatically deletes messages after 6 months if never delivered.
+	
+	/** 
+	 * Used for configuring deletion date of the chat message.
 	 */
-	@Indexed(expireAfterSeconds = 6 * 2592000) 
-	private Instant expireAt;
+	private Instant purgeAt;
 }

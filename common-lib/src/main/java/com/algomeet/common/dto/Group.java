@@ -24,4 +24,14 @@ public class Group {
      * TODO: Add to group-service configuration.
      */
     private boolean historyVisibleToNewMembers = true;
+    
+    /**
+     * TODO: Add to group-service configuration.
+     * 
+     * Number of days chat messages are retained before automatic deletion.
+     * Null means use the system default retention period.
+     * 
+     * Default -1 meaning no expiration.
+     */
+    private Integer messageRetentionDays = -1;
 }

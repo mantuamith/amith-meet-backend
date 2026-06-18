@@ -1,6 +1,7 @@
 package com.algomeet.signalservice.document;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
 
@@ -100,7 +101,15 @@ import lombok.NoArgsConstructor;
     	    name = "idxMsg_convId_senderKey_stanzaIdDesc_partialActive", 
     	    def = "{'conversationId': 1, 'senderKey': 1, 'stanzaId': -1}",
     	    partialFilter = "{'deletedAt': null, 'hiddenAt': null}"
-    	)
+    	),
+    
+    /**
+	 * Used for findByPurgeAtLessThanEqual
+	 */
+	@CompoundIndex(
+		    name = "idxMsg_purgeAt_id", 
+		    def = "{ 'purgeAt': 1, 'stanzaId': 1 }"
+		)
 })
 public class MessageBackupDocument {
 	// These constants match the @Field names or the variable names
@@ -231,12 +240,10 @@ public class MessageBackupDocument {
 	
 	private List<UUID> mediaIds;
 	
-	/**
-	 * Optional: MongoDB TTL (Time To Live) index.
-	 * Automatically deletes messages after 12 months if never delivered.
-	 */
-	@Indexed(expireAfterSeconds = 12 * 2592000) 
-	private Instant expireAt;
-	
 	private Instant modifiedAt;
+	
+	/** 
+	 * Used for configuring deletion date of the chat message.
+	 */
+	private Instant purgeAt;
 }

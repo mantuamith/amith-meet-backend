@@ -28,6 +28,7 @@ import com.algomeet.xmpp.chatservice.repository.MucMessageRepository;
 import com.algomeet.xmpp.chatservice.repository.MucRoomReadCursorRepository;
 import com.algomeet.xmpp.chatservice.routing.dispacher.LocalStanzaDispatcher;
 import com.algomeet.xmpp.chatservice.stanza.MessageSyncReadReceiptStanza;
+import com.algomeet.xmpp.chatservice.stanza.parser.MediaReferenceParser;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.algomeet.xmpp.chatservice.util.MamUtil;
 import com.algomeet.xmpp.chatservice.util.XmppCustomStanzaUtil;
@@ -92,6 +93,14 @@ public class XmppArchiveService {
 		// sample stanza: <target xmlns='urn:algomeet:meta:0' id='019e537d-31a0-7556-a160-7ac448312343'/>
 		String targetMessageId = !(isCountable) ? XmppCustomStanzaUtil.getTargetMessageId(xml) : null;
 		event.setTargetMessageId(targetMessageId != null ? UUID.fromString(targetMessageId) : null);
+		
+		// Set attachment file IDs
+		try {
+			event.setMediaIds(MediaReferenceParser.extractMediaIds(xml));
+		} catch(Exception ex) {
+			log.error("Error parsing media references {}", xml, ex);
+		}
+		
 		event.setStanzaXml(xml);
 
 		return repository.save(event);

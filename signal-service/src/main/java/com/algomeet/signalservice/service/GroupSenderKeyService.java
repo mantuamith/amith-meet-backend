@@ -14,11 +14,11 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.algomeet.signalservice.client.GroupClient;
-import com.algomeet.signalservice.dto.GroupResponse;
+import com.algomeet.common.dto.Group;
+import com.algomeet.common.dto.GroupMember;
+import com.algomeet.common.service.GroupCacheService;
 import com.algomeet.signalservice.dto.GroupSenderKeyRequest;
 import com.algomeet.signalservice.dto.GroupSenderKeyResponse;
-import com.algomeet.signalservice.dto.MemberResponse;
 import com.algomeet.signalservice.dto.UserDeviceResponse;
 import com.algomeet.signalservice.entity.GroupSenderKey;
 import com.algomeet.signalservice.entity.GroupSenderKeyId;
@@ -43,7 +43,7 @@ import lombok.extern.slf4j.Slf4j;
 public class GroupSenderKeyService {
 	private final GroupSenderKeyRepository repository;
 	private final UserDeviceRepository deviceRepository;
-	private final GroupClient groupClient;
+	private final GroupCacheService groupCacheService;
 
 	public GroupSenderKeyResponse create(UUID senderUserKey, Integer senderDeviceId, UUID groupId, GroupSenderKeyRequest request) {
 		deviceRepository.findById(new UserDeviceId(senderUserKey, senderDeviceId))
@@ -68,17 +68,17 @@ public class GroupSenderKeyService {
 	@Transactional(readOnly = true)
 	public List<UserDeviceResponse> getMissingDevices(UUID senderUserKey, UUID groupId) {
 	    // 1. Initial validation and early exit
-	    GroupResponse group = groupClient.getGroupById(groupId.toString());
+	    Group group = groupCacheService.getCachedGroup(groupId.toString());
 	    if (group == null || group.getMembers() == null || group.getMembers().isEmpty()) {
 	        return Collections.emptyList();
 	    }
 
-	    Set<MemberResponse> members = group.getMembers();
+	    Set<GroupMember> members = group.getMembers();
 	    String senderKeyStr = senderUserKey.toString();
 	    
 	    // 2. Extract UUIDs - Compare as Strings first to avoid unnecessary UUID parsing
 	    List<UUID> groupMemberIds = new ArrayList<>(members.size());
-	    for (MemberResponse m : members) {
+	    for (GroupMember m : members) {
 	        String key = m.getUserKey();
 	        if (key != null && !senderKeyStr.equals(key)) {
 	            groupMemberIds.add(UUID.fromString(key));
@@ -193,11 +193,11 @@ public class GroupSenderKeyService {
 			
 	@Transactional
 	public void delete(String currentUserKey, UUID groupId) {		
-	    GroupResponse group = groupClient.getGroupById(groupId.toString());
+	    Group group = groupCacheService.getCachedGroup(groupId.toString());
 	    if (!(group == null || group.getMembers() == null || group.getMembers().isEmpty())) {
 	    	if(!(group.getMembers().stream()
 	    			.anyMatch(m -> m.getUserKey().equals(currentUserKey) 
-	    					&& (GroupRole.OWNER ==  m.getRole() || GroupRole.ADMIN ==  m.getRole())))) {
+	    					&& (GroupRole.OWNER.name().equals(m.getRole()) || GroupRole.ADMIN.name().equals(m.getRole()))))) {
 	    		// Not authorize to delete the group sender keys
 	    		return;
 	    	}

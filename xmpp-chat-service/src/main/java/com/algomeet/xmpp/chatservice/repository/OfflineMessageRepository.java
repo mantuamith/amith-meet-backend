@@ -1,10 +1,12 @@
 package com.algomeet.xmpp.chatservice.repository;
 
+import java.time.Instant;
 import java.util.UUID;
 
 import org.springframework.data.mongodb.repository.ReactiveMongoRepository;
 
 import com.algomeet.xmpp.chatservice.document.OfflineMessage;
+import com.algomeet.xmpp.chatservice.repository.projection.MessagePurgeView;
 import com.algomeet.xmpp.chatservice.repository.projection.OfflineMessageView;
 
 import reactor.core.publisher.Flux;
@@ -46,4 +48,10 @@ public interface OfflineMessageRepository extends ReactiveMongoRepository<Offlin
     	    UUID from, 
     	    UUID stanzaId
     	);
+    
+    /**
+	 * Select messages where purgeAt <= paramter date
+	 * 
+	 */
+	Flux<MessagePurgeView> findByPurgeAtLessThanEqual(Instant purgeAt);
 }
