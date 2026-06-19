@@ -25,5 +25,7 @@ public interface UserFileService {
     
     void softDeleteAndMarkForCleanupIfOrphaned(Set<String> fileIds, String userKey, Set<String> deleteWithUserKeys, UUID groupId, UUID messageId);
     
+    void softDeleteAndMarkForCleanupIfOrphaned(Set<String> fileIds, String userKey, Set<String> deleteWithUserKeys, UUID groupId, UUID messageId, boolean performedByAdmin);
+    
     void shareFile(Set<String> fileIds, String userKey, List<String> shareWithUserKeys, UUID groupId, UUID messageId);
 }

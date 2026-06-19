@@ -230,7 +230,7 @@ public class UserFileServiceImpl implements UserFileService {
 	        this.file = file;
 	    }
 	}
-
+	
 	@Override
 	public void softDeleteAndMarkForCleanupIfOrphaned(
 	        Set<String> fileIds,
@@ -238,6 +238,24 @@ public class UserFileServiceImpl implements UserFileService {
 	        Set<String> deleteWithUserKeys,
 	        UUID groupId,
 	        UUID messageId) {
+		
+		softDeleteAndMarkForCleanupIfOrphaned(
+		        fileIds,
+		        userKey,
+		        deleteWithUserKeys,
+		        groupId,
+		        messageId,
+		        false);
+	}
+
+	@Override
+	public void softDeleteAndMarkForCleanupIfOrphaned(
+	        Set<String> fileIds,
+	        String userKey,
+	        Set<String> deleteWithUserKeys,
+	        UUID groupId,
+	        UUID messageId,
+	        boolean performedByAdmin) {
 
 		Set<String> forDeleteUserKeys = new HashSet<>();
 		if (!CollectionUtils.isEmpty(deleteWithUserKeys)) {
@@ -253,9 +271,11 @@ public class UserFileServiceImpl implements UserFileService {
 	    // A "delete for everyone" intent is signalled by the caller explicitly listing
 	    // more than one user (sender + at least one recipient), or by listing someone
 	    // other than the caller themselves.
+		/*
 	    boolean isDeletingForEveryone = forDeleteUserKeys != null
 	            && (forDeleteUserKeys.size() > 1
 	                || (forDeleteUserKeys.size() == 1 && !forDeleteUserKeys.contains(userKey)));
+	    */
 
 	    if (CollectionUtils.isEmpty(fileIds)) {
 	        return;
@@ -277,9 +297,10 @@ public class UserFileServiceImpl implements UserFileService {
 	        // users may revoke only their own access.
 	        // In batch deletes, permission failures for other users should not stop
 	        // processing so the caller's own access link can still be removed and
-	        // orphaned files can be cleaned up.
-	        boolean canDeleteForOthers = fileAccessPermission.hasPermission(file, userKey, FilePermission.DELETE);
-
+	        // orphaned files can be cleaned up.	        
+	        boolean canDeleteForOthers = performedByAdmin 
+	        		? performedByAdmin : fileAccessPermission.hasPermission(file, userKey, FilePermission.DELETE);
+            
 	        for (String targetUserKey : forDeleteUserKeys) {
 	            boolean deletingOtherUser =
 	                    userKey != null && !userKey.equals(targetUserKey);
@@ -301,7 +322,7 @@ public class UserFileServiceImpl implements UserFileService {
 	            // New logic has safety net using messageId, that's why it must be executed first.
 	            if(!revoked) {
 	            	if(!CollectionUtils.isEmpty(file.getAccessControlList())) {
-	            		softDeleteAndMarkForCleanupIfOrphanedAcl(file, userKey, Set.of(targetUserId.toString()));
+	            		softDeleteAndMarkForCleanupIfOrphanedAcl(file, userKey, Set.of(targetUserId.toString()), performedByAdmin);
 	            	}
 	            }
 	        }
@@ -312,13 +333,24 @@ public class UserFileServiceImpl implements UserFileService {
 	        // Guarding on (a) prevents a "delete for me" from the owner silently
 	        // expiring the file for all other participants when shareFile() was never
 	        // called (countByFileId == 0 even though recipients should still have access).
-	        if (isDeletingForEveryone
+	        
+	        /*
+	         * Protection against deleting files that still have active references is already
+	         * enforced by fileAccessEntryService.countByFileId().
+	         *
+	         * The additional conditions below (isDeletingForEveryone && canDeleteForOthers)
+	         * would prevent incremental revocation of file access. For example, in a 1:1
+	         * conversation, the sender may delete the chat for themselves first, and the
+	         * receiver may delete it later. Access entries are revoked independently, and
+	         * the file should only be marked for cleanup once no references remain.
+	         */
+	        if (/*isDeletingForEveryone
 	        		&& canDeleteForOthers
-	        		&& fileAccessEntryService.countByFileId(fileId) == 0
+	        		&&*/ fileAccessEntryService.countByFileId(fileId) == 0
 	        		// Backward compatibility
 	        		&& CollectionUtils.isEmpty(file.getAccessControlList())) {
-	            file.setCleanupEligibleAt(Instant.now());
-	            modifiedFiles.add(file);
+	        	file.setCleanupEligibleAt(Instant.now());
+	        	modifiedFiles.add(file);
 	        }
 	    }
 
@@ -346,8 +378,9 @@ public class UserFileServiceImpl implements UserFileService {
 	}
 	
 	@Deprecated
-	public void softDeleteAndMarkForCleanupIfOrphanedAcl(UserFileDocument file, String userKey, Set<String> deleteWithUserKeys) {
-		if (!fileAccessPermission.hasPermissionAcl(file, userKey, FilePermission.DELETE)) {
+	public void softDeleteAndMarkForCleanupIfOrphanedAcl(UserFileDocument file, String userKey, Set<String> deleteWithUserKeys,
+	        boolean performedByAdmin) {
+		if (!performedByAdmin && !fileAccessPermission.hasPermissionAcl(file, userKey, FilePermission.DELETE)) {
 			return;
 		}
         

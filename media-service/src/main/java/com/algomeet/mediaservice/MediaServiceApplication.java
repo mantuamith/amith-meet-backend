@@ -5,12 +5,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.cloud.openfeign.EnableFeignClients;
 import org.springframework.data.mongodb.repository.config.EnableMongoRepositories;
 
-@SpringBootApplication(
-	    scanBasePackages = {
-	        "com.algomeet.mediaservice",
-	        "com.algomeet.common"
-	    }
-	)
+@SpringBootApplication
 @EnableFeignClients(basePackages = "com.algomeet.mediaservice.client")
 @EnableMongoRepositories
 public class MediaServiceApplication {
