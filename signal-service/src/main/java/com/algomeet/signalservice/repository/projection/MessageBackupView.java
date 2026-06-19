@@ -1,4 +1,5 @@
 package com.algomeet.signalservice.repository.projection;
+import java.util.List;
 import java.util.UUID;
 
 public interface MessageBackupView {
@@ -9,4 +10,5 @@ public interface MessageBackupView {
     UUID getReceiverKey();
     Long getSize();
     UUID getTargetMessageId();
+    List<UUID> getMediaIds();
 }

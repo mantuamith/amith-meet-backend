@@ -132,6 +132,7 @@ public class MessageBackupDocument {
     public static final String FIELD_EDIT_COUNT = "editCount";
     public static final String FIELD_TIMESTAMP = "timestamp";
     public static final String FIELD_SIZE = "size";
+    public static final String FIELD_TARGET_MESSAGE_ID = "targetMessageId";
     
 	/**
 	 * Globally unique and lexicographically sortable server-generated message identifier.

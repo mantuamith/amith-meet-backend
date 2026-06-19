@@ -100,7 +100,7 @@ public class PurgeExpiredOfflineMessageScheduler {
 								.collect(Collectors.toSet()),
 							null, 
 							view.getMessageId().toString()
-						);
+						).subscribe();
 					});
 				
 				return messageRepository.deleteAllById(idsToDelete)

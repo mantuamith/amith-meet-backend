@@ -113,4 +113,14 @@ public interface MessageBackupRepository extends MongoRepository<MessageBackupDo
 	 * 
 	 */
 	List<MessageBackupPurgeView> findByPurgeAtLessThanEqual(Instant purgeAt);	
+	
+	/**
+	 * Used for for deleting media files.
+	 * @param conversationId
+	 * @param stanzaId
+	 * @param pageable
+	 * @return
+	 */
+	List<MessageBackupView> findByConversationIdAndStanzaIdLessThanEqualAndDeletedAtIsNullAndHiddenAtIsNullAndMediaIdsIsNotNull(
+	        String conversationId, UUID stanzaId, Pageable pageable);
 }

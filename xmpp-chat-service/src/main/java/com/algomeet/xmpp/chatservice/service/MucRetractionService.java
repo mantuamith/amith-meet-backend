@@ -2,8 +2,10 @@ package com.algomeet.xmpp.chatservice.service;
 
 import java.time.Instant;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Component;
+import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
 import com.algomeet.common.dto.Group;
@@ -16,6 +18,7 @@ import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.enums.XmppErrorType;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
+import com.algomeet.xmpp.chatservice.publisher.MessageMediaDeleteEventPublisher;
 import com.algomeet.xmpp.chatservice.stanza.MessageRetractStanza;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.algomeet.xmpp.chatservice.util.RetractUtil;
@@ -51,6 +54,7 @@ public class MucRetractionService {
     private final DomainProperties domainProperties;
     private final XmppUtil xmppUtil;
     private final RetractUtil retractUtil;
+    private final MessageMediaDeleteEventPublisher messageMediaDeleteEventPublisher;
 
     /**
      * Processes an incoming message retraction request.
@@ -96,6 +100,16 @@ public class MucRetractionService {
                     message.setCountable(false);
                     message.setStanzaXml(XmppStanzaUtil.markAsRetractedStanza(message.getStanzaXml(), newString));
                     
+                    // Check if message has media files, if true then revoke sender and receiver access to media file(s)
+                    if (!CollectionUtils.isEmpty(message.getMediaIds())) {
+                    	messageMediaDeleteEventPublisher.publish(principal.getUserKey(), 
+                    			message.getMediaIds().stream().map(mId -> mId.toString()).collect(Collectors.toSet()), 
+                    			null,
+                    			group.getId().toString(), 
+                    			retractMessageId)
+                    	.subscribe();
+                    }
+                    
                     return xmppArchiveService.save(message)
                             .doOnSuccess(success -> {
                                 // Inform all online occupants via a broadcasted retraction stanza
@@ -103,8 +117,6 @@ public class MucRetractionService {
                                 
                                 // Delete/retract related messages
                                 retractUtil.retractRelatedMessages(message.getRoomId(), message.getMessageId()).subscribe();
-                                
-                                // TODO: Implementation required for decrementing unread message counters
                             })
                             .then();
                 } else {

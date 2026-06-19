@@ -1,8 +1,11 @@
 package com.algomeet.xmpp.chatservice.routing.vm;
 
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Component;
+import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
@@ -11,6 +14,7 @@ import com.algomeet.xmpp.chatservice.constant.XmppErrorConditions;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.enums.XmppErrorType;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
+import com.algomeet.xmpp.chatservice.publisher.MessageMediaDeleteEventPublisher;
 import com.algomeet.xmpp.chatservice.routing.dispacher.LocalStanzaDispatcher;
 import com.algomeet.xmpp.chatservice.service.XmppArchiveService;
 import com.algomeet.xmpp.chatservice.stanza.ViewManagementSyncStanza;
@@ -40,6 +44,7 @@ public class XmppViewManagementHandler {
 	private final ClusterMessagePublisher clusterMessagePublisher;
 	private final LocalStanzaDispatcher localStanzaDispatcher;
 	private final HidetUtil hidetUtil;
+	private final MessageMediaDeleteEventPublisher messageMediaDeleteEventPublisher;
 	
 	/**
 	 * Main entry point for processing incoming View Management XML.
@@ -95,6 +100,16 @@ public class XmppViewManagementHandler {
 							// Hide related messages
 							hidetUtil.hideRelatedMessages(UUID.fromString(principal.getUserKey()), message.getRoomId(), message.getMessageId())
 							.subscribe();
+							
+							// Check if message has media files, if true then revoke user access to media file(s)
+							if (!CollectionUtils.isEmpty(message.getMediaIds())) {
+		                    	messageMediaDeleteEventPublisher.publish(principal.getUserKey(), 
+		                    			message.getMediaIds().stream().map(mId -> mId.toString()).collect(Collectors.toSet()), 
+		                    			Set.of(principal.getUserKey()),
+		                    			null, 
+		                    			message.getMessageId().toString())
+		                    	.subscribe();
+		                    }
 						})
 						.then();
 

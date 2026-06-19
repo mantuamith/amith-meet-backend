@@ -136,19 +136,41 @@ public interface MucMessageRepository extends ReactiveMongoRepository<MucMessage
 	/** * Finds the largest cutoff stanza ID used to sync with other online accounts.
      * Filters strictly by the room identity and historical timeline cutoff point.
      */
-	@Query(value = "{"
-            + "  'roomId': ?0,"
-            + "  'createdAt': { '$lte': ?1 }"
-            + "}", 
-           sort = "{ '_id': -1 }") 
-    Mono<MucMessageView> findCutoffStanza(
+    Mono<MucMessageView> findFirstByRoomIdAndCreatedAtLessThanEqualOrderByCreatedAtDesc(
            UUID roomId, 
            Instant historyCutoff
     );
 	
 	/**
-	 * Select messages where purgeAt <= paramter date
+	 * Select messages where purgeAt <= parameter date
 	 * 
 	 */
 	Flux<MucMessagePurgeView> findByPurgeAtLessThanEqual(Instant purgeAt);	
+	
+	/**
+	 * Use for clean up of media files.
+	 * @param roomId
+	 * @param beforeId
+	 * @param userKey
+	 * @param historyCutoff
+	 * @param pageable
+	 * @return
+	 */
+	@Query(value = "{"
+	        + "  'roomId': ?0,"
+	        + "  'id': { $lte: ?1 },"
+	        + "  'deletedAt': null,"
+	        + "  $or: [ { 'to': null }, { 'to': ?2 } ],"
+	        + "  'hiddenFromUserKeys': { $ne: ?2 },"
+	        + "  'createdAt': { $gt: ?3 }"
+	        + "  'mediaIds': { $ne: null }" 
+	        + "}", 
+	       sort = "{ 'id': -1 }")
+	Flux<MucMessageView> findMessageViewByRoomIdAndIdLessThanEqualAndToIsNullOrEqualtoUserkeyAndNotHiddenAndMediaIdsIsNotNullOrderByIdDesc(
+	        UUID roomId, 
+	        UUID beforeId, 
+	        UUID userKey, 
+	        Instant historyCutoff, 
+	        Pageable pageable
+	);
 }

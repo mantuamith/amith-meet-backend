@@ -95,7 +95,7 @@ public class PurgeExpiredMucMessageScheduler {
 							null,
 							view.getRoomId() != null ? view.getRoomId().toString() : null, 
 							view.getMessageId().toString()
-						);
+						).subscribe();
 					});
 				
 				return messageRepository.deleteAllById(idsToDelete)

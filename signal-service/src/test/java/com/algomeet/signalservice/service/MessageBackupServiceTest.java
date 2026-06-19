@@ -25,6 +25,7 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 
+import com.algomeet.signalservice.constant.Constants;
 import com.algomeet.signalservice.document.MessageBackupDocument;
 import com.algomeet.signalservice.exceptions.RecordNotFoundException;
 import com.algomeet.signalservice.repository.MessageBackupRepository;
@@ -237,7 +238,7 @@ class MessageBackupServiceTest {
 		doNothing().when(repository)
 		.deleteByUserKeyAndConversationId(userKey, peerKey.toString());
 
-		service.deleteConversation(userKey, peerKey);
+		service.deleteConversation(userKey, peerKey, UuidCreator.getTimeOrderedEpoch());
 
 		verify(repository)
 		.deleteByUserKeyAndConversationId(userKey, peerKey.toString());

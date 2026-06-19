@@ -32,12 +32,26 @@ public class MessageMediaDeleteEventPublisher {
 		
 		// 1. Prepare the payload
 		Map<String, String> body = new HashMap<>();
-		body.put(MessageMediaDeleteStream.MESSAGE_KEY_USER_KEY, userKey); 
-		body.put(MessageMediaDeleteStream.MESSAGE_KEY_MEDIA_IDS, String.join(",", mediaIds)); 
-		body.put(MessageMediaDeleteStream.MESSAGE_KEY_DELETE_WITH_USER_KEYS, String.join(",", deleteWithUserKeys)); 
-		body.put(MessageMediaDeleteStream.MESSAGE_KEY_GROUP_ID, groupId);
-		body.put(MessageMediaDeleteStream.MESSAGE_KEY_MESSAGE_ID, messageId);
-		body.put(MessageMediaDeleteStream.MESSAGE_KEY_TIMESTAMP, String.valueOf(System.currentTimeMillis()));
+		// Always present fields	    
+	    body.put(MessageMediaDeleteStream.MESSAGE_KEY_MESSAGE_ID, messageId);
+	    body.put(MessageMediaDeleteStream.MESSAGE_KEY_TIMESTAMP, String.valueOf(System.currentTimeMillis()));
+
+	    // Conditionally add fields only if they are not null/empty
+	    if (groupId != null) {
+	        body.put(MessageMediaDeleteStream.MESSAGE_KEY_GROUP_ID, groupId);
+	    }
+	    
+	    if (userKey != null) {
+	    	body.put(MessageMediaDeleteStream.MESSAGE_KEY_USER_KEY, userKey); 
+	    }
+	    
+	    if (mediaIds != null && !mediaIds.isEmpty()) {
+	        body.put(MessageMediaDeleteStream.MESSAGE_KEY_MEDIA_IDS, String.join(",", mediaIds));
+	    }
+	    
+	    if (deleteWithUserKeys != null && !deleteWithUserKeys.isEmpty()) {
+	        body.put(MessageMediaDeleteStream.MESSAGE_KEY_DELETE_WITH_USER_KEYS, String.join(",", deleteWithUserKeys));
+	    }
 
 		// 2. Publish to Redis Stream using standard blocking operations
 		try {

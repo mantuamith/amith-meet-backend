@@ -122,8 +122,29 @@ public interface MessageBackupControllerDoc {
         @RequestBody MessageBackupDocument request
     );
 
-    @Operation(summary = "Delete entire conversation")
-    ResponseEntity<CommonResponse<?>> deleteByConversation(UUID peerKey);
+    @Operation(
+    		summary = "Delete entire conversation",
+    		description = "Deletes an entire conversation up to an optionally specified stanza ID. " +
+    				"This will trigger background cleanup tasks for associated media files."
+    		)
+    @ApiResponses(value = {
+    		@ApiResponse(
+    				responseCode = "200", 
+    				description = "Conversation deletion initiated successfully",
+    				content = @Content(schema = @Schema(implementation = CommonResponse.class))
+    				),
+    		@ApiResponse(responseCode = "400", description = "Invalid request parameters"),
+    		@ApiResponse(responseCode = "401", description = "Unauthorized access"),
+    		@ApiResponse(responseCode = "500", description = "Internal server error")
+    })
+
+    ResponseEntity<CommonResponse<?>> deleteByConversation(
+    		@Parameter(description = "The unique key identifying the peer in the conversation", required = true)
+    		UUID peerKey,
+
+    		@Parameter(description = "The UUID of the last processed stanza. If provided, messages up to this ID will be deleted.", required = false)
+    		@RequestParam(name = "lastStanzaId", required = false) UUID lastStanzaId
+    		);
 
     @Operation(summary = "Delete all messages of current user")
     ResponseEntity<CommonResponse<?>> deleteByUserKey();

@@ -26,22 +26,34 @@ public class MessageMediaDeleteEventPublisher {
 	private CommonRedisStreamProperties redisStreamProperties;
 
 	public Mono<RecordId> publish(String userKey, Set<String> mediaIds, Set<String> deleteWithUserKeys,
-            String groupId, String messageId) {
-		// 1. Prepare the payload
-		// Note: Redis Streams usually require String values. 
-		// If 'message' is a List, it must be serialized (e.g., to JSON).
-		Map<String, String> body = new HashMap<>();
-		body.put(MessageMediaDeleteStream.MESSAGE_KEY_USER_KEY, userKey); 
-		body.put(MessageMediaDeleteStream.MESSAGE_KEY_MEDIA_IDS, String.join(",", mediaIds)); 
-		body.put(MessageMediaDeleteStream.MESSAGE_KEY_DELETE_WITH_USER_KEYS, String.join(",", deleteWithUserKeys)); 
-		body.put(MessageMediaDeleteStream.MESSAGE_KEY_GROUP_ID, groupId);
-		body.put(MessageMediaDeleteStream.MESSAGE_KEY_MESSAGE_ID, messageId);
-		body.put(MessageMediaDeleteStream.MESSAGE_KEY_TIMESTAMP, String.valueOf(System.currentTimeMillis()));
+	        String groupId, String messageId) {
+	    
+	    Map<String, String> body = new HashMap<>();
+	    
+	    // Always present fields	    
+	    body.put(MessageMediaDeleteStream.MESSAGE_KEY_MESSAGE_ID, messageId);
+	    body.put(MessageMediaDeleteStream.MESSAGE_KEY_TIMESTAMP, String.valueOf(System.currentTimeMillis()));
 
-		// Ensure you are using the Reactive template
-		return reactiveRedisTemplate.opsForStream()
-				.add(MapRecord.create(redisStreamProperties.getMessageMediaDeleteEvents(), body))
-				.doOnNext(recordId ->  log.info("Produced message delete media events ID: {}", recordId))
-				.doOnError(e -> log.error("Failed to add to Redis Stream", e));
+	    // Conditionally add fields only if they are not null/empty
+	    if (groupId != null) {
+	        body.put(MessageMediaDeleteStream.MESSAGE_KEY_GROUP_ID, groupId);
+	    }
+	    
+	    if (userKey != null) {
+	    	body.put(MessageMediaDeleteStream.MESSAGE_KEY_USER_KEY, userKey); 
+	    }
+	    
+	    if (mediaIds != null && !mediaIds.isEmpty()) {
+	        body.put(MessageMediaDeleteStream.MESSAGE_KEY_MEDIA_IDS, String.join(",", mediaIds));
+	    }
+	    
+	    if (deleteWithUserKeys != null && !deleteWithUserKeys.isEmpty()) {
+	        body.put(MessageMediaDeleteStream.MESSAGE_KEY_DELETE_WITH_USER_KEYS, String.join(",", deleteWithUserKeys));
+	    }
+
+	    return reactiveRedisTemplate.opsForStream()
+	            .add(MapRecord.create(redisStreamProperties.getMessageMediaDeleteEvents(), body))
+	            .doOnNext(recordId -> log.info("Produced message delete media events ID: {}", recordId))
+	            .doOnError(e -> log.error("Failed to add to Redis Stream", e));
 	}
 }

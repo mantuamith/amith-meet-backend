@@ -281,8 +281,10 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 	 * @return success response
 	 */
 	@DeleteMapping("/{peerKey}/conversation")
-	public ResponseEntity<CommonResponse<?>> deleteByConversation(@PathVariable UUID peerKey) {
-		messageBackupService.deleteConversation(UUID.fromString(SecurityUtil.getUserKey()), peerKey);          
+	public ResponseEntity<CommonResponse<?>> deleteByConversation(@PathVariable UUID peerKey,
+			@RequestParam(name = "lastStanzaId", required = false) UUID lastStanzaId) {
+		
+		messageBackupService.deleteConversation(UUID.fromString(SecurityUtil.getUserKey()), peerKey, lastStanzaId);          
 		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
 	}
 

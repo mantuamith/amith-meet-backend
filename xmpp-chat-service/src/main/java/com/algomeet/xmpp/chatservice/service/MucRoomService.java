@@ -1,12 +1,17 @@
 package com.algomeet.xmpp.chatservice.service;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
+import org.springframework.util.CollectionUtils;
 
 import com.algomeet.common.dto.GroupMember;
 import com.algomeet.common.service.GroupCacheService;
@@ -16,14 +21,17 @@ import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.enums.MucAffiliation;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
+import com.algomeet.xmpp.chatservice.publisher.MessageMediaDeleteEventPublisher;
 import com.algomeet.xmpp.chatservice.repository.MucMessageRepository;
 import com.algomeet.xmpp.chatservice.repository.projection.MucMessageView;
+import com.algomeet.xmpp.chatservice.util.DeleteMediaUtil;
 import com.algomeet.xmpp.chatservice.util.SearchUtil;
 import com.algomeet.xmpp.chatservice.util.XmppSyncStanzaComposer;
 import com.github.f4b6a3.uuid.UuidCreator;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
@@ -37,6 +45,8 @@ public class MucRoomService {
     private final ClusterMessagePublisher clusterMessagePublisher;
     private final DomainProperties domainProperties;
     private final MucMessageRepository mucMessageRepository;
+    private final MessageMediaDeleteEventPublisher messageMediaDeleteEventPublisher;
+    private final DeleteMediaUtil deleteMediaUtil;
     
     /**
      * Handles the business flow for clearing a member's history timeline.
@@ -44,55 +54,56 @@ public class MucRoomService {
      *
      * @return A Mono emitting true if the operation succeeded, false otherwise.
      */
-    public Mono<Boolean> clearMemberHistoryTimeline(UUID groupId, UUID userKey, Instant historyCutoff) {
-
-        // 1. Offload the blocking groupClient network call
-        return Mono.fromCallable(() -> 
-            groupClient.clearMemberHistoryTimeline(groupId, userKey, historyCutoff.toEpochMilli())
-        )
-        .subscribeOn(Schedulers.boundedElastic())
-        .flatMap(isCleared -> {
-            // Handle Cache Side Effects
-            if (!isCleared) {            
-                log.warn("Remote group service reported no state changes for user {} in group {}. Cache eviction skipped.", userKey, groupId);
-                return Mono.just(false);
-            }
-
-            groupCacheService.evictGroup(groupId.toString());
-            log.debug("Successfully updated remote timeline cutoff parameters for user {} in group {}. Evicting cache...", userKey, groupId);
-
-            // 2. Fetch the cutoff stanza message view from the repository
-            return mucMessageRepository.findCutoffStanza(
-                    groupId, 
-                    historyCutoff
-            )
-            // Extract the ID string if a message is found, or default to an empty string/null if history is empty
-            .map(view -> view.getId() != null ? view.getId().toString() : "")
-            .defaultIfEmpty("") 
-            .doOnNext(cutoffStanzaId -> {
-                // 3. Compose and send the Synchronization Stanza to user's secondary devices
-            	if(!StringUtils.isEmpty(cutoffStanzaId)) {
-            		
-            		String payload = XmppSyncStanzaComposer.createMucClearanceStanza(
-            				domainProperties.getGroupChatDomain(),
-            				groupId.toString(), 
-            				cutoffStanzaId
-            				);
-
-            		String messageId = UuidCreator.getTimeOrderedEpoch().toString();
-            		clusterMessagePublisher.convertAndSendToUser(
-            				messageId,
-            				userKey.toString(), 
-            				userKey.toString(), 
-            				ChatType.GROUPCHAT, 
-            				payload
-            				);
-            	}
-            })
-            .map(ignored -> true); // Retain original isCleared (true) status
-        });
-    }
+    public Mono<Boolean> clearMemberHistoryTimeline(UUID groupId, UUID userKey, Instant historyCutoff) {    			
         
+        // Fix 1: Offload the initial blocking cache lookup safely
+        return Mono.fromCallable(() -> {
+            Group group = groupCacheService.getCachedGroup(groupId.toString());
+            return SearchUtil.findMember(group, userKey.toString());
+        })
+        .subscribeOn(Schedulers.boundedElastic())
+        .flatMap(memberPrevData -> 
+            // 1. Execute the remote mutation
+            Mono.fromCallable(() -> 
+                groupClient.clearMemberHistoryTimeline(groupId, userKey, historyCutoff.toEpochMilli())
+            )
+            .flatMap(isCleared -> {
+                if (!isCleared) {            
+                    log.warn("Remote group service reported no state changes for user {} in group {}. Cache eviction skipped.", userKey, groupId);
+                    return Mono.just(false);
+                }
+
+                groupCacheService.evictGroup(groupId.toString());
+
+                // 2. Fetch cutoff stanza view
+                return mucMessageRepository.findFirstByRoomIdAndCreatedAtLessThanEqualOrderByCreatedAtDesc(groupId, historyCutoff)
+                    .map(view -> view.getId() != null ? view.getId().toString() : "")
+                    .defaultIfEmpty("") 
+                    .flatMap(cutoffStanzaId -> {
+                        if (StringUtils.isEmpty(cutoffStanzaId)) {
+                            return Mono.just(true);
+                        }
+
+                        // 3. Compose and distribute sync notifications
+                        String payload = XmppSyncStanzaComposer.createMucClearanceStanza(
+                                domainProperties.getGroupChatDomain(),
+                                groupId.toString(), 
+                                cutoffStanzaId
+                        );
+
+                        String messageId = UuidCreator.getTimeOrderedEpoch().toString();
+                        clusterMessagePublisher.convertAndSendToUser(
+                                messageId, userKey.toString(), userKey.toString(), ChatType.GROUPCHAT, payload
+                        );
+                		
+                        // 4: Chain cleanly into the reactive stream to ensure execution completion guarantees
+                        return deleteMediaUtil.handleDeletionOfMediaFilesReactive(userKey, memberPrevData, cutoffStanzaId, groupId)
+                                .then(Mono.just(true));
+                    });
+            })
+        );
+    }
+           
     /**
      * Executes an administrative hard-purge of all messages within a specific MUC group.
      * Permanently drops message entities globally and broadcasts structural reset notifications.
@@ -138,7 +149,7 @@ public class MucRoomService {
          * </message>
          */
 
-        Optional<MucMessageView> lastMessageOpt = mucMessageRepository.findCutoffStanza(
+        Optional<MucMessageView> lastMessageOpt = mucMessageRepository.findFirstByRoomIdAndCreatedAtLessThanEqualOrderByCreatedAtDesc(
                 groupId, 
                 Instant.now()).blockOptional();
         

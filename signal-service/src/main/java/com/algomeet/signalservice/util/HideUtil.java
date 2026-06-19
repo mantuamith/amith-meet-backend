@@ -35,16 +35,16 @@ public class HideUtil {
         // 1. Match the exact room and targeted message IDs using the compound index
         Query query = new Query(
             Criteria.where(MessageBackupDocument.FIELD_USER_KEY).is(userKey)
-                    .and("targetMessageId").in(targetMessageIds)
+                    .and(MessageBackupDocument.FIELD_TARGET_MESSAGE_ID).in(targetMessageIds)
         );
 
         // 2. Define updates: Set deletedAt, clear XML, and step the update cursor
         Update update = new Update()
-        	.set("hiddenAt", Instant.now().toEpochMilli())
-            .set("encryptedMessage", null)
+        	.set(MessageBackupDocument.FIELD_HIDDEN_AT, Instant.now().toEpochMilli())
+            .set(MessageBackupDocument.FIELD_ENCRYPTED_MSG, null)
             // CRITICAL: Generate a new UUIDv7 sync cursor so offline clients 
             // know these child reactions/edits were modified during catch-up sync!
-            .set("updateCursorId", UuidCreator.getTimeOrderedEpoch()); 
+            .set(MessageBackupDocument.FIELD_UPDATE_CURSOR_ID, UuidCreator.getTimeOrderedEpoch()); 
 
         // 3. Execute bulk update across all matching documents
         mongoTemplate.updateMulti(query, update, MessageBackupDocument.class);

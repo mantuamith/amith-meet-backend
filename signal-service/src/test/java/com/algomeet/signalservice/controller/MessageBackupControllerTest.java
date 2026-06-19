@@ -243,7 +243,7 @@ class MessageBackupControllerTest {
      * ------------------------------------------------- */
     @Test
     void deleteByConversation_success() throws Exception {
-        doNothing().when(messageBackupService).deleteConversation(userKey, userKey);
+        doNothing().when(messageBackupService).deleteConversation(userKey, userKey, UuidCreator.getTimeOrderedEpoch());
 
         mockMvc.perform(delete("/signal/backup/chat-messages/peer-1/conversation")
                 .with(csrf()))

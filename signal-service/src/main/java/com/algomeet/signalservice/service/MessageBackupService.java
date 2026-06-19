@@ -51,6 +51,7 @@ import com.algomeet.signalservice.repository.MessageBackupRepository;
 import com.algomeet.signalservice.repository.projection.ConversationStorageStats;
 import com.algomeet.signalservice.repository.projection.MessageBackupView;
 import com.algomeet.signalservice.util.ConversationUtil;
+import com.algomeet.signalservice.util.DeleteMediaUtil;
 import com.algomeet.signalservice.util.HideUtil;
 import com.algomeet.signalservice.util.RetractUtil;
 import com.algomeet.signalservice.util.SecurityUtil;
@@ -72,6 +73,7 @@ public class MessageBackupService {
 	private final MongoTemplate mongoTemplate;
 	private final RetractUtil retractUtil;
 	private final HideUtil hideUtil;
+	private final DeleteMediaUtil deleteMediaUtil;
 
 	/**
 	 * Inserts a message backup document into MongoDB with concurrency protection,
@@ -467,7 +469,7 @@ public class MessageBackupService {
 	}	
 
 	@Transactional
-	public void deleteConversation(UUID userKey, UUID peerKey) {
+	public void deleteConversation(UUID userKey, UUID peerKey, UUID lastStanzaId) {
 		String converationId = ConversationUtil.getConversationId(userKey.toString(), peerKey.toString());
 
 		ConversationStorageStats stats =
@@ -485,6 +487,9 @@ public class MessageBackupService {
 		req.setChatMessageCountDelta(-messageCount);
 		req.setChatStorageBytesDelta(-totalSize);
 		mediaService.adjustStorageUsage(userKey.toString(), req);
+		
+		/** Revoke access to media files before deleting the conversation */
+		deleteMediaUtil.deleteMediaFilesForDeleteConversation(converationId, lastStanzaId, userKey);
 
 		repository.deleteByUserKeyAndConversationId(userKey, converationId);				
 	}	
@@ -584,9 +589,15 @@ public class MessageBackupService {
 				// Retract related messages
 				retractUtil.retractRelatedMessages(userKey, messageIds);
 				
+				// Revoke user access to retracted messages
+				deleteMediaUtil.deleteMediaFilesForRetractedMessages(messageIds, userKey);
+				
 			} else if (FIELD_HIDDEN_AT.equals(timestampField)) {
 				// Hide related messages
 				hideUtil.hideRelatedMessages(userKey, messageIds);
+				
+				// Revoke user access to hidden messages
+				deleteMediaUtil.deleteMediaFilesForHiddenMessages(messageIds, userKey);
 			}
 		} else {
 			
