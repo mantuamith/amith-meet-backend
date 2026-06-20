@@ -2,20 +2,28 @@ package com.algomeet.mediaservice.consumer;
 
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.data.domain.Range;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.connection.stream.Consumer;
 import org.springframework.data.redis.connection.stream.MapRecord;
+import org.springframework.data.redis.connection.stream.PendingMessage;
+import org.springframework.data.redis.connection.stream.PendingMessages;
 import org.springframework.data.redis.connection.stream.ReadOffset;
 import org.springframework.data.redis.connection.stream.StreamOffset;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.data.redis.stream.StreamListener;
 import org.springframework.data.redis.stream.StreamMessageListenerContainer;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import com.algomeet.common.constant.MessageMediaDeleteStream;
@@ -57,7 +65,6 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 @Service
 public class MesssageMediaDeleteEventConsumer implements StreamListener<String, MapRecord<String, String, String>> {
-
 	@Autowired
 	private CommonRedisStreamProperties redisStreamProperties;
 	
@@ -73,6 +80,18 @@ public class MesssageMediaDeleteEventConsumer implements StreamListener<String, 
 
 	private static final String GROUP_NAME = "message-media-delete-event-group"; // Static name for persistence
 	private final String consumerName = "consumer-" + UUID.randomUUID();
+	
+    private static final String LOCK_KEY = "lock:scheduler:process-pending:message-media-delete-event-group";
+    
+    // Lua script ensuring atomic "check-then-delete" lock releases to avoid cross-node lease hijacking
+    private static final String RELEASE_LUA_SCRIPT = 
+            "if redis.call('get', KEYS[1]) == ARGV[1] then " +
+            "    return redis.call('del', KEYS[1]) " +
+            "else " +
+            "    return 0 " +
+            "end";
+    
+	final Duration MAX_IDLE_TIME = Duration.ofMinutes(5);
 
 	@PostConstruct
 	public void init() {
@@ -159,5 +178,127 @@ public class MesssageMediaDeleteEventConsumer implements StreamListener<String, 
 		} catch (Exception ex) {
 			log.error("Failed to process stream message {}: {}", message.getId(), ex.getMessage(), ex);
 		}    
+	}
+		
+	@Scheduled(fixedDelay = 1, timeUnit = java.util.concurrent.TimeUnit.HOURS) // Run every 60 minutes
+	public void claimAbandonedMessages() {		
+		String lockValue = UUID.randomUUID().toString();
+        // Lease timeout window set to 15 minutes to guarantee adequate buffer room for batch loops
+        long ttlMinutes = 15; 
+
+        boolean acquired = false;
+        try {
+            // Attempt to acquire distributed lock (SET NX PX equivalent)
+            Boolean result = redisTemplate.opsForValue()
+                    .setIfAbsent(LOCK_KEY, lockValue, Duration.ofMinutes(ttlMinutes));
+            
+            acquired = Boolean.TRUE.equals(result);
+
+            if (!acquired) {
+                log.debug("Claim Abandoned Messages execution skipped: Another cluster node holds the scheduler lock key.");
+                return;
+            }
+
+            log.info("Distributed lock acquired successfully [Token: {}]. Starting claim abandoned messages task...", lockValue);
+            executeCleanupPipeline();
+
+        } catch (Exception e) {
+            log.error("Unexpected failure encountered during cleanup scheduling orchestration pipeline", e);
+        } finally {
+            if (acquired) {
+                try {
+                    // Execute atomic release validation via Redis engine
+                    Long released = redisTemplate.execute(
+                            new DefaultRedisScript<>(RELEASE_LUA_SCRIPT, Long.class),
+                            Collections.singletonList(LOCK_KEY),
+                            lockValue
+                    );
+
+                    if (Long.valueOf(1L).equals(released)) {
+                        log.info("Distributed lock safely released [Token: {}].", lockValue);
+                    } else {
+                        log.warn("Lock release bypassed: Lock lease expired or was overridden by another process context.");
+                    }
+                } catch (Exception ex) {
+                    log.error("Failed to clean up lock key reference footprint from cache engine", ex);
+                }
+            }
+        }
+	}
+	
+	private void executeCleanupPipeline() {
+	    String streamKey = redisStreamProperties.getMessageMediaDeleteEvents();
+	    log.debug("Checking for abandoned messages in group {}...", GROUP_NAME);
+
+	    try {
+	        // 1. Fetch the high-level summary overview
+	        org.springframework.data.redis.connection.stream.PendingMessagesSummary pendingSummary = 
+	                redisTemplate.opsForStream().pending(streamKey, GROUP_NAME);
+	        
+	        if (pendingSummary == null || pendingSummary.getTotalPendingMessages() == 0) {
+	            return;
+	        }
+
+	     // Change List<PendingMessage> to PendingMessages
+	        PendingMessages pendingEntries = 
+	                redisTemplate.opsForStream().pending(
+	                        streamKey, 
+	                        GROUP_NAME, 
+	                        Range.unbounded(), 
+	                        500
+	                );
+
+	        if (pendingEntries == null || pendingEntries.isEmpty()) {
+	            return;
+	        }
+
+	        // You can still iterate over it directly using an enhanced for-loop
+	        for (PendingMessage pendingMsg : pendingEntries) {
+	            // Avoid claiming tasks that this running instance already owns
+	            if (consumerName.equals(pendingMsg.getConsumerName())) {
+	                continue;
+	            }
+
+	            // If the message has been pending longer than 5 minutes, claim it
+	            if (pendingMsg.getElapsedTimeSinceLastDelivery().compareTo(MAX_IDLE_TIME) > 0) {
+	                log.info("Found abandoned message {} belonging to dead consumer {}. Claiming ownership...", 
+	                        pendingMsg.getIdAsString(), pendingMsg.getConsumerName());
+
+	                List<MapRecord<String, Object, Object>> claimedRecords = redisTemplate.opsForStream().claim(
+	                        streamKey,
+	                        GROUP_NAME,
+	                        consumerName,
+	                        MAX_IDLE_TIME,
+	                        pendingMsg.getId()
+	                );
+
+	                if (claimedRecords != null && !claimedRecords.isEmpty()) {
+	                    for (MapRecord<String, Object, Object> record : claimedRecords) {
+	                        log.info("Successfully claimed message {}. Processing now...", record.getId());
+	                        
+	                        // 2. Extract the raw map values
+	                        Map<Object, Object> rawMap = record.getValue();
+	                        
+	                        // 3. Convert the internal fields and values safely to String
+	                        Map<String, String> stringMap = rawMap.entrySet().stream()
+	                                .collect(Collectors.toMap(
+	                                        e -> e.getKey().toString(),
+	                                        e -> e.getValue() != null ? e.getValue().toString() : ""
+	                                ));
+	                        
+	                        // 4. Wrap it in a type-safe String MapRecord
+	                        MapRecord<String, String, String> stringRecord = MapRecord.create(
+	                                record.getStream(), 
+	                                stringMap
+	                        ).withId(record.getId()); // Retain original Redis message ID
+	                        
+	                        this.onMessage(stringRecord);
+	                    }
+	                }
+	            }
+	        }
+	    } catch (Exception ex) {
+	        log.error("Error occurred during abandoned message sweeping: {}", ex.getMessage(), ex);
+	    }
 	}
 }
