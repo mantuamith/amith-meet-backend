@@ -24,6 +24,7 @@ import com.algomeet.mediaservice.document.FilePermission;
 import com.algomeet.mediaservice.document.UserFileDocument;
 import com.algomeet.mediaservice.dto.StorageUsageAdjustmentRequest;
 import com.algomeet.mediaservice.enums.UploadContext;
+import com.algomeet.mediaservice.exceptions.UserFileNotFoundException;
 import com.algomeet.mediaservice.repository.FileAccessEntryRepository;
 import com.algomeet.mediaservice.repository.UserFileRepository;
 import com.algomeet.mediaservice.service.FileAccessEntryService;
@@ -56,7 +57,7 @@ public class UserFileServiceImpl implements UserFileService {
 	@Override
 	public UserFileDocument getFile(String fileId) {
 		UserFileDocument file = repository.findById(fileId)
-				.orElseThrow(() -> new IllegalArgumentException("File not found"));
+				.orElseThrow(() -> new UserFileNotFoundException("File not found"));
 
 		return file;
 	}
@@ -64,7 +65,7 @@ public class UserFileServiceImpl implements UserFileService {
 	@Override
 	public UserFileDocument getFile(String fileId, String userKey, UUID groupId, FilePermission permission) {
 		UserFileDocument file = repository.findById(fileId)
-				.orElseThrow(() -> new IllegalArgumentException("File not found"));
+				.orElseThrow(() -> new UserFileNotFoundException("File not found"));
 
 		if (!fileAccessPermission.hasPermission(file, userKey, groupId, permission)) {
 			throw new AccessDeniedException("Permission denied: " + permission);
@@ -285,7 +286,7 @@ public class UserFileServiceImpl implements UserFileService {
 	    List<UserFileDocument> files = repository.findAllById(fileIds);
 
 	    if (CollectionUtils.isEmpty(files)) {
-	        throw new IllegalArgumentException("One or more files were not found");
+	        throw new UserFileNotFoundException("One or more files were not found");
 	    }
 
 	    List<UserFileDocument> modifiedFiles = new ArrayList<>();

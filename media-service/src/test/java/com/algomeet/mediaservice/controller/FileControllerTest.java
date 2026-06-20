@@ -47,11 +47,13 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
+import com.algomeet.mediaservice.config.AcceptedFileProperties;
 import com.algomeet.mediaservice.config.LocalizationConfig;
 import com.algomeet.mediaservice.config.StorageProperties;
 import com.algomeet.mediaservice.document.UserFileDocument;
 import com.algomeet.mediaservice.dto.MediaUploadResponse;
 import com.algomeet.mediaservice.enums.Storage;
+import com.algomeet.mediaservice.exceptions.UserFileNotFoundException;
 import com.algomeet.mediaservice.exceptions.FileTypeNotSupportedException;
 import com.algomeet.mediaservice.exceptions.GlobalExceptionHandler;
 import com.algomeet.mediaservice.repository.UserFileRepository;
@@ -66,7 +68,7 @@ import com.algomeet.mediaservice.util.SecurityUtil;
 
 @WebMvcTest(controllers = FileController.class, excludeFilters = {
 		@ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE, classes = {}) })
-@ContextConfiguration(classes = { FileController.class, GlobalExceptionHandler.class })
+@ContextConfiguration(classes = { FileController.class, GlobalExceptionHandler.class})
 @Import(LocalizationConfig.class)
 @EnableAutoConfiguration(exclude = { MongoAutoConfiguration.class, MongoDataAutoConfiguration.class })
 @AutoConfigureMockMvc(addFilters = false)
@@ -98,6 +100,9 @@ class FileControllerTest {
 	
 	@MockBean
 	private UserFileRepository userFileRepository;
+	
+	@MockBean
+	private AcceptedFileProperties acceptedFileProperties; 
 
 	private static final String USER_KEY = UUID.randomUUID().toString();
 	private static final UUID MESSAGE_ID = UUID.randomUUID();
@@ -421,7 +426,7 @@ class FileControllerTest {
 
 	@Test
 	void batchDelete_mediaNotFound() throws Exception {
-	    doThrow(new IllegalArgumentException("missing"))
+	    doThrow(new UserFileNotFoundException("One or more files were not found"))
 	            .when(userFileService)
 	            .softDeleteAndMarkForCleanupIfOrphaned(anySet(), anyString(), anySet(), any(), any());
 
