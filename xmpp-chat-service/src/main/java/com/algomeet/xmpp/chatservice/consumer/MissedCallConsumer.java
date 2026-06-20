@@ -112,10 +112,10 @@ public class MissedCallConsumer implements StreamListener<String, MapRecord<Stri
     /**
      * Fully reactive cron task leveraging non-blocking distributed lock acquisition and release orchestration.
      */
-    @Scheduled(fixedDelay = 1, timeUnit = java.util.concurrent.TimeUnit.MINUTES)
+    @Scheduled(fixedDelay = 30, timeUnit = java.util.concurrent.TimeUnit.MINUTES)
     public void processPendingMissedCalls() {		
         String lockValue = UUID.randomUUID().toString();
-        long ttlMinutes = 1; 
+        long ttlMinutes = 5; 
 
         log.debug("Attempting to acquire reactive lock for missed call recovery...");
 
