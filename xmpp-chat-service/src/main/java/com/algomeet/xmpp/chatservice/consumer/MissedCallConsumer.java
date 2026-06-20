@@ -1,7 +1,10 @@
 package com.algomeet.xmpp.chatservice.consumer;
 
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Collections;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
@@ -13,7 +16,10 @@ import org.springframework.data.redis.connection.stream.Consumer;
 import org.springframework.data.redis.connection.stream.MapRecord;
 import org.springframework.data.redis.connection.stream.ReadOffset;
 import org.springframework.data.redis.connection.stream.RecordId;
+import org.springframework.data.redis.connection.stream.StreamInfo;
+import org.springframework.data.redis.connection.stream.StreamInfo.XInfoConsumer;
 import org.springframework.data.redis.connection.stream.StreamOffset;
+import org.springframework.data.redis.core.ReactiveRedisCallback;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.data.redis.stream.StreamListener;
@@ -117,7 +123,7 @@ public class MissedCallConsumer implements StreamListener<String, MapRecord<Stri
         String lockValue = UUID.randomUUID().toString();
         long ttlMinutes = 5; 
 
-        log.debug("Attempting to acquire reactive lock for missed call recovery...");
+        log.info("Attempting to acquire reactive lock for missed call recovery...");
 
         reactiveRedisTemplate.opsForValue()
             .setIfAbsent(LOCK_KEY, lockValue, Duration.ofMinutes(ttlMinutes))
@@ -151,26 +157,55 @@ public class MissedCallConsumer implements StreamListener<String, MapRecord<Stri
         String streamKey = redisStreamProperties.getMissedCall();
         log.debug("Checking abandoned messages in group {}...", GROUP_NAME);
 
-        RStreamReactive<String, String> stream =
-                redisson.getStream(streamKey);
+        ByteBuffer keyBuffer = ByteBuffer.wrap(streamKey.getBytes(StandardCharsets.UTF_8));
 
-        return stream
-                .autoClaim(
-                        GROUP_NAME,
-                        consumerName,
-                        MAX_IDLE_TIME.toMillis(),
-                        TimeUnit.MILLISECONDS,
-                        StreamMessageId.MIN,
-                        500
-                )
-                .flatMapMany(result -> Flux.fromIterable(result.getMessages().entrySet()))
-                .map(entry -> MapRecord
-                        .create(streamKey, entry.getValue())
-                        .withId(RecordId.of(entry.getKey().toString())))
-                .doOnNext(record ->
-                        log.info("Recovered abandoned message {}", record.getId()))
-                .flatMap(this::processMessagePayload, 10)
-                .then();
+        // STAGE 1: Evict dead consumers using xInfoConsumers
+        Mono<Void> consumerReaperStage =
+        		reactiveRedisTemplate.execute(conn ->
+        		conn.streamCommands()
+        		.xInfoConsumers(keyBuffer, GROUP_NAME)
+        				)
+        		.flatMap(consumerInfo -> {
+        			if (consumerInfo.pendingCount() == 0
+        					&& consumerInfo.idleTime().compareTo(Duration.ofDays(7)) > 0) {
+
+        				log.info("Evicting dead consumer {}", consumerInfo.consumerName());
+
+        				return reactiveRedisTemplate.execute(conn ->
+        				conn.streamCommands()
+        				.xGroupDelConsumer(
+        						keyBuffer,
+        						GROUP_NAME,
+        						consumerInfo.consumerName()))
+        						.then();
+        			}
+
+        			return Mono.empty();
+        		})
+        		.then();
+        
+        // STAGE 2: Your original Redisson AutoClaim logic
+        RStreamReactive<String, String> stream = redisson.getStream(streamKey);
+        
+        Mono<Void> messageClaimStage = stream
+            .autoClaim(
+                GROUP_NAME,
+                consumerName,
+                MAX_IDLE_TIME.toMillis(),
+                TimeUnit.MILLISECONDS,
+                StreamMessageId.MIN,
+                500
+            )
+            .flatMapMany(result -> Flux.fromIterable(result.getMessages().entrySet()))
+            .map(entry -> MapRecord
+                    .create(streamKey, entry.getValue())
+                    .withId(RecordId.of(entry.getKey().toString())))
+            .doOnNext(record -> log.info("Recovered abandoned message {}", record.getId()))
+            .flatMap(this::processMessagePayload, 10)
+            .then();
+
+        // Sequence them sequentially: Clean up house first, then process the pipeline messages
+        return consumerReaperStage.then(messageClaimStage);
     }
        
     private Mono<Void> releaseLock(String lockValue) {
