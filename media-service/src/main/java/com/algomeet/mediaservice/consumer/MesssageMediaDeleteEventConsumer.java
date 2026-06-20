@@ -1,5 +1,7 @@
 package com.algomeet.mediaservice.consumer;
 
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
@@ -12,12 +14,14 @@ import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.domain.Range;
+import org.springframework.data.redis.connection.RedisConnection;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.connection.stream.Consumer;
 import org.springframework.data.redis.connection.stream.MapRecord;
 import org.springframework.data.redis.connection.stream.PendingMessage;
 import org.springframework.data.redis.connection.stream.PendingMessages;
 import org.springframework.data.redis.connection.stream.ReadOffset;
+import org.springframework.data.redis.connection.stream.StreamInfo;
 import org.springframework.data.redis.connection.stream.StreamOffset;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
@@ -91,7 +95,8 @@ public class MesssageMediaDeleteEventConsumer implements StreamListener<String, 
             "    return 0 " +
             "end";
     
-	final Duration MAX_IDLE_TIME = Duration.ofMinutes(5);
+    private final Duration MAX_IDLE_TIME = Duration.ofMinutes(5);
+	private static final Duration CONSUMER_EVICTION_IDLE_TIME = Duration.ofDays(7);
 
 	@PostConstruct
 	public void init() {
@@ -238,6 +243,8 @@ public class MesssageMediaDeleteEventConsumer implements StreamListener<String, 
 	    String streamKey = redisStreamProperties.getMessageMediaDeleteEvents();
 	    log.debug("Checking for abandoned messages in group {}...", GROUP_NAME);
 
+	    // Evict idle consumers
+	    evictIdleConsumers(streamKey);
 	    try {
 	        // 1. Fetch the high-level summary overview
 	        org.springframework.data.redis.connection.stream.PendingMessagesSummary pendingSummary = 
@@ -307,6 +314,53 @@ public class MesssageMediaDeleteEventConsumer implements StreamListener<String, 
 	        }
 	    } catch (Exception ex) {
 	        log.error("Error occurred during abandoned message sweeping: {}", ex.getMessage(), ex);
+	    }
+	}	
+
+	private void evictIdleConsumers(String streamKey) {
+		byte[] streamKeyBytes = streamKey.getBytes(StandardCharsets.UTF_8);
+	    RedisConnection connection = null;
+
+	    try {
+	        connection = connectionFactory.getConnection();
+	        StreamInfo.XInfoConsumers consumers =
+	                connection.streamCommands()
+	                        .xInfoConsumers(streamKeyBytes, GROUP_NAME);
+
+	        if (consumers == null || consumers.isEmpty()) {
+	            return;
+	        }
+
+	        for (StreamInfo.XInfoConsumer consumerInfo : consumers) {
+
+	            if (consumerName.equals(consumerInfo.consumerName())) {
+	                continue;
+	            }
+
+	            if (consumerInfo.pendingCount() == 0
+	                    && consumerInfo.idleTime().compareTo(CONSUMER_EVICTION_IDLE_TIME) > 0) {
+
+	                log.info("Evicting dead consumer {}", consumerInfo.consumerName());
+
+	                Boolean removed =
+	                        connection.streamCommands()
+	                                .xGroupDelConsumer(
+	                                		streamKeyBytes,
+	                                        GROUP_NAME,
+	                                        consumerInfo.consumerName());
+
+	                log.info(
+	                        "Consumer {} removed from group {}, pending transferred: {}",
+	                        consumerInfo.consumerName(),
+	                        GROUP_NAME,
+	                        removed);
+	            }
+	        }
+
+	    } finally {
+	        if (connection != null) {
+	            connection.close();
+	        }
 	    }
 	}
 }
