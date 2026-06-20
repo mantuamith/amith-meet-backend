@@ -1,6 +1,5 @@
 package com.algomeet.mediaservice.consumer;
 
-import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Arrays;
