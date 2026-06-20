@@ -179,7 +179,15 @@ public class MesssageMediaDeleteEventConsumer implements StreamListener<String, 
 			log.error("Failed to process stream message {}: {}", message.getId(), ex.getMessage(), ex);
 		}    
 	}
-		
+	
+	/**
+	 * Scheduled orchestrator task that periodically runs to scan for and claim abandoned 
+	 * stream messages from dead or crashed consumer instances.
+	 * * <p>To prevent concurrent execution across multiple microservice cluster nodes (the thundering 
+	 * herd problem), this method leverages a Redis-backed distributed lock with an auto-expiry lease.
+	 * The lock is safely released via a Lua script invocation to guarantee atomicity and prevent 
+	 * premature accidental deletion if the pipeline execution outlives the lease window.</p>
+	 */
 	@Scheduled(fixedDelay = 1, timeUnit = java.util.concurrent.TimeUnit.HOURS) // Run every 60 minutes
 	public void claimAbandonedMessages() {		
 		String lockValue = UUID.randomUUID().toString();
