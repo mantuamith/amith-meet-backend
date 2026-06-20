@@ -4,7 +4,6 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Collections;
-import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
@@ -16,10 +15,7 @@ import org.springframework.data.redis.connection.stream.Consumer;
 import org.springframework.data.redis.connection.stream.MapRecord;
 import org.springframework.data.redis.connection.stream.ReadOffset;
 import org.springframework.data.redis.connection.stream.RecordId;
-import org.springframework.data.redis.connection.stream.StreamInfo;
-import org.springframework.data.redis.connection.stream.StreamInfo.XInfoConsumer;
 import org.springframework.data.redis.connection.stream.StreamOffset;
-import org.springframework.data.redis.core.ReactiveRedisCallback;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.data.redis.stream.StreamListener;
@@ -60,6 +56,7 @@ public class MissedCallConsumer implements StreamListener<String, MapRecord<Stri
             "end";
     
     final Duration MAX_IDLE_TIME = Duration.ofMinutes(5);
+    private static final Duration CONSUMER_EVICTION_IDLE_TIME = Duration.ofDays(7);
 
     @PostConstruct
     public void init() {
@@ -167,7 +164,7 @@ public class MissedCallConsumer implements StreamListener<String, MapRecord<Stri
         				)
         		.flatMap(consumerInfo -> {
         			if (consumerInfo.pendingCount() == 0
-        					&& consumerInfo.idleTime().compareTo(Duration.ofDays(7)) > 0) {
+        					&& consumerInfo.idleTime().compareTo(CONSUMER_EVICTION_IDLE_TIME) > 0) {
 
         				log.info("Evicting dead consumer {}", consumerInfo.consumerName());
 
