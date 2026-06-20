@@ -20,6 +20,7 @@ import org.springframework.stereotype.Service;
 
 import com.algomeet.common.constant.MessageMediaDeleteStream;
 import com.algomeet.common.properties.CommonRedisStreamProperties;
+import com.algomeet.mediaservice.exceptions.UserFileNotFoundException;
 import com.algomeet.mediaservice.service.UserFileService;
 
 import jakarta.annotation.PostConstruct;
@@ -140,11 +141,15 @@ public class MesssageMediaDeleteEventConsumer implements StreamListener<String, 
 			UUID messageId = messageIdStr != null ? UUID.fromString(messageIdStr) : null;
 			boolean performedByAdmin = userKey == null;
 
-			if(performedByAdmin) {
-				userFileService.softDeleteAndMarkForCleanupIfOrphaned(fileIds, userKey,  deleteWithUserKeys, groupId, messageId, performedByAdmin);
-			} else {
-				userFileService.softDeleteAndMarkForCleanupIfOrphaned(fileIds, userKey,  deleteWithUserKeys, groupId, messageId);
-			}
+			try {
+				if(performedByAdmin) {
+					userFileService.softDeleteAndMarkForCleanupIfOrphaned(fileIds, userKey,  deleteWithUserKeys, groupId, messageId, performedByAdmin);
+				} else {
+					userFileService.softDeleteAndMarkForCleanupIfOrphaned(fileIds, userKey,  deleteWithUserKeys, groupId, messageId);
+				}
+			} catch (UserFileNotFoundException ex) {
+				log.warn("User file(s) not found {} ", fileIds, ex);
+			} 
 
 			redisTemplate.opsForStream().acknowledge(GROUP_NAME, message);
 			redisTemplate.opsForStream().delete(streamKey, message.getId().getValue());
