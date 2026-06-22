@@ -21,31 +21,31 @@ import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
-import com.algomeet.xmpp.chatservice.constant.MissedCallStream;
+import com.algomeet.xmpp.chatservice.constant.PurgeGroupConversationStream;
 import com.algomeet.xmpp.chatservice.properties.RedisStreamProperties;
-import com.algomeet.xmpp.chatservice.service.MissedCallService;
+import com.algomeet.xmpp.chatservice.service.MucRoomService;
 
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import reactor.util.retry.Retry;
 
 @Slf4j
 @RequiredArgsConstructor
 @Service
-public class MissedCallConsumer {    
+public class PurgeGroupConversationConsumer {    
 
     private final RedisStreamProperties redisStreamProperties;
     private final RedisConnectionFactory connectionFactory;
-    private final MissedCallService missedCallService;
     private final ReactiveRedisTemplate<String, String> reactiveRedisTemplate;
     private final RedissonReactiveClient redisson;
+    
+    private final MucRoomService mucRoomService;
 
-    private static final String GROUP_NAME = "missed-call-group"; 
+    private static final String GROUP_NAME = "purge-group-conversation-group"; 
     private final String consumerName = "consumer-" + UUID.randomUUID();
-    private static final String LOCK_KEY = "xmpp:lock:scheduler:process-pending:missed-call-group";
+    private static final String LOCK_KEY = "xmpp:lock:scheduler:process-pending:purge-group-conversation-group";
     
     private static final String RELEASE_LUA_SCRIPT = 
             "if redis.call('get', KEYS[1]) == ARGV[1] then " +
@@ -54,71 +54,57 @@ public class MissedCallConsumer {
             "    return 0 " +
             "end";
     
-    final Duration MAX_IDLE_TIME = Duration.ofMinutes(5);
+    final Duration MAX_IDLE_TIME = Duration.ofMinutes(60);
     private static final Duration CONSUMER_EVICTION_IDLE_TIME = Duration.ofDays(7);
 
-    @PostConstruct
+    @SuppressWarnings("deprecation")
+	@PostConstruct
     public void init() {
-        String streamKey = redisStreamProperties.getMissedCall();
+        String streamKey = redisStreamProperties.getPurgeGroupConversation();
         
+        // Setup group safely...
         try {
-            connectionFactory.getConnection().xGroupCreate(
-                    streamKey.getBytes(),
-                    GROUP_NAME,
-                    ReadOffset.from("0"),
-                    true 
-            );
+            connectionFactory.getConnection().xGroupCreate(streamKey.getBytes(), GROUP_NAME, ReadOffset.from("0"), true);
         } catch (Exception ex) {
-            log.debug("Consumer group already exists or stream not initialized: {}", ex.getMessage());
+            log.debug("Consumer group already exists: {}", ex.getMessage());
         }
 
-        // Initialize the reactive non-blocking loop
+        // 2. Start the non-blocking pull consumer loop
         startConsumerLoop(streamKey);
     }
 
-    /**
-     * Continuous reactive consumer loop pulling from Redis Stream.
-     * Enforces backpressure and protects system memory under spikes of thousands of messages.
-     */
     @SuppressWarnings("unchecked")
-    private void startConsumerLoop(String streamKey) {
+	private void startConsumerLoop(String streamKey) {
         Consumer consumer = Consumer.from(GROUP_NAME, consumerName);
 
+        // Continuously read from the reactive template
         reactiveRedisTemplate.opsForStream()
             .read(consumer, StreamOffset.create(streamKey, ReadOffset.lastConsumed()))
             .flatMap(message -> {
-                // Safely cast standard stream record to targeted MapRecord
+                // Cast or safely map to MapRecord
                 MapRecord<String, String, String> record = (MapRecord<String, String, String>) (Object) message;
                 
-                // Concurrency throttling limit: Process up to 64 missed calls concurrently.
-                // Anything higher remains safely queued inside Redis memory instead of filling up your JVM heap.
+                // 3. Throttle execution! Only process 5 groups concurrently max
                 return processMessagePayload(record);
-            }, 64) 
-            .doOnError(err -> log.error("Critical error in Missed Call Consumer subscription loop", err))
-            // Keeps the listener loop resilient if your Redis cluster suffers an instantaneous failover
-            .retryWhen(Retry.backoff(Long.MAX_VALUE, Duration.ofSeconds(2))) 
-            .subscribe(); 
+            }, 5) 
+            .doOnError(err -> log.error("Fatal error in Redis Stream Consumer loop", err))
+            .retryWhen(reactor.util.retry.Retry.backoff(Long.MAX_VALUE, Duration.ofSeconds(2))) // Don't let the consumer die
+            .subscribe(); // Single subscribe keeps the entire stream processing alive safely
     }
 
-    /**
-     * Reusable reactive pipeline that handles business logic processing, 
-     * acknowledgement, and clean deletion of a stream message.
-     */
     private Mono<Void> processMessagePayload(MapRecord<String, String, String> message) {
-        String streamKey = redisStreamProperties.getMissedCall();
+        String streamKey = redisStreamProperties.getPurgeGroupConversation();
         log.info("Processing message via reactive loop: {}", message.getId());
 
-        return missedCallService.process(
-                message.getValue().get(MissedCallStream.MESSAGE_KEY_MESSAGE), 
-                message.getValue().get(MissedCallStream.MESSAGE_KEY_CHAT_TYPE)
+        return mucRoomService.purgeGroupConversation(
+                message.getValue().get(PurgeGroupConversationStream.MESSAGE_KEY_GROUP_ID)
             )
             .then(reactiveRedisTemplate.opsForStream().acknowledge(GROUP_NAME, message))
             .then(reactiveRedisTemplate.opsForStream().delete(streamKey, message.getId().getValue()))
             .doOnSuccess(v -> log.debug("Acknowledged and cleaned message {}", message.getId()))
             .onErrorResume(e -> {
                 log.error("Failed to process stream message {}: {}", message.getId(), e.getMessage());
-                // Absorb error to avoid killing the parent stream processing loop
-                return Mono.empty(); 
+                return Mono.empty(); // Prevent a bad message from breaking the loop
             })
             .then();
     }
@@ -127,11 +113,11 @@ public class MissedCallConsumer {
      * Fully reactive cron task leveraging non-blocking distributed lock acquisition and release orchestration.
      */
     @Scheduled(fixedDelay = 30, timeUnit = java.util.concurrent.TimeUnit.MINUTES)
-    public void processPendingMissedCalls() {		
+    public void processPendingPurgeGroupConversations() {		
         String lockValue = UUID.randomUUID().toString();
         long ttlMinutes = 5; 
 
-        log.info("Attempting to acquire reactive lock for missed call recovery...");
+        log.info("Attempting to acquire reactive lock for purge group conversation recovery...");
 
         reactiveRedisTemplate.opsForValue()
             .setIfAbsent(LOCK_KEY, lockValue, Duration.ofMinutes(ttlMinutes))
@@ -150,15 +136,19 @@ public class MissedCallConsumer {
                 log.error("Failure encountered during reactive cleanup pipeline execution", ex);
                 return releaseLock(lockValue).then();
             })
+            // block() is mandatory here so Spring's Scheduler engine knows when the execution concludes
             .block();
     }
 	
 
     /**
      * Recover abandoned messages from dead consumers using Redis XAUTOCLAIM.
+     *
+     * This avoids the XPENDING + XCLAIM sequence and atomically transfers
+     * ownership of idle messages to the current consumer.
      */
     private Mono<Void> executeCleanupPipeline() {
-        String streamKey = redisStreamProperties.getMissedCall();
+        String streamKey = redisStreamProperties.getPurgeGroupConversation();
         log.debug("Checking abandoned messages in group {}...", GROUP_NAME);
 
         ByteBuffer keyBuffer = ByteBuffer.wrap(streamKey.getBytes(StandardCharsets.UTF_8));
@@ -188,7 +178,7 @@ public class MissedCallConsumer {
         		})
         		.then();
         
-        // STAGE 2: Redisson AutoClaim logic
+        // STAGE 2: Your original Redisson AutoClaim logic
         RStreamReactive<String, String> stream = redisson.getStream(streamKey);
         
         Mono<Void> messageClaimStage = stream
@@ -208,6 +198,7 @@ public class MissedCallConsumer {
             .flatMap(this::processMessagePayload, 10)
             .then();
 
+        // Sequence them sequentially: Clean up house first, then process the pipeline messages
         return consumerReaperStage.then(messageClaimStage);
     }
        

@@ -178,13 +178,12 @@ public class MucMessageController implements MucMessageControllerDoc{
 	
 	@DeleteMapping("/{groupId}/messages")
     public ResponseEntity<CommonResponse<Boolean>> purgeGroupMessages(
-            @Parameter(description = "The unique group/room UUID", required = true)
             @PathVariable UUID groupId) {
 		UUID userKey = UUID.fromString(SecurityUtil.getUserKey());  
 		
         log.warn("Administrative trigger: Hard purging all message records for group {}", groupId);
         try {
-        boolean purged = mucRoomService.purgeAllGroupMessages(groupId, userKey);
+        boolean purged = mucRoomService.purgeGroupConversation(groupId, userKey);
                 
         return ResponseEntity.ok(
                 CommonResponse.from(ResponseCode.SUCCESS, purged));

@@ -4,6 +4,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -18,6 +19,7 @@ import com.algomeet.xmpp.chatservice.repository.projection.MucMessagePurgeView;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 @Slf4j
@@ -74,34 +76,40 @@ public class PurgeExpiredMucMessageScheduler {
 	 * Handles core reactive loop retrieval, processing stream publisher events, and data cleanup.
 	 */
 	private Mono<Integer> executePurgePipeline() {
-		Instant now = Instant.now();
+	    Instant now = Instant.now();
 
-		return messageRepository.findByPurgeAtLessThanEqual(now)
-			.buffer(500) 
-			.flatMap(batch -> {
-				List<UUID> idsToDelete = batch.stream()
-						.map(MucMessagePurgeView::getId)
-						.toList();
+	    return messageRepository.findByPurgeAtLessThanEqual(now)
+	        .buffer(500) 
+	        .flatMap(batch -> {
+	            List<UUID> idsToDelete = batch.stream()
+	                    .map(MucMessagePurgeView::getId)
+	                    .toList();
 
-				log.debug("Purging a batch of {} expired MUC messages", idsToDelete.size());
+	            log.debug("Purging a batch of {} expired MUC messages", idsToDelete.size());
 
-				// Handle attachments cleanup			
-				batch.stream()
-					.filter(view -> view.getMediaIds() != null && !view.getMediaIds().isEmpty())
-					.forEach(view -> {
-						messageMediaDeleteEventStreamPublisher.publish(
-							null, 
-							view.getMediaIds().stream().map(UUID::toString).collect(Collectors.toSet()), 
-							null,
-							view.getRoomId() != null ? view.getRoomId().toString() : null, 
-							view.getMessageId().toString()
-						).subscribe();
-					});
-				
-				return messageRepository.deleteAllById(idsToDelete)
-						.thenReturn(idsToDelete.size());
-			})
-			.reduce(0, Integer::sum);
+	            // 1. Build a unified Flux for all publishing events in this batch
+	            Flux<Object> publishMediaEvents = Flux.fromIterable(batch)
+	                .filter(view -> view.getMediaIds() != null && !view.getMediaIds().isEmpty() && view.getDeletedAt() == null)
+	                .flatMap(view -> {
+	                    Set<String> mediaIds = view.getMediaIds().stream()
+	                            .map(UUID::toString)
+	                            .collect(Collectors.toSet());
+	                    
+	                    String roomIdStr = view.getRoomId() != null ? view.getRoomId().toString() : null;
+	                    String msgIdStr = view.getMessageId() != null ? view.getMessageId().toString() : null;
+
+	                    // Return the publisher stream directly without subscribing
+	                    return messageMediaDeleteEventStreamPublisher.publish(
+	                        null, mediaIds, null, roomIdStr, msgIdStr
+	                    );
+	                }, 32); // Concurrency limit to prevent overwhelming your message broker
+
+	            // 2. Chain safely: Publish all events completely BEFORE deleting records from DB
+	            return publishMediaEvents
+	                .then(messageRepository.deleteAllById(idsToDelete))
+	                .thenReturn(idsToDelete.size());
+	        })
+	        .reduce(0, Integer::sum);
 	}
 
 	/**

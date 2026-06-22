@@ -40,6 +40,8 @@ import io.netty.channel.ChannelHandlerContext;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Scheduler;
+import reactor.core.scheduler.Schedulers;
 
 @Slf4j
 @ChannelHandler.Sharable
@@ -58,6 +60,9 @@ public class XmppChatHandler {
 	private final XmppReadUtil xmppReadUtil;
 	private final XmppUtil xmppUtil;
 	private final XmppRetractUtil xmppRetractUtil;
+	
+	// Define a dedicated thread pool for your database work so Netty doesn't starve
+	private static final Scheduler DB_SCHEDULER = Schedulers.newBoundedElastic(200, 10000, "xmpp-chat-db-workers");
 
 	/**
 	 * Handles 1-to-1 message routing, persistence for offline storage, 
@@ -101,114 +106,101 @@ public class XmppChatHandler {
 			
 			boolean isCountable = XmppCustomStanzaUtil.isCountableMessage(originalXml);
 			
-			final String archivedXml = forArchiveXml;
+			final String archivedXml = forArchiveXml;			
 			offlineMessageService.save(messageId, stanzaId, toUserKey, fromUserKey, type, isAckStanza, isCountable, forArchiveXml)
-		            .doOnSuccess(saved -> {
-		            	// Send an immediate server-level acknowledgment to the sender.
-		            	//
-		            	// This acknowledgment confirms that:
-		            	// 1. The server has successfully received the stanza.
-		            	// 2. The stanza has been persisted to the database.
-		            	// 3. The server has taken full responsibility for further routing/delivery.
-		            	//
-		            	// This is a custom acknowledgment (not client XEP-0198 ack),
-		            	// used to provide early delivery assurance back to the sender.
-		            	XmppServerAckUtil.send(ctx, id, domainProperties.getDomain(), stanzaId.toString());	
-		            	
-		            	/*
-		                 * CRITICAL TIMING SEQUENCE:
-		                 * This event must execute strictly AFTER the underlying database write has fully 
-		                 * completed to prevent "ghost data" or race conditions. 
-		                 * Sending this cluster broadcast notifies downstream microservices or websocket 
-		                 * connections to trigger cleanups (like messages sent to client acknowledgments). 
-		                 * If sent before a guaranteed DB commit, cleanup actions might execute too early 
-		                 * and target data that hasn't physically settled in the collection yet.
-		                 * ACKs cleanup logic under ClusterMessageListener.onMessage().
-		                 */
-		            	if (isAckStanza) {
-		            		clusterMessagePublisher.convertAndSendToUser(id, toUserKey, fromUserKey, ChatType.CHAT, false, true, isAckStanza,
-		            				archivedXml, principal);
-		            	}
-		            	
-		            	// Check if the message contains the XMPP Message Retraction namespace (XEP-0424 / urn:xmpp:message-retract:1)
-		            	if (XmppStanzaUtil.isRetractStanza(originalXml)) {		            	    
-		            	    // Extract the 'id' attribute from the <retract/> element, which refers to the original message to be deleted
-		            	    String retractMessageId = xmppRetractUtil.getRetractMessageId(originalXml);
+			.flatMap(saved -> {
+				// Return server acknowledgment execution context
+				// Send an immediate server-level acknowledgment to the sender.
+            	//
+            	// This acknowledgment confirms that:
+            	// 1. The server has successfully received the stanza.
+            	// 2. The stanza has been persisted to the database.
+            	// 3. The server has taken full responsibility for further routing/delivery.
+            	//
+            	// This is a custom acknowledgment (not client XEP-0198 ack),
+            	// used to provide early delivery assurance back to the sender.
+				XmppServerAckUtil.send(ctx, id, domainProperties.getDomain(), stanzaId.toString()); 
 
-		            	    // Ensure the retract ID is valid and not empty before proceeding
-		            	    if (StringUtils.hasText(retractMessageId)) {
-		            	        
-		            	        // Execute the deletion logic (checking permissions, removing from offline storage, and updating MAM)
-		            	        processRetraction(retractMessageId, toUserKey, fromUserKey, principal).subscribe();
-		            	    }
-		            	}
-						
-						// --- XEP-0184: Message Delivery Receipts ---
-					    // If the stanza contains the 'urn:xmpp:receipts' namespace, the recipient's 
-					    // device has successfully received the message.
-					    if (originalXml.contains(XmppReceiptUtil.NS_RECEIPTS)) {
+				if (isAckStanza) {
+					/*
+	                 * CRITICAL TIMING SEQUENCE:
+	                 * This event must execute strictly AFTER the underlying database write has fully 
+	                 * completed to prevent "ghost data" or race conditions. 
+	                 * Sending this cluster broadcast notifies downstream microservices or websocket 
+	                 * connections to trigger cleanups (like messages sent to client acknowledgments). 
+	                 * If sent before a guaranteed DB commit, cleanup actions might execute too early 
+	                 * and target data that hasn't physically settled in the collection yet.
+	                 * ACKs cleanup logic under ClusterMessageListener.onMessage().
+	                 */
+					clusterMessagePublisher.convertAndSendToUser(id, toUserKey, fromUserKey, ChatType.CHAT, false, true, isAckStanza, archivedXml, principal);
+				}
 
-					        String ackMessageId = xmppReceiptUtil.getAckMessageId(originalXml);
-					        if (StringUtils.hasText(ackMessageId)) {
-					        	
-					        	// Clear the heavy XML payload from the offline buffer now that the client has acknowledged delivery.
-					        	// We trigger this asynchronously and fire-and-forget; it does not block the main Netty/XMPP processing loop.
-					        	offlineMessageService.clearOfflineStanza(UUID.fromString(principal.getUserKey()), UUID.fromString(ackMessageId))
-					        	.doOnSuccess(unused -> log.debug("Successfully clear offline stanza for user: {} up to ID: {}", principal.getUserKey(), ackMessageId))
-					        	.doOnError(error -> log.error("Failed to clear offline message database buffer for user: {}", principal.getUserKey(), error))
-					        	.subscribe();
-					        }
-					    }
-					    
-					    // --- XEP-0333: Chat Markers (Read Receipts) ---
-					    // If the stanza contains the 'urn:xmpp:chat-markers:0' namespace (displayed), 
-					    // the user has actively viewed the conversation.
-					    if (originalXml.contains(XmppReadUtil.NS_DISPLAYS)) {
-					        String ackMessageId = xmppReadUtil.getAckMessageId(originalXml);
-					        
-					        if (StringUtils.hasText(ackMessageId)) {
-					            // Decrement the unread counter for this specific sender-recipient pair.
-					            // Note: fromUserKey is the person who read it, toUserKey is the original sender.
-					            unreadCountService.syncUnreadCount(UUID.fromString(toUserKey), UUID.fromString(fromUserKey), UUID.fromString(ackMessageId))
-					            .doOnSuccess(success -> {
-					            	// Trigger a fire-and-forget background purge of processed/soft-deleted messages.
-					            	offlineMessageService.purgeDeletedMessagesUpToCheckpoint(
-					            			UUID.fromString(fromUserKey), UUID.fromString(toUserKey), success.getLastReadSid()).subscribe();
-					            })
-					            .subscribe();
-					        }
-					    }
-					    
-					    if (isCountable) {
-					    	// Asynchronous Unread Tracking
-					    	// Increment the unread counter for the recipient (toUserKey) relative to the sender (fromUserKey).
-					    	// This is handled reactively to avoid blocking the Netty event loop during DB writes.
-					    	unreadCountService.incrementUnreadCount(fromUserKey, toUserKey)
-					    	.doOnError(e -> {
-					    		// Critical: Log storage failures specifically for audit trails 
-					    		// in case of "lost" message notifications in production.
-					    		log.error("Storage failure for incrementing unread count for message {}: {}", id, e.getMessage(), e);
-					    	})
-					    	// Use subscribe() to trigger the operation since the Netty pipeline 
-					    	// does not natively await this Mono's completion.
-					    	.subscribe();
-					    }
-					})
-					.doOnError(e -> {					
-						log.error("Storage failure for message {}: {}", id, e.getMessage(), e);
-						if (e instanceof DuplicateKeyException) {
-							// Duplicate stanza detected (idempotent case).
-							// Client MUST ignore this error; used only to support safe retries.
-							xmppUtil.sendError(ctx, id, fromJid, domainProperties.getDomain(),
-							        XmppErrorType.CANCEL,
-							        XmppErrorConditions.DUPLICATE_KEY_ERROR,
-							        "Stanza has duplicate key");
-						} else {
-							xmppUtil.sendError(ctx, id, fromJid, domainProperties.getDomain(), XmppErrorType.WAIT, 
-									XmppErrorConditions.INTERNAL_SERVER_ERROR, "Storage failure");
-						}
-					})
-					.subscribe();		
+				// Create a list of dependent reactive tasks that run sequentially or in parallel safely
+				Mono<Void> postSaveTasks = Mono.empty();
+
+				// 1. Process Retractions safely
+				// Check if the message contains the XMPP Message Retraction namespace (XEP-0424 / urn:xmpp:message-retract:1)
+				if (XmppStanzaUtil.isRetractStanza(originalXml)) {
+					String retractMessageId = xmppRetractUtil.getRetractMessageId(originalXml);
+					if (StringUtils.hasText(retractMessageId)) {
+						postSaveTasks = postSaveTasks.then(processRetraction(retractMessageId, toUserKey, fromUserKey, principal));
+					}
+				}
+
+				// 2. Handle Message Delivery Receipts safely
+				// --- XEP-0184: Message Delivery Receipts ---
+			    // If the stanza contains the 'urn:xmpp:receipts' namespace, the recipient's 
+			    // device has successfully received the message.
+				if (originalXml.contains(XmppReceiptUtil.NS_RECEIPTS)) {
+					String ackMessageId = xmppReceiptUtil.getAckMessageId(originalXml);
+					if (StringUtils.hasText(ackMessageId)) {
+						postSaveTasks = postSaveTasks.then(
+								offlineMessageService.clearOfflineStanza(UUID.fromString(principal.getUserKey()), UUID.fromString(ackMessageId))
+								.doOnError(ex -> log.error("Failed to clear offline message buffer for user: {}", principal.getUserKey(), ex))
+								.onErrorResume(ex -> Mono.empty()) // Prevent sub-errors from breaking the chain
+								);
+					}
+				}
+
+				// 3. Handle Chat Markers (Read Receipts) cleanly via sequential flattening
+				// --- XEP-0333: Chat Markers (Read Receipts) ---
+			    // If the stanza contains the 'urn:xmpp:chat-markers:0' namespace (displayed), 
+			    // the user has actively viewed the conversation.
+				if (originalXml.contains(XmppReadUtil.NS_DISPLAYS)) {
+					String ackMessageId = xmppReadUtil.getAckMessageId(originalXml);
+					if (StringUtils.hasText(ackMessageId)) {
+						postSaveTasks = postSaveTasks.then(
+								unreadCountService.syncUnreadCount(UUID.fromString(toUserKey), UUID.fromString(fromUserKey), UUID.fromString(ackMessageId))
+								.flatMap(success -> offlineMessageService.purgeDeletedMessagesUpToCheckpoint(UUID.fromString(fromUserKey), UUID.fromString(toUserKey), success.getLastReadSid()))
+								.onErrorResume(ex -> Mono.empty())
+								);
+					}
+				}
+
+				// 4. Handle Countable Increment cleanly
+				if (isCountable) {
+					// Asynchronous Unread Tracking
+			    	// Increment the unread counter for the recipient (toUserKey) relative to the sender (fromUserKey).
+			    	// This is handled reactively to avoid blocking the Netty event loop during DB writes.
+					postSaveTasks = postSaveTasks.then(
+							unreadCountService.incrementUnreadCount(fromUserKey, toUserKey)
+							.doOnError(e -> log.error("Storage failure for incrementing unread count for message {}: {}", id, e.getMessage()))
+							.onErrorResume(ex -> Mono.empty())
+							).then();
+				}
+
+				return postSaveTasks;
+			})
+			.subscribeOn(DB_SCHEDULER) // Shifting execution away from Netty Event Loop
+			.doOnError(e -> {                  
+				log.error("Storage failure for message {}: {}", id, e.getMessage(), e);
+				if (e instanceof DuplicateKeyException) {
+					xmppUtil.sendError(ctx, id, fromJid, domainProperties.getDomain(), XmppErrorType.CANCEL, XmppErrorConditions.DUPLICATE_KEY_ERROR, "Stanza has duplicate key");
+				} else {
+					xmppUtil.sendError(ctx, id, fromJid, domainProperties.getDomain(), XmppErrorType.WAIT, XmppErrorConditions.INTERNAL_SERVER_ERROR, "Storage failure");
+				}
+			})
+			.subscribe(); // Single, managed entry point subscription
 		}
 
 		// Handle call life cycle 

@@ -14,4 +14,9 @@ public class RedisStreamProperties {
      * Redis stream key for storing missed call events.
      */
     private String missedCall = "missed-call-stream";
+    
+    /**
+     * Redis stream key for storing purge group conversation events.
+     */
+    private String purgeGroupConversation = "purge-group-conversation-stream";
 }

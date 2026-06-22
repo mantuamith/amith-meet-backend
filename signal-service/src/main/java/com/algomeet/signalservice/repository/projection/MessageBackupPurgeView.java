@@ -14,5 +14,6 @@ public interface MessageBackupPurgeView {
 	UUID getReceiverKey();          // Receiver user key / ID
     
     List<UUID> getMediaIds();
-
+    
+    Long getDeletedAt();
 }

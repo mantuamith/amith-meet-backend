@@ -6,6 +6,7 @@ import java.util.UUID;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.mongodb.repository.Query;
 import org.springframework.data.mongodb.repository.ReactiveMongoRepository;
+import org.springframework.data.mongodb.repository.Update;
 
 import com.algomeet.xmpp.chatservice.document.MucMessage;
 import com.algomeet.xmpp.chatservice.repository.projection.MucMessageView;
@@ -173,4 +174,8 @@ public interface MucMessageRepository extends ReactiveMongoRepository<MucMessage
 	        Instant historyCutoff, 
 	        Pageable pageable
 	);
+	
+	@Query("{ 'roomId': ?0, 'purgeAt': null }") // Target only un-purged records in the room
+	@Update("{ '$set': { 'purgeAt': ?1 } }")
+	Mono<Long> updatePurgeAtByRoomId(UUID roomId, Instant purgeTime);
 }

@@ -64,4 +64,26 @@ public class RedisConfig {
 
         return template;
     }
+	
+	@Bean    
+    public RedisTemplate<String, String> purgeMessageBackupStringRedisTemplate(RedisConnectionFactory connectionFactory) {
+        RedisTemplate<String, String> template = new RedisTemplate<>();
+        template.setConnectionFactory(connectionFactory);
+
+        /**
+         * Use plain string serialization for both channels and payloads.
+         *
+         * Faster than JSON serializers for Pub/Sub transport messaging.
+         */
+        StringRedisSerializer serializer = new StringRedisSerializer();
+
+        template.setKeySerializer(serializer);
+        template.setValueSerializer(serializer);
+        template.setHashKeySerializer(serializer);
+        template.setHashValueSerializer(serializer);
+
+        template.afterPropertiesSet();
+
+        return template;
+    }
 }

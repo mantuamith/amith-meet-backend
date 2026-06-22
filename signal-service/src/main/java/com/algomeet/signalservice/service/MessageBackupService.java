@@ -47,6 +47,7 @@ import com.algomeet.signalservice.dto.StorageUsageAdjustmentRequest;
 import com.algomeet.signalservice.exceptions.MessageInsertInProgressException;
 import com.algomeet.signalservice.exceptions.MessageUpdateStatusInProgressException;
 import com.algomeet.signalservice.exceptions.RecordNotFoundException;
+import com.algomeet.signalservice.publisher.PurgeMessageBackupStreamPublisher;
 import com.algomeet.signalservice.repository.MessageBackupRepository;
 import com.algomeet.signalservice.repository.projection.ConversationStorageStats;
 import com.algomeet.signalservice.repository.projection.MessageBackupView;
@@ -74,6 +75,7 @@ public class MessageBackupService {
 	private final RetractUtil retractUtil;
 	private final HideUtil hideUtil;
 	private final DeleteMediaUtil deleteMediaUtil;
+	private final PurgeMessageBackupStreamPublisher purgeMessageBackupStreamPublisher;
 
 	/**
 	 * Inserts a message backup document into MongoDB with concurrency protection,
@@ -495,10 +497,8 @@ public class MessageBackupService {
 	}	
 
 	public void deleteByUserKey(UUID userKey ){
-		repository.deleteByUserKey(userKey);
-
-		// Delete user storage usage
-		mediaService.deleteStorage(userKey.toString());
+		// Send user key to redis stream
+		purgeMessageBackupStreamPublisher.publish(userKey);
 	}	
 
 	public void updateStatus(List<UUID> messageIds, String timestampField, Long timestamp) {
@@ -604,12 +604,19 @@ public class MessageBackupService {
 			log.warn("Message backup message IDs not found: {} " + messageIds);
 		}
 	}
-	
-	
-	public Optional<MessageBackupView> getConversationLastSent(UUID userKey, UUID peerKey, UUID senderKey) {
-		// Get converation ID
-		String converationId = ConversationUtil.getConversationId(userKey.toString(), peerKey.toString());	
 		
-		return repository.findFirstByConversationIdAndSenderKeyAndDeletedAtIsNullAndHiddenAtIsNullOrderByStanzaIdDesc(converationId, senderKey);
+	public Optional<MessageBackupView> getConversationLastSent(UUID userKey, UUID peerKey, UUID senderKey) {
+		// Get conversation ID
+		String conversationId = ConversationUtil.getConversationId(userKey.toString(), peerKey.toString());	
+		
+		return repository.findFirstByConversationIdAndSenderKeyAndDeletedAtIsNullAndHiddenAtIsNullOrderByStanzaIdDesc(conversationId, senderKey);
+	}
+	
+	public void purgeMessageBackup(UUID userKey){
+		// Update purgeAt value
+		repository.updatePurgeAtByUserKey(userKey, Instant.now());
+		
+		// Delete user storage usage
+		mediaService.deleteStorage(userKey.toString());
 	}
 }

@@ -12,5 +12,7 @@ public interface MucMessagePurgeView {
     UUID getRoomId();
     
     List<UUID> getMediaIds();
+    
+    Long getDeletedAt();
 
 }

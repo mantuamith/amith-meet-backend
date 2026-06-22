@@ -243,19 +243,4 @@ class MessageBackupServiceTest {
 		verify(repository)
 		.deleteByUserKeyAndConversationId(userKey, peerKey.toString());
 	}
-
-	/* -------------------------------------------------
-	 * DELETE BY USER KEY
-	 * ------------------------------------------------- */
-
-	@Test
-	void deleteByUserKey_success() {
-		doNothing().when(repository)
-		.deleteByUserKey(userKey);
-
-		service.deleteByUserKey(userKey);
-
-		verify(repository)
-		.deleteByUserKey(userKey);
-	}
 }

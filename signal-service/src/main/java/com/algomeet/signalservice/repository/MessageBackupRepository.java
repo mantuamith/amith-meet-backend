@@ -6,17 +6,15 @@ import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.mongodb.repository.Aggregation;
 import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.data.mongodb.repository.Query;
+import org.springframework.data.mongodb.repository.Update;
 
 import com.algomeet.signalservice.document.MessageBackupDocument;
 import com.algomeet.signalservice.repository.projection.ConversationStorageStats;
 import com.algomeet.signalservice.repository.projection.MessageBackupPurgeView;
 import com.algomeet.signalservice.repository.projection.MessageBackupView;
-
-import jakarta.transaction.Transactional;
 
 public interface MessageBackupRepository extends MongoRepository<MessageBackupDocument, UUID> {	
 	List<MessageBackupDocument> findByConversationIdAndStanzaIdLessThanAndDeletedAtIsNullAndHiddenAtIsNull(
@@ -26,14 +24,8 @@ public interface MessageBackupRepository extends MongoRepository<MessageBackupDo
 	        String conversationId, UUID stanzaId, Pageable pageable);
 
 	// Custom delete query for both sides of conversation
-	@Modifying
 	@Query(value = "{ 'userKey': ?0, 'conversationId': ?1 }", delete = true)
-	@Transactional
 	void deleteByUserKeyAndConversationId(UUID userKey, String conversationId);
-
-	@Modifying
-	@Transactional
-	void deleteByUserKey(UUID userKey);
 
 	@Aggregation(pipeline = {
 			// 1. Filter by the record owner and the specific conversation
@@ -112,7 +104,7 @@ public interface MessageBackupRepository extends MongoRepository<MessageBackupDo
 	 * Select messages where purgeAt <= paramter date
 	 * 
 	 */
-	List<MessageBackupPurgeView> findByPurgeAtLessThanEqual(Instant purgeAt);	
+	List<MessageBackupPurgeView> findByPurgeAtLessThanEqual(Instant purgeAt, Pageable pageable);	
 	
 	/**
 	 * Used for for deleting media files.
@@ -123,4 +115,8 @@ public interface MessageBackupRepository extends MongoRepository<MessageBackupDo
 	 */
 	List<MessageBackupView> findByConversationIdAndStanzaIdLessThanEqualAndDeletedAtIsNullAndHiddenAtIsNullAndMediaIdsIsNotNull(
 	        String conversationId, UUID stanzaId, Pageable pageable);
+		
+	@Query("{ 'userKey': ?0, 'purgeAt': null }") // Target only un-purged records in the message backup
+	@Update("{ '$set': { 'purgeAt': ?1 } }")
+	Long updatePurgeAtByUserKey(UUID userKey, Instant purgeTime);
 }

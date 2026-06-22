@@ -1,37 +1,33 @@
 package com.algomeet.xmpp.chatservice.service;
 
 import java.time.Instant;
-import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.StringUtils;
-import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
-import org.springframework.util.CollectionUtils;
 
+import com.algomeet.common.dto.Group;
 import com.algomeet.common.dto.GroupMember;
 import com.algomeet.common.service.GroupCacheService;
-import com.algomeet.common.dto.Group;
 import com.algomeet.xmpp.chatservice.client.GroupClient;
 import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
+import com.algomeet.xmpp.chatservice.constant.Constants;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.enums.MucAffiliation;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
-import com.algomeet.xmpp.chatservice.publisher.MessageMediaDeleteEventPublisher;
+import com.algomeet.xmpp.chatservice.publisher.PurgeGroupConversationStreamPublisher;
 import com.algomeet.xmpp.chatservice.repository.MucMessageRepository;
-import com.algomeet.xmpp.chatservice.repository.projection.MucMessageView;
+import com.algomeet.xmpp.chatservice.routing.muc.MucMessageRouter;
 import com.algomeet.xmpp.chatservice.util.DeleteMediaUtil;
 import com.algomeet.xmpp.chatservice.util.SearchUtil;
 import com.algomeet.xmpp.chatservice.util.XmppSyncStanzaComposer;
 import com.github.f4b6a3.uuid.UuidCreator;
 
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
@@ -45,8 +41,9 @@ public class MucRoomService {
     private final ClusterMessagePublisher clusterMessagePublisher;
     private final DomainProperties domainProperties;
     private final MucMessageRepository mucMessageRepository;
-    private final MessageMediaDeleteEventPublisher messageMediaDeleteEventPublisher;
     private final DeleteMediaUtil deleteMediaUtil;
+    private final PurgeGroupConversationStreamPublisher purgeGroupConversationStreamPublisher;
+    private final MucMessageRouter mucMessageRouter;
     
     /**
      * Handles the business flow for clearing a member's history timeline.
@@ -88,7 +85,8 @@ public class MucRoomService {
                         String payload = XmppSyncStanzaComposer.createMucClearanceStanza(
                                 domainProperties.getGroupChatDomain(),
                                 groupId.toString(), 
-                                cutoffStanzaId
+                                cutoffStanzaId,
+                                false
                         );
 
                         String messageId = UuidCreator.getTimeOrderedEpoch().toString();
@@ -110,7 +108,7 @@ public class MucRoomService {
      * * @param groupId The unique room identifier (UUID) targeting the group chat space
      * @return true if the purge was executed and completed successfully across remote endpoints
      */
-    public Boolean purgeAllGroupMessages(UUID groupId, UUID userKey) {
+    public Boolean purgeGroupConversation(UUID groupId, UUID userKey) {
         log.warn("Executing administrative database purge for all messages in group: {}", groupId);
 
         Group group = groupCacheService.getCachedGroup(groupId.toString());
@@ -125,16 +123,10 @@ public class MucRoomService {
         	}
         }
         
-        // TODO: 1. Trigger the hard-deletion across your microservice boundary
-        boolean isPurged = true; //groupClient.purgeAllGroupMessages(groupId);
+        // Send purge group event to stream
+        purgeGroupConversationStreamPublisher.publish(groupId);
 
-                
-        if (!isPurged) {
-            log.error("Remote core group microservice failed to purge messages for group: {}", groupId);
-            return false;
-        }
-
-        // 2. Invalidate the Redis cache layer immediately to prevent dirty historic reads
+        // Invalidate the Redis cache layer immediately to prevent dirty historic reads
         groupCacheService.evictGroup(groupId.toString());
         log.debug("Evicted group cache for id {} following global history purge optimization.", groupId);
 
@@ -144,37 +136,45 @@ public class MucRoomService {
          * client engines evaluate all local message records as obsolete.
          * * <message from='conference.algomeet.app' type='headline'>
          * <sync xmlns='urn:xmpp:algomeet:sync:history'>
-         * <conversation room-id='ROOM_ID' cleared-until-stanza-id='STANZA_ID' />
+         * <conversation room-id='ROOM_ID' cleared-until-stanza-id='STANZA_ID' deleted='true'/>
          * </sync>
          * </message>
-         */
+         */       
+        String payload = XmppSyncStanzaComposer.createMucClearanceStanza(
+        		domainProperties.getGroupChatDomain(),
+        		groupId.toString(),
+        		Constants.LARGEST_UUID_V7.toString(),
+        		true);
 
-        Optional<MucMessageView> lastMessageOpt = mucMessageRepository.findFirstByRoomIdAndCreatedAtLessThanEqualOrderByCreatedAtDesc(
-                groupId, 
-                Instant.now()).blockOptional();
-        
-        if (lastMessageOpt.isPresent()) {
-        	String payload = XmppSyncStanzaComposer.createMucClearanceStanza(
-        			domainProperties.getGroupChatDomain(),
-        			groupId.toString(),
-        			lastMessageOpt.get().getId().toString());
+        // Injecting an analytical modifier property if your Stanza Composer allows string expansions, 
+        // or rely on standard cleared-until evaluation on the client app layouts.
+        String clusterMessageId = UuidCreator.getTimeOrderedEpoch().toString();
 
-        	// Injecting an analytical modifier property if your Stanza Composer allows string expansions, 
-        	// or rely on standard cleared-until evaluation on the client app layouts.
-        	String clusterMessageId = UuidCreator.getTimeOrderedEpoch().toString();
-
+        if(group != null ) {
         	// 3. Broadcast to your cluster messaging bridge. 
         	// Since this is a global room history drop, route the event to the room's channel space 
         	// so all active online occupants process the viewport clearance concurrently.
-        	clusterMessagePublisher.convertAndSendToUser(
-        			clusterMessageId,
-        			groupId.toString(), // Targets the common group distribution key routing string
-        			groupId.toString(), 
-        			ChatType.GROUPCHAT, 
-        			payload);
+        	mucMessageRouter.broadcastToOccupants(clusterMessageId, userKey.toString(), group, payload, true);
         }
 
         log.info("Successfully completed global purge operations and synchronized timeline resets for group: {}", groupId);
         return true;
+    }
+    
+    public Mono<Void> purgeGroupConversation(String groupId) {
+    	if (StringUtils.isEmpty(groupId)) {
+    		return Mono.empty();
+    	}
+    	
+        java.time.Instant now = java.time.Instant.now();
+
+        // Update purge date to now
+        return mucMessageRepository.updatePurgeAtByRoomId(UUID.fromString(groupId), now)
+                .doOnSuccess(count -> log.info("Successfully marked group {} conversation for purging. Total documents modified: {}", groupId, count))
+                .onErrorResume(err -> {
+                    log.error("Failed to execute purge update routine for group: {}", groupId, err);
+                    return Mono.error(new RuntimeException("Could not flag group conversation for purging", err));
+                })
+                .then(); // Yield Mono<Void>
     }
 }

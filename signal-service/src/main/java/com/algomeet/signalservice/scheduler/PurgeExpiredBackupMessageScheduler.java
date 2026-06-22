@@ -9,6 +9,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -20,6 +21,7 @@ import com.algomeet.signalservice.repository.projection.MessageBackupPurgeView;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Pageable;
 
 @Slf4j
 @Component
@@ -98,47 +100,61 @@ public class PurgeExpiredBackupMessageScheduler {
 	 * Handles core blocking processing logic for retrieving and purging the data stream.
 	 */
 	private int executePurgePipeline() {
+		int totalRowDeletedCount = 0;
 		Instant now = Instant.now();
+		final int maxLimit = 200;
+		int page = 0;
 
-		// Fetch the items synchronously from your standard MongoRepository
-		List<MessageBackupPurgeView> expiredMessages = messageBackupRepository.findByPurgeAtLessThanEqual(now);
+		// 1. Enforce pagination with a strict limit of 200 items max
+	    Pageable pageable = PageRequest.of(page, maxLimit);
+	    
+	    while (true) {
+			// Fetch the items synchronously from your standard MongoRepository
+			List<MessageBackupPurgeView> expiredMessages = messageBackupRepository.findByPurgeAtLessThanEqual(now, pageable);
+	
+			if (expiredMessages.isEmpty()) {
+				return totalRowDeletedCount;
+			}
+	
+			log.info("Found {} expired backup messages eligible for cleanup.", expiredMessages.size());
+	
+			// Process attachments cleanup notifications
+			expiredMessages.stream()
+				.filter(view -> view.getMediaIds() != null && !view.getMediaIds().isEmpty() && view.getDeletedAt() == null)
+				.forEach(view -> {
+					try {
+						messageMediaDeleteEventPublisher.publish(
+							null, 
+							view.getMediaIds().stream().map(UUID::toString).collect(Collectors.toSet()), 
+							Stream.of(view.getSenderKey(), view.getReceiverKey())
+								.filter(Objects::nonNull)
+								.map(UUID::toString)
+								.collect(Collectors.toSet()),
+							null, 
+							view.getMessageId().toString()
+						);
+					} catch (Exception e) {
+						log.error("Failed to publish media delete event for message ID: {}", view.getMessageId(), e);
+					}
+				});
+	
+			// Extract IDs to purge from database
+			List<UUID> idsToDelete = expiredMessages.stream()
+					.map(MessageBackupPurgeView::getStanzaId)
+					.toList();
+	
+			log.debug("Purging {} expired backup message records from the database", idsToDelete.size());
+			
+			// Use standard MongoRepository built-in batch deletion tool
+			messageBackupRepository.deleteAllById(idsToDelete);
+			totalRowDeletedCount += idsToDelete.size();
+			page += page + 1;
+			
+			if (idsToDelete.size() < maxLimit) {
+				break;
+			}
+	    }
 
-		if (expiredMessages.isEmpty()) {
-			return 0;
-		}
-
-		log.info("Found {} expired backup messages eligible for cleanup.", expiredMessages.size());
-
-		// Process attachments cleanup notifications
-		expiredMessages.stream()
-			.filter(view -> view.getMediaIds() != null && !view.getMediaIds().isEmpty())
-			.forEach(view -> {
-				try {
-					messageMediaDeleteEventPublisher.publish(
-						null, 
-						view.getMediaIds().stream().map(UUID::toString).collect(Collectors.toSet()), 
-						Stream.of(view.getSenderKey(), view.getReceiverKey())
-							.filter(Objects::nonNull)
-							.map(UUID::toString)
-							.collect(Collectors.toSet()),
-						null, 
-						view.getMessageId().toString()
-					);
-				} catch (Exception e) {
-					log.error("Failed to publish media delete event for message ID: {}", view.getMessageId(), e);
-				}
-			});
-
-		// Extract IDs to purge from database
-		List<UUID> idsToDelete = expiredMessages.stream()
-				.map(MessageBackupPurgeView::getStanzaId)
-				.toList();
-
-		log.debug("Purging {} expired backup message records from the database", idsToDelete.size());
-		
-		// Use standard MongoRepository built-in batch deletion tool
-		messageBackupRepository.deleteAllById(idsToDelete);
-
-		return idsToDelete.size();
+		return totalRowDeletedCount;
 	}
 }

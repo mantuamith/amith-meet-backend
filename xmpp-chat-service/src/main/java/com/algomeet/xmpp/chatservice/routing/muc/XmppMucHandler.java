@@ -34,6 +34,9 @@ import com.github.f4b6a3.uuid.UuidCreator;
 import io.netty.channel.ChannelHandlerContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Scheduler;
+import reactor.core.scheduler.Schedulers;
 
 /**
  * <h2>XmppMucHandler</h2>
@@ -66,6 +69,8 @@ public class XmppMucHandler {
 	private final MucMessageReadCursorService mucMessageReadService;
 	private final MucMessageService mucMessageService;
 
+	// Define a dedicated thread pool for your database work so Netty doesn't starve
+	private static final Scheduler DB_SCHEDULER = Schedulers.newBoundedElastic(200, 10000, "xmpp-muc-db-workers");
 	/**
 	 * Main entry point for MUC stanza processing.
 	 * Decides whether a stanza is a moderation command, a user command, or a standard message.
@@ -168,7 +173,7 @@ public class XmppMucHandler {
 				
 				xmppArchiveService.archiveEvent(forArchiveXml, id, XmppUtil.getRoomId(toRoomJid), (pmToMucMember != null ? pmToMucMember.getUserKey() : null), 
 						XmppUtil.getUserKey(fromJid), stanzaId, isCountable)
-				.doOnSuccess(saved -> {
+				.flatMap(saved -> {
 
 					// Send an immediate server-level acknowledgment to the sender.
 					//
@@ -181,14 +186,20 @@ public class XmppMucHandler {
 					// used to provide early delivery assurance back to the sender.
 					XmppServerAckUtil.send(ctx, id, domainProperties.getDomain(), stanzaId.toString());
 					
+					Mono<Void> postSaveTasks = Mono.empty();
+					
 					// Move cursor for the message sender
 					if (isCountable) {
-						mucMessageReadService.advanceReadCursor(UUID.fromString(principal.getUserKey()), group.getId(), UUID.fromString(id))
-						.subscribe();
+						postSaveTasks = postSaveTasks.then(mucMessageReadService.advanceReadCursor(
+								UUID.fromString(principal.getUserKey()), group.getId(), UUID.fromString(id)))
+								.then();
 					}
 
 					log.debug("MAM Archive Success: ID={} Room={}", stanzaId, toRoomId);
+					
+					return postSaveTasks;
 				})
+				.subscribeOn(DB_SCHEDULER) // Shifting execution away from Netty Event Loop
 				.doOnError(e -> {
 					log.error("MAM Archive Failure: {}", e.getMessage(), e);
 					handleArchiveError(ctx, id, principal, e);
@@ -197,8 +208,7 @@ public class XmppMucHandler {
 			}
 
 			// 4. DISPATCHING
-			try {			
-
+			try {	
 				// Standard message propagation to members
 				mucMessageRouter.broadcastToOccupants(ctx, id, toRoomJid, fromJid, msgType, group, 
 						pmToMucMember, (isArchivable ? forArchiveXml : originalXml));

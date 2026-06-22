@@ -12,6 +12,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 
 import com.algomeet.common.dto.GroupMember;
+import com.algomeet.xmpp.chatservice.constant.Constants;
 import com.algomeet.xmpp.chatservice.publisher.MessageMediaDeleteEventPublisher;
 import com.algomeet.xmpp.chatservice.repository.MucMessageRepository;
 
@@ -78,5 +79,5 @@ public class DeleteMediaUtil {
                 )
                 .doOnError(err -> log.error("Error executing background file revocation tracking loops for group: {}", groupId, err))
                 .then();
-    }
+    }   
 }
