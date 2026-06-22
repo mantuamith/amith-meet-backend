@@ -17,10 +17,10 @@ import com.algomeet.signalservice.repository.projection.MessageBackupPurgeView;
 import com.algomeet.signalservice.repository.projection.MessageBackupView;
 
 public interface MessageBackupRepository extends MongoRepository<MessageBackupDocument, UUID> {	
-	List<MessageBackupDocument> findByConversationIdAndStanzaIdLessThanAndDeletedAtIsNullAndHiddenAtIsNull(
+	List<MessageBackupDocument> findByConversationIdAndStanzaIdLessThanAndDeletedAtIsNullAndHiddenAtIsNullOrderByStanzaIdDesc(
 	        String conversationId, UUID stanzaId, Pageable pageable);
 
-	List<MessageBackupDocument> findByConversationIdAndStanzaIdGreaterThanAndDeletedAtIsNullAndHiddenAtIsNull(
+	List<MessageBackupDocument> findByConversationIdAndStanzaIdGreaterThanAndDeletedAtIsNullAndHiddenAtIsNullOrderByStanzaIdAsc(
 	        String conversationId, UUID stanzaId, Pageable pageable);
 
 	// Custom delete query for both sides of conversation
@@ -113,7 +113,17 @@ public interface MessageBackupRepository extends MongoRepository<MessageBackupDo
 	 * @param pageable
 	 * @return
 	 */
-	List<MessageBackupView> findByConversationIdAndStanzaIdLessThanEqualAndDeletedAtIsNullAndHiddenAtIsNullAndMediaIdsIsNotNull(
+	List<MessageBackupView> findByConversationIdAndStanzaIdLessThanEqualAndDeletedAtIsNullAndHiddenAtIsNullAndMediaIdsIsNotNullOrderByStanzaIdDesc(
+	        String conversationId, UUID stanzaId, Pageable pageable);
+	
+	/**
+	 * Used for for deleting media files.
+	 * @param conversationId
+	 * @param stanzaId
+	 * @param pageable
+	 * @return
+	 */
+	List<MessageBackupView> findByConversationIdAndStanzaIdLessThanAndDeletedAtIsNullAndHiddenAtIsNullAndMediaIdsIsNotNullOrderByStanzaIdDesc(
 	        String conversationId, UUID stanzaId, Pageable pageable);
 		
 	@Query("{ 'userKey': ?0, 'purgeAt': null }") // Target only un-purged records in the message backup

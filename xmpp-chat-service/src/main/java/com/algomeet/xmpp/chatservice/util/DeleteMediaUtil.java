@@ -12,7 +12,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 
 import com.algomeet.common.dto.GroupMember;
-import com.algomeet.xmpp.chatservice.constant.Constants;
 import com.algomeet.xmpp.chatservice.publisher.MessageMediaDeleteEventPublisher;
 import com.algomeet.xmpp.chatservice.repository.MucMessageRepository;
 
@@ -28,6 +27,9 @@ public class DeleteMediaUtil {
     private final MucMessageRepository mucMessageRepository;
     private final MessageMediaDeleteEventPublisher messageMediaDeleteEventPublisher;
 
+ // Immutable state holder to pass safely down the reactive recursive expand tree
+    private record PaginationState(UUID cursorId, boolean isInclusive) {}
+
     public Mono<Void> handleDeletionOfMediaFilesReactive(UUID userKey, Optional<GroupMember> memberPrevData, String cutoffStanzaId, UUID groupId) {
         
         Instant prevHistoryCutoff = memberPrevData
@@ -36,48 +38,58 @@ public class DeleteMediaUtil {
                 .orElse(Instant.EPOCH);
 
         UUID initialMaxId = UUID.fromString(cutoffStanzaId);
-        // Fixed page point at 0 since we shift windows via Keyset Pagination
-        Pageable pageable = PageRequest.of(0, 500); 
+        final int pageSize = 500;
+        Pageable pageable = PageRequest.of(0, pageSize); 
 
-        return Mono.just(initialMaxId)
-                .expand(currentMaxId -> 
-                    mucMessageRepository.findMessageViewByRoomIdAndIdLessThanEqualAndToIsNullOrEqualtoUserkeyAndNotHiddenAndMediaIdsIsNotNullOrderByIdDesc(
-                            groupId, currentMaxId, userKey, prevHistoryCutoff, pageable)
-                    .collectList()
-                    .flatMapMany(batch -> {
-                        if (batch.isEmpty()) {
-                            return Flux.empty();
-                        }
+        // Start with an inclusive wrapper state (<=) for the first database lookup pass
+        PaginationState initialState = new PaginationState(initialMaxId, true);
 
-                        // 1. Process items in the current batch reactively
-                        Flux<Object> publishEvents = Flux.fromIterable(batch)
-                                .filter(msg -> !CollectionUtils.isEmpty(msg.getMediaIds()))
-                                .flatMap(msg -> {
-                                    Set<String> mediaIdStrings = msg.getMediaIds().stream()
-                                            .map(UUID::toString)
-                                            .collect(Collectors.toSet());
-                                    
-                                    return messageMediaDeleteEventPublisher.publish(
-                                            userKey.toString(), 
-                                            mediaIdStrings, 
-                                            Set.of(userKey.toString()),
-                                            null, 
-                                            msg.getMessageId().toString()
-                                    );
-                                });
+        return Mono.just(initialState)
+                .expand(state -> {
+                    // 1. Dynamically route the query based on the immutable state footprint
+                    var queryFlux = state.isInclusive() 
+                        ? mucMessageRepository.findMessageViewByRoomIdAndIdLessThanEqualAndToIsNullOrEqualtoUserkeyAndNotHiddenAndMediaIdsIsNotNullOrderByIdDesc(
+                                groupId, state.cursorId(), userKey, prevHistoryCutoff, pageable)
+                        : mucMessageRepository.findMessageViewByRoomIdAndIdLessThanAndToIsNullOrEqualtoUserkeyAndNotHiddenAndMediaIdsIsNotNullOrderByIdDesc(
+                                groupId, state.cursorId(), userKey, prevHistoryCutoff, pageable);
 
-                        // 2. Determine the cursor for the next window
-                        UUID lowestIdInBatch = batch.get(batch.size() - 1).getId();
-                        Flux<UUID> nextCursor = (batch.size() == pageable.getPageSize()) 
-                                ? Flux.just(lowestIdInBatch) 
-                                : Flux.empty();
+                    return queryFlux
+                        .collectList()
+                        .flatMapMany(batch -> {
+                            if (batch.isEmpty()) {
+                                return Flux.empty();
+                            }
 
-                        // 3. Complete processing of current events BEFORE emitting the next cursor
-                        // This fixes the Type Mismatch completely.
-                        return publishEvents.thenMany(nextCursor);
-                    })
-                )
+                            // 2. Process media deletion broker notifications concurrently
+                            Flux<Object> publishEvents = Flux.fromIterable(batch)
+                                    .filter(msg -> !CollectionUtils.isEmpty(msg.getMediaIds()))
+                                    .flatMap(msg -> {
+                                        Set<String> mediaIdStrings = msg.getMediaIds().stream()
+                                                .map(UUID::toString)
+                                                .collect(Collectors.toSet());
+                                        
+                                        return messageMediaDeleteEventPublisher.publish(
+                                                userKey.toString(), 
+                                                mediaIdStrings, 
+                                                Set.of(userKey.toString()),
+                                                null, 
+                                                msg.getMessageId().toString()
+                                        );
+                                    });
+
+                            // 3. Determine the cursor for the next recursive window loop pass
+                            UUID lowestIdInBatch = batch.get(batch.size() - 1).getId();
+                            
+                            // If the batch is full, emit a new strict exclusive state (<) for the next pass
+                            Flux<PaginationState> nextState = (batch.size() == pageSize) 
+                                    ? Flux.just(new PaginationState(lowestIdInBatch, false)) 
+                                    : Flux.empty();
+
+                            // 4. Ensure events finish processing BEFORE expanding further
+                            return publishEvents.thenMany(nextState);
+                        });
+                })
                 .doOnError(err -> log.error("Error executing background file revocation tracking loops for group: {}", groupId, err))
-                .then();
-    }   
+                .then(); // Return a clean Mono<Void> signaling sequence terminal completion
+    }
 }

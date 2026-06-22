@@ -272,7 +272,6 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.MESSAGE_BACKUP_NOT_FOUND));
 		}
 	}
-
 	
 	/**
 	 * Deletes all messages in a conversation between the authenticated user and the given peer.
@@ -287,7 +286,6 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 		messageBackupService.deleteConversation(UUID.fromString(SecurityUtil.getUserKey()), peerKey, lastStanzaId);          
 		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
 	}
-
 		
 	/**
      * Deletes all chat message backups belonging to the currently authenticated user.

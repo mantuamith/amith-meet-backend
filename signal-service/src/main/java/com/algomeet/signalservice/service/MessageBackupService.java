@@ -177,7 +177,7 @@ public class MessageBackupService {
 
 		// Get converation ID
 		String converationId = ConversationUtil.getConversationId(userKey.toString(), peerKey.toString());		
-		return repository.findByConversationIdAndStanzaIdLessThanAndDeletedAtIsNullAndHiddenAtIsNull(converationId, stanzaId, pageable);
+		return repository.findByConversationIdAndStanzaIdLessThanAndDeletedAtIsNullAndHiddenAtIsNullOrderByStanzaIdDesc(converationId, stanzaId, pageable);
 	}
 
 	public List<MessageBackupDocument> getConversationMessagesAfter(UUID userKey, UUID peerKey, UUID stanzaId, int page, int size) {
@@ -185,7 +185,7 @@ public class MessageBackupService {
 
 		// Get converation ID
 		String converationId = ConversationUtil.getConversationId(userKey.toString(), peerKey.toString());		
-		return repository.findByConversationIdAndStanzaIdGreaterThanAndDeletedAtIsNullAndHiddenAtIsNull(converationId, stanzaId, pageable);
+		return repository.findByConversationIdAndStanzaIdGreaterThanAndDeletedAtIsNullAndHiddenAtIsNullOrderByStanzaIdAsc(converationId, stanzaId, pageable);
 	}
 
 	public List<MessageBackupDocument> getMessageUpdates(

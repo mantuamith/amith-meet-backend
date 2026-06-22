@@ -57,11 +57,16 @@ public class DeleteMediaUtil {
 	    Pageable pageable = PageRequest.of(0, pageSize); 
 	    
 	    UUID currentLastStanzaId = lastStanzaId != null ? lastStanzaId : Constants.LARGEST_UUID_V7;
-
+	    boolean firstPage = true;
+	    
 	    while (true) {
 	        // Query messages with media files  	                                              
-	        List<MessageBackupView> messages = repository.findByConversationIdAndStanzaIdLessThanEqualAndDeletedAtIsNullAndHiddenAtIsNullAndMediaIdsIsNotNull(
-	                conversationId, currentLastStanzaId, pageable);
+	    	List<MessageBackupView> messages = 
+	    			firstPage ? 
+	    					repository.findByConversationIdAndStanzaIdLessThanEqualAndDeletedAtIsNullAndHiddenAtIsNullAndMediaIdsIsNotNullOrderByStanzaIdDesc(
+	    							conversationId, currentLastStanzaId, pageable)
+	    					: repository.findByConversationIdAndStanzaIdLessThanAndDeletedAtIsNullAndHiddenAtIsNullAndMediaIdsIsNotNullOrderByStanzaIdDesc(
+	    							conversationId, currentLastStanzaId, pageable);
 	        
 	        if (CollectionUtils.isEmpty(messages)) {
 	            break; 
@@ -78,10 +83,12 @@ public class DeleteMediaUtil {
 	                );
 	            }
 	        }
-	        
+
 	        // Update the cursor to the stanzaId of the very last message in this batch
 	        // (Assumes messages are sorted by stanzaId descending)
-	        currentLastStanzaId = messages.get(messages.size() - 1).getStanzaId();
+	        currentLastStanzaId = messages.get(messages.size() - 1).getStanzaId();	     
+	        
+	        firstPage = false;
 	    }       
 	}
 }

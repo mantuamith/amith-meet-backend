@@ -149,7 +149,7 @@ public interface MucMessageRepository extends ReactiveMongoRepository<MucMessage
 	Flux<MucMessagePurgeView> findByPurgeAtLessThanEqual(Instant purgeAt);	
 	
 	/**
-	 * Use for clean up of media files.
+	 * Use for clean up of media files. Stanza ID is less than equal.
 	 * @param roomId
 	 * @param beforeId
 	 * @param userKey
@@ -168,6 +168,33 @@ public interface MucMessageRepository extends ReactiveMongoRepository<MucMessage
 	        + "}", 
 	       sort = "{ 'id': -1 }")
 	Flux<MucMessageView> findMessageViewByRoomIdAndIdLessThanEqualAndToIsNullOrEqualtoUserkeyAndNotHiddenAndMediaIdsIsNotNullOrderByIdDesc(
+	        UUID roomId, 
+	        UUID beforeId, 
+	        UUID userKey, 
+	        Instant historyCutoff, 
+	        Pageable pageable
+	);
+	
+	/**
+	 * Use for clean up of media files. Stanza ID is less than.
+	 * @param roomId
+	 * @param beforeId
+	 * @param userKey
+	 * @param historyCutoff
+	 * @param pageable
+	 * @return
+	 */
+	@Query(value = "{"
+	        + "  'roomId': ?0,"
+	        + "  'id': { $lt: ?1 },"
+	        + "  'deletedAt': null,"
+	        + "  $or: [ { 'to': null }, { 'to': ?2 } ],"
+	        + "  'hiddenFromUserKeys': { $ne: ?2 },"
+	        + "  'createdAt': { $gt: ?3 }"
+	        + "  'mediaIds': { $ne: null }" 
+	        + "}", 
+	       sort = "{ 'id': -1 }")
+	Flux<MucMessageView> findMessageViewByRoomIdAndIdLessThanAndToIsNullOrEqualtoUserkeyAndNotHiddenAndMediaIdsIsNotNullOrderByIdDesc(
 	        UUID roomId, 
 	        UUID beforeId, 
 	        UUID userKey, 
