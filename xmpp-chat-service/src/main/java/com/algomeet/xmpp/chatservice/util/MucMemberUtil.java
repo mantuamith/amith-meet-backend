@@ -18,15 +18,4 @@ public class MucMemberUtil {
 			return Instant.EPOCH;
 		}		
 	}
-	
-	public static Long getHistoryCutoffLong(GroupMember member) {
-		if(member.getMessageHistoryCutoff() != null) {
-			return Instant.ofEpochMilli(member.getMessageHistoryCutoff()).toEpochMilli();
-		
-		} else if(member.getMemberStartDate() != null) {			
-			return Instant.ofEpochMilli(member.getMemberStartDate()).toEpochMilli();
-		} else {
-			return Instant.EPOCH.toEpochMilli();
-		}		
-	}
 }
