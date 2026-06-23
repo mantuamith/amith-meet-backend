@@ -30,8 +30,8 @@ public class PurgeGroupConversationStreamPublisher {
 		// Note: Redis Streams usually require String values. 
 		// If 'message' is a List, it must be serialized (e.g., to JSON).
 		Map<String, String> body = new HashMap<>();
-		body.put(PurgeGroupConversationFields.MESSAGE_KEY_GROUP_ID, groupId.toString());
-		body.put(PurgeGroupConversationFields.MESSAGE_KEY_TIMESTAMP, String.valueOf(System.currentTimeMillis()));
+		body.put(PurgeGroupConversationFields.GROUP_ID, groupId.toString());
+		body.put(PurgeGroupConversationFields.TIMESTAMP, String.valueOf(System.currentTimeMillis()));
 
 		// Ensure you are using the Reactive template
 		return reactiveRedisTemplate.opsForStream()

@@ -97,7 +97,7 @@ public class PurgeGroupConversationConsumer {
         log.info("Processing message via reactive loop: {}", message.getId());
 
         return mucRoomService.purgeGroupConversation(
-                message.getValue().get(PurgeGroupConversationFields.MESSAGE_KEY_GROUP_ID)
+                message.getValue().get(PurgeGroupConversationFields.GROUP_ID)
             )
             .then(reactiveRedisTemplate.opsForStream().acknowledge(GROUP_NAME, message))
             .then(reactiveRedisTemplate.opsForStream().delete(streamKey, message.getId().getValue()))
