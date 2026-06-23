@@ -22,7 +22,6 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import com.algomeet.xmpp.chatservice.constant.ExitGroupMemberMediaCleanupEventFields;
-import com.algomeet.xmpp.chatservice.constant.PurgeGroupConversationFields;
 import com.algomeet.xmpp.chatservice.properties.RedisStreamProperties;
 import com.algomeet.xmpp.chatservice.service.MucRoomService;
 
@@ -55,7 +54,7 @@ public class ExitGroupMemberMediaCleanupConsumer {
             "    return 0 " +
             "end";
     
-    final Duration MAX_IDLE_TIME = Duration.ofMinutes(60);
+    final Duration MAX_IDLE_TIME = Duration.ofDays(7);
     private static final Duration CONSUMER_EVICTION_IDLE_TIME = Duration.ofDays(7);
 
     @SuppressWarnings("deprecation")
