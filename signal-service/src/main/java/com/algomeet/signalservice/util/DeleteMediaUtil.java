@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 
 import com.algomeet.signalservice.constant.Constants;
-import com.algomeet.signalservice.publisher.MessageMediaDeleteEventPublisher;
+import com.algomeet.signalservice.publisher.DeleteMessageMediaEventPublisher;
 import com.algomeet.signalservice.repository.MessageBackupRepository;
 import com.algomeet.signalservice.repository.projection.MessageBackupView;
 
@@ -21,14 +21,14 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class DeleteMediaUtil {
 	private final MessageBackupRepository repository;
-	private final MessageMediaDeleteEventPublisher messageMediaDeleteEventPublisher;
+	private final DeleteMessageMediaEventPublisher deleteMessageMediaEventPublisher;
 	
 	public void deleteMediaFilesForHiddenMessages(List<UUID> messageBackupIds, UUID userKey) {
 		List<MessageBackupView> messages = repository.findByMessageIdInAndUserKey(messageBackupIds, userKey);
 		
 		for (MessageBackupView msg : messages) {
 			if(!CollectionUtils.isEmpty(msg.getMediaIds())) {
-				messageMediaDeleteEventPublisher.publish(userKey.toString(), 
+				deleteMessageMediaEventPublisher.publish(userKey.toString(), 
 						msg.getMediaIds().stream().map(id -> id.toString()).collect(Collectors.toSet()), 
 						Set.of(userKey.toString()), 
 						null, 
@@ -42,7 +42,7 @@ public class DeleteMediaUtil {
 		
 		for (MessageBackupView msg : messages) {
 			if(!CollectionUtils.isEmpty(msg.getMediaIds())) {
-				messageMediaDeleteEventPublisher.publish(userKey.toString(), 
+				deleteMessageMediaEventPublisher.publish(userKey.toString(), 
 						msg.getMediaIds().stream().map(id -> id.toString()).collect(Collectors.toSet()), 
 						Set.of(msg.getSenderKey().toString(), msg.getReceiverKey().toString()), 
 						null, 
@@ -74,7 +74,7 @@ public class DeleteMediaUtil {
 	        
 	        for (MessageBackupView msg : messages) {
 	            if (!CollectionUtils.isEmpty(msg.getMediaIds())) {
-	                messageMediaDeleteEventPublisher.publish(
+	                deleteMessageMediaEventPublisher.publish(
 	                        userKey.toString(), 
 	                        msg.getMediaIds().stream().map(UUID::toString).collect(Collectors.toSet()), 
 	                        Set.of(userKey.toString()), 

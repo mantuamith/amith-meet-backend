@@ -13,7 +13,7 @@ import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-import com.algomeet.xmpp.chatservice.publisher.MessageMediaDeleteEventPublisher;
+import com.algomeet.xmpp.chatservice.publisher.DeleteMessageMediaEventPublisher;
 import com.algomeet.xmpp.chatservice.repository.MucMessageRepository;
 import com.algomeet.xmpp.chatservice.repository.projection.MucMessagePurgeView;
 
@@ -28,7 +28,7 @@ import reactor.core.publisher.Mono;
 public class PurgeExpiredMucMessageScheduler {
 
 	private final MucMessageRepository messageRepository;
-	private final MessageMediaDeleteEventPublisher messageMediaDeleteEventStreamPublisher;
+	private final DeleteMessageMediaEventPublisher messageMediaDeleteEventStreamPublisher;
 	private final ReactiveStringRedisTemplate redisTemplate; 
 
 	private static final String LOCK_KEY = "lock:scheduler:expired-muc-messages-purge";

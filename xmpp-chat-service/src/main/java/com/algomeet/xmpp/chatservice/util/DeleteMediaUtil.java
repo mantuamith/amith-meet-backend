@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 
 import com.algomeet.common.dto.GroupMember;
-import com.algomeet.xmpp.chatservice.publisher.MessageMediaDeleteEventPublisher;
+import com.algomeet.xmpp.chatservice.publisher.DeleteMessageMediaEventPublisher;
 import com.algomeet.xmpp.chatservice.repository.MucMessageRepository;
 
 import lombok.RequiredArgsConstructor;
@@ -25,7 +25,7 @@ import reactor.core.publisher.Mono;
 @RequiredArgsConstructor
 public class DeleteMediaUtil {
     private final MucMessageRepository mucMessageRepository;
-    private final MessageMediaDeleteEventPublisher messageMediaDeleteEventPublisher;
+    private final DeleteMessageMediaEventPublisher deleteMessageMediaEventPublisher;
 
  // Immutable state holder to pass safely down the reactive recursive expand tree
     private record PaginationState(UUID cursorId, boolean isInclusive) {}
@@ -68,7 +68,7 @@ public class DeleteMediaUtil {
                                                 .map(UUID::toString)
                                                 .collect(Collectors.toSet());
                                         
-                                        return messageMediaDeleteEventPublisher.publish(
+                                        return deleteMessageMediaEventPublisher.publish(
                                                 userKey.toString(), 
                                                 mediaIdStrings, 
                                                 Set.of(userKey.toString()),

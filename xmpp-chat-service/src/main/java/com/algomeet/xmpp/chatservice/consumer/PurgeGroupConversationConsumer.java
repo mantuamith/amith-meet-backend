@@ -21,7 +21,7 @@ import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
-import com.algomeet.xmpp.chatservice.constant.PurgeGroupConversationStream;
+import com.algomeet.xmpp.chatservice.constant.PurgeGroupConversationFields;
 import com.algomeet.xmpp.chatservice.properties.RedisStreamProperties;
 import com.algomeet.xmpp.chatservice.service.MucRoomService;
 
@@ -97,7 +97,7 @@ public class PurgeGroupConversationConsumer {
         log.info("Processing message via reactive loop: {}", message.getId());
 
         return mucRoomService.purgeGroupConversation(
-                message.getValue().get(PurgeGroupConversationStream.MESSAGE_KEY_GROUP_ID)
+                message.getValue().get(PurgeGroupConversationFields.MESSAGE_KEY_GROUP_ID)
             )
             .then(reactiveRedisTemplate.opsForStream().acknowledge(GROUP_NAME, message))
             .then(reactiveRedisTemplate.opsForStream().delete(streamKey, message.getId().getValue()))

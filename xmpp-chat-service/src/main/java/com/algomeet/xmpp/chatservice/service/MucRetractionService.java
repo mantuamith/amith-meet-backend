@@ -18,7 +18,7 @@ import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.enums.XmppErrorType;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
-import com.algomeet.xmpp.chatservice.publisher.MessageMediaDeleteEventPublisher;
+import com.algomeet.xmpp.chatservice.publisher.DeleteMessageMediaEventPublisher;
 import com.algomeet.xmpp.chatservice.stanza.MessageRetractStanza;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.algomeet.xmpp.chatservice.util.RetractUtil;
@@ -54,7 +54,7 @@ public class MucRetractionService {
     private final DomainProperties domainProperties;
     private final XmppUtil xmppUtil;
     private final RetractUtil retractUtil;
-    private final MessageMediaDeleteEventPublisher messageMediaDeleteEventPublisher;
+    private final DeleteMessageMediaEventPublisher messageMediaDeleteEventPublisher;
 
     /**
      * Processes an incoming message retraction request.

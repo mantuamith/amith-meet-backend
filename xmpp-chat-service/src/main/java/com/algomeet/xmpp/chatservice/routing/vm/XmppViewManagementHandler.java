@@ -14,7 +14,7 @@ import com.algomeet.xmpp.chatservice.constant.XmppErrorConditions;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.enums.XmppErrorType;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
-import com.algomeet.xmpp.chatservice.publisher.MessageMediaDeleteEventPublisher;
+import com.algomeet.xmpp.chatservice.publisher.DeleteMessageMediaEventPublisher;
 import com.algomeet.xmpp.chatservice.routing.dispacher.LocalStanzaDispatcher;
 import com.algomeet.xmpp.chatservice.service.XmppArchiveService;
 import com.algomeet.xmpp.chatservice.stanza.ViewManagementSyncStanza;
@@ -44,7 +44,7 @@ public class XmppViewManagementHandler {
 	private final ClusterMessagePublisher clusterMessagePublisher;
 	private final LocalStanzaDispatcher localStanzaDispatcher;
 	private final HidetUtil hidetUtil;
-	private final MessageMediaDeleteEventPublisher messageMediaDeleteEventPublisher;
+	private final DeleteMessageMediaEventPublisher messageMediaDeleteEventPublisher;
 	
 	/**
 	 * Main entry point for processing incoming View Management XML.

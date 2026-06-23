@@ -10,15 +10,15 @@ import org.springframework.data.redis.connection.stream.RecordId;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
 import org.springframework.stereotype.Service;
 
+import com.algomeet.common.constant.DeleteMessageMediaFields;
 import com.algomeet.common.properties.CommonRedisStreamProperties;
-import com.algomeet.xmpp.chatservice.constant.MessageMediaDeleteStream;
 
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Mono;
 
 @Slf4j
 @Service
-public class MessageMediaDeleteEventPublisher {
+public class DeleteMessageMediaEventPublisher {
 	@Autowired
 	private ReactiveRedisTemplate<String, String> reactiveRedisTemplate;
 
@@ -31,24 +31,24 @@ public class MessageMediaDeleteEventPublisher {
 	    Map<String, String> body = new HashMap<>();
 	    
 	    // Always present fields	    
-	    body.put(MessageMediaDeleteStream.MESSAGE_KEY_MESSAGE_ID, messageId);
-	    body.put(MessageMediaDeleteStream.MESSAGE_KEY_TIMESTAMP, String.valueOf(System.currentTimeMillis()));
+	    body.put(DeleteMessageMediaFields.MESSAGE_ID, messageId);
+	    body.put(DeleteMessageMediaFields.TIMESTAMP, String.valueOf(System.currentTimeMillis()));
 
 	    // Conditionally add fields only if they are not null/empty
 	    if (groupId != null) {
-	        body.put(MessageMediaDeleteStream.MESSAGE_KEY_GROUP_ID, groupId);
+	        body.put(DeleteMessageMediaFields.GROUP_ID, groupId);
 	    }
 	    
 	    if (userKey != null) {
-	    	body.put(MessageMediaDeleteStream.MESSAGE_KEY_USER_KEY, userKey); 
+	    	body.put(DeleteMessageMediaFields.USER_KEY, userKey); 
 	    }
 	    
 	    if (mediaIds != null && !mediaIds.isEmpty()) {
-	        body.put(MessageMediaDeleteStream.MESSAGE_KEY_MEDIA_IDS, String.join(",", mediaIds));
+	        body.put(DeleteMessageMediaFields.MEDIA_IDS, String.join(",", mediaIds));
 	    }
 	    
 	    if (deleteWithUserKeys != null && !deleteWithUserKeys.isEmpty()) {
-	        body.put(MessageMediaDeleteStream.MESSAGE_KEY_DELETE_WITH_USER_KEYS, String.join(",", deleteWithUserKeys));
+	        body.put(DeleteMessageMediaFields.DELETE_WITH_USER_KEYS, String.join(",", deleteWithUserKeys));
 	    }
 
 	    return reactiveRedisTemplate.opsForStream()

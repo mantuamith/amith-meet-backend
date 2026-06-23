@@ -10,7 +10,7 @@ import org.springframework.data.redis.connection.stream.RecordId;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
 import org.springframework.stereotype.Service;
 
-import com.algomeet.xmpp.chatservice.constant.PurgeGroupConversationStream;
+import com.algomeet.xmpp.chatservice.constant.PurgeGroupConversationFields;
 import com.algomeet.xmpp.chatservice.properties.RedisStreamProperties;
 
 import lombok.extern.slf4j.Slf4j;
@@ -30,8 +30,8 @@ public class PurgeGroupConversationStreamPublisher {
 		// Note: Redis Streams usually require String values. 
 		// If 'message' is a List, it must be serialized (e.g., to JSON).
 		Map<String, String> body = new HashMap<>();
-		body.put(PurgeGroupConversationStream.MESSAGE_KEY_GROUP_ID, groupId.toString());
-		body.put(PurgeGroupConversationStream.MESSAGE_KEY_TIMESTAMP, String.valueOf(System.currentTimeMillis()));
+		body.put(PurgeGroupConversationFields.MESSAGE_KEY_GROUP_ID, groupId.toString());
+		body.put(PurgeGroupConversationFields.MESSAGE_KEY_TIMESTAMP, String.valueOf(System.currentTimeMillis()));
 
 		// Ensure you are using the Reactive template
 		return reactiveRedisTemplate.opsForStream()
