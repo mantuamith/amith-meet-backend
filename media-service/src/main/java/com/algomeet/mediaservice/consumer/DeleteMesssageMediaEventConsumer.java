@@ -29,7 +29,7 @@ import org.springframework.data.redis.stream.StreamMessageListenerContainer;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
-import com.algomeet.common.constant.MessageMediaDeleteStream;
+import com.algomeet.common.constant.DeleteMessageMediaFields;
 import com.algomeet.common.properties.CommonRedisStreamProperties;
 import com.algomeet.mediaservice.exceptions.UserFileNotFoundException;
 import com.algomeet.mediaservice.service.UserFileService;
@@ -67,7 +67,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @RequiredArgsConstructor
 @Service
-public class MesssageMediaDeleteEventConsumer implements StreamListener<String, MapRecord<String, String, String>> {
+public class DeleteMesssageMediaEventConsumer implements StreamListener<String, MapRecord<String, String, String>> {
 	@Autowired
 	private CommonRedisStreamProperties redisStreamProperties;
 	
@@ -140,11 +140,11 @@ public class MesssageMediaDeleteEventConsumer implements StreamListener<String, 
 			String streamKey = redisStreamProperties.getMessageMediaDeleteEvents();
 
 			// Retrieve message content
-			String userKey = message.getValue().get(MessageMediaDeleteStream.MESSAGE_KEY_USER_KEY);
-			String mediaIdsStr = message.getValue().get(MessageMediaDeleteStream.MESSAGE_KEY_MEDIA_IDS);
-			String deleteWithUserKeysStr = message.getValue().get(MessageMediaDeleteStream.MESSAGE_KEY_DELETE_WITH_USER_KEYS);
-			String groupIdStr = message.getValue().get(MessageMediaDeleteStream.MESSAGE_KEY_GROUP_ID);
-			String messageIdStr = message.getValue().get(MessageMediaDeleteStream.MESSAGE_KEY_MESSAGE_ID);
+			String userKey = message.getValue().get(DeleteMessageMediaFields.USER_KEY);
+			String mediaIdsStr = message.getValue().get(DeleteMessageMediaFields.MEDIA_IDS);
+			String deleteWithUserKeysStr = message.getValue().get(DeleteMessageMediaFields.DELETE_WITH_USER_KEYS);
+			String groupIdStr = message.getValue().get(DeleteMessageMediaFields.GROUP_ID);
+			String messageIdStr = message.getValue().get(DeleteMessageMediaFields.MESSAGE_ID);
 
 			Set<String> fileIds = mediaIdsStr != null 
 					? Arrays.stream(mediaIdsStr.split(","))
