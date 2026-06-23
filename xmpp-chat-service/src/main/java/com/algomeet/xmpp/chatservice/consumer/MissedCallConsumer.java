@@ -21,7 +21,7 @@ import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
-import com.algomeet.xmpp.chatservice.constant.MissedCallStream;
+import com.algomeet.xmpp.chatservice.constant.MissedCallFields;
 import com.algomeet.xmpp.chatservice.properties.RedisStreamProperties;
 import com.algomeet.xmpp.chatservice.service.MissedCallService;
 
@@ -109,8 +109,8 @@ public class MissedCallConsumer {
         log.info("Processing message via reactive loop: {}", message.getId());
 
         return missedCallService.process(
-                message.getValue().get(MissedCallStream.MESSAGE_KEY_MESSAGE), 
-                message.getValue().get(MissedCallStream.MESSAGE_KEY_CHAT_TYPE)
+                message.getValue().get(MissedCallFields.MESSAGE), 
+                message.getValue().get(MissedCallFields.CHAT_TYPE)
             )
             .then(reactiveRedisTemplate.opsForStream().acknowledge(GROUP_NAME, message))
             .then(reactiveRedisTemplate.opsForStream().delete(streamKey, message.getId().getValue()))
