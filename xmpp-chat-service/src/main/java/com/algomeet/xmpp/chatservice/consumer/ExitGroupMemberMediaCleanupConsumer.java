@@ -43,9 +43,9 @@ public class ExitGroupMemberMediaCleanupConsumer {
     
     private final MucRoomService mucRoomService;
 
-    private static final String GROUP_NAME = "exit-group-member-delete-media-group"; 
+    private static final String GROUP_NAME = "exit-group-member-media-cleanup-group"; 
     private final String consumerName = "consumer-" + UUID.randomUUID();
-    private static final String LOCK_KEY = "xmpp:lock:scheduler:process-pending:exit-group-member-delete-media-group";
+    private static final String LOCK_KEY = "xmpp:lock:scheduler:process-pending:exit-group-member-media-cleanup-group";
     
     private static final String RELEASE_LUA_SCRIPT = 
             "if redis.call('get', KEYS[1]) == ARGV[1] then " +
