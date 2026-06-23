@@ -392,7 +392,7 @@ public class MucMessageService {
             
             if (memberOpt.isPresent()) {
                 GroupMember member = memberOpt.get();
-                long historyCutoff = MucMemberUtil.getHistoryCutoffLong(member);
+                long historyCutoff = MucMemberUtil.getHistoryCutoff(group, member).toEpochMilli();
                 
                 // Evict conversation if the message timestamp falls strictly behind the user's timeline clearance point
                 return historyCutoff >= conversation.getCreatedAt();
