@@ -11,7 +11,7 @@ import org.springframework.data.redis.connection.stream.RecordId;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
-import com.algomeet.signalservice.constant.PurgeBackupMessageStream;
+import com.algomeet.signalservice.constant.PurgeBackupMessageFields;
 import com.algomeet.signalservice.properties.RedisStreamProperties;
 
 import lombok.extern.slf4j.Slf4j;
@@ -31,8 +31,8 @@ public class PurgeMessageBackupStreamPublisher {
 		// Note: Redis Streams usually require String values. 
 		// If 'message' is a List, it must be serialized (e.g., to JSON).
 		Map<String, String> body = new HashMap<>();
-		body.put(PurgeBackupMessageStream.MESSAGE_KEY_USER_KEY, userKey.toString());
-		body.put(PurgeBackupMessageStream.MESSAGE_KEY_TIMESTAMP, String.valueOf(System.currentTimeMillis()));
+		body.put(PurgeBackupMessageFields.USER_KEY, userKey.toString());
+		body.put(PurgeBackupMessageFields.TIMESTAMP, String.valueOf(System.currentTimeMillis()));
 
 		// 2. Publish to Redis Stream using standard blocking operations
 		try {
