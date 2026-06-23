@@ -19,4 +19,9 @@ public class RedisStreamProperties {
      * Redis stream key for storing purge group conversation events.
      */
     private String purgeGroupConversation = "purge-group-conversation-stream";
+    
+    /**
+     * Redis stream key for storing exit group member delete media events.
+     */
+    private String exitGroupMemberDeleteMediaEvent = "exit-group-member-delete-media-stream";
 }

@@ -95,7 +95,7 @@ public class MucRoomService {
                         );
                 		
                         // 4: Chain cleanly into the reactive stream to ensure execution completion guarantees
-                        return deleteMediaUtil.handleDeletionOfMediaFilesReactive(userKey, memberPrevData, cutoffStanzaId, groupId)
+                        return deleteMediaUtil.handleDeletionOfUserMediaFilesReactive(userKey, memberPrevData, UUID.fromString(cutoffStanzaId), groupId)
                                 .then(Mono.just(true));
                     });
             })
@@ -161,20 +161,68 @@ public class MucRoomService {
         return true;
     }
     
+    /**
+     * Marks all messages belonging to the specified group conversation for purge.
+     *
+     * <p>This operation does not immediately delete messages. Instead, it updates
+     * the group's messages by setting their purge timestamp to the current time,
+     * making them eligible for removal by the background purge process.</p>
+     *
+     * <p>The method is idempotent and can be safely retried if necessary.</p>
+     *
+     * @param groupId the unique identifier of the group whose conversation should
+     *                be marked for purge
+     * @return a {@link Mono} that completes when the purge flag has been applied;
+     *         returns {@link Mono#empty()} if the group identifier is null or empty
+     */
     public Mono<Void> purgeGroupConversation(String groupId) {
-    	if (StringUtils.isEmpty(groupId)) {
-    		return Mono.empty();
-    	}
-    	
-        java.time.Instant now = java.time.Instant.now();
+        if (StringUtils.isEmpty(groupId)) {
+            return Mono.empty();
+        }
 
-        // Update purge date to now
+        Instant now = Instant.now();
+
+        // Mark all messages in the group as eligible for purge by setting
+        // the purge timestamp to the current time.
         return mucMessageRepository.updatePurgeAtByRoomId(UUID.fromString(groupId), now)
-                .doOnSuccess(count -> log.info("Successfully marked group {} conversation for purging. Total documents modified: {}", groupId, count))
+                .doOnSuccess(count -> log.info(
+                        "Successfully marked group {} conversation for purging. Total documents modified: {}",
+                        groupId, count))
                 .onErrorResume(err -> {
                     log.error("Failed to execute purge update routine for group: {}", groupId, err);
-                    return Mono.error(new RuntimeException("Could not flag group conversation for purging", err));
+                    return Mono.error(new RuntimeException(
+                            "Could not flag group conversation for purging", err));
                 })
-                .then(); // Yield Mono<Void>
+                .then();
+    }
+        
+    /**
+     * Performs media cleanup for a member who has exited a group.
+     *
+     * <p>This operation revokes access to media files that were shared exclusively
+     * through the specified group and are no longer accessible to the departed member.
+     * The cleanup scans the member's entire participation history in the group
+     * (from {@link Instant#EPOCH} up to the latest possible message identifier)
+     * and removes media references accordingly.</p>
+     *
+     * @param groupId the unique identifier of the group
+     * @param memberUserKey the unique identifier of the member who exited the group
+     * @return a {@link Mono} that completes when the media cleanup operation finishes;
+     *         returns {@link Mono#empty()} if either parameter is null or empty
+     */
+    public Mono<Void> exitGroupMemberMediaCleanup(String groupId, String memberUserKey) {
+        if (StringUtils.isEmpty(groupId) || StringUtils.isEmpty(memberUserKey)) {
+            return Mono.empty();
+        }
+
+        // Process the member's entire message history in the group since they no
+        // longer have access to any group-shared media after leaving.
+        Instant prevHistoryCutoff = Instant.EPOCH;
+
+        return deleteMediaUtil.handleDeletionOfUserMediaFilesReactive(
+                UUID.fromString(memberUserKey),
+                prevHistoryCutoff,
+                Constants.LARGEST_UUID_V7,
+                UUID.fromString(groupId));
     }
 }

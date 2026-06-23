@@ -15,6 +15,7 @@ import com.algomeet.xmpp.chatservice.enums.PresenceStatusCode;
 import com.algomeet.xmpp.chatservice.enums.PresenceType;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
+import com.algomeet.xmpp.chatservice.publisher.ExitGroupMemberMediaCleanupEventPublisher;
 import com.algomeet.xmpp.chatservice.routing.muc.MucMessageRouter;
 import com.algomeet.xmpp.chatservice.service.XmppArchiveService;
 import com.algomeet.xmpp.chatservice.stanza.events.MucSystemEventLogMessageStanza;
@@ -39,6 +40,7 @@ public class MucMemberLeftEventHandler {
     private final DomainProperties domainProperties;
 	private final MucMessageRouter xmppBroadCastHandler;
 	private final XmppArchiveService xmppArchiveService;
+	private final ExitGroupMemberMediaCleanupEventPublisher exitGroupMemberMediaCleanupEventPublisher;
     
     /**
      * Handles the left event of a member from a room by broadcasting presence and generate logs.
@@ -127,6 +129,10 @@ public class MucMemberLeftEventHandler {
 				group,
 				null,
 				forArchiveXmlLog);
+		
+		// Cleanup up member group messages media files		
+		exitGroupMemberMediaCleanupEventPublisher.publish(
+				UUID.fromString(XmppUtil.getRoomId(roomJid)), UUID.fromString(principal.getUserKey()));
         
         log.debug("User left the room presence synchronization is completed for user {} in room {}", principal.getUserKey(), roomBareJid);
     }

@@ -29,16 +29,19 @@ public class DeleteMediaUtil {
 
  // Immutable state holder to pass safely down the reactive recursive expand tree
     private record PaginationState(UUID cursorId, boolean isInclusive) {}
+    
+    public Mono<Void> handleDeletionOfUserMediaFilesReactive(UUID userKey, Optional<GroupMember> memberPrevData, UUID cutoffStanzaId, UUID groupId) {        
+    	Instant prevHistoryCutoff = memberPrevData
+    			.map(GroupMember::getMessageHistoryCutoff)
+    			.map(Instant::ofEpochMilli)
+    			.orElse(Instant.EPOCH);
 
-    public Mono<Void> handleDeletionOfMediaFilesReactive(UUID userKey, Optional<GroupMember> memberPrevData, String cutoffStanzaId, UUID groupId) {
-        
-        Instant prevHistoryCutoff = memberPrevData
-                .map(GroupMember::getMessageHistoryCutoff)
-                .map(Instant::ofEpochMilli)
-                .orElse(Instant.EPOCH);
+    	return handleDeletionOfUserMediaFilesReactive(userKey, prevHistoryCutoff, cutoffStanzaId, groupId);
+    }
 
-        UUID initialMaxId = UUID.fromString(cutoffStanzaId);
-        final int pageSize = 500;
+    public Mono<Void> handleDeletionOfUserMediaFilesReactive(UUID userKey, Instant prevHistoryCutoff, UUID cutoffStanzaId, UUID groupId) {
+        UUID initialMaxId = cutoffStanzaId;
+        final int pageSize = 200;
         Pageable pageable = PageRequest.of(0, pageSize); 
 
         // Start with an inclusive wrapper state (<=) for the first database lookup pass
