@@ -202,7 +202,47 @@ public interface MucMessageRepository extends ReactiveMongoRepository<MucMessage
 	        Pageable pageable
 	);
 	
-	@Query("{ 'roomId': ?0, 'purgeAt': null }") // Target only un-purged records in the room
+	/**
+	 * Marks all non-purged messages in the specified room for immediate purge.
+	 *
+	 * <p>Only messages whose {@code purgeAt} field is currently {@code null}
+	 * are updated. Messages that have already been scheduled for purge are
+	 * left unchanged.</p>
+	 *
+	 * @param roomId the room identifier
+	 * @param purgeTime the timestamp at which the messages become eligible for purge
+	 * @return the number of documents updated
+	 */
+	@Query("{ 'roomId': ?0, 'purgeAt': null }")
 	@Update("{ '$set': { 'purgeAt': ?1 } }")
 	Mono<Long> updatePurgeAtByRoomId(UUID roomId, Instant purgeTime);
+
+	/**
+	 * Applies a message retention policy to all non-purged messages in the specified room.
+	 *
+	 * <p>For each message, the {@code purgeAt} timestamp is calculated as:</p>
+	 *
+	 * <pre>
+	 * purgeAt = createdAt + messageRetentionDays
+	 * </pre>
+	 *
+	 * @param roomId the room identifier
+	 * @param messageRetentionDays the number of days a message should be retained
+	 *                             from its creation time before becoming eligible
+	 *                             for automatic deletion
+	 * @return the number of documents updated
+	 */
+	@Query("{ 'roomId': ?0}")
+	@Update("[ { " +
+	        "  '$set': { " +
+	        "    'purgeAt': { " +
+	        "      '$cond': [ " +
+	        "        { '$eq': [ ?2, null ] }, " + // Condition: if messageRetentionDays is null
+	        "        null, " +                    // Then: set purgeAt to null
+	        "        { '$add': [ { '$ifNull': [ '$createdAt', '$$NOW' ] }, { '$multiply': [ ?2, 86400000 ] } ] } " + // Else: run calculation
+	        "      ] " +
+	        "    } " +
+	        "  } " +
+	        "} ]")
+	Mono<Long> updatePurgeAtByRoomId(UUID roomId, Integer messageRetentionDays);
 }

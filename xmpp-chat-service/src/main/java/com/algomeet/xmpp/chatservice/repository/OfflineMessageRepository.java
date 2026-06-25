@@ -3,7 +3,9 @@ package com.algomeet.xmpp.chatservice.repository;
 import java.time.Instant;
 import java.util.UUID;
 
+import org.springframework.data.mongodb.repository.Query;
 import org.springframework.data.mongodb.repository.ReactiveMongoRepository;
+import org.springframework.data.mongodb.repository.Update;
 
 import com.algomeet.xmpp.chatservice.document.OfflineMessage;
 import com.algomeet.xmpp.chatservice.repository.projection.MessagePurgeView;
@@ -54,4 +56,22 @@ public interface OfflineMessageRepository extends ReactiveMongoRepository<Offlin
 	 * 
 	 */
 	Flux<MessagePurgeView> findByPurgeAtLessThanEqual(Instant purgeAt);
+	
+
+	@Query("{ '$or': [ " +
+			"  { 'to': ?0, 'from': ?1}, " +
+			"  { 'to': ?1, 'from': ?0} " +
+			"] }")
+	@Update("[ { " +
+	        "  '$set': { " +
+	        "    'purgeAt': { " +
+	        "      '$cond': [ " +
+	        "        { '$eq': [ ?2, null ] }, " + // Condition: if messageRetentionDays is null
+	        "        null, " +                    // Then: set purgeAt to null
+	        "        { '$add': [ { '$ifNull': [ '$createdAt', '$$NOW' ] }, { '$multiply': [ ?2, 86400000 ] } ] } " + // Else: run calculation
+	        "      ] " +
+	        "    } " +
+	        "  } " +
+	        "} ]")
+	Mono<Long> updatePurgeAtByToAndFrom(UUID to, UUID from, Integer messageRetentionDays);
 }

@@ -25,8 +25,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Configuration
 @RequiredArgsConstructor
-public class RedisConfig {
-	
+public class RedisConfig {	
 	@Bean
     public RedisTemplate<String, Object> redisTemplate(RedisConnectionFactory connectionFactory) {
         RedisTemplate<String, Object> template = new RedisTemplate<>();
@@ -44,29 +43,7 @@ public class RedisConfig {
     }
 	
 	@Bean    
-    public RedisTemplate<String, String> deleteMediaStringRedisTemplate(RedisConnectionFactory connectionFactory) {
-        RedisTemplate<String, String> template = new RedisTemplate<>();
-        template.setConnectionFactory(connectionFactory);
-
-        /**
-         * Use plain string serialization for both channels and payloads.
-         *
-         * Faster than JSON serializers for Pub/Sub transport messaging.
-         */
-        StringRedisSerializer serializer = new StringRedisSerializer();
-
-        template.setKeySerializer(serializer);
-        template.setValueSerializer(serializer);
-        template.setHashKeySerializer(serializer);
-        template.setHashValueSerializer(serializer);
-
-        template.afterPropertiesSet();
-
-        return template;
-    }
-	
-	@Bean    
-    public RedisTemplate<String, String> purgeMessageBackupStringRedisTemplate(RedisConnectionFactory connectionFactory) {
+    public RedisTemplate<String, String> streamStringRedisTemplate(RedisConnectionFactory connectionFactory) {
         RedisTemplate<String, String> template = new RedisTemplate<>();
         template.setConnectionFactory(connectionFactory);
 

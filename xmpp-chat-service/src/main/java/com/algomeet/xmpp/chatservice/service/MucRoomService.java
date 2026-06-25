@@ -10,12 +10,15 @@ import org.springframework.stereotype.Service;
 
 import com.algomeet.common.dto.Group;
 import com.algomeet.common.dto.GroupMember;
-import com.algomeet.common.service.GroupCacheService;
+import com.algomeet.common.redis.lock.ChatMessageRetentionLockManager;
+import com.algomeet.common.redis.lock.MucMessageRetentionLockManager;
+import com.algomeet.common.service.AbstractGroupCache;
 import com.algomeet.xmpp.chatservice.client.GroupClient;
 import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.constant.Constants;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.enums.MucAffiliation;
+import com.algomeet.xmpp.chatservice.exceptions.GroupNotFoundException;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.publisher.PurgeGroupConversationStreamPublisher;
 import com.algomeet.xmpp.chatservice.repository.MucMessageRepository;
@@ -37,13 +40,14 @@ import reactor.core.scheduler.Schedulers;
 public class MucRoomService {
 
     private final GroupClient groupClient;
-    private final GroupCacheService groupCacheService; // Inject the passive cache provider
+    private final AbstractGroupCache groupCacheService; // Inject the passive cache provider
     private final ClusterMessagePublisher clusterMessagePublisher;
     private final DomainProperties domainProperties;
     private final MucMessageRepository mucMessageRepository;
     private final DeleteMediaUtil deleteMediaUtil;
     private final PurgeGroupConversationStreamPublisher purgeGroupConversationStreamPublisher;
     private final MucMessageRouter mucMessageRouter;
+	private final MucMessageRetentionLockManager mucMessageRetentionLockManager;
     
     /**
      * Handles the business flow for clearing a member's history timeline.
@@ -224,5 +228,48 @@ public class MucRoomService {
                 prevHistoryCutoff,
                 Constants.LARGEST_UUID_V7,
                 UUID.fromString(groupId));
+    }    
+
+    public Mono<Void> applyMessageRetentionPolicy(UUID userKey, UUID groupId, Integer messageRetentionDays) {
+        return Mono.defer(() -> {
+            // 1. Resolve Group details from cache
+            Group group = groupCacheService.refreshGroupCache(groupId.toString());
+            if (group == null) {
+                return Mono.error(new GroupNotFoundException("Group not found exception " + groupId));
+            }
+            
+            // 2. Validate user authority
+            Optional<GroupMember> memberOpt = SearchUtil.findMember(group, userKey.toString());
+            if (memberOpt.isEmpty() || !(MucAffiliation.OWNER.name().equals(memberOpt.get().getRole())
+                    || MucAffiliation.ADMIN.name().equals(memberOpt.get().getRole()))) {
+                return Mono.error(new AccessDeniedException("Unauthorized to purge the group messages."));
+            }
+            
+            return Mono.just(groupId);
+        })
+        .flatMap(id -> {
+            // 3. Use Mono.usingWhen to perfectly manage the lifecycle of our distributed lock
+            return Mono.usingWhen(
+                // Resource acquisition phase
+                Mono.fromCallable(() -> mucMessageRetentionLockManager.acquireLock(id))
+                    .flatMap(token -> token != null ? Mono.just(token) : Mono.error(new IllegalStateException("Could not acquire retention update lock."))),
+                
+                // Actual business pipeline execution phase
+                token -> mucMessageRepository.updatePurgeAtByRoomId(id, messageRetentionDays),
+                
+                // Cleanup phase: Triggered on successful execution completion
+                token -> Mono.fromRunnable(() -> mucMessageRetentionLockManager.releaseLock(token)),
+                
+                // Cleanup phase: Triggered if the repository query errors out
+                (token, error) -> Mono.fromRunnable(() -> {
+                    log.error("Error occurred during message retention policy update for room: {}", id, error);
+                    mucMessageRetentionLockManager.releaseLock(token);
+                }),
+                
+                // Cleanup phase: Triggered if the downstream pipeline cancels early
+                token -> Mono.fromRunnable(() -> mucMessageRetentionLockManager.releaseLock(token))
+            );
+        })
+        .then(); // Transforms final Mono output into a neat Mono<Void>
     }
 }

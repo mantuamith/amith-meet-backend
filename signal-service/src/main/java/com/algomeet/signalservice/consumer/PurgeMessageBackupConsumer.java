@@ -27,7 +27,7 @@ import org.springframework.data.redis.stream.StreamMessageListenerContainer;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
-import com.algomeet.common.constant.DeleteMessageMediaFields;
+import com.algomeet.signalservice.constant.PurgeBackupMessageFields;
 import com.algomeet.signalservice.properties.RedisStreamProperties;
 import com.algomeet.signalservice.service.MessageBackupService;
 
@@ -49,7 +49,7 @@ public class PurgeMessageBackupConsumer implements StreamListener<String, MapRec
 	private MessageBackupService messageBackupService;
 
 	@Autowired
-	@Qualifier("deleteMediaStringRedisTemplate")
+	@Qualifier("streamStringRedisTemplate")
 	private RedisTemplate<String, String> redisTemplate;
 
 	private static final String GROUP_NAME = "purge-message-backup-group"; // Static name for persistence
@@ -111,7 +111,7 @@ public class PurgeMessageBackupConsumer implements StreamListener<String, MapRec
 			String streamKey = redisStreamProperties.getPurgeMessageBackup();
 
 			// Retrieve message content
-			String userKey = message.getValue().get(DeleteMessageMediaFields.USER_KEY);
+			String userKey = message.getValue().get(PurgeBackupMessageFields.USER_KEY);
 
 			if (StringUtils.isEmpty(userKey)) {
 				messageBackupService.purgeMessageBackup(UUID.fromString(userKey));

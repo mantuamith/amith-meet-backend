@@ -112,7 +112,7 @@ public class MucMemberLeftEventHandler {
 		// Insert stanza ID
 		String forArchiveXmlLog = XmppStanzaUtil.insertStanzaId(xmlLogStanza, stanzaId.toString(), domainProperties.getDomain());
 		
-		saveToDatabase(messageId, roomBareJid, senderJid, group, principal, stanzaId, forArchiveXmlLog);
+		saveToDatabase(messageId, roomBareJid, senderJid, group, principal, stanzaId, forArchiveXmlLog, group.getMessageRetentionDays());
 
 		/**
 		 * ----------------------------------------------------------
@@ -162,7 +162,8 @@ public class MucMemberLeftEventHandler {
 			Group group,
 			XmppPrincipal principal,
 			UUID stanzaId,
-			String xml) {
+			String xml,
+			Integer messageRetentionDays) {
 
 		xmppArchiveService.archiveEvent(
 				xml,
@@ -170,6 +171,7 @@ public class MucMemberLeftEventHandler {
 				XmppUtil.getRoomId(roomBareJid),
 				null,
 				principal.getUserKey(),
-				stanzaId);
+				stanzaId,
+				messageRetentionDays);
 	}
 }

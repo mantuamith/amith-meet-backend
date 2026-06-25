@@ -1,11 +1,5 @@
 package com.algomeet.signalservice.dto;
 
-import java.time.Instant;
-import java.util.UUID;
-
-import com.algomeet.signalservice.document.MessageBackupDocument;
-import com.algomeet.signalservice.repository.projection.MessageBackupView;
-
 import lombok.Builder;
 import lombok.Data;
 
@@ -30,58 +24,5 @@ public class MessageBackupResponse {
     private Long timestamp;
     private String algorithm;
     private String version;
-    private String salt;
-
-    public static MessageBackupResponse from(MessageBackupDocument doc) {
-        if (doc == null) {
-            return null;
-        }
-
-        return MessageBackupResponse.builder()        		
-                .messageId(getStringValue(doc.getMessageId()))  
-                .stanzaId(getStringValue(doc.getStanzaId()))
-                .userKey(getStringValue(doc.getUserKey()))
-                .senderKey(getStringValue(doc.getSenderKey()))
-                .receiverKey(getStringValue(doc.getReceiverKey()))
-                .encryptedMessage(doc.getEncryptedMessage())
-                
-                // Fields that were missing in your snippet:
-                .sentAt(doc.getSentAt())
-                .deliveredAt(doc.getDeliveredAt())
-                .readAt(doc.getReadAt())
-                .deletedAt(doc.getDeletedAt())
-                .isHidden(doc.getHiddenAt() != null)
-                .targetMessageId(doc.getTargetMessageId() != null ? doc.getTargetMessageId().toString() : null)
-                .replyToMessageId(doc.getReplyToMessageId() != null ? doc.getReplyToMessageId().toString() : null)
-                .editCount(doc.getEditCount())
-                .isStartOfConversation(doc.getStartOfConversation())
-                // Meta info
-                .algorithm(doc.getAlgorithm())
-                .version(doc.getVersion())
-                .salt(doc.getSalt())
-                .timestamp(doc.getTimestamp().toEpochMilli())
-                .build();
-    }
-    
-    public static MessageBackupResponse from(MessageBackupView doc) {
-        if (doc == null) {
-            return null;
-        }
-
-        return MessageBackupResponse.builder()        		
-                .messageId(getStringValue(doc.getMessageId()))  
-                .stanzaId(getStringValue(doc.getStanzaId()))
-                .userKey(getStringValue(doc.getUserKey()))
-                .senderKey(getStringValue(doc.getSenderKey()))
-                .targetMessageId(doc.getTargetMessageId() != null ? doc.getTargetMessageId().toString() : null)
-                .build();
-    }
-    
-    private static String getStringValue(UUID uuid) {
-    	if(uuid == null) {
-    		return null;
-    	}
-    	
-    	return uuid.toString();
-    }
+    private String salt;    
 }

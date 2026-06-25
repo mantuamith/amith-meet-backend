@@ -8,10 +8,12 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @Data
+@EqualsAndHashCode 
 public class Group {
     private UUID id;
 

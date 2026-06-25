@@ -11,7 +11,6 @@ import java.util.Objects;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
 import com.algomeet.common.dto.Group;
@@ -19,10 +18,10 @@ import com.algomeet.common.dto.Group;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-@Service
-public abstract class GroupCacheService {
+public abstract class AbstractGroupCache {
 	@Autowired
-    private GroupClientService groupService;	
+    private GroupClientService groupService;
+	
 	@Autowired
     private RedisTemplate<String, Object> redisTemplate;
 
@@ -33,7 +32,7 @@ public abstract class GroupCacheService {
     protected Duration cacheTtl;    
 
     // Enforce generic parameters on the constructor signature
-    public GroupCacheService(GroupClientService groupService, RedisTemplate<String, Object> redisTemplate) {
+    public AbstractGroupCache(GroupClientService groupService, RedisTemplate<String, Object> redisTemplate) {
         this.groupService = groupService;
         this.redisTemplate = redisTemplate;
     }

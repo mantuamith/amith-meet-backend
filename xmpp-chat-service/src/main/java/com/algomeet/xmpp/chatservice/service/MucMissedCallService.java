@@ -17,7 +17,7 @@ import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
 import com.algomeet.common.dto.GroupMember;
-import com.algomeet.common.service.GroupCacheService;
+import com.algomeet.common.service.AbstractGroupCache;
 import com.algomeet.common.dto.Group;
 import com.algomeet.multitenancy.context.TenantContext;
 import com.algomeet.notificationservice.dto.Notification;
@@ -64,7 +64,7 @@ import reactor.core.scheduler.Schedulers;
 public class MucMissedCallService {
 	private final ClusterMessagePublisher clusterMessagePublisher;
 	private final NotificationService notificationService;
-	private final GroupCacheService groupCacheService;
+	private final AbstractGroupCache groupCacheService;
 	private final XmppArchiveService xmppArchiveService;
 	private final JidUtil jidUtil;
 	private final UserSessionRegistry userSessionRegistry;
@@ -324,7 +324,7 @@ public class MucMissedCallService {
 		String forArchiveXml = XmppStanzaUtil.insertStanzaId(xml, stanzaId, domainProperties.getDomain());
 		
 		xmppArchiveService.archiveEvent(forArchiveXml, UuidCreator.getTimeOrderedEpoch().toString(), groupId, toUserKey, 
-				fromUserKey, UuidCreator.getTimeOrderedEpoch())
+				fromUserKey, UuidCreator.getTimeOrderedEpoch(), group.getMessageRetentionDays())
 		.doOnSuccess(success -> {
 			// Publish 
 			clusterMessagePublisher.convertAndSendToUser(id, toUserKey, fromUserKey, ChatType.GROUPCHAT, forArchiveXml);

@@ -8,7 +8,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import com.algomeet.common.dto.GroupMember;
-import com.algomeet.common.service.GroupCacheService;
+import com.algomeet.common.service.AbstractGroupCache;
 import com.algomeet.common.dto.Group;
 import com.algomeet.multitenancy.context.TenantContext;
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
@@ -57,7 +57,7 @@ import reactor.core.scheduler.Schedulers;
 @RequiredArgsConstructor
 public class XmppMucHandler {
 	private final XmppArchiveService xmppArchiveService;
-	private final GroupCacheService groupCacheService;
+	private final AbstractGroupCache groupCacheService;
 	private final MucAdminCommandRouter mucAdminCommandRouter;
 	private final DomainProperties domainProperties;
 	private final MucUserCommandRouter mucUserCommandRouter;
@@ -172,7 +172,7 @@ public class XmppMucHandler {
 				Boolean isCountable = XmppCustomStanzaUtil.isCountableMessage(originalXml);
 				
 				xmppArchiveService.archiveEvent(forArchiveXml, id, XmppUtil.getRoomId(toRoomJid), (pmToMucMember != null ? pmToMucMember.getUserKey() : null), 
-						XmppUtil.getUserKey(fromJid), stanzaId, isCountable)
+						XmppUtil.getUserKey(fromJid), stanzaId, isCountable, group.getMessageRetentionDays())
 				.flatMap(saved -> {
 
 					// Send an immediate server-level acknowledgment to the sender.

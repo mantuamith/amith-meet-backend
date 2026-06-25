@@ -15,6 +15,7 @@ import java.util.stream.Collectors;
 
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -28,20 +29,26 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.algomeet.signalservice.constant.Constants;
 import com.algomeet.signalservice.controller.swagger.MessageBackupControllerDoc;
 import com.algomeet.signalservice.document.MessageBackupDocument;
 import com.algomeet.signalservice.dto.CommonResponse;
+import com.algomeet.signalservice.dto.MessageBackupRequest;
 import com.algomeet.signalservice.dto.MessageBackupResponse;
+import com.algomeet.signalservice.dto.MessageBackupUpdateRequest;
 import com.algomeet.signalservice.dto.MessageStatusUpdateRequest;
 import com.algomeet.signalservice.enums.ResponseCode;
 import com.algomeet.signalservice.exceptions.MessageInsertInProgressException;
 import com.algomeet.signalservice.exceptions.MessageUpdateStatusInProgressException;
 import com.algomeet.signalservice.exceptions.RecordNotFoundException;
+import com.algomeet.signalservice.mapper.MessageBackupMapper;
 import com.algomeet.signalservice.service.MessageBackupService;
 import com.algomeet.signalservice.util.SecurityUtil;
 import com.github.f4b6a3.uuid.UuidCreator;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import reactor.core.publisher.Mono;
 /**
  * REST controller that handles CRUD and query operations
  * for backing up and retrieving encrypted chat messages.
@@ -53,6 +60,7 @@ import lombok.RequiredArgsConstructor;
  * @author 
  * @since 1.0
  */
+@Slf4j
 @RestController
 @RequestMapping("/signal/backup/chat-messages")
 @RequiredArgsConstructor
@@ -66,7 +74,7 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 	 * @return {@link CommonResponse} with success status
 	 */
 	@PostMapping
-	public ResponseEntity<CommonResponse<?>> saveMessage(@Validated @RequestBody MessageBackupDocument request) { 	
+	public ResponseEntity<CommonResponse<?>> saveMessage(@Validated @RequestBody MessageBackupRequest request) { 	
 		
 		try {
 			MessageBackupDocument saved = messageBackupService.insert(request);
@@ -75,7 +83,7 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 				throw new RuntimeException("Error saving the message backup");
 			}
 
-			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, saved));
+			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, MessageBackupMapper.from(saved)));
 			
 		} catch (MessageInsertInProgressException ex) {
 			return ResponseEntity.status(HttpStatus.LOCKED)
@@ -115,18 +123,20 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 	                userKey, peerKey, afterStanzaId, page, size);    		
 	    } else {    
 	        // Fallback to a new time-ordered UUID if 'before' is completely absent
-	        UUID targetBeforeId = (beforeStanzaId != null) ? beforeStanzaId : UuidCreator.getTimeOrderedEpoch();
+	        UUID targetBeforeId = (beforeStanzaId != null) ? beforeStanzaId : Constants.LARGEST_UUID_V7;
 	        
 	        messages = messageBackupService.getConversationMessagesBefore(
 	                userKey, peerKey, targetBeforeId, page, size);
 	        
 	        // Sort ascending by stanzaId
-	        messages.sort(Comparator.comparing(MessageBackupDocument::getStanzaId));
+	        messages.sort(
+	        	    Comparator.comparing((MessageBackupDocument doc) -> doc.getId().getStanzaId())
+	        	);
 	    }
 
 	    // Transform and map to response DTOs
 	    List<MessageBackupResponse> responseList = messages.stream()
-	            .map(MessageBackupResponse::from)
+	            .map(MessageBackupMapper::from)
 	            .toList(); // Modern Java 16+ syntax
 
 	    return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, responseList));
@@ -150,7 +160,7 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 
 		List<MessageBackupResponse> responseList = backupsPage
 				.stream() 
-				.map(MessageBackupResponse::from)
+				.map(MessageBackupMapper::from)
 				.collect(Collectors.toList());
 		
 		// Sort in ascending order
@@ -176,7 +186,7 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 
 		List<MessageBackupResponse> responseList = backupsPage
 				.stream() 
-				.map(MessageBackupResponse::from)
+				.map(MessageBackupMapper::from)
 				.collect(Collectors.toList());
 
 		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, responseList));
@@ -192,7 +202,7 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 	public ResponseEntity<CommonResponse<List<MessageBackupResponse>>> getMessages(@RequestParam List<UUID> messageIds) {
 		List<MessageBackupDocument> messageList = messageBackupService.getMessages(messageIds);     
 		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, 
-				messageList.stream().map(mb -> MessageBackupResponse.from(mb)).toList()));
+				messageList.stream().map(mb -> MessageBackupMapper.from(mb)).toList()));
 	}
 	
 	@Deprecated
@@ -248,7 +258,7 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 	public ResponseEntity<CommonResponse<MessageBackupResponse>> getMessage(@PathVariable UUID messageId) {
 		try {
 			MessageBackupDocument saved = messageBackupService.getMessage(UUID.fromString(SecurityUtil.getUserKey()), messageId);     
-			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, MessageBackupResponse.from(saved)));
+			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, MessageBackupMapper.from(saved)));
 
 		} catch (RecordNotFoundException ex) {
 			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.MESSAGE_BACKUP_NOT_FOUND));
@@ -264,10 +274,10 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 	 */
 	@PutMapping("/{messageId}")
 	public ResponseEntity<CommonResponse<MessageBackupResponse>> updateMessage(@PathVariable UUID messageId, 
-			@RequestBody MessageBackupDocument request) {
+			@RequestBody MessageBackupUpdateRequest request) {
 		try {
 			MessageBackupDocument saved = messageBackupService.update(UUID.fromString(SecurityUtil.getUserKey()), messageId, request);
-			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, MessageBackupResponse.from(saved)));
+			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, MessageBackupMapper.from(saved)));
 		} catch (RecordNotFoundException ex) {
 			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.MESSAGE_BACKUP_NOT_FOUND));
 		}
@@ -405,7 +415,7 @@ public class MessageBackupController implements MessageBackupControllerDoc{
         // Fetch the last sent message. Passing 'userKey' as the third argument 
         // filters the repository query down to messages where senderKey == userKey.
         MessageBackupResponse responseBody = messageBackupService.getConversationLastSent(userKey, peerKey, userKey)
-                .map(MessageBackupResponse::from)
+                .map(MessageBackupMapper::from)
                 .orElse(null); 
 
         return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, responseBody));
@@ -429,9 +439,27 @@ public class MessageBackupController implements MessageBackupControllerDoc{
         // Fetch the last received message. Passing 'peerKey' as the third argument 
         // filters the repository query down to messages where senderKey == peerKey.
         MessageBackupResponse responseBody = messageBackupService.getConversationLastSent(userKey, peerKey, peerKey)
-                .map(MessageBackupResponse::from)
+                .map(MessageBackupMapper::from)
                 .orElse(null); 
 
         return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, responseBody));
     }
+    
+    @PostMapping("/{peerKey}/apply-message-retention-policy")
+    public ResponseEntity<CommonResponse<?>> applyMessageRetentionPolicy(
+    		@PathVariable UUID peerKey,
+    		@RequestParam Integer messageRetentionDays) {
+
+    	try {
+    		UUID currentUserKey = UUID.fromString(SecurityUtil.getUserKey());  
+    		messageBackupService.applyMessageRetentionPolicy(currentUserKey, peerKey, messageRetentionDays);
+
+    		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
+    	} catch(IllegalStateException ex) {
+    		log.error("Error {}", ex.getMessage(), ex);
+    		
+    		return ResponseEntity.status(HttpStatus.CONFLICT).body(
+    				CommonResponse.from(ResponseCode.MESSAGE_RETENTION_UPDATE_IN_PROGRESS));
+    	}    	
+    }    
 }

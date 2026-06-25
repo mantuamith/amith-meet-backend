@@ -4,6 +4,7 @@ import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 
+import com.algomeet.common.redis.lock.ChatMessageRetentionLockManager;
 import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.document.UnreadCount;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
@@ -24,15 +25,17 @@ public class ChatMessageService {
 	private final UnreadCountService unreadCountService;
 	private final ClusterMessagePublisher clusterMessagePublisher;
 	private final DomainProperties domainProperties;
+	private final ConversationSettingService conversationSettingService;
+	private final ChatMessageRetentionLockManager chatMessageRetentionLockManager;
 
-	public Mono<UnreadCount> timelineCutoff(UUID userKey, UUID peerUserKey, UUID cutoffMessageId, UUID cutoffStanzaId) {	    
+	public Mono<UnreadCount> timelineCutoff(UUID userKey, UUID peerKey, UUID cutoffMessageId, UUID cutoffStanzaId) {	    
 	    String senderKeyStr = userKey.toString();
 	    String receiverKeyStr = userKey.toString();
 
 	    // 1. Compose the XMPP payload used to synchronize the user's online devices with locally stored conversation state.
 	    String payload = XmppSyncStanzaComposer.createDirectClearanceStanza(
 	            domainProperties.getDomain(),
-	            peerUserKey.toString(), 
+	            peerKey.toString(), 
 	            cutoffStanzaId.toString()
 	    );
 
@@ -50,8 +53,28 @@ public class ChatMessageService {
    	
 	    // 4. Chain the database and service operations reactively
 	    return offlineMessageRepository
-	            .deleteByToAndFromAndDeliveredAtIsNotNullAndStanzaIdLessThanEqual(userKey, peerUserKey, cutoffStanzaId)
+	            .deleteByToAndFromAndDeliveredAtIsNotNullAndStanzaIdLessThanEqual(userKey, peerKey, cutoffStanzaId)
 	            // .then() waits for the deletion to complete, then moves to the next Mono
-	            .then(Mono.defer(() -> unreadCountService.syncUnreadCountByStanzaId(peerUserKey, userKey, cutoffMessageId, cutoffStanzaId)));
+	            .then(Mono.defer(() -> unreadCountService.syncUnreadCountByStanzaId(peerKey, userKey, cutoffMessageId, cutoffStanzaId)));
+	}
+	
+	public Mono<Void> applyMessageRetentionPolicy(UUID userKey, UUID peerKey, Integer messageRetentionDays) {
+		Integer retentionDays = (messageRetentionDays != -1) ? messageRetentionDays : null;
+		
+	    return Mono.defer(() -> {
+	        // If lock is not acquired, another process is already updating retention.
+	        if (chatMessageRetentionLockManager.isLocked(userKey, peerKey)) {
+	            return Mono.error(new IllegalStateException("Could not acquire retention update lock."));
+	        }
+
+	        return conversationSettingService
+	                .saveOrUpdateRetentionDays(userKey, peerKey, retentionDays)
+	                .flatMap(savedSetting ->
+	                        offlineMessageRepository.updatePurgeAtByToAndFrom(
+	                                userKey,
+	                                peerKey,
+	                                retentionDays))
+	                .then();
+	    });
 	}
 }

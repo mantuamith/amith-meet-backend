@@ -8,14 +8,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
 import com.algomeet.common.dto.Group;
-import com.algomeet.common.service.GroupCacheService;
+import com.algomeet.common.service.AbstractGroupCache;
 import com.algomeet.common.service.GroupClientService;
 
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 @Service
-public class XmppGroupCacheService extends GroupCacheService {
+public class XmppGroupCacheService extends AbstractGroupCache {
 	private final ReactiveRedisTemplate<String, Object> reactiveRedisTemplate;
 
 	public XmppGroupCacheService(

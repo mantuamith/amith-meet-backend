@@ -9,7 +9,7 @@ import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
 import com.algomeet.common.dto.Group;
-import com.algomeet.common.service.GroupCacheService;
+import com.algomeet.common.service.AbstractGroupCache;
 import com.algomeet.multitenancy.context.TenantContext;
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
@@ -46,7 +46,7 @@ import reactor.core.publisher.Mono;
 @Component
 @RequiredArgsConstructor
 public class MucRetractionService {    
-    private final GroupCacheService groupCacheService;
+    private final AbstractGroupCache groupCacheService;
     private final XmppArchiveService xmppArchiveService;
     private final XmppRetractUtil xmppRetractUtil;
     private final JidUtil jidUtil;

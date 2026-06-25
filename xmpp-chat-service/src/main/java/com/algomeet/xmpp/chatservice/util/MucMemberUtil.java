@@ -17,5 +17,5 @@ public class MucMemberUtil {
 		} else {
 			return Instant.EPOCH;
 		}		
-	}
+	}	
 }

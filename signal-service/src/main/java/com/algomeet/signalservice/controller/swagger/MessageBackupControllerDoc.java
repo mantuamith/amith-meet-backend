@@ -9,9 +9,10 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 
-import com.algomeet.signalservice.document.MessageBackupDocument;
 import com.algomeet.signalservice.dto.CommonResponse;
+import com.algomeet.signalservice.dto.MessageBackupRequest;
 import com.algomeet.signalservice.dto.MessageBackupResponse;
+import com.algomeet.signalservice.dto.MessageBackupUpdateRequest;
 import com.algomeet.signalservice.dto.MessageStatusUpdateRequest;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -57,10 +58,10 @@ public interface MessageBackupControllerDoc {
 		            required = true,
 		            description = "Encrypted message backup data",
 		            content = @Content(
-		                schema = @Schema(implementation = MessageBackupDocument.class)
+		                schema = @Schema(implementation = MessageBackupRequest.class)
 		            )
 		        )
-		        @Validated @RequestBody MessageBackupDocument request);
+		        @Validated @RequestBody MessageBackupRequest request);
 
     @Operation(
         summary = "Get conversation messages",
@@ -119,7 +120,7 @@ public interface MessageBackupControllerDoc {
     @Operation(summary = "Update message (full replace)")
     ResponseEntity<CommonResponse<MessageBackupResponse>> updateMessage(
     	UUID messageId,
-        @RequestBody MessageBackupDocument request
+        @RequestBody MessageBackupUpdateRequest request
     );
 
     @Operation(

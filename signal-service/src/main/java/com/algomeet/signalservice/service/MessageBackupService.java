@@ -39,14 +39,19 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
-import org.springframework.util.StringUtils;
 
+import com.algomeet.common.redis.lock.ChatMessageRetentionLockManager;
 import com.algomeet.signalservice.constant.Constants;
 import com.algomeet.signalservice.document.MessageBackupDocument;
+import com.algomeet.signalservice.document.MessageBackupKey;
+import com.algomeet.signalservice.dto.MessageBackupRequest;
+import com.algomeet.signalservice.dto.MessageBackupUpdateRequest;
 import com.algomeet.signalservice.dto.StorageUsageAdjustmentRequest;
 import com.algomeet.signalservice.exceptions.MessageInsertInProgressException;
 import com.algomeet.signalservice.exceptions.MessageUpdateStatusInProgressException;
 import com.algomeet.signalservice.exceptions.RecordNotFoundException;
+import com.algomeet.signalservice.mapper.MessageBackupMapper;
+import com.algomeet.signalservice.publisher.ApplyMessageBackupRetentionStreamPublisher;
 import com.algomeet.signalservice.publisher.PurgeMessageBackupStreamPublisher;
 import com.algomeet.signalservice.repository.MessageBackupRepository;
 import com.algomeet.signalservice.repository.projection.ConversationStorageStats;
@@ -76,6 +81,8 @@ public class MessageBackupService {
 	private final HideUtil hideUtil;
 	private final DeleteMediaUtil deleteMediaUtil;
 	private final PurgeMessageBackupStreamPublisher purgeMessageBackupStreamPublisher;
+	private final ApplyMessageBackupRetentionStreamPublisher applyMessageBackupRetentionStreamPublisher;
+	private final ChatMessageRetentionLockManager chatMessageRetentionLockManager;
 
 	/**
 	 * Inserts a message backup document into MongoDB with concurrency protection,
@@ -92,25 +99,20 @@ public class MessageBackupService {
 	 * @param backup message backup document to be persisted
 	 * @return persisted MessageBackupDocument
 	 */
-	public MessageBackupDocument insert(MessageBackupDocument backup) {
+	public MessageBackupDocument insert(MessageBackupRequest backupReq) {
 		// Resolve the authenticated user's identity from security context
 		UUID userKey = UUID.fromString(SecurityUtil.getUserKey());
-
-		// Assign owner of this message backup
-		backup.setUserKey(userKey);
-
+		
+		// FIX 1: Assign the mapped entity result directly to your local variable
+		MessageBackupDocument backup = MessageBackupMapper.toEntity(userKey, backupReq);
+		
 		// Build deterministic conversation ID so both directions map to the same thread
 		String conversationId = ConversationUtil.getConversationId(
 				userKey.toString(),
-				backup.getSenderKey().toString(),
-				backup.getReceiverKey().toString()
+				backupReq.getSenderKey().toString(),
+				backupReq.getReceiverKey().toString()
 				);
 		backup.setConversationId(conversationId);
-
-		// Set stanza ID if empty
-		if (backup.getStanzaId() == null) {
-			backup.setStanzaId(UuidCreator.getTimeOrderedEpoch());
-		}
 
 		/**
 		 * Redis distributed lock key to prevent concurrent duplicate inserts
@@ -119,7 +121,8 @@ public class MessageBackupService {
 		 * Format:
 		 * signal:lock:message-backup:insert:{messageId}
 		 */
-		String lockKey = "signal:lock:mb:insert:" + backup.getMessageId();
+		// FIX 2: Now backup.getMessageId() will safely return the UUID instead of null
+		String lockKey = "signal:lock:mb:insert:" + userKey + ":" + backup.getMessageId();
 
 		/**
 		 * Lock value used for safe release verification.
@@ -249,7 +252,7 @@ public class MessageBackupService {
 				MessageBackupDocument conversationStartMessage = new MessageBackupDocument();
 				conversationStartMessage.setStartOfConversation(true);
 				conversationStartMessage.setMessageId(Constants.NIL_UUID);
-				conversationStartMessage.setStanzaId(Constants.NIL_UUID);
+				conversationStartMessage.setId(new MessageBackupKey(userKey, Constants.NIL_UUID));
 				
 				return List.of(conversationStartMessage);
 			}
@@ -264,7 +267,15 @@ public class MessageBackupService {
 	}
 
 	public List<MessageBackupDocument> getMessages(List<UUID> messageIds) {
-		List<MessageBackupDocument> messageList = repository.findAllById(messageIds);		
+		if (CollectionUtils.isEmpty(messageIds)) {
+			return List.of();
+		}
+		
+		UUID currentUserKey = UUID.fromString(SecurityUtil.getUserKey());
+		
+		List<MessageBackupDocument> messageList = repository.findAllById(messageIds.stream()
+				.map(mid -> new MessageBackupKey(currentUserKey, mid))
+				.toList());		
 		return messageList;
 	}
 
@@ -347,8 +358,7 @@ public class MessageBackupService {
 		return results.getMappedResults();
 	}
 
-	public MessageBackupDocument update(UUID userKey,  UUID messageId, MessageBackupDocument backup) {	
-		backup.setMessageId(messageId);
+	public MessageBackupDocument update(UUID userKey,  UUID messageId, MessageBackupUpdateRequest backupReq) {	
 		Optional<MessageBackupDocument> updateOpt = repository.findByMessageIdAndUserKey(messageId, userKey);
 
 		if (updateOpt.isEmpty()) {
@@ -356,102 +366,39 @@ public class MessageBackupService {
 		}
 
 		// Set the message size
-		if (backup.getSize() == null || backup.getSize() == 0) {
-			backup.setSize(backup.getEncryptedMessage() != null 
-					? backup.getEncryptedMessage().getBytes(Charset.forName("utf-8")).length : 0L);
+		if (backupReq.getSize() == null || backupReq.getSize() == 0) {
+			backupReq.setSize(backupReq.getEncryptedMessage() != null 
+					? backupReq.getEncryptedMessage().getBytes(Charset.forName("utf-8")).length : 0L);
 		}
 
 		// Update user storage usage 
 		StorageUsageAdjustmentRequest req = new StorageUsageAdjustmentRequest();
-		req.setChatStorageBytesDelta(backup.getSize() - updateOpt.get().getSize());
-		mediaService.adjustStorageUsage(backup.getUserKey().toString(), req);
+		req.setChatStorageBytesDelta(backupReq.getSize() - updateOpt.get().getSize());
+		mediaService.adjustStorageUsage(userKey.toString(), req);			
 
-		return repository.save(updateOpt.map(existing -> {
-			// Core Identity & Routing
-			if (backup.getUserKey() != null) existing.setUserKey(backup.getUserKey());
-			if (backup.getConversationId() != null) existing.setConversationId(backup.getConversationId());
-			if (backup.getStanzaId() != null) existing.setStanzaId(backup.getStanzaId());
-
+		return repository.save(updateOpt.map(existing -> {						
 			// Encryption Metadata
-			if (backup.getEncryptedMessage() != null) existing.setEncryptedMessage(backup.getEncryptedMessage());
-			if (backup.getSenderKey() != null) existing.setSenderKey(backup.getSenderKey());
-			if (backup.getReceiverKey() != null) existing.setReceiverKey(backup.getReceiverKey());
-			if (backup.getAlgorithm() != null) existing.setAlgorithm(backup.getAlgorithm());
-			if (backup.getVersion() != null) existing.setVersion(backup.getVersion());
-			if (backup.getSalt() != null) existing.setSalt(backup.getSalt());
-
-			// State & Timestamps
-			if (backup.getSentAt() != null) existing.setSentAt(backup.getSentAt());
-			if (backup.getDeliveredAt() != null) existing.setDeliveredAt(backup.getDeliveredAt());
-			if (backup.getReadAt() != null) existing.setReadAt(backup.getReadAt());
-			if (backup.getDeletedAt() != null) existing.setDeletedAt(backup.getDeletedAt());
-
+			if (backupReq.getEncryptedMessage() != null) existing.setEncryptedMessage(backupReq.getEncryptedMessage());
+			if (backupReq.getAlgorithm() != null) existing.setAlgorithm(backupReq.getAlgorithm());
+			if (backupReq.getVersion() != null) existing.setVersion(backupReq.getVersion());
+			if (backupReq.getSalt() != null) existing.setSalt(backupReq.getSalt());
+		
 			// Relationships & Sync
-			if (backup.getTargetMessageId() != null) existing.setTargetMessageId(backup.getTargetMessageId());
-			if (backup.getReplyToMessageId() != null) existing.setReplyToMessageId(backup.getReplyToMessageId());
-			if (backup.getEditCount() != null) existing.setEditCount(backup.getEditCount());
-			if (backup.getUpdateCursorId() != null) existing.setUpdateCursorId(backup.getUpdateCursorId());
-			if (backup.getSize() != null) existing.setSize(backup.getSize());
+			if (backupReq.getTargetMessageId() != null) existing.setTargetMessageId(backupReq.getTargetMessageId());
+			if (backupReq.getReplyToMessageId() != null) existing.setReplyToMessageId(backupReq.getReplyToMessageId());
+				
+			if (backupReq.getSize() != null) existing.setSize(backupReq.getSize());
+			
+			existing.setUpdateCursorId(UuidCreator.getTimeOrderedEpoch());
 
 			// Note: timestamp is usually 'Instant.now()' on creation, 
-			// but you can update it here if you want to track 'last modified'
-			
-			backup.setModifiedAt(Instant.now());
+			// but you can update it here if you want to track 'last modified'			
+			existing.setModifiedAt(Instant.now());
 			
 			return existing;
 		}).get());
 	}
-
-	public MessageBackupDocument edit(UUID userKey, UUID messageId, MessageBackupDocument backup) {	
-		backup.setMessageId(messageId);
-		Optional<MessageBackupDocument> updateOpt = repository.findByMessageIdAndUserKey(messageId, userKey);
-
-		if (updateOpt.isEmpty()) {
-			throw new RecordNotFoundException("Message ID not found");
-		}
-
-		// Set the message size
-		if (backup.getSize() == null || backup.getSize() == 0) {
-			backup.setSize(backup.getEncryptedMessage() != null 
-					? backup.getEncryptedMessage().getBytes(Charset.forName("utf-8")).length : 0L);
-		}
-
-		// Update user storage usage 
-		StorageUsageAdjustmentRequest req = new StorageUsageAdjustmentRequest();
-		req.setChatStorageBytesDelta(backup.getSize() - updateOpt.get().getSize());
-		mediaService.adjustStorageUsage(backup.getUserKey().toString(), req);
-
-		UUID updateStanzaId;		
-
-		if(backup.getUpdateCursorId() != null) {
-			updateStanzaId = backup.getUpdateCursorId();
-		} else {
-			updateStanzaId = UuidCreator.getTimeOrderedEpoch();
-		}
-
-		return repository.save(updateOpt.map(b -> {
-			b.setEditCount(b.getEditCount() != null ? (b.getEditCount() + 1) : 1);
-			b.setUpdateCursorId(updateStanzaId);
-
-			if(StringUtils.hasText(backup.getEncryptedMessage())) {
-				b.setEncryptedMessage(backup.getEncryptedMessage());
-			}
-
-			if(StringUtils.hasText(backup.getAlgorithm())) {
-				b.setAlgorithm(backup.getAlgorithm());
-			}
-
-			if(StringUtils.hasText(backup.getVersion())) {
-				b.setVersion(backup.getVersion());
-			}
-
-			if(StringUtils.hasText(backup.getSalt())) {
-				b.setSalt(backup.getSalt());
-			}
-			return b;
-		}).get());
-	}
-
+	
 	public void delete(UUID userKey, List<UUID> messageIds) {
 		List<MessageBackupView> forDeleteList = repository.findByMessageIdInAndUserKey(messageIds, userKey);	
 		if (forDeleteList.isEmpty()) {
@@ -467,7 +414,9 @@ public class MessageBackupService {
 		req.setChatStorageBytesDelta(-1 * totalSize);
 		mediaService.adjustStorageUsage(forDeleteList.get(0).getUserKey().toString(), req);
 
-		repository.deleteAllById(forDeleteList.stream().map(msg -> msg.getMessageId()).toList());
+		repository.deleteAllById(forDeleteList.stream()
+				.map(msg -> new MessageBackupKey(userKey, msg.getMessageId()))
+				.toList());
 	}	
 
 	@Transactional
@@ -518,7 +467,7 @@ public class MessageBackupService {
 			 * Format:
 			 * signal:lock:message-backup:insert:{messageId}
 			 */
-			String lockKey = "signal:lock:mb:update-status:" + messageId;
+			String lockKey = "signal:lock:mb:update-status:" + userKey + ":" + messageId;
 
 			/**
 			 * Lock value used for safe release verification.
@@ -619,4 +568,42 @@ public class MessageBackupService {
 		// Delete user storage usage
 		mediaService.deleteStorage(userKey.toString());
 	}
+	
+	public void applyMessageRetentionPolicy(UUID userKey, UUID peerKey, Integer messageRetentionDays) {
+		if (chatMessageRetentionLockManager.isLocked(userKey, peerKey)) {
+			throw new IllegalStateException("Could not acquire retention update lock.");
+		}
+		
+		applyMessageBackupRetentionStreamPublisher.publish(userKey, peerKey);
+	}
+		
+	public void applyMessageBackupRetention(UUID userKey, UUID peerKey, Integer messageRetentionDays) {
+		ChatMessageRetentionLockManager.LockToken lockToken = chatMessageRetentionLockManager.acquireLock(userKey, peerKey);
+	    
+	    // If lock is not acquired, another process is already inserting this message
+	    if (lockToken == null) {
+	        throw new IllegalStateException("Could not acquire retention update lock.");
+	    }
+	    
+	    try {
+	        Integer retentionDays = (messageRetentionDays != -1) ? messageRetentionDays : null;
+	        
+	        // Update backup retention records for the requestor
+	        String requestorConversationId = ConversationUtil.getConversationId(userKey.toString(), peerKey.toString());        
+	        repository.updatePurgeAtByConversationId(requestorConversationId, retentionDays);    
+	        
+	        // Update backup retention records for the peer
+	        String peerConversationId = ConversationUtil.getConversationId(peerKey.toString(), userKey.toString());        
+	        repository.updatePurgeAtByConversationId(peerConversationId, retentionDays);    
+
+	    } finally {
+	        // Always release the lock in the finally block so it clears even if repository throws an error
+	        try {
+	        	chatMessageRetentionLockManager.releaseLock(lockToken);
+	        } catch (Exception ex) {
+	            log.error("Failed to release distributed lock footprint for key: {}", lockToken, ex);
+	        }
+	    }
+	}
+	
 }

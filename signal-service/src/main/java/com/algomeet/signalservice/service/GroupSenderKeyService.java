@@ -16,7 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.algomeet.common.dto.Group;
 import com.algomeet.common.dto.GroupMember;
-import com.algomeet.common.service.GroupCacheService;
+import com.algomeet.common.service.AbstractGroupCache;
 import com.algomeet.signalservice.dto.GroupSenderKeyRequest;
 import com.algomeet.signalservice.dto.GroupSenderKeyResponse;
 import com.algomeet.signalservice.dto.UserDeviceResponse;
@@ -43,7 +43,7 @@ import lombok.extern.slf4j.Slf4j;
 public class GroupSenderKeyService {
 	private final GroupSenderKeyRepository repository;
 	private final UserDeviceRepository deviceRepository;
-	private final GroupCacheService groupCacheService;
+	private final AbstractGroupCache groupCacheService;
 
 	public GroupSenderKeyResponse create(UUID senderUserKey, Integer senderDeviceId, UUID groupId, GroupSenderKeyRequest request) {
 		deviceRepository.findById(new UserDeviceId(senderUserKey, senderDeviceId))

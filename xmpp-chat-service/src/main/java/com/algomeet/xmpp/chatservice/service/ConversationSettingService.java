@@ -4,6 +4,7 @@ import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 
+import com.algomeet.common.dto.ConversationSettings;
 import com.algomeet.xmpp.chatservice.document.ConversationSetting;
 import com.algomeet.xmpp.chatservice.repository.ConversationSettingRepository;
 
@@ -11,63 +12,65 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Mono;
 
-import org.springframework.data.mongodb.core.ReactiveMongoTemplate;
-import org.springframework.data.mongodb.core.query.Criteria;
-import org.springframework.data.mongodb.core.query.Query;
-import org.springframework.data.mongodb.core.query.Update;
-import org.springframework.data.mongodb.core.FindAndModifyOptions;
-
-
-
-
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class ConversationSettingService {
+public class ConversationSettingService implements ReactiveConversationSettingsService{
 
     private final ConversationSettingRepository repository;
-    
-    // Inject ReactiveMongoTemplate into your service class
-    private final ReactiveMongoTemplate mongoTemplate;
 
     /**
-     * Helper to generate the composite ID string.
+     * Generates the deterministic conversation ID using lexicographical ordering.
+     * Format: lowerUserKey_higherUserKey
      */
-    private String generateId(String senderUserKey, String receiverUserKey) {
-        return senderUserKey + "_" + receiverUserKey;
+    public String getConversationId(UUID userKeyA, UUID userKeyB) {
+        String strA = userKeyA.toString();
+        String strB = userKeyB.toString();
+        return strA.compareTo(strB) < 0 ? strA + "_" + strB : strB + "_" + strA;
     }
 
     /**
-     * Retrieve conversation settings for a specific sender and receiver pair.
+     * Retrieves the conversation settings for a direct chat between two users.
+     * If no settings exist, it returns a default configuration object (never expire).
      */
-    public Mono<ConversationSetting> getSettings(String senderUserKey, String receiverUserKey) {
-        String id = generateId(senderUserKey, receiverUserKey);
-        return repository.findById(id);
+    public Mono<ConversationSetting> getSettings(UUID userKeyA, UUID userKeyB) {
+        String conversationId = getConversationId(userKeyA, userKeyB);
+        
+        return repository.findById(conversationId)
+                .defaultIfEmpty(new ConversationSetting(conversationId, -1)); // Default: never expire
     }
 
     /**
-     * Save or fully update conversation settings.
+     * Upserts (saves or updates) the retention policy for a direct chat conversation.
      */
-    public Mono<ConversationSetting> saveOrUpdateSettings(ConversationSetting setting) {
-        log.info("Saving conversation settings for ID: {}", setting.getId());
+    public Mono<ConversationSetting> saveOrUpdateRetentionDays(UUID userKeyA, UUID userKeyB, Integer retentionDays) {
+        String conversationId = getConversationId(userKeyA, userKeyB);
+        ConversationSetting setting = new ConversationSetting(conversationId, retentionDays);
+        
+        log.info("Saving conversation setting for ID: {} with retention days: {}", conversationId, retentionDays);
         return repository.save(setting);
     }
 
     /**
-     * Convenient upside/update method using explicit sender and receiver keys.
+     * Optimized partial update targeting only the retention days field.
      */
-    public Mono<ConversationSetting> saveOrUpdateSettings(String senderUserKey, String receiverUserKey, Long expiration) {
-        String id = generateId(senderUserKey, receiverUserKey);
-        ConversationSetting setting = new ConversationSetting(id, expiration);
-        return repository.save(setting);
+    public Mono<Boolean> updateRetentionDaysOnly(UUID userKeyA, UUID userKeyB, Integer retentionDays) {
+        String conversationId = getConversationId(userKeyA, userKeyB);
+        
+        return repository.updateMessageRetentionDays(conversationId, retentionDays)
+                .map(modifiedCount -> modifiedCount > 0);
     }
-   
-    /**
-     * Delete settings for a specific conversation.
-     */
-    public void deleteSettings(String senderUserKey, String receiverUserKey) {
-        String id = generateId(senderUserKey, receiverUserKey);
-        repository.deleteById(id);
-        log.info("Deleted conversation settings for ID: {}", id);
-    }  
+
+    @Override
+    public Mono<ConversationSettings> getSettings(String conversationId) {
+        return repository.findById(conversationId)
+                // 1. If it doesn't exist in the database, provide a default fallback entity
+                .defaultIfEmpty(new ConversationSetting(conversationId, -1))
+                // 2. Map the Database Entity to your expected DTO structure
+                .map(entity -> {
+                    ConversationSettings dto = new ConversationSettings();
+                    dto.setMessageRetentionDays(entity.getMessageRetentionDays());
+                    return dto;
+                });
+    }
 }

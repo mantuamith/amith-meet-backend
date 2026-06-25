@@ -21,7 +21,7 @@ import lombok.extern.slf4j.Slf4j;
 public class DeleteMessageMediaEventPublisher {
 
 	@Autowired
-	@Qualifier("deleteMediaStringRedisTemplate")
+	@Qualifier("streamStringRedisTemplate")
 	private RedisTemplate<String, String> redisTemplate;
 
 	@Autowired

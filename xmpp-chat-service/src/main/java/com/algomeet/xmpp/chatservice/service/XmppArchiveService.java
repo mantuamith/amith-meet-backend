@@ -1,5 +1,6 @@
 package com.algomeet.xmpp.chatservice.service;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -16,7 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import com.algomeet.common.dto.Group;
-import com.algomeet.common.service.GroupCacheService;
+import com.algomeet.common.service.AbstractGroupCache;
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.constant.Constants;
 import com.algomeet.xmpp.chatservice.constant.XmppErrorConditions;
@@ -57,7 +58,7 @@ import reactor.core.publisher.Mono;
 public class XmppArchiveService {    
 	private final MucMessageRepository repository;
 	private final LocalStanzaDispatcher localStanzaDispatcher;
-	private final GroupCacheService groupCacheService;
+	private final AbstractGroupCache groupCacheService;
 	private final XmppUtil xmppUtil;
 	private final DomainProperties domainProperties;
 	private final ReactiveMongoTemplate reactiveMongoTemplate;
@@ -76,7 +77,8 @@ public class XmppArchiveService {
 	 * @param stanzaId The unique internal ID (UUIDv7) for database indexing.
 	 * @return A {@link Mono} containing the saved {@link MucMessage}.
 	 */
-	public Mono<MucMessage> archiveEvent(String xml, String id, String toRoomId, String toMucMember, String from, UUID stanzaId, Boolean isCountable) {	
+	public Mono<MucMessage> archiveEvent(String xml, String id, String toRoomId, String toMucMember, 
+			String from, UUID stanzaId, Boolean isCountable, Integer messageRetentionDays) {	
 		UUID messageId = StringUtils.hasText(id) 
 			    ? UUID.fromString(id) 
 			    : UuidCreator.getTimeOrderedEpoch();
@@ -88,6 +90,12 @@ public class XmppArchiveService {
 		event.setFrom(UUID.fromString(from));
 		event.setTo(StringUtils.hasText(toMucMember) ? UUID.fromString(toMucMember) : null);
 		event.setCountable(isCountable);
+		
+		if(messageRetentionDays != null && messageRetentionDays != -1) {
+			event.setPurgeAt(
+					Instant.now().plus(Duration.ofDays(messageRetentionDays))
+					);
+		}
 		
 		// Get target message ID for reactions and edits, they are not countable stanza.
 		// sample stanza: <target xmlns='urn:algomeet:meta:0' id='019e537d-31a0-7556-a160-7ac448312343'/>
@@ -117,7 +125,8 @@ public class XmppArchiveService {
 	 * @param stanzaId The unique internal ID (UUIDv7) for database indexing.
 	 * @return A {@link Mono} containing the saved {@link MucMessage}.
 	 */
-	public Mono<MucMessage> archiveEvent(String xml, String id, String toRoomId, String toMucMember, String from, UUID stanzaId) {	
+	public Mono<MucMessage> archiveEvent(String xml, String id, String toRoomId, String toMucMember, String from, 
+			UUID stanzaId, Integer messageRetentionDays) {	
 		UUID messageId = StringUtils.hasText(id) 
 			    ? UUID.fromString(id) 
 			    : UuidCreator.getTimeOrderedEpoch();
@@ -129,7 +138,13 @@ public class XmppArchiveService {
 		event.setFrom(UUID.fromString(from));
 		event.setTo(StringUtils.hasText(toMucMember) ? UUID.fromString(toMucMember) : null);
 		event.setCountable(XmppCustomStanzaUtil.isCountableMessage(xml));
-		event.setStanzaXml(xml);
+		event.setStanzaXml(xml);	
+		
+		if (messageRetentionDays != null && messageRetentionDays != -1) {
+			event.setPurgeAt(
+					Instant.now().plus(Duration.ofDays(messageRetentionDays))
+					);
+		}
 
 		return repository.save(event);
 	}

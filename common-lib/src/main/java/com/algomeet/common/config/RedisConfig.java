@@ -1,4 +1,4 @@
-package com.algomeet.xmpp.chatservice.config;
+package com.algomeet.common.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -7,15 +7,18 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Configuration
 @RequiredArgsConstructor
-public class MissedCallStreamRedisConfig {
-	 /** Factory used to create connections to the Redis server. */
+public class RedisConfig {
+
+    /** Factory used to create connections to the Redis server. */
     private final RedisConnectionFactory connectionFactory;
 
     @Bean    
-    public RedisTemplate<String, String> missedCallStringRedisTemplate() {
+    public RedisTemplate<String, String> commonStringRedisTemplate() {
         RedisTemplate<String, String> template = new RedisTemplate<>();
         template.setConnectionFactory(connectionFactory);
 

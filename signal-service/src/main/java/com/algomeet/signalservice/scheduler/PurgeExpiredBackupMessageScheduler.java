@@ -15,6 +15,7 @@ import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import com.algomeet.signalservice.document.MessageBackupKey;
 import com.algomeet.signalservice.publisher.DeleteMessageMediaEventPublisher;
 import com.algomeet.signalservice.repository.MessageBackupRepository;
 import com.algomeet.signalservice.repository.projection.MessageBackupPurgeView;
@@ -139,8 +140,8 @@ public class PurgeExpiredBackupMessageScheduler {
 				});
 	
 			// Extract IDs to purge from database
-			List<UUID> idsToDelete = expiredMessages.stream()
-					.map(MessageBackupPurgeView::getStanzaId)
+			List<MessageBackupKey> idsToDelete = expiredMessages.stream()
+					.map(view -> new MessageBackupKey(view.getUserKey(), view.getStanzaId()))
 					.toList();
 	
 			log.debug("Purging {} expired backup message records from the database", idsToDelete.size());

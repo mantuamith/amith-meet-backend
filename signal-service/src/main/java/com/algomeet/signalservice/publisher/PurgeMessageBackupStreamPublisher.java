@@ -20,7 +20,7 @@ import lombok.extern.slf4j.Slf4j;
 @Service
 public class PurgeMessageBackupStreamPublisher {
 	@Autowired
-	@Qualifier("purgeMessageBackupStringRedisTemplate")
+	@Qualifier("streamStringRedisTemplate")
 	private RedisTemplate<String, String> redisTemplate;
 
 	@Autowired
@@ -43,7 +43,7 @@ public class PurgeMessageBackupStreamPublisher {
 
 			RecordId recordId = redisTemplate.opsForStream().add(record);
 
-			log.info("Produced message delete media events ID: {}", recordId);
+			log.info("Produced message purge message backup ID: {}", recordId);
 			return recordId;
 
 		} catch (Exception e) {
