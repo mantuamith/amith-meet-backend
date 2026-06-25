@@ -13,15 +13,15 @@ import com.algomeet.common.service.AbstractConversationSettingsCache;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-//@Service
+@Service
 public class ConversationSettingsCacheService extends AbstractConversationSettingsCache{
     @Autowired
     private ConversationSettingsService conversationSettingsService;
 	
     @Autowired
-    private RedisTemplate<String, Object> redisTemplate;
+    private RedisTemplate<String, ConversationSettings> redisTemplate;
     
-    public ConversationSettingsCacheService(ConversationSettingsService conversationSettingsService, RedisTemplate<String, Object> redisTemplate) {
+    public ConversationSettingsCacheService(ConversationSettingsService conversationSettingsService, RedisTemplate<String, ConversationSettings> redisTemplate) {
         this.conversationSettingsService = conversationSettingsService;
         this.redisTemplate = redisTemplate;
     }

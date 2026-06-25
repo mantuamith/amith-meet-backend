@@ -18,6 +18,7 @@ import static com.algomeet.signalservice.document.MessageBackupDocument.FIELD_US
 import java.nio.charset.Charset;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -40,6 +41,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
 
+import com.algomeet.common.dto.ConversationSettings;
 import com.algomeet.common.redis.lock.ChatMessageRetentionLockManager;
 import com.algomeet.signalservice.constant.Constants;
 import com.algomeet.signalservice.document.MessageBackupDocument;
@@ -83,6 +85,7 @@ public class MessageBackupService {
 	private final PurgeMessageBackupStreamPublisher purgeMessageBackupStreamPublisher;
 	private final ApplyMessageBackupRetentionStreamPublisher applyMessageBackupRetentionStreamPublisher;
 	private final ChatMessageRetentionLockManager chatMessageRetentionLockManager;
+	private final ConversationSettingsCacheService conversationSettingsCacheService;
 
 	/**
 	 * Inserts a message backup document into MongoDB with concurrency protection,
@@ -171,6 +174,13 @@ public class MessageBackupService {
 
 		mediaService.adjustStorageUsage(userKey.toString(), req);
 
+		// Retrieve and set message retention
+		ConversationSettings conversationSettings = conversationSettingsCacheService.getCachedSettings(backupReq.getSenderKey(), backupReq.getReceiverKey());
+		Instant purgeAt = (conversationSettings.getMessageRetentionDays() != null && conversationSettings.getMessageRetentionDays() != -1) 
+                ? Instant.now().plus(conversationSettings.getMessageRetentionDays(), ChronoUnit.DAYS)
+                : null;
+		backup.setPurgeAt(purgeAt);
+		
 		// Persist message backup into MongoDB
 		return repository.insert(backup);
 	}
