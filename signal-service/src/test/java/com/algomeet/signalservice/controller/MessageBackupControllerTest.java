@@ -1,7 +1,6 @@
 package com.algomeet.signalservice.controller;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
@@ -40,7 +39,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import com.algomeet.signalservice.config.LocalizationConfig;
 import com.algomeet.signalservice.document.MessageBackupDocument;
-import com.algomeet.signalservice.dto.MessageBackupResponse;
+import com.algomeet.signalservice.document.MessageBackupKey;
 import com.algomeet.signalservice.enums.ResponseCode;
 import com.algomeet.signalservice.exceptions.RecordNotFoundException;
 import com.algomeet.signalservice.service.MessageBackupService;
@@ -79,12 +78,16 @@ class MessageBackupControllerTest {
 	private static UUID userKey;
 	private static UUID senderKey;
 	private static UUID receiverKey;
+	private static UUID messageId;
+	private static UUID stanzaId;
 
     @BeforeEach
     void setup() {
 		userKey = UuidCreator.getTimeOrderedEpoch();
 		senderKey = UuidCreator.getTimeOrderedEpoch();
 		receiverKey = UuidCreator.getTimeOrderedEpoch();
+		messageId = UuidCreator.getTimeOrderedEpoch();
+		stanzaId = UuidCreator.getTimeOrderedEpoch();
 		
         securityUtilMock = Mockito.mockStatic(SecurityUtil.class);
         securityUtilMock.when(SecurityUtil::getUserKey)
@@ -104,7 +107,7 @@ class MessageBackupControllerTest {
         MessageBackupDocument doc = new MessageBackupDocument();
 
         doc.setMessageId(UuidCreator.getTimeOrderedEpoch()); // max 56 chars
-        doc.setUserKey(userKey); // deprecated, still must be <= 45 chars
+        doc.setId(new MessageBackupKey(userKey, stanzaId));
         doc.setSenderKey(senderKey); // <= 45 chars, not empty
         doc.setReceiverKey(receiverKey); // <= 45 chars, not empty
 
@@ -160,7 +163,7 @@ class MessageBackupControllerTest {
         MessageBackupDocument doc = sampleMessageBackupDocument();
 
         UUID messageId = UuidCreator.getTimeOrderedEpoch();
-        when(messageBackupService.getMessage(doc.getUserKey(), messageId)).thenReturn(doc);
+        when(messageBackupService.getMessage(doc.getId().getUserKey(), messageId)).thenReturn(doc);
 
         mockMvc.perform(get("/signal/backup/chat-messages/msg-1"))
                 .andExpect(status().isOk())
