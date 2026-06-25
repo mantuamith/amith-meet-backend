@@ -47,6 +47,7 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
+import com.algomeet.mediaservice.config.AcceptedFileProperties;
 import com.algomeet.mediaservice.config.LocalizationConfig;
 import com.algomeet.mediaservice.config.StorageProperties;
 import com.algomeet.mediaservice.document.UserFileDocument;
@@ -95,6 +96,9 @@ class FileControllerTest {
 
 	@MockBean
 	private FileValidator fileValidator;
+
+	@MockBean
+	private AcceptedFileProperties acceptedFileProperties;
 	
 	@MockBean
 	private UserFileRepository userFileRepository;
@@ -114,6 +118,7 @@ class FileControllerTest {
 		securityUtilMock = Mockito.mockStatic(SecurityUtil.class);
 		securityUtilMock.when(SecurityUtil::getUserKey).thenReturn(USER_KEY.toString());
 
+		when(acceptedFileProperties.getMaxFilesPerUpload()).thenReturn(10);
 		new MessageUtil(messageSource);
 	}
 

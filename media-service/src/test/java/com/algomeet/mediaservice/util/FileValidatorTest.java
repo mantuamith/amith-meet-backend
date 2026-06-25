@@ -37,7 +37,9 @@ class FileValidatorTest {
         props.setImageExtensions(Set.of("jpg", "jpeg", "png", "gif"));
         props.setVideoExtensions(Set.of("mp4", "mov", "mkv"));
         props.setAudioExtensions(Set.of("mp3", "aac", "m4a"));
-        props.setDocumentExtensions(Set.of("pdf", "doc", "docx", "zip", "txt"));
+        props.setDocumentExtensions(Set.of("pdf", "doc", "docx", "txt"));
+        props.setArchiveExtensions(Set.of("zip", "7z", "rar", "gz", "tar"));
+        props.setMaxArchiveSize(100 * 1024 * 1024L);
         props.setMaxImageSize(20 * 1024 * 1024L);    // 20 MB
         props.setMaxVideoSize(200 * 1024 * 1024L);   // 200 MB
         props.setMaxAudioSize(50 * 1024 * 1024L);    // 50 MB
