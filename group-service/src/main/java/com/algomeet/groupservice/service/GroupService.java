@@ -246,6 +246,10 @@ public class GroupService {
 		if (request.getDescription() != null) {
 			group.setDescription(request.getDescription());
 		}
+		
+		if (request.getMessageRetentionDays() != null) {
+			group.setMessageRetentionDays(request.getMessageRetentionDays());
+		}
 
 		Member user = findMember(group.getMembers(), userKey);
 

@@ -20,4 +20,11 @@ public class UpdateGroupRequest {
      * </ul>
      */
     private Set<MemberRequest> members = new HashSet<>();
+    
+    /**
+     * Number of days chat messages are retained before automatic deletion.
+     * 
+     * Default -1 meaning no expiration.
+     */
+    private Integer messageRetentionDays;
 }
