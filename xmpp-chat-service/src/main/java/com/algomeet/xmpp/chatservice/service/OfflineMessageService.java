@@ -1,9 +1,11 @@
 package com.algomeet.xmpp.chatservice.service;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
 
+import org.hibernate.query.sqm.TemporalUnit;
 import org.springframework.data.mongodb.core.ReactiveMongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -13,6 +15,7 @@ import org.springframework.stereotype.Service;
 import com.algomeet.xmpp.chatservice.document.OfflineMessage;
 import com.algomeet.xmpp.chatservice.repository.OfflineMessageRepository;
 import com.algomeet.xmpp.chatservice.util.XmppCustomStanzaUtil;
+import com.algomeet.common.dto.ConversationSettings;
 
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -45,6 +48,7 @@ public class OfflineMessageService {
 
     private final OfflineMessageRepository offlineMessageRepository;    
     private final ReactiveMongoTemplate mongoTemplate;
+    private final ConversationSettingsCacheService conversationSettingsCacheService;
     
     /**
      * Persists a stanza as an offline document.
@@ -57,18 +61,35 @@ public class OfflineMessageService {
      * @return A {@link Mono} emitting the saved {@link OfflineMessage}.
      */
     public Mono<OfflineMessage> save(UUID messageId, UUID stanzaId, String to, String from, String type, Boolean isAckStanza, boolean isCountable, String originalXml) {
-        OfflineMessage offlineMessage = OfflineMessage.builder()
-                .messageId(messageId)
-                .stanzaId(stanzaId)
-                .to(UUID.fromString(to))
-                .from(UUID.fromString(from))
-                .messageType(type)
-                .isAckStanza(isAckStanza)
-                .countable(isCountable)
-                .stanzaXml(originalXml)
-                .build();
-        
-        return offlineMessageRepository.save(offlineMessage);
+        UUID fromUuid = UUID.fromString(from);
+        UUID toUuid = UUID.fromString(to);
+
+        // 1. Fetch conversation settings reactively from the cache service
+        return conversationSettingsCacheService.getCachedSettings(fromUuid, toUuid)
+                // 2. Map or fallback to a default if settings are empty (e.g. conversation doesn't exist yet)
+                .defaultIfEmpty(new ConversationSettings(-1)) 
+                // 3. Pipeline the resolved settings to compute the retention time and save the message
+                .flatMap(conversationSettings -> {
+                    
+                    // FIXED: Changed TemporalUnit.DAY to ChronoUnit.DAYS
+                    Instant purgeAt = (conversationSettings.getMessageRetentionDays() != null && conversationSettings.getMessageRetentionDays() != -1) 
+                            ? Instant.now().plus(conversationSettings.getMessageRetentionDays(), ChronoUnit.DAYS)
+                            : null;
+
+                    OfflineMessage offlineMessage = OfflineMessage.builder()
+                            .messageId(messageId)
+                            .stanzaId(stanzaId)
+                            .to(toUuid)
+                            .from(fromUuid)
+                            .messageType(type)
+                            .isAckStanza(isAckStanza)
+                            .countable(isCountable)
+                            .stanzaXml(originalXml)
+                            .purgeAt(purgeAt)
+                            .build();
+
+                    return offlineMessageRepository.save(offlineMessage);
+                });
     }
     
     /**
@@ -82,17 +103,33 @@ public class OfflineMessageService {
      * @return A {@link Mono} emitting the saved {@link OfflineMessage}.
      */
     public Mono<OfflineMessage> save(UUID messageId, UUID stanzaId, String to, String from, String type, String originalXml) {
-        OfflineMessage offlineMessage = OfflineMessage.builder()
-                .messageId(messageId)
-                .stanzaId(stanzaId)
-                .to(UUID.fromString(to))
-                .from(UUID.fromString(from))
-                .messageType(type)
-                .countable(XmppCustomStanzaUtil.isCountableMessage(originalXml))
-                .stanzaXml(originalXml)
-                .build();
-        
-        return offlineMessageRepository.save(offlineMessage);
+    	UUID fromUuid = UUID.fromString(from);
+    	UUID toUuid = UUID.fromString(to);
+
+    	// 1. Fetch conversation settings reactively from the cache service
+    	return conversationSettingsCacheService.getCachedSettings(fromUuid, toUuid)
+    			// 2. Map or fallback to a default if settings are empty (e.g. conversation doesn't exist yet)
+    			.defaultIfEmpty(new ConversationSettings(-1)) 
+    			// 3. Pipeline the resolved settings to compute the retention time and save the message
+    			.flatMap(conversationSettings -> {
+
+    				// FIXED: Changed TemporalUnit.DAY to ChronoUnit.DAYS
+    				Instant purgeAt = (conversationSettings.getMessageRetentionDays() != null && conversationSettings.getMessageRetentionDays() != -1) 
+    						? Instant.now().plus(conversationSettings.getMessageRetentionDays(), ChronoUnit.DAYS)
+    								: null;
+    				OfflineMessage offlineMessage = OfflineMessage.builder()
+    						.messageId(messageId)
+    						.stanzaId(stanzaId)
+    						.to(UUID.fromString(to))
+    						.from(UUID.fromString(from))
+    						.messageType(type)
+    						.countable(XmppCustomStanzaUtil.isCountableMessage(originalXml))
+    						.stanzaXml(originalXml)
+    						.purgeAt(purgeAt)
+    						.build();
+
+    				return offlineMessageRepository.save(offlineMessage);
+    			});
     }
     
     /**

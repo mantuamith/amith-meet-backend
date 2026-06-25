@@ -21,10 +21,10 @@ public class ConversationSettingsCacheService extends AbstractConversationSettin
     private ReactiveConversationSettingsService conversationSettingsService;
 	
     @Autowired
-    private ReactiveRedisTemplate<String, Object> redisTemplate;
+    private ReactiveRedisTemplate<String, ConversationSettings> redisTemplate;
     
     public ConversationSettingsCacheService(ReactiveConversationSettingsService conversationSettingsService, 
-                                                 ReactiveRedisTemplate<String, Object> redisTemplate) {
+                                                 ReactiveRedisTemplate<String, ConversationSettings> redisTemplate) {
         this.conversationSettingsService = conversationSettingsService;
         this.redisTemplate = redisTemplate;
     }
