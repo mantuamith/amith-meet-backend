@@ -18,12 +18,12 @@ import reactor.core.publisher.Mono;
 public class ConversationSettingsCacheService extends AbstractConversationSettingsCache {
 
     @Autowired
-    private ReactiveConversationSettingsService conversationSettingsService;
+    private ConversationSettingsService conversationSettingsService;
 	
     @Autowired
     private ReactiveRedisTemplate<String, ConversationSettings> redisTemplate;
     
-    public ConversationSettingsCacheService(ReactiveConversationSettingsService conversationSettingsService, 
+    public ConversationSettingsCacheService(ConversationSettingsService conversationSettingsService, 
                                                  ReactiveRedisTemplate<String, ConversationSettings> redisTemplate) {
         this.conversationSettingsService = conversationSettingsService;
         this.redisTemplate = redisTemplate;

@@ -5,6 +5,6 @@ import com.algomeet.common.service.ConversationIdProvider;
 
 import reactor.core.publisher.Mono;
 
-public interface ReactiveConversationSettingsService extends ConversationIdProvider {
+public interface ConversationSettingsService extends ConversationIdProvider {
 	Mono<ConversationSettings> getSettings(String conversationId);
 }

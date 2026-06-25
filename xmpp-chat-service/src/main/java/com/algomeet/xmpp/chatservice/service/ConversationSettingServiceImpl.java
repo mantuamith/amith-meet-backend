@@ -15,7 +15,7 @@ import reactor.core.publisher.Mono;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class ConversationSettingService implements ReactiveConversationSettingsService{
+public class ConversationSettingServiceImpl implements ConversationSettingsService{
 
     private final ConversationSettingRepository repository;
 

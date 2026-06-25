@@ -25,7 +25,7 @@ public class ChatMessageService {
 	private final UnreadCountService unreadCountService;
 	private final ClusterMessagePublisher clusterMessagePublisher;
 	private final DomainProperties domainProperties;
-	private final ConversationSettingService conversationSettingService;
+	private final ConversationSettingServiceImpl conversationSettingService;
 	private final ChatMessageRetentionLockManager chatMessageRetentionLockManager;
 	private final ConversationSettingsCacheService conversationSettingsCacheService;
 
