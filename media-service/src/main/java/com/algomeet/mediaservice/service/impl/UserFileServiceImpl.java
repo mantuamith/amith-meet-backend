@@ -17,7 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
 
 import com.algomeet.common.dto.Group;
-import com.algomeet.common.service.GroupCacheService;
+import com.algomeet.common.service.AbstractGroupCache;
 import com.algomeet.mediaservice.document.FileAccessEntry;
 import com.algomeet.mediaservice.document.FileAccessEntryDocument;
 import com.algomeet.mediaservice.document.FilePermission;
@@ -43,7 +43,7 @@ public class UserFileServiceImpl implements UserFileService {
 	private final UserStorageUsageService userStorageUsageService;
 	private final FileAccessEntryService fileAccessEntryService;
 	private final FileAccessEntryRepository fileAccessEntryRepository;
-	private final GroupCacheService groupCacheService;
+	private final AbstractGroupCache groupCacheService;
 	private final GroupFileAccessEntryService groupFileAccessEntryService;
 	private final FileAccessPermission fileAccessPermission;
 

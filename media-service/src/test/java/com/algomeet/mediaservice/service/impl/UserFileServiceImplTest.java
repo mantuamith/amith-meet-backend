@@ -22,7 +22,7 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.springframework.security.access.AccessDeniedException;
 
-import com.algomeet.common.service.GroupCacheService;
+import com.algomeet.common.service.AbstractGroupCache;
 import com.algomeet.mediaservice.document.FilePermission;
 import com.algomeet.mediaservice.document.UserFileDocument;
 import com.algomeet.mediaservice.exceptions.UserFileNotFoundException;
@@ -43,7 +43,7 @@ class UserFileServiceImplTest {
     private UserStorageUsageService userStorageUsageService;
     
     @Mock
-    private GroupCacheService groupCacheService;
+    private AbstractGroupCache groupCacheService;
     
     @Mock
     private GroupFileAccessEntryService groupFileAccessEntryService;

@@ -24,7 +24,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import com.algomeet.common.service.GroupCacheService;
+import com.algomeet.common.service.AbstractGroupCache;
 import com.algomeet.mediaservice.document.FilePermission;
 import com.algomeet.mediaservice.document.UserFileDocument;
 import com.algomeet.mediaservice.repository.FileAccessEntryRepository;
@@ -54,7 +54,7 @@ class UserFileServiceImplDeleteTest {
     @Mock private UserStorageUsageService userStorageUsageService;
     @Mock private FileAccessEntryService fileAccessEntryService;
     @Mock private FileAccessEntryRepository fileAccessEntryRepository;
-    @Mock private GroupCacheService groupCacheService;
+    @Mock private AbstractGroupCache groupCacheService;
     @Mock
 	private FileAccessPermission fileAccessPermission;
 
