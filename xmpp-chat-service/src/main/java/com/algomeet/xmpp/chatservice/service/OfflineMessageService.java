@@ -5,17 +5,16 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
 
-import org.hibernate.query.sqm.TemporalUnit;
 import org.springframework.data.mongodb.core.ReactiveMongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
+import com.algomeet.common.dto.ConversationSettings;
 import com.algomeet.xmpp.chatservice.document.OfflineMessage;
 import com.algomeet.xmpp.chatservice.repository.OfflineMessageRepository;
 import com.algomeet.xmpp.chatservice.util.XmppCustomStanzaUtil;
-import com.algomeet.common.dto.ConversationSettings;
 
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
