@@ -99,9 +99,6 @@ class FileControllerTest {
 	private FileValidator fileValidator;
 
 	@MockBean
-	private AcceptedFileProperties acceptedFileProperties;
-	
-	@MockBean
 	private UserFileRepository userFileRepository;
 	
 	@MockBean

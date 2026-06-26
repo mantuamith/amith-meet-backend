@@ -10,6 +10,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
+import com.algomeet.signalservice.service.GroupCacheService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -51,10 +52,10 @@ class UserFileServiceImplDeleteTest {
     @Mock private FileAccessEntryService fileAccessEntryService;
     @Mock private FileAccessEntryRepository fileAccessEntryRepository;
     @Mock private FileAccessPermission fileAccessPermission;
-    @Mock private AbstractGroupCache groupCacheService;
+    @Mock private AbstractGroupCache groupCacheService1;
     @Mock private GroupCacheService groupCacheService;
     @Mock private GroupFileAccessEntryService groupFileAccessEntryService;
-    @Mock private FileAccessPermission fileAccessPermission;
+
 
     @InjectMocks
     private UserFileServiceImpl service;
@@ -215,7 +216,7 @@ class UserFileServiceImplDeleteTest {
 
             FileAccessPermission fileAccessPermission = new FileAccessPermissionImpl(fileAccessEntryService, null, null);
             
-            assertTrue(fileAccessPermission.hasPermission(file, RECEIVER_KEY, FilePermission.READ),
+            assertTrue(fileAccessPermission.hasPermission(file, RECEIVER_KEY, FilePermission.READ));
             assertTrue(realPermission.hasPermission(file, RECEIVER_KEY, FilePermission.READ),
                     "Receiver with FileAccessEntry must be granted READ");
         }
@@ -228,7 +229,7 @@ class UserFileServiceImplDeleteTest {
             String strangerKey = UUID.randomUUID().toString();
 
             FileAccessPermission fileAccessPermission = new FileAccessPermissionImpl(fileAccessEntryService, null, null);
-            assertFalse(fileAccessPermission.hasPermission(file, strangerKey, FilePermission.READ),
+            assertFalse(fileAccessPermission.hasPermission(file, strangerKey, FilePermission.READ));
             assertFalse(realPermission.hasPermission(file, strangerKey, FilePermission.READ),
                     "User with no FileAccessEntry must be denied even when conversationId is set");
         }
