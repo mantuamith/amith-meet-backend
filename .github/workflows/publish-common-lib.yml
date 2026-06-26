@@ -1,0 +1,25 @@
+name: Publish common-lib to GitHub Packages
+
+on:
+  push:
+    branches: [main, pre-prod]
+    paths:
+      - 'common-lib/**'
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+      - name: Publish to GitHub Packages
+        run: mvn --batch-mode deploy -f common-lib/pom.xml -s settings.xml
+        env:
+          SONAI_PACKAGE_REGISTRY_TOKEN: ${{ secrets.SONAI_PACKAGE_REGISTRY_TOKEN }}
