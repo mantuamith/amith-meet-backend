@@ -19,7 +19,9 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
+      - name: Replace Maven token in settings.xml
+        run: |
+          sed -i "s/SONAI_PACKAGE_REGISTRY_TOKEN/${{ secrets.SONAI_PACKAGE_REGISTRY_TOKEN }}/g" ${{ github.workspace }}/settings.xml
       - name: Publish to GitHub Packages
-        run: mvn --batch-mode deploy -f common-lib/pom.xml -s settings.xml
-        env:
-          SONAI_PACKAGE_REGISTRY_TOKEN: ${{ secrets.SONAI_PACKAGE_REGISTRY_TOKEN }}
+        run: mvn --batch-mode deploy -f common-lib/pom.xml -s ${{ github.workspace }}/settings.xml
+
