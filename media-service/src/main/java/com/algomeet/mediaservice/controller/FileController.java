@@ -41,6 +41,7 @@ import com.algomeet.mediaservice.dto.MediaUploadResponse;
 import com.algomeet.mediaservice.enums.ResponseCode;
 import com.algomeet.mediaservice.enums.Storage;
 import com.algomeet.mediaservice.enums.UploadContext;
+import com.algomeet.mediaservice.exceptions.UserFileNotFoundException;
 import com.algomeet.mediaservice.exceptions.FileTypeNotSupportedException;
 import com.algomeet.mediaservice.service.MediaServiceLocal;
 import com.algomeet.mediaservice.service.MediaServiceOss;
@@ -238,7 +239,7 @@ public class FileController implements FileControllerDoc {
         } catch (AccessDeniedException e) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(CommonResponse.from(ResponseCode.MEDIA_ACCESS_DENIED));
-        } catch (IllegalArgumentException e) {
+        } catch (UserFileNotFoundException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(CommonResponse.from(ResponseCode.MEDIA_NOT_FOUND));
         } catch (IOException e) {
@@ -265,7 +266,7 @@ public class FileController implements FileControllerDoc {
             userFileService.softDeleteAndMarkForCleanupIfOrphaned(Set.of(mediaId.toString()), SecurityUtil.getUserKey(), deleteWithUserKeys, 
             		groupId, messageId);
             return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
-        } catch (IllegalArgumentException e) {
+        } catch (UserFileNotFoundException e) {
             log.error("Error: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.MEDIA_NOT_FOUND));
         } 
@@ -280,7 +281,7 @@ public class FileController implements FileControllerDoc {
             		SecurityUtil.getUserKey(), request.getDeleteWithUserKeys(), request.getGroupId(), request.getMessageId());
             
             return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
-        } catch (IllegalArgumentException e) {
+        } catch (UserFileNotFoundException e) {
             log.error("Error: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.MEDIA_NOT_FOUND));
         } 

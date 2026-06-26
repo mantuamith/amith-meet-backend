@@ -20,6 +20,34 @@ import com.algomeet.mediaservice.service.FileAccessEntryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+/**
+ * Service responsible for managing file access entries and protecting the
+ * lifecycle of media files.
+ *
+ * <p>
+ * A file may be referenced by multiple users and multiple conversations.
+ * This service maintains those relationships by tracking:
+ * </p>
+ *
+ * <ul>
+ *   <li>User access permissions for a file.</li>
+ *   <li>Links or references from messages and conversations.</li>
+ *   <li>Reference counts used to determine whether a file is still in use.</li>
+ * </ul>
+ *
+ * <p>
+ * By keeping these access entries, the service prevents premature file
+ * deletion. For example, in a chat scenario where a user performs
+ * <em>"delete for me"</em>, only that user's reference is removed while the
+ * underlying file is preserved as long as other users or conversations still
+ * reference it.
+ * </p>
+ *
+ * <p>
+ * When the last access entry is revoked and no remaining references exist,
+ * the associated file becomes eligible for cleanup and physical deletion.
+ * </p>
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -132,6 +160,13 @@ public class FileAccessEntryServiceImpl implements FileAccessEntryService {
                 .orElse(Collections.emptySet());
     }
 
+    /**
+    * Returns the number of active access entries associated with the file.
+    *
+    * A value greater than zero indicates that the file is still referenced by
+    * one or more chat conversations and therefore should not be physically
+    * deleted.
+    */
     public long countByFileId(UUID fileId) {
     	return repository.countByFileId(fileId);
     }

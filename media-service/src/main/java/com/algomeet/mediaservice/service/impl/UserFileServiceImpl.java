@@ -17,13 +17,14 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
 
 import com.algomeet.common.dto.Group;
-import com.algomeet.common.service.GroupCacheService;
+import com.algomeet.common.service.AbstractGroupCache;
 import com.algomeet.mediaservice.document.FileAccessEntry;
 import com.algomeet.mediaservice.document.FileAccessEntryDocument;
 import com.algomeet.mediaservice.document.FilePermission;
 import com.algomeet.mediaservice.document.UserFileDocument;
 import com.algomeet.mediaservice.dto.StorageUsageAdjustmentRequest;
 import com.algomeet.mediaservice.enums.UploadContext;
+import com.algomeet.mediaservice.exceptions.UserFileNotFoundException;
 import com.algomeet.mediaservice.repository.FileAccessEntryRepository;
 import com.algomeet.mediaservice.repository.UserFileRepository;
 import com.algomeet.mediaservice.service.FileAccessEntryService;
@@ -42,7 +43,7 @@ public class UserFileServiceImpl implements UserFileService {
 	private final UserStorageUsageService userStorageUsageService;
 	private final FileAccessEntryService fileAccessEntryService;
 	private final FileAccessEntryRepository fileAccessEntryRepository;
-	private final GroupCacheService groupCacheService;
+	private final AbstractGroupCache groupCacheService;
 	private final GroupFileAccessEntryService groupFileAccessEntryService;
 	private final FileAccessPermission fileAccessPermission;
 
@@ -56,7 +57,7 @@ public class UserFileServiceImpl implements UserFileService {
 	@Override
 	public UserFileDocument getFile(String fileId) {
 		UserFileDocument file = repository.findById(fileId)
-				.orElseThrow(() -> new IllegalArgumentException("File not found"));
+				.orElseThrow(() -> new UserFileNotFoundException("File not found"));
 
 		return file;
 	}
@@ -64,7 +65,7 @@ public class UserFileServiceImpl implements UserFileService {
 	@Override
 	public UserFileDocument getFile(String fileId, String userKey, UUID groupId, FilePermission permission) {
 		UserFileDocument file = repository.findById(fileId)
-				.orElseThrow(() -> new IllegalArgumentException("File not found"));
+				.orElseThrow(() -> new UserFileNotFoundException("File not found"));
 
 		if (!fileAccessPermission.hasPermission(file, userKey, groupId, permission)) {
 			throw new AccessDeniedException("Permission denied: " + permission);
@@ -230,7 +231,7 @@ public class UserFileServiceImpl implements UserFileService {
 	        this.file = file;
 	    }
 	}
-
+	
 	@Override
 	public void softDeleteAndMarkForCleanupIfOrphaned(
 	        Set<String> fileIds,
@@ -238,6 +239,24 @@ public class UserFileServiceImpl implements UserFileService {
 	        Set<String> deleteWithUserKeys,
 	        UUID groupId,
 	        UUID messageId) {
+		
+		softDeleteAndMarkForCleanupIfOrphaned(
+		        fileIds,
+		        userKey,
+		        deleteWithUserKeys,
+		        groupId,
+		        messageId,
+		        false);
+	}
+
+	@Override
+	public void softDeleteAndMarkForCleanupIfOrphaned(
+	        Set<String> fileIds,
+	        String userKey,
+	        Set<String> deleteWithUserKeys,
+	        UUID groupId,
+	        UUID messageId,
+	        boolean performedByAdmin) {
 
 		Set<String> forDeleteUserKeys = new HashSet<>();
 		if (!CollectionUtils.isEmpty(deleteWithUserKeys)) {
@@ -256,6 +275,7 @@ public class UserFileServiceImpl implements UserFileService {
 	    boolean isDeletingForEveryone = forDeleteUserKeys != null
 	            && (forDeleteUserKeys.size() > 1
 	                || (forDeleteUserKeys.size() == 1 && !forDeleteUserKeys.contains(userKey)));
+	    
 
 	    if (CollectionUtils.isEmpty(fileIds)) {
 	        return;
@@ -265,7 +285,7 @@ public class UserFileServiceImpl implements UserFileService {
 	    List<UserFileDocument> files = repository.findAllById(fileIds);
 
 	    if (CollectionUtils.isEmpty(files)) {
-	        throw new IllegalArgumentException("One or more files were not found");
+	        throw new UserFileNotFoundException("One or more files were not found");
 	    }
 
 	    List<UserFileDocument> modifiedFiles = new ArrayList<>();
@@ -277,9 +297,10 @@ public class UserFileServiceImpl implements UserFileService {
 	        // users may revoke only their own access.
 	        // In batch deletes, permission failures for other users should not stop
 	        // processing so the caller's own access link can still be removed and
-	        // orphaned files can be cleaned up.
-	        boolean canDeleteForOthers = fileAccessPermission.hasPermission(file, userKey, FilePermission.DELETE);
-
+	        // orphaned files can be cleaned up.	        
+	        boolean canDeleteForOthers = performedByAdmin 
+	        		? performedByAdmin : fileAccessPermission.hasPermission(file, userKey, FilePermission.DELETE);
+            
 	        for (String targetUserKey : forDeleteUserKeys) {
 	            boolean deletingOtherUser =
 	                    userKey != null && !userKey.equals(targetUserKey);
@@ -301,7 +322,7 @@ public class UserFileServiceImpl implements UserFileService {
 	            // New logic has safety net using messageId, that's why it must be executed first.
 	            if(!revoked) {
 	            	if(!CollectionUtils.isEmpty(file.getAccessControlList())) {
-	            		softDeleteAndMarkForCleanupIfOrphanedAcl(file, userKey, Set.of(targetUserId.toString()));
+	            		softDeleteAndMarkForCleanupIfOrphanedAcl(file, userKey, Set.of(targetUserId.toString()), performedByAdmin);
 	            	}
 	            }
 	        }
@@ -312,13 +333,14 @@ public class UserFileServiceImpl implements UserFileService {
 	        // Guarding on (a) prevents a "delete for me" from the owner silently
 	        // expiring the file for all other participants when shareFile() was never
 	        // called (countByFileId == 0 even though recipients should still have access).
+	        
 	        if (isDeletingForEveryone
 	        		&& canDeleteForOthers
 	        		&& fileAccessEntryService.countByFileId(fileId) == 0
 	        		// Backward compatibility
 	        		&& CollectionUtils.isEmpty(file.getAccessControlList())) {
-	            file.setCleanupEligibleAt(Instant.now());
-	            modifiedFiles.add(file);
+	        	file.setCleanupEligibleAt(Instant.now());
+	        	modifiedFiles.add(file);
 	        }
 	    }
 
@@ -346,8 +368,9 @@ public class UserFileServiceImpl implements UserFileService {
 	}
 	
 	@Deprecated
-	public void softDeleteAndMarkForCleanupIfOrphanedAcl(UserFileDocument file, String userKey, Set<String> deleteWithUserKeys) {
-		if (!fileAccessPermission.hasPermissionAcl(file, userKey, FilePermission.DELETE)) {
+	public void softDeleteAndMarkForCleanupIfOrphanedAcl(UserFileDocument file, String userKey, Set<String> deleteWithUserKeys,
+	        boolean performedByAdmin) {
+		if (!performedByAdmin && !fileAccessPermission.hasPermissionAcl(file, userKey, FilePermission.DELETE)) {
 			return;
 		}
         

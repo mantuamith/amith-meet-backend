@@ -22,9 +22,10 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.springframework.security.access.AccessDeniedException;
 
-import com.algomeet.common.service.GroupCacheService;
+import com.algomeet.common.service.AbstractGroupCache;
 import com.algomeet.mediaservice.document.FilePermission;
 import com.algomeet.mediaservice.document.UserFileDocument;
+import com.algomeet.mediaservice.exceptions.UserFileNotFoundException;
 import com.algomeet.mediaservice.repository.UserFileRepository;
 import com.algomeet.mediaservice.service.FileAccessEntryService;
 import com.algomeet.mediaservice.service.FileAccessPermission;
@@ -42,7 +43,7 @@ class UserFileServiceImplTest {
     private UserStorageUsageService userStorageUsageService;
     
     @Mock
-    private GroupCacheService groupCacheService;
+    private AbstractGroupCache groupCacheService;
     
     @Mock
     private GroupFileAccessEntryService groupFileAccessEntryService;
@@ -101,7 +102,7 @@ class UserFileServiceImplTest {
     void getFile_notFound() {
         when(repository.findById(FILE_ID)).thenReturn(Optional.empty());
 
-        assertThrows(IllegalArgumentException.class,
+        assertThrows(UserFileNotFoundException.class,
                 () -> service.getFile(FILE_ID, OWNER, GROUP_ID, FilePermission.READ));
     }
 

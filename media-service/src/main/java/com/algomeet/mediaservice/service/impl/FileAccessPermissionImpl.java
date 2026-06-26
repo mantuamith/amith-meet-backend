@@ -8,7 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
 import com.algomeet.common.dto.Group;
-import com.algomeet.common.service.GroupCacheService;
+import com.algomeet.common.service.AbstractGroupCache;
 import com.algomeet.mediaservice.document.FilePermission;
 import com.algomeet.mediaservice.document.UserFileDocument;
 import com.algomeet.mediaservice.service.FileAccessEntryService;
@@ -24,7 +24,7 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class FileAccessPermissionImpl implements FileAccessPermission{
 	private final FileAccessEntryService fileAccessEntryService;
-	private final GroupCacheService groupCacheService;
+	private final AbstractGroupCache groupCacheService;
 	private final GroupFileAccessEntryService groupFileAccessEntryService;
 	
 	@Override
