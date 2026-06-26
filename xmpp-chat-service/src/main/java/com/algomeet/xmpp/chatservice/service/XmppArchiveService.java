@@ -177,9 +177,6 @@ public class XmppArchiveService {
 			// Synchronize the current conversation starting point across local devices.
 			syncRoomDeletedMessages(roomId, principal).subscribe();
 			
-			// Sync recent updates
-//			syncRoomRecentUpdates(roomId, UUID.fromString(afterId), principal);
-
 			loadAfterWithRetry(roomId, UUID.fromString(afterId), principal, queryId, maxResults);
 		} else {
 			if (!StringUtils.hasText(beforeId)) {
@@ -364,41 +361,7 @@ public class XmppArchiveService {
 		return reactiveMongoTemplate.updateFirst(query, update, MucMessage.class)
 				.then();
 	}
-	
-	/**
-	 * Fetches and dispatches message updates (like retractions or view changes) that occurred 
-	 * in a specific room after a given cursor point.
-	 * 
-	 * @param roomId    The unique identifier of the MUC room.
-	 * @param afterId   The UUIDv7 cursor used to resume the update stream.
-	 * @param principal The session context of the user requesting the updates.
-	 */
-//	private void syncRoomRecentUpdates(UUID roomId, UUID afterId, XmppPrincipal principal) {
-//		log.info("Syncing updates for Room {}: starting from cursor {}", roomId, afterId);
-//
-//		// 1. Query the repository for all message changes in this room newer than the provided ULUUIDv7ID.
-//		// OrderByIdAsc ensures we process and dispatch updates in the exact order they occurred.
-//		Pageable pageable = PageRequest.of(0, 10000);
-//		repository.findByRoomIdAndUpdateCursorIdGreaterThanAndIdLessThanEqualOrderByIdAsc(roomId, afterId, afterId, pageable)
-//
-//		// 2. Filter: Ensure the update is relevant to the requesting principal.
-//		// This prevents leaking "Delete for Me" events or private stanzas to the wrong users.
-//		.filter(msg -> MamUtil.isPrincipalRecipient(msg, principal))
-//
-//		// 3. Sequential Dispatch: Use concatMap to ensure stanzas are sent to the local 
-//		// dispatcher in order. This maintains protocol consistency for the client.
-//		.concatMap(msg -> dispatchRecentUpdatesResult(msg, principal))
-//
-//		// 4. Subscription: Since this is a void-returning fire-and-forget background task,
-//		// we subscribe to trigger the reactive pipeline. 
-//		// NOTE: In a production environment, consider adding error logging inside .subscribe().
-//		.subscribe(
-//				null, 
-//				error -> log.error("Failed to sync updates for user {} in room {}: {}", 
-//						principal.getUserKey(), roomId, error.getMessage(), error)
-//				);
-//	}
-	
+		
 	private Mono<Void> syncRoomDeletedMessages(UUID roomId, XmppPrincipal principal) {
 	    log.info("Syncing deletes for Room {}", roomId);
 
