@@ -272,11 +272,10 @@ public class UserFileServiceImpl implements UserFileService {
 	    // A "delete for everyone" intent is signalled by the caller explicitly listing
 	    // more than one user (sender + at least one recipient), or by listing someone
 	    // other than the caller themselves.
-		/*
 	    boolean isDeletingForEveryone = forDeleteUserKeys != null
 	            && (forDeleteUserKeys.size() > 1
 	                || (forDeleteUserKeys.size() == 1 && !forDeleteUserKeys.contains(userKey)));
-	    */
+	    
 
 	    if (CollectionUtils.isEmpty(fileIds)) {
 	        return;
@@ -335,19 +334,9 @@ public class UserFileServiceImpl implements UserFileService {
 	        // expiring the file for all other participants when shareFile() was never
 	        // called (countByFileId == 0 even though recipients should still have access).
 	        
-	        /*
-	         * Protection against deleting files that still have active references is already
-	         * enforced by fileAccessEntryService.countByFileId().
-	         *
-	         * The additional conditions below (isDeletingForEveryone && canDeleteForOthers)
-	         * would prevent incremental revocation of file access. For example, in a 1:1
-	         * conversation, the sender may delete the chat for themselves first, and the
-	         * receiver may delete it later. Access entries are revoked independently, and
-	         * the file should only be marked for cleanup once no references remain.
-	         */
-	        if (/*isDeletingForEveryone
+	        if (isDeletingForEveryone
 	        		&& canDeleteForOthers
-	        		&&*/ fileAccessEntryService.countByFileId(fileId) == 0
+	        		&& fileAccessEntryService.countByFileId(fileId) == 0
 	        		// Backward compatibility
 	        		&& CollectionUtils.isEmpty(file.getAccessControlList())) {
 	        	file.setCleanupEligibleAt(Instant.now());

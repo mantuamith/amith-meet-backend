@@ -32,7 +32,7 @@ public class RedisConfig {
     }
 	
 	@Bean    
-    public RedisTemplate<String, String> deleteMediaStringRedisTemplate(RedisConnectionFactory connectionFactory) {
+    public RedisTemplate<String, String> streamStringRedisTemplate(RedisConnectionFactory connectionFactory) {
         RedisTemplate<String, String> template = new RedisTemplate<>();
         template.setConnectionFactory(connectionFactory);
 

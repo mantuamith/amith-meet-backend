@@ -6,11 +6,11 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.domain.Range;
 import org.springframework.data.redis.connection.RedisConnection;
@@ -35,7 +35,7 @@ import com.algomeet.mediaservice.exceptions.UserFileNotFoundException;
 import com.algomeet.mediaservice.service.UserFileService;
 
 import jakarta.annotation.PostConstruct;
-import lombok.RequiredArgsConstructor;
+import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
 /**
  * Redis Stream consumer responsible for processing message media deletion events.
@@ -65,26 +65,21 @@ import lombok.extern.slf4j.Slf4j;
  */
 
 @Slf4j
-@RequiredArgsConstructor
 @Service
-public class DeleteMesssageMediaEventConsumer implements StreamListener<String, MapRecord<String, String, String>> {
-	@Autowired
-	private CommonRedisStreamProperties redisStreamProperties;
+public class DeleteMessageMediaEventConsumer implements StreamListener<String, MapRecord<String, String, String>> {
+	private final CommonRedisStreamProperties redisStreamProperties;	
+	private final RedisConnectionFactory connectionFactory;
+	private final UserFileService userFileService;	
+	private final RedisTemplate<String, String> redisTemplate;
 	
-	@Autowired
-	private RedisConnectionFactory connectionFactory;
+	private StreamMessageListenerContainer<String, MapRecord<String, String, String>> container;
 	
-	@Autowired
-	private UserFileService userFileService;
-
-	@Autowired
-	@Qualifier("deleteMediaStringRedisTemplate")
-	private RedisTemplate<String, String> redisTemplate;
-
 	private static final String GROUP_NAME = "message-media-delete-event-group"; // Static name for persistence
-	private final String consumerName = "consumer-" + UUID.randomUUID();
+	private static final String consumerName = "consumer-" + UUID.randomUUID();
 	
     private static final String LOCK_KEY = "lock:scheduler:process-pending:message-media-delete-event-group";
+    
+    private static final Integer RETRY_MAX = 3;
     
     // Lua script ensuring atomic "check-then-delete" lock releases to avoid cross-node lease hijacking
     private static final String RELEASE_LUA_SCRIPT = 
@@ -94,94 +89,181 @@ public class DeleteMesssageMediaEventConsumer implements StreamListener<String, 
             "    return 0 " +
             "end";
     
-    private final Duration MAX_IDLE_TIME = Duration.ofMinutes(5);
+    private static final Duration MAX_IDLE_TIME = Duration.ofMinutes(5);
 	private static final Duration CONSUMER_EVICTION_IDLE_TIME = Duration.ofDays(7);
 
+	public DeleteMessageMediaEventConsumer(CommonRedisStreamProperties redisStreamProperties,
+			RedisConnectionFactory connectionFactory, UserFileService userFileService,
+			@Qualifier("streamStringRedisTemplate")
+			RedisTemplate<String, String> redisTemplate) {
+		this.redisStreamProperties = redisStreamProperties;
+		this.connectionFactory = connectionFactory;
+		this.userFileService = userFileService;
+		this.redisTemplate = redisTemplate;
+	}
+	
 	@PostConstruct
 	public void init() {
-		String streamKey = redisStreamProperties.getMessageMediaDeleteEvents();
+	    String streamKey = redisStreamProperties.getMessageMediaDeleteEvents();
 
-		// 1. Setup Group (Blocking is okay here as it only runs once at startup)
-		try {
-			connectionFactory.getConnection().xGroupCreate(
-					streamKey.getBytes(),
-					GROUP_NAME,
-					ReadOffset.from("0"),
-					true 
-					);
-		} catch (Exception ex) {
-			// Error is expected if group already exists
-			log.debug("Consumer group already exists or stream not initialized: {}", ex.getMessage());
-		}
+	    // Fix: Managed connection scope using try-with-resources
+	    try (RedisConnection connection = connectionFactory.getConnection()) {
+	        connection.streamCommands().xGroupCreate(
+	                streamKey.getBytes(StandardCharsets.UTF_8),
+	                GROUP_NAME,
+	                ReadOffset.from("0"),
+	                true 
+	                );
+	    } catch (Exception ex) {
+	        // Error is expected if group already exists
+	        log.debug("Consumer group already exists or stream not initialized: {}", ex.getMessage());
+	    }
 
-		// 2. Configure Imperative Listener Container
-		var options = StreamMessageListenerContainer.StreamMessageListenerContainerOptions
-				.builder()
-				.pollTimeout(Duration.ofSeconds(2))
-				.build();
+	    // 2. Configure Imperative Listener Container
+	    var options = StreamMessageListenerContainer.StreamMessageListenerContainerOptions
+	            .builder()
+	            .pollTimeout(Duration.ofSeconds(2))
+	            .build();
 
-		var container = StreamMessageListenerContainer.create(connectionFactory, options);
+	    container = StreamMessageListenerContainer.create(connectionFactory, options);
 
-		container.receive(
-				Consumer.from(GROUP_NAME, consumerName),
-				StreamOffset.create(streamKey, ReadOffset.lastConsumed()),
-				this
-				);
+	    container.receive(
+	            Consumer.from(GROUP_NAME, consumerName),
+	            StreamOffset.create(streamKey, ReadOffset.lastConsumed()),
+	            this
+	            );
 
-		container.start();
-		log.info("Message media delete event consumer {} started on group {}", consumerName, GROUP_NAME);
+	    container.start();
+	    log.info("Message media delete event consumer {} started on group {}", consumerName, GROUP_NAME);
 	}
 
 	@Override
 	public void onMessage(MapRecord<String, String, String> message) {
-		log.info("Received message: {}", message.getId());
-		
-		try {
-			String streamKey = redisStreamProperties.getMessageMediaDeleteEvents();
+	    log.info("Received message from stream: {}", message.getId());
+	    
+	    String streamKey = redisStreamProperties.getMessageMediaDeleteEvents();
+	    
+	    // Scoped variables to ensure catch-block parsing safety
+	    Set<String> fileIds = Set.of();
+	    UUID messageId = null;
+	    
+	    try {
+	        // 1. Safely Extract message content
+	        Map<String, String> body = message.getValue();
+	        if (body == null || body.isEmpty()) {
+	            log.warn("Received empty stream message payload: {}. Acknowledging to clear.", message.getId());
+	            acknowledgeAndPurge(streamKey, message);
+	            return;
+	        }
 
-			// Retrieve message content
-			String userKey = message.getValue().get(DeleteMessageMediaFields.USER_KEY);
-			String mediaIdsStr = message.getValue().get(DeleteMessageMediaFields.MEDIA_IDS);
-			String deleteWithUserKeysStr = message.getValue().get(DeleteMessageMediaFields.DELETE_WITH_USER_KEYS);
-			String groupIdStr = message.getValue().get(DeleteMessageMediaFields.GROUP_ID);
-			String messageIdStr = message.getValue().get(DeleteMessageMediaFields.MESSAGE_ID);
+	        String userKey = body.get(DeleteMessageMediaFields.USER_KEY);
+	        String mediaIdsStr = body.get(DeleteMessageMediaFields.MEDIA_IDS);
+	        String deleteWithUserKeysStr = body.get(DeleteMessageMediaFields.DELETE_WITH_USER_KEYS);
+	        String groupIdStr = body.get(DeleteMessageMediaFields.GROUP_ID);
+	        String messageIdStr = body.get(DeleteMessageMediaFields.MESSAGE_ID);
 
-			Set<String> fileIds = mediaIdsStr != null 
-					? Arrays.stream(mediaIdsStr.split(","))
-							.map(String::trim)
-							.filter(id -> !id.isEmpty())
-							.collect(Collectors.toSet()) 
-							: Set.of();
+	        // Parse structures cleanly
+	        if (mediaIdsStr != null && !mediaIdsStr.isBlank()) {
+	            fileIds = Arrays.stream(mediaIdsStr.split(","))
+	                    .map(String::trim)
+	                    .filter(id -> !id.isEmpty())
+	                    .collect(Collectors.toSet());
+	        }
 
-			Set<String> deleteWithUserKeys = deleteWithUserKeysStr != null 
-					? Arrays.stream(deleteWithUserKeysStr.split(","))
-							.map(String::trim)
-							.filter(id -> !id.isEmpty())
-							.collect(Collectors.toSet()) 
-							: Set.of();
-			
-			UUID groupId = groupIdStr != null ? UUID.fromString(groupIdStr) : null;
-			UUID messageId = messageIdStr != null ? UUID.fromString(messageIdStr) : null;
-			boolean performedByAdmin = userKey == null;
+	        Set<String> deleteWithUserKeys = deleteWithUserKeysStr != null 
+	                ? Arrays.stream(deleteWithUserKeysStr.split(","))
+	                        .map(String::trim)
+	                        .filter(id -> !id.isEmpty())
+	                        .collect(Collectors.toSet()) 
+	                : Set.of();
+	        
+	        UUID groupId = groupIdStr != null ? UUID.fromString(groupIdStr) : null;
+	        messageId = messageIdStr != null ? UUID.fromString(messageIdStr) : null;
+	        boolean performedByAdmin = (userKey == null || userKey.isBlank());
 
-			try {
-				if(performedByAdmin) {
-					userFileService.softDeleteAndMarkForCleanupIfOrphaned(fileIds, userKey,  deleteWithUserKeys, groupId, messageId, performedByAdmin);
-				} else {
-					userFileService.softDeleteAndMarkForCleanupIfOrphaned(fileIds, userKey,  deleteWithUserKeys, groupId, messageId);
-				}
-			} catch (UserFileNotFoundException ex) {
-				log.warn("User file(s) not found {} ", fileIds, ex);
-			} 
+	        // 2. Execute Business Logic Lifecycle
+	        try {
+	            if (performedByAdmin) {
+	                userFileService.softDeleteAndMarkForCleanupIfOrphaned(fileIds, userKey, deleteWithUserKeys, groupId, messageId, performedByAdmin);
+	            } else {
+	                userFileService.softDeleteAndMarkForCleanupIfOrphaned(fileIds, userKey, deleteWithUserKeys, groupId, messageId);
+	            }
+	        } catch (UserFileNotFoundException ex) {
+	            // Business fallback: Do not retry if the file simply doesn't exist anymore
+	            log.warn("Media file(s) not found for stream message {} — acking to avoid infinite redelivery. fileIds={}", message.getId(), fileIds);                
+	        } 
 
-			redisTemplate.opsForStream().acknowledge(GROUP_NAME, message);
-			redisTemplate.opsForStream().delete(streamKey, message.getId().getValue());
+	        // 3. Successful transaction acknowledgment
+	        acknowledgeAndPurge(streamKey, message);
 
-			log.debug("Acknowledged and cleaned message {}", message.getId());
+	    } catch (Exception ex) {            
+	        log.error("Failed to process stream message {}: {}", message.getId(), ex.getMessage(), ex);
+	        
+	        // Handle Distributed Retry Count instead of in-memory maps
+	        handleRetryFallback(streamKey, message, fileIds, messageId);
+	    }    
+	}
 
-		} catch (Exception ex) {
-			log.error("Failed to process stream message {}: {}", message.getId(), ex.getMessage(), ex);
-		}    
+	/**
+	 * Clean helper abstraction to acknowledge and clear processed entries from the stream entirely.
+	 */
+	private void acknowledgeAndPurge(String streamKey, MapRecord<String, String, String> message) {
+	    redisTemplate.opsForStream().acknowledge(GROUP_NAME, message);
+	    redisTemplate.opsForStream().delete(streamKey, message.getId().getValue());
+	    log.debug("Successfully acknowledged and purged message {} from stream context.", message.getId());
+	}
+
+	/**
+	 * Handle retries. Note: Redis XPENDING naturally tracks delivery counter history natively.
+	 * If you still prefer a dedicated key-based tracking framework, utilize Redis templates instead of JVM heap!
+	 */
+	private void handleRetryFallback(String streamKey, MapRecord<String, String, String> message, Set<String> fileIds, UUID messageId) {
+	    try {
+	        String trackableFileIds = fileIds != null ? fileIds.toString() : "UNKNOWN";
+	        String trackableMsgId = messageId != null ? messageId.toString() : "UNKNOWN";
+	        
+	        // 1. Combine Native Stream ID with the sorted domain key to achieve 100% uniqueness
+	        String uniqueDeduplicatedSuffix = getDeterministicContextKey(message.getId().getValue(), fileIds, messageId);
+	        String redisRetryKey = "common:stream:delete-media:retry-count:" + uniqueDeduplicatedSuffix;
+	        
+	        // Increment retry count natively inside Redis server
+	        Long count = redisTemplate.opsForValue().increment(redisRetryKey);
+	        redisTemplate.expire(redisRetryKey, Duration.ofDays(1)); 
+
+	        if (count != null && count > RETRY_MAX) {
+	            log.error("Max retry thresholds reached for stream execution sequence. Aborting message context cleanly. Key={}, fileIds={}, messageId={}", 
+	                    uniqueDeduplicatedSuffix, trackableFileIds, trackableMsgId);
+	            
+	            acknowledgeAndPurge(streamKey, message);
+	            redisTemplate.delete(redisRetryKey); 
+	        }
+	    } catch (Exception structuralError) {
+	        log.error("Critical Failure inside consumer fallback routing controller for message: {}", message.getId(), structuralError);
+	    }
+	}
+
+	/**
+	 * Generates a completely deterministic, null-safe compound key by sorting elements 
+	 * alphabetically to neutralize any underlying JVM Set ordering variations.
+	 */
+	private String getDeterministicContextKey(String streamMessageId, Set<String> fileIds, UUID messageId) {
+	    StringBuilder sb = new StringBuilder(streamMessageId);
+	    
+	    if (messageId != null) {
+	        sb.append(":msg:").append(messageId);
+	    }
+	    
+	    if (fileIds != null && !fileIds.isEmpty()) {
+	        sb.append(":files:");
+	        // Stream sort elements alphabetically so ["A", "B"] and ["B", "A"] produce the exact same key string format on all cluster nodes
+	        String sortedFiles = fileIds.stream()
+	                .filter(Objects::nonNull)
+	                .sorted() 
+	                .collect(Collectors.joining("_"));
+	        sb.append(sortedFiles);
+	    }
+	    
+	    return sb.toString();
 	}
 	
 	/**
@@ -317,11 +399,10 @@ public class DeleteMesssageMediaEventConsumer implements StreamListener<String, 
 	}	
 
 	private void evictIdleConsumers(String streamKey) {
-		byte[] streamKeyBytes = streamKey.getBytes(StandardCharsets.UTF_8);
-	    RedisConnection connection = null;
+	    byte[] streamKeyBytes = streamKey.getBytes(StandardCharsets.UTF_8);
 
-	    try {
-	        connection = connectionFactory.getConnection();
+	    // Fix: Cleaned up manual null-checks by adopting try-with-resources
+	    try (RedisConnection connection = connectionFactory.getConnection()) {
 	        StreamInfo.XInfoConsumers consumers =
 	                connection.streamCommands()
 	                        .xInfoConsumers(streamKeyBytes, GROUP_NAME);
@@ -331,7 +412,6 @@ public class DeleteMesssageMediaEventConsumer implements StreamListener<String, 
 	        }
 
 	        for (StreamInfo.XInfoConsumer consumerInfo : consumers) {
-
 	            if (consumerName.equals(consumerInfo.consumerName())) {
 	                continue;
 	            }
@@ -344,7 +424,7 @@ public class DeleteMesssageMediaEventConsumer implements StreamListener<String, 
 	                Boolean removed =
 	                        connection.streamCommands()
 	                                .xGroupDelConsumer(
-	                                		streamKeyBytes,
+	                                        streamKeyBytes,
 	                                        GROUP_NAME,
 	                                        consumerInfo.consumerName());
 
@@ -355,11 +435,15 @@ public class DeleteMesssageMediaEventConsumer implements StreamListener<String, 
 	                        removed);
 	            }
 	        }
+	    } catch (Exception ex) {
+	        log.error("Failed to cleanly scan or evict idle consumers from group {}", GROUP_NAME, ex);
+	    }
+	}
 
-	    } finally {
-	        if (connection != null) {
-	            connection.close();
-	        }
+	@PreDestroy
+	public void destroy() {
+	    if (container != null && container.isRunning()) {
+	        container.stop();
 	    }
 	}
 }

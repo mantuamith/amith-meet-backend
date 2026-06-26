@@ -1,22 +1,16 @@
 package com.algomeet.mediaservice.service.impl;
 
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyCollection;
-import static org.mockito.ArgumentMatchers.argThat;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.when;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -54,9 +48,8 @@ class UserFileServiceImplDeleteTest {
     @Mock private UserStorageUsageService userStorageUsageService;
     @Mock private FileAccessEntryService fileAccessEntryService;
     @Mock private FileAccessEntryRepository fileAccessEntryRepository;
+    @Mock private FileAccessPermission fileAccessPermission;
     @Mock private AbstractGroupCache groupCacheService;
-    @Mock
-	private FileAccessPermission fileAccessPermission;
 
     @InjectMocks
     private UserFileServiceImpl service;
@@ -65,11 +58,10 @@ class UserFileServiceImplDeleteTest {
     private static final String RECEIVER_KEY = UUID.randomUUID().toString();
     private static final UUID   MESSAGE_ID   = UUID.randomUUID();
     private static final UUID   GROUP_ID   = UUID.randomUUID();
-    private static final UUID   FILE_ID    = UUID.randomUUID();
 
     private UserFileDocument makeFile(String owner, String conversationId) {
         UserFileDocument f = new UserFileDocument();
-        f.setId(FILE_ID.toString());
+        f.setId(UUID.randomUUID().toString());
         f.setOwner(owner);
         f.setConversationId(conversationId);
         f.setSize(1024L);
@@ -91,7 +83,6 @@ class UserFileServiceImplDeleteTest {
             UserFileDocument file = makeFile(SENDER_KEY, "conv-001");
             when(repository.findAllById(anyCollection())).thenReturn(List.of(file));
             when(fileAccessEntryService.revokeAccess(any(), any(), any())).thenReturn(false);
-            when(fileAccessEntryService.countByFileId(FILE_ID)).thenReturn(1L);
             // Note: countByFileId is NOT called — isDeletingForEveryone=false short-circuits the cleanup block
 
             // Sender deletes "for me" — only their own key in deleteWithUserKeys
@@ -112,9 +103,9 @@ class UserFileServiceImplDeleteTest {
             UserFileDocument file = makeFile(SENDER_KEY, "conv-001");
             when(repository.findAllById(anyCollection())).thenReturn(List.of(file));
             // Sender's revoke succeeds; receiver's entry still in DB
+            // countByFileId NOT stubbed — isDeletingForEveryone=false so cleanup block is skipped
             when(fileAccessEntryService.revokeAccess(eq(UUID.fromString(SENDER_KEY)), any(), eq(MESSAGE_ID)))
                     .thenReturn(true);
-            when(fileAccessEntryService.countByFileId(FILE_ID)).thenReturn(1L);
 
             service.softDeleteAndMarkForCleanupIfOrphaned(
                     Set.of(file.getId()), SENDER_KEY, Set.of(SENDER_KEY), GROUP_ID, MESSAGE_ID);
@@ -130,12 +121,11 @@ class UserFileServiceImplDeleteTest {
             // Receiver deletes for themselves; sender's entry remains → count = 1
             when(fileAccessEntryService.revokeAccess(eq(UUID.fromString(RECEIVER_KEY)), any(), eq(MESSAGE_ID)))
                     .thenReturn(true);
-            when(fileAccessEntryService.countByFileId(FILE_ID)).thenReturn(1L);
-            when(fileAccessPermission.hasPermission(eq(file), eq(RECEIVER_KEY), eq(FilePermission.DELETE))).thenReturn(true);
-            
-            
+            when(fileAccessEntryService.countByFileId(any())).thenReturn(1L);
+            when(fileAccessPermission.hasPermission(any(), any(), any())).thenReturn(true);
+
             service.softDeleteAndMarkForCleanupIfOrphaned(
-                    Set.of(file.getId()), RECEIVER_KEY, Set.of(RECEIVER_KEY), GROUP_ID, MESSAGE_ID);
+                    Set.of(file.getId()), SENDER_KEY, Set.of(RECEIVER_KEY), GROUP_ID, MESSAGE_ID);
 
             assertNull(file.getCleanupEligibleAt());
         }
@@ -155,6 +145,7 @@ class UserFileServiceImplDeleteTest {
 
             // Both sender's and receiver's access entries are revoked
             when(fileAccessEntryService.revokeAccess(any(), any(), any())).thenReturn(true);
+            when(fileAccessPermission.hasPermission(any(), any(), any())).thenReturn(true);
             // After both revocations, no entries left
             when(fileAccessEntryService.countByFileId(any())).thenReturn(0L);
 
@@ -180,6 +171,7 @@ class UserFileServiceImplDeleteTest {
             UserFileDocument file = makeFile(SENDER_KEY, "conv-001");
             when(repository.findAllById(anyCollection())).thenReturn(List.of(file));
             when(fileAccessEntryService.revokeAccess(any(), any(), any())).thenReturn(true);
+            when(fileAccessPermission.hasPermission(any(), any(), any())).thenReturn(true);
             when(fileAccessEntryService.countByFileId(any())).thenReturn(2L);
 
             service.softDeleteAndMarkForCleanupIfOrphaned(
@@ -208,7 +200,8 @@ class UserFileServiceImplDeleteTest {
                     eq(UUID.fromString(RECEIVER_KEY)), eq(UUID.fromString(file.getId()))))
                     .thenReturn(true);
 
-            FileAccessPermission fileAccessPermission = new FileAccessPermissionImpl(fileAccessEntryService, groupCacheService, null);
+            FileAccessPermission fileAccessPermission = new FileAccessPermissionImpl(fileAccessEntryService, null, null);
+            
             assertTrue(fileAccessPermission.hasPermission(file, RECEIVER_KEY, FilePermission.READ),
                     "Receiver with FileAccessEntry must be granted READ");
         }
@@ -224,7 +217,7 @@ class UserFileServiceImplDeleteTest {
                     eq(UUID.fromString(strangerKey)), eq(UUID.fromString(file.getId()))))
                     .thenReturn(false);
 
-            FileAccessPermission fileAccessPermission = new FileAccessPermissionImpl(fileAccessEntryService, groupCacheService, null);
+            FileAccessPermission fileAccessPermission = new FileAccessPermissionImpl(fileAccessEntryService, null, null);
             assertFalse(fileAccessPermission.hasPermission(file, strangerKey, FilePermission.READ),
                     "User with no FileAccessEntry must be denied even when conversationId is set");
         }
@@ -237,8 +230,7 @@ class UserFileServiceImplDeleteTest {
             when(fileAccessEntryService.getPermissions(
                     eq(UUID.fromString(receiverKey)), eq(UUID.fromString(file.getId()))))
                     .thenReturn(Set.of(FilePermission.READ));
-
-            FileAccessPermission fileAccessPermission = new FileAccessPermissionImpl(fileAccessEntryService, groupCacheService, null);
+            FileAccessPermission fileAccessPermission = new FileAccessPermissionImpl(fileAccessEntryService, null, null);
             assertTrue(fileAccessPermission.hasPermission(file, receiverKey, FilePermission.READ));
         }
 
@@ -258,7 +250,7 @@ class UserFileServiceImplDeleteTest {
         void hasPermission_owner_alwaysGranted() {
             UserFileDocument file = makeFile(SENDER_KEY, "conv-001");
             
-            FileAccessPermission fileAccessPermission = new FileAccessPermissionImpl(fileAccessEntryService, groupCacheService, null);
+            FileAccessPermission fileAccessPermission = new FileAccessPermissionImpl(fileAccessEntryService, null, null);
             // Owner should not need FileAccessEntry
             assertTrue(fileAccessPermission.hasPermission(file, SENDER_KEY, FilePermission.READ));
             assertTrue(fileAccessPermission.hasPermission(file, SENDER_KEY, FilePermission.DELETE));
