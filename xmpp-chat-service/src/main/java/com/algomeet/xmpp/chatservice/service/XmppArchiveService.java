@@ -447,7 +447,8 @@ public class XmppArchiveService {
 	    } 
 
 	    // Priority 3: Localized "Delete for Me" / Visibility toggles
-	    if (msg.getHiddenFromUserKeys() != null && msg.getHiddenFromUserKeys().contains(principal.getUserKey())) {
+	    if (msg.getHiddenFromUserKeys() != null 
+	    		&& msg.getHiddenFromUserKeys().contains(UUID.fromString(principal.getUserKey()))) {
 	        return Mono.just(Optional.of(mamUtil.buildHideEventXml(msg, principal)));
 	    }			
 
