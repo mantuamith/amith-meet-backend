@@ -29,7 +29,6 @@ import com.algomeet.xmpp.chatservice.repository.MucMessageRepository;
 import com.algomeet.xmpp.chatservice.repository.MucRoomReadCursorRepository;
 import com.algomeet.xmpp.chatservice.routing.dispacher.LocalStanzaDispatcher;
 import com.algomeet.xmpp.chatservice.stanza.MessageSyncReadReceiptStanza;
-import com.algomeet.xmpp.chatservice.stanza.parser.MediaReferenceParser;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.algomeet.xmpp.chatservice.util.MamUtil;
 import com.algomeet.xmpp.chatservice.util.XmppCustomStanzaUtil;
