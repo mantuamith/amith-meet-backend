@@ -78,7 +78,7 @@ public class XmppArchiveService {
 	 * @return A {@link Mono} containing the saved {@link MucMessage}.
 	 */
 	public Mono<MucMessage> archiveEvent(String xml, String id, String toRoomId, String toMucMember, 
-			String from, UUID stanzaId, Boolean isCountable, Integer messageRetentionDays) {	
+			String from, UUID stanzaId, Boolean isCountable, List<UUID> mediaIds, Integer messageRetentionDays) {	
 		UUID messageId = StringUtils.hasText(id) 
 			    ? UUID.fromString(id) 
 			    : UuidCreator.getTimeOrderedEpoch();
@@ -103,11 +103,7 @@ public class XmppArchiveService {
 		event.setTargetMessageId(targetMessageId != null ? UUID.fromString(targetMessageId) : null);
 		
 		// Set attachment file IDs
-		try {
-			event.setMediaIds(MediaReferenceParser.extractMediaIds(xml));
-		} catch(Exception ex) {
-			log.error("Error parsing media references {}", xml, ex);
-		}
+    	event.setMediaIds(mediaIds);
 		
 		event.setStanzaXml(xml);
 

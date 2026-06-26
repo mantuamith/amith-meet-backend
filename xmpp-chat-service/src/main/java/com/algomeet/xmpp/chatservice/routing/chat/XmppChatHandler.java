@@ -1,7 +1,9 @@
 package com.algomeet.xmpp.chatservice.routing.chat;
 
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Component;
@@ -12,8 +14,10 @@ import com.algomeet.notificationservice.dto.Notification;
 import com.algomeet.notificationservice.enums.NotificationType;
 import com.algomeet.notificationservice.service.NotificationService;
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
+import com.algomeet.xmpp.chatservice.client.MediaClient;
 import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.constant.XmppErrorConditions;
+import com.algomeet.xmpp.chatservice.dto.BatchMediaShareRequest;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.enums.UserState;
 import com.algomeet.xmpp.chatservice.enums.XmppErrorType;
@@ -26,6 +30,7 @@ import com.algomeet.xmpp.chatservice.service.UnreadCountService;
 import com.algomeet.xmpp.chatservice.session.UserSessionRegistry;
 import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
 import com.algomeet.xmpp.chatservice.session.model.UserSession;
+import com.algomeet.xmpp.chatservice.stanza.parser.MediaReferenceParser;
 import com.algomeet.xmpp.chatservice.util.XmppCustomStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppReadUtil;
 import com.algomeet.xmpp.chatservice.util.XmppReceiptUtil;
@@ -35,6 +40,7 @@ import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
 import com.github.f4b6a3.uuid.UuidCreator;
 
+import feign.FeignException;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import lombok.AllArgsConstructor;
@@ -60,6 +66,7 @@ public class XmppChatHandler {
 	private final XmppReadUtil xmppReadUtil;
 	private final XmppUtil xmppUtil;
 	private final XmppRetractUtil xmppRetractUtil;
+	private final MediaClient mediaClient;
 	
 	// Define a dedicated thread pool for your database work so Netty doesn't starve
 	private static final Scheduler DB_SCHEDULER = Schedulers.newBoundedElastic(200, 10000, "xmpp-chat-db-workers");
@@ -86,6 +93,34 @@ public class XmppChatHandler {
 		boolean isAckStanza = XmppStanzaUtil.isMessageAckStanza(originalXml);
 		
 		if (msgType.supportsOfflineStorage() && isArchivable) {	
+			// Check for message file attachments
+			List<UUID> mediaIds = null;
+			try {
+				mediaIds = MediaReferenceParser.extractMediaIds(originalXml);
+
+				if (!CollectionUtils.isEmpty(mediaIds)) {
+					BatchMediaShareRequest request = new BatchMediaShareRequest();
+					request.setMediaIds(mediaIds.stream()
+							.map(mid -> mid.toString())
+							.collect(Collectors.toSet()));
+
+					request.setShareWithUserKeys(List.of(fromUserKey, toUserKey));
+					request.setMessageId(UUID.fromString(id));			
+					
+					if(!shareMedias(fromUserKey, request)) {
+						xmppUtil.sendError(ctx, id, fromJid, domainProperties.getDomain(), XmppErrorType.CANCEL, 
+								XmppErrorConditions.INTERNAL_SERVER_ERROR, "Error sharing media file(s)");
+						return;
+					}
+				}				
+			} catch(Exception ex) {
+				log.error("Error parsing media references {}", originalXml, ex);
+				xmppUtil.sendError(ctx, id, fromJid, domainProperties.getDomain(), XmppErrorType.CANCEL, 
+						XmppErrorConditions.INTERNAL_SERVER_ERROR, "Error parsing media file(s)");
+				
+				return;
+			}			
+			
 			 /**
 	         * Generate a monotonic UUIDv7 used as the stanza-id value.
 	         *
@@ -107,7 +142,8 @@ public class XmppChatHandler {
 			boolean isCountable = XmppCustomStanzaUtil.isCountableMessage(originalXml);
 			
 			final String archivedXml = forArchiveXml;			
-			offlineMessageService.save(messageId, stanzaId, toUserKey, fromUserKey, type, isAckStanza, isCountable, forArchiveXml)
+			offlineMessageService.save(messageId, stanzaId, toUserKey, fromUserKey, type, isAckStanza, 
+					isCountable, forArchiveXml, mediaIds)
 			.flatMap(saved -> {
 				// Return server acknowledgment execution context
 				// Send an immediate server-level acknowledgment to the sender.
@@ -220,6 +256,34 @@ public class XmppChatHandler {
 
 			pushNotification(ctx, id, toUserKey, fromUserKey, type, originalXml, sessions, principal);
 		}
+	}
+	
+	private boolean shareMedias(String fromUserKey, BatchMediaShareRequest request) {
+	    int retryCounter = 0;
+	    while (++retryCounter <= 3) {
+	        try {
+	            log.info("Attempt {} to share media batch for user: {}", retryCounter, fromUserKey);
+	            mediaClient.batchShare(fromUserKey, request);
+	            return true;
+	        } catch (FeignException ex) {
+	            int status = ex.status();
+	            log.error("Feign error sharing media files {}. HTTP Status: {} | Message: {}", 
+	                    request.getMediaIds(), status, ex.getMessage());
+
+	            // Fail fast on client errors (4xx) except for specific transient issues like 408 (Timeout) or 429 (Too Many Requests)
+	            if (status >= 400 && status < 500 && status != 408 && status != 429) {
+	                log.error("Client error encountered ({}). Aborting retries.", status);
+	                break;
+	            }
+	            
+	            // For 5xx server errors, 408 timeouts, or 429 rate limits, let the loop continue and retry.
+	        } catch (Exception ex) {
+	            // Fallback catch for unexpected infrastructure issues (e.g., serialization errors, unknown network issues)
+	            log.error("Unexpected error sharing media files {}: {}", request.getMediaIds(), ex.getMessage(), ex);
+	        }
+	    }
+	    
+	    return false;
 	}
 	
 	public Mono<Void> processRetraction(String retractId, String toUserKey, String fromUserKey, XmppPrincipal principal) {

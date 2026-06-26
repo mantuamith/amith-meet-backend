@@ -2,6 +2,7 @@ package com.algomeet.xmpp.chatservice.document;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.data.annotation.Id;
@@ -110,6 +111,9 @@ public class OfflineMessage {
 	 * - retraction events
 	 */
 	private Boolean countable;
+	
+	// Use to store message attachment file IDs
+    private List<UUID> mediaIds;
 	
 	/** 
 	 * Used for configuring deletion date of the chat message.
