@@ -12,7 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
 import com.algomeet.common.dto.GroupMember;
-import com.algomeet.common.service.GroupCacheService;
+import com.algomeet.common.service.AbstractGroupCache;
 import com.algomeet.common.dto.Group;
 import com.algomeet.xmpp.chatservice.constant.Constants;
 import com.algomeet.xmpp.chatservice.document.MucRoomReadCursor;
@@ -33,7 +33,7 @@ public class MucUnreadCountService {
 	private final MucRoomReadCursorRepository mucRoomReadCursorRepository;
 	private final MucMessageRepository mucMessageRepository;
 	private final MucUserGroupsCacheService mucUserGroupsCacheService;
-	private final GroupCacheService groupCacheService;
+	private final AbstractGroupCache groupCacheService;
 	
 	/**
 	 * Aggregates and returns the active unread counts across all rooms for a specific user as a standard list.

@@ -48,8 +48,9 @@ spring:
 storage:
   active-upload-storage: local
   unshared-file-expiration-hours: 1
-  
-  local: 
+  document-access-url-expiration-minutes: 180
+
+  local:
     dir: /tmp/media/
 
   s3:

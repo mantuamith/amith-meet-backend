@@ -55,4 +55,11 @@ public class GroupRequest {
 //     * </ul>
 //     */
 //    private String ownerUserKey;
+    
+    /**
+     * Number of days chat messages are retained before automatic deletion.
+     * 
+     * Default -1 meaning no expiration.
+     */
+    private Integer messageRetentionDays = -1;
 }

@@ -27,7 +27,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
 import com.algomeet.common.dto.GroupMember;
-import com.algomeet.common.service.GroupCacheService;
+import com.algomeet.common.service.AbstractGroupCache;
 import com.algomeet.common.dto.Group;
 import com.algomeet.xmpp.chatservice.constant.Constants;
 import com.algomeet.xmpp.chatservice.document.MucMessage;
@@ -56,7 +56,7 @@ public class MucMessageService {
 	private final MucMessageRepository mucMessageRepository;
 	private final ReactiveMongoTemplate reactiveMongoTemplate;
 	private final RedissonReactiveClient redissonReactiveClient;
-	private final GroupCacheService groupCacheService;
+	private final AbstractGroupCache groupCacheService;
 
 	public List<MucMessageResponse> getMessagesAfter(UUID userKey, UUID groupId, UUID afterStanzaId, int page, int size) { 
 		Pageable pageable = PageRequest.of(page, size);
@@ -392,7 +392,7 @@ public class MucMessageService {
             
             if (memberOpt.isPresent()) {
                 GroupMember member = memberOpt.get();
-                long historyCutoff = MucMemberUtil.getHistoryCutoffLong(member);
+                long historyCutoff = MucMemberUtil.getHistoryCutoff(group, member).toEpochMilli();
                 
                 // Evict conversation if the message timestamp falls strictly behind the user's timeline clearance point
                 return historyCutoff >= conversation.getCreatedAt();

@@ -121,7 +121,8 @@ public class MucCallLifeCycleTracker {
 			String fromJid,
 			String xml,
 			XmppPrincipal principal,
-			UUID groupId) {
+			UUID groupId,
+		    Integer messageRetentionDays) {
 
 		/**
 		 * Detect Jingle actions.
@@ -160,7 +161,8 @@ public class MucCallLifeCycleTracker {
 					xml,
 					sid,
 					groupId.toString(),
-					principal);
+					principal,
+					messageRetentionDays);
 		}
 	}
 
@@ -311,7 +313,8 @@ public class MucCallLifeCycleTracker {
 			String xml,
 			String sid,
 			String groupId,
-			XmppPrincipal principal) {
+			XmppPrincipal principal,
+			Integer messageRetentionDays) {
 
 		Map<Object, Object> metadata = getSessionMetadata(sid);
 
@@ -325,7 +328,7 @@ public class MucCallLifeCycleTracker {
 		 * NORMAL CALL END
 		 */
 		if (xml.contains("<success/>")) {
-			mucCallTrackerService.finalizeAndNotify(sid, principal.getSessionId(), "success")
+			mucCallTrackerService.finalizeAndNotify(sid, principal.getSessionId(), "success", messageRetentionDays)
 			.subscribe();
 		}
 

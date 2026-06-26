@@ -9,7 +9,6 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
 import com.algomeet.common.dto.Group;
-import com.algomeet.common.service.GroupCacheService;
 import com.algomeet.xmpp.chatservice.client.GroupClient;
 
 import lombok.RequiredArgsConstructor;
@@ -22,7 +21,7 @@ public class MucUserGroupsCacheService {
 
     private final GroupClient groupClient;
     private final RedisTemplate<String, Object> redisTemplate;  
-    private final GroupCacheService groupCacheService;
+    private final XmppGroupCacheService groupCacheService;
 
     /** Prefix for all group-related keys in Redis to prevent namespace collisions. */
     private static final String CACHE_KEY_PREFIX = "xmpp:muc:user:%s:groups";

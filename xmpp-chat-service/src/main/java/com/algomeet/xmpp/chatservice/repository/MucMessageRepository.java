@@ -6,12 +6,14 @@ import java.util.UUID;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.mongodb.repository.Query;
 import org.springframework.data.mongodb.repository.ReactiveMongoRepository;
+import org.springframework.data.mongodb.repository.Update;
 
 import com.algomeet.xmpp.chatservice.document.MucMessage;
 import com.algomeet.xmpp.chatservice.repository.projection.MucMessageView;
 
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import com.algomeet.xmpp.chatservice.repository.projection.MucMessagePurgeView;
 
 public interface MucMessageRepository extends ReactiveMongoRepository<MucMessage, UUID> {
 
@@ -135,13 +137,112 @@ public interface MucMessageRepository extends ReactiveMongoRepository<MucMessage
 	/** * Finds the largest cutoff stanza ID used to sync with other online accounts.
      * Filters strictly by the room identity and historical timeline cutoff point.
      */
-	@Query(value = "{"
-            + "  'roomId': ?0,"
-            + "  'createdAt': { '$lte': ?1 }"
-            + "}", 
-           sort = "{ '_id': -1 }") 
-    Mono<MucMessageView> findCutoffStanza(
+    Mono<MucMessageView> findFirstByRoomIdAndCreatedAtLessThanEqualOrderByCreatedAtDesc(
            UUID roomId, 
            Instant historyCutoff
     );
+	
+	/**
+	 * Select messages where purgeAt <= parameter date
+	 * 
+	 */
+	Flux<MucMessagePurgeView> findByPurgeAtLessThanEqual(Instant purgeAt);	
+	
+	/**
+	 * Use for clean up of media files. Stanza ID is less than equal.
+	 * @param roomId
+	 * @param beforeId
+	 * @param userKey
+	 * @param historyCutoff
+	 * @param pageable
+	 * @return
+	 */
+	@Query(value = "{"
+	        + "  'roomId': ?0,"
+	        + "  'id': { $lte: ?1 },"
+	        + "  'deletedAt': null,"
+	        + "  $or: [ { 'to': null }, { 'to': ?2 } ],"
+	        + "  'hiddenFromUserKeys': { $ne: ?2 },"
+	        + "  'createdAt': { $gt: ?3 }"
+	        + "  'mediaIds': { $ne: null }" 
+	        + "}", 
+	       sort = "{ 'id': -1 }")
+	Flux<MucMessageView> findMessageViewByRoomIdAndIdLessThanEqualAndToIsNullOrEqualtoUserkeyAndNotHiddenAndMediaIdsIsNotNullOrderByIdDesc(
+	        UUID roomId, 
+	        UUID beforeId, 
+	        UUID userKey, 
+	        Instant historyCutoff, 
+	        Pageable pageable
+	);
+	
+	/**
+	 * Use for clean up of media files. Stanza ID is less than.
+	 * @param roomId
+	 * @param beforeId
+	 * @param userKey
+	 * @param historyCutoff
+	 * @param pageable
+	 * @return
+	 */
+	@Query(value = "{"
+	        + "  'roomId': ?0,"
+	        + "  'id': { $lt: ?1 },"
+	        + "  'deletedAt': null,"
+	        + "  $or: [ { 'to': null }, { 'to': ?2 } ],"
+	        + "  'hiddenFromUserKeys': { $ne: ?2 },"
+	        + "  'createdAt': { $gt: ?3 }"
+	        + "  'mediaIds': { $ne: null }" 
+	        + "}", 
+	       sort = "{ 'id': -1 }")
+	Flux<MucMessageView> findMessageViewByRoomIdAndIdLessThanAndToIsNullOrEqualtoUserkeyAndNotHiddenAndMediaIdsIsNotNullOrderByIdDesc(
+	        UUID roomId, 
+	        UUID beforeId, 
+	        UUID userKey, 
+	        Instant historyCutoff, 
+	        Pageable pageable
+	);
+	
+	/**
+	 * Marks all non-purged messages in the specified room for immediate purge.
+	 *
+	 * <p>Only messages whose {@code purgeAt} field is currently {@code null}
+	 * are updated. Messages that have already been scheduled for purge are
+	 * left unchanged.</p>
+	 *
+	 * @param roomId the room identifier
+	 * @param purgeTime the timestamp at which the messages become eligible for purge
+	 * @return the number of documents updated
+	 */
+	@Query("{ 'roomId': ?0, 'purgeAt': null }")
+	@Update("{ '$set': { 'purgeAt': ?1 } }")
+	Mono<Long> updatePurgeAtByRoomId(UUID roomId, Instant purgeTime);
+
+	/**
+	 * Applies a message retention policy to all non-purged messages in the specified room.
+	 *
+	 * <p>For each message, the {@code purgeAt} timestamp is calculated as:</p>
+	 *
+	 * <pre>
+	 * purgeAt = createdAt + messageRetentionDays
+	 * </pre>
+	 *
+	 * @param roomId the room identifier
+	 * @param messageRetentionDays the number of days a message should be retained
+	 *                             from its creation time before becoming eligible
+	 *                             for automatic deletion
+	 * @return the number of documents updated
+	 */
+	@Query("{ 'roomId': ?0}")
+	@Update("[ { " +
+	        "  '$set': { " +
+	        "    'purgeAt': { " +
+	        "      '$cond': [ " +
+	        "        { '$eq': [ ?2, null ] }, " + // Condition: if messageRetentionDays is null
+	        "        null, " +                    // Then: set purgeAt to null
+	        "        { '$add': [ { '$ifNull': [ '$createdAt', '$$NOW' ] }, { '$multiply': [ ?2, 86400000 ] } ] } " + // Else: run calculation
+	        "      ] " +
+	        "    } " +
+	        "  } " +
+	        "} ]")
+	Mono<Long> updatePurgeAtByRoomId(UUID roomId, Integer messageRetentionDays);
 }

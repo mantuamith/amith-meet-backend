@@ -10,9 +10,9 @@ import org.springframework.data.redis.listener.adapter.MessageListenerAdapter;
 import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
+import com.algomeet.common.properties.CommonRedisTopicProperties;
 import com.algomeet.xmpp.chatservice.dto.E2eeEvent;
 import com.algomeet.xmpp.chatservice.listener.E2eeEventMessageListener;
-import com.algomeet.xmpp.chatservice.properties.RedisTopicProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -44,7 +44,7 @@ import lombok.extern.slf4j.Slf4j;
 public class E2eeEventRedisConfig {
 
     /** Centralized properties holding the Redis topic name for E2EE events. */
-    private final RedisTopicProperties redisTopicProperties;
+    private final CommonRedisTopicProperties redisTopicProperties;
 	
     /** Factory used to create connections to the Redis server. */
     private final RedisConnectionFactory connectionFactory;

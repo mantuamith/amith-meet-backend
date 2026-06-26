@@ -86,7 +86,7 @@ public class MucAcceptInviteEventHandler {
 		String forArchiveLogXml = XmppStanzaUtil.insertStanzaId(acceptedInvitationLogXml, stanzaId.toString(), domainProperties.getDomain());
         
         // 4. Persistence: Archive the join event to the database for future Message Archive Management (MAM) queries.
-        saveToDatabase(messageId, roomJid, sender, stanzaId, forArchiveLogXml);
+        saveToDatabase(messageId, roomJid, sender, stanzaId, forArchiveLogXml, group.getMessageRetentionDays());
         
         // 5. Broadcast: Real-time notification to all online occupants via the MessageRouter.
         xmppBroadCastHandler.broadcastToOccupants(ctx, messageId, roomJid, senderJid, XmppMessageType.GROUPCHAT, group, null, forArchiveLogXml);
@@ -101,10 +101,10 @@ public class MucAcceptInviteEventHandler {
      * Persists the join event to the archive. 
      * Injects a unique Stanza-ID (XEP-0359) using a monotonic UUIDv7 for stable ordering.
      */
-    private void saveToDatabase(String id, String roomBareJid, GroupMember sender, UUID stanzaId, String xml) {      
+    private void saveToDatabase(String id, String roomBareJid, GroupMember sender, UUID stanzaId, String xml, Integer messageRetentionDays) {      
 
         xmppArchiveService.archiveEvent(xml, id, XmppUtil.getRoomId(roomBareJid), null, 
-        		sender.getUserKey(), stanzaId)
+        		sender.getUserKey(), stanzaId, messageRetentionDays)
         .doOnError(error -> {
             log.error("Failed to archive join event for {} in room {}", sender.getUserKey(), roomBareJid, error);
         })

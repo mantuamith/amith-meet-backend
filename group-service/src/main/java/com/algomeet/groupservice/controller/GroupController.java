@@ -28,6 +28,7 @@ import com.algomeet.groupservice.dto.GroupPermissionsResponse;
 import com.algomeet.groupservice.dto.GroupRequest;
 import com.algomeet.groupservice.dto.GroupResponse;
 import com.algomeet.groupservice.dto.UpdateGroupRequest;
+import com.algomeet.groupservice.dto.UpdateRetentionRequest;
 import com.algomeet.groupservice.enums.ResponseCode;
 import com.algomeet.groupservice.exceptions.GroupNotFoundException;
 import com.algomeet.groupservice.service.GroupService;
@@ -248,6 +249,20 @@ public class GroupController implements GroupControllerDoc {
 		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, groups));
 	}
 	
-	
-	
+	@PatchMapping("/{groupId}/message-retention")
+	public ResponseEntity<CommonResponse<?>> patchGroupRetention(
+	        @PathVariable UUID groupId,
+	        @Valid @RequestBody UpdateRetentionRequest request) {
+	    try {
+	        groupService.updateGroupRetention(
+	                groupId, 
+	                request.getMessageRetentionDays(), 
+	                SecurityUtil.getUserKey()
+	        );
+	        return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
+	    } catch(GroupNotFoundException ex) {
+	        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+	                .body(CommonResponse.from(ResponseCode.GROUP_ID_NOT_FOUND));
+	    }
+	}	
 }

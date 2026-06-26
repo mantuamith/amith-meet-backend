@@ -58,12 +58,12 @@ public class MucMessageRouter {
 		if (directReceiverMucMember != null) {			
 			// Target: Single recipient (Private Message within MUC)
 			publishOrNotify(ctx, id, toRoomJid, fromJid, msgType, originalXml, 
-					directReceiverMucMember.getUserKey(), isJingleStanza, isJingleSessionInitiate, principal);
+					directReceiverMucMember.getUserKey(), isJingleStanza, isJingleSessionInitiate, principal, group.getMessageRetentionDays());
 		} else {						
 			// Target: All room members (Broadcast)
 			for(GroupMember receiverMucMember : group.getMembers()) {
 				publishOrNotify(ctx, id, toRoomJid, fromJid, msgType, originalXml, 
-						receiverMucMember.getUserKey(), isJingleStanza, isJingleSessionInitiate, principal);
+						receiverMucMember.getUserKey(), isJingleStanza, isJingleSessionInitiate, principal, group.getMessageRetentionDays());
 			}
 		}
 	}
@@ -73,12 +73,12 @@ public class MucMessageRouter {
 	 */
 	private void publishOrNotify(ChannelHandlerContext ctx, String id, String toRoomJid, String fromJid, XmppMessageType msgType, 
 			String originalXml, String toUserKey, boolean isJingleStanza,
-			boolean isJingleSessionInitiate, XmppPrincipal principal) {
+			boolean isJingleSessionInitiate, XmppPrincipal principal, Integer messageRetentionDays) {
 
 		// 1. Call Tracking (For VoIP/Video logic)
 		if (isJingleStanza) {	        	
 			mucCallTracker.track(ctx, jidUtil.getBareJid(toUserKey), fromJid, originalXml, principal, 
-					UUID.fromString(XmppUtil.getRoomId(toRoomJid)));
+					UUID.fromString(XmppUtil.getRoomId(toRoomJid)), messageRetentionDays);
 		}
 
 		// 2. Anonymization (JID Rewriting)

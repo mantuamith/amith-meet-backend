@@ -3,7 +3,7 @@ package com.algomeet.xmpp.chatservice.routing.muc;
 import org.springframework.stereotype.Component;
 
 import com.algomeet.common.dto.GroupMember;
-import com.algomeet.common.service.GroupCacheService;
+import com.algomeet.common.service.AbstractGroupCache;
 import com.algomeet.common.dto.Group;
 import com.algomeet.multitenancy.context.TenantContext;
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
@@ -39,7 +39,7 @@ import lombok.extern.slf4j.Slf4j;
 @Component 
 @RequiredArgsConstructor
 public class MucAdminCommandRouter {
-	private final GroupCacheService groupCacheService;
+	private final AbstractGroupCache groupCacheService;
 	private final MucKickEventHandler mucKickEventHandler;
 	private final MucMuteEventHandler mucMuteEventHandler;
 	private final MucUnMuteEventHandler mucUnMuteEventHandler;

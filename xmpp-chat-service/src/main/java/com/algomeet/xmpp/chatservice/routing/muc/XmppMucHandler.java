@@ -1,18 +1,23 @@
 package com.algomeet.xmpp.chatservice.routing.muc;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Component;
+import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
 import com.algomeet.common.dto.GroupMember;
-import com.algomeet.common.service.GroupCacheService;
+import com.algomeet.common.service.AbstractGroupCache;
 import com.algomeet.common.dto.Group;
 import com.algomeet.multitenancy.context.TenantContext;
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
+import com.algomeet.xmpp.chatservice.client.MediaClient;
 import com.algomeet.xmpp.chatservice.constant.XmppErrorConditions;
+import com.algomeet.xmpp.chatservice.dto.BatchMediaShareRequest;
 import com.algomeet.xmpp.chatservice.enums.PresenceType;
 import com.algomeet.xmpp.chatservice.enums.XmppErrorType;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
@@ -22,6 +27,7 @@ import com.algomeet.xmpp.chatservice.service.MucMessageService;
 import com.algomeet.xmpp.chatservice.service.MucRetractionService;
 import com.algomeet.xmpp.chatservice.service.XmppArchiveService;
 import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
+import com.algomeet.xmpp.chatservice.stanza.parser.MediaReferenceParser;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.algomeet.xmpp.chatservice.util.SearchUtil;
 import com.algomeet.xmpp.chatservice.util.XmppCustomStanzaUtil;
@@ -31,9 +37,13 @@ import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
 import com.github.f4b6a3.uuid.UuidCreator;
 
+import feign.FeignException;
 import io.netty.channel.ChannelHandlerContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Scheduler;
+import reactor.core.scheduler.Schedulers;
 
 /**
  * <h2>XmppMucHandler</h2>
@@ -54,7 +64,7 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class XmppMucHandler {
 	private final XmppArchiveService xmppArchiveService;
-	private final GroupCacheService groupCacheService;
+	private final AbstractGroupCache groupCacheService;
 	private final MucAdminCommandRouter mucAdminCommandRouter;
 	private final DomainProperties domainProperties;
 	private final MucUserCommandRouter mucUserCommandRouter;
@@ -65,7 +75,10 @@ public class XmppMucHandler {
 	private final MucRetractionService mucRetractionService;
 	private final MucMessageReadCursorService mucMessageReadService;
 	private final MucMessageService mucMessageService;
+	private final MediaClient mediaClient;
 
+	// Define a dedicated thread pool for your database work so Netty doesn't starve
+	private static final Scheduler DB_SCHEDULER = Schedulers.newBoundedElastic(200, 10000, "xmpp-muc-db-workers");
 	/**
 	 * Main entry point for MUC stanza processing.
 	 * Decides whether a stanza is a moderation command, a user command, or a standard message.
@@ -161,14 +174,42 @@ public class XmppMucHandler {
 					}					
 				}
 			} else if ((msgType.supportsOfflineStorage() && isArchivable)) {
+				// Check for message file attachments
+				List<UUID> mediaIds = null;
+				try {
+					mediaIds = MediaReferenceParser.extractMediaIds(originalXml);
+
+					if (!CollectionUtils.isEmpty(mediaIds)) {
+						BatchMediaShareRequest request = new BatchMediaShareRequest();
+						request.setMediaIds(mediaIds.stream()
+								.map(mid -> mid.toString())
+								.collect(Collectors.toSet()));
+
+						request.setGroupId(group.getId());
+						request.setMessageId(UUID.fromString(id));			
+						
+						if(!shareMedias(senderMucMember.get().getUserKey(), request)) {
+							xmppUtil.sendError(ctx, id, fromJid, domainProperties.getDomain(), XmppErrorType.CANCEL, 
+									XmppErrorConditions.INTERNAL_SERVER_ERROR, "Error sharing media file(s)");
+							return;
+						}
+					}				
+				} catch(Exception ex) {
+					log.error("Error parsing media references {}", originalXml, ex);
+					xmppUtil.sendError(ctx, id, fromJid, domainProperties.getDomain(), XmppErrorType.CANCEL, 
+							XmppErrorConditions.INTERNAL_SERVER_ERROR, "Error parsing media file(s)");
+					
+					return;
+				}			
+				
 								
 				// Insert stanza ID
 				forArchiveXml = XmppStanzaUtil.insertStanzaId(originalXml, stanzaId.toString(), principal.getDomain());		
 				Boolean isCountable = XmppCustomStanzaUtil.isCountableMessage(originalXml);
 				
 				xmppArchiveService.archiveEvent(forArchiveXml, id, XmppUtil.getRoomId(toRoomJid), (pmToMucMember != null ? pmToMucMember.getUserKey() : null), 
-						XmppUtil.getUserKey(fromJid), stanzaId, isCountable)
-				.doOnSuccess(saved -> {
+						XmppUtil.getUserKey(fromJid), stanzaId, isCountable, mediaIds, group.getMessageRetentionDays())
+				.flatMap(saved -> {
 
 					// Send an immediate server-level acknowledgment to the sender.
 					//
@@ -181,14 +222,20 @@ public class XmppMucHandler {
 					// used to provide early delivery assurance back to the sender.
 					XmppServerAckUtil.send(ctx, id, domainProperties.getDomain(), stanzaId.toString());
 					
+					Mono<Void> postSaveTasks = Mono.empty();
+					
 					// Move cursor for the message sender
 					if (isCountable) {
-						mucMessageReadService.advanceReadCursor(UUID.fromString(principal.getUserKey()), group.getId(), UUID.fromString(id))
-						.subscribe();
+						postSaveTasks = postSaveTasks.then(mucMessageReadService.advanceReadCursor(
+								UUID.fromString(principal.getUserKey()), group.getId(), UUID.fromString(id)))
+								.then();
 					}
 
 					log.debug("MAM Archive Success: ID={} Room={}", stanzaId, toRoomId);
+					
+					return postSaveTasks;
 				})
+				.subscribeOn(DB_SCHEDULER) // Shifting execution away from Netty Event Loop
 				.doOnError(e -> {
 					log.error("MAM Archive Failure: {}", e.getMessage(), e);
 					handleArchiveError(ctx, id, principal, e);
@@ -197,8 +244,7 @@ public class XmppMucHandler {
 			}
 
 			// 4. DISPATCHING
-			try {			
-
+			try {	
 				// Standard message propagation to members
 				mucMessageRouter.broadcastToOccupants(ctx, id, toRoomJid, fromJid, msgType, group, 
 						pmToMucMember, (isArchivable ? forArchiveXml : originalXml));
@@ -207,6 +253,34 @@ public class XmppMucHandler {
 				log.error("Critical: Invalid roomId format in routing: {}", toRoomId);
 			}
 		}
+	}
+	
+	private boolean shareMedias(String fromUserKey, BatchMediaShareRequest request) {
+	    int retryCounter = 0;
+	    while (++retryCounter <= 3) {
+	        try {
+	            log.info("Attempt {} to share media batch for user: {}", retryCounter, fromUserKey);
+	            mediaClient.batchShare(fromUserKey, request);
+	            return true;
+	        } catch (FeignException ex) {
+	            int status = ex.status();
+	            log.error("Feign error sharing media files {}. HTTP Status: {} | Message: {}", 
+	                    request.getMediaIds(), status, ex.getMessage());
+
+	            // Fail fast on client errors (4xx) except for specific transient issues like 408 (Timeout) or 429 (Too Many Requests)
+	            if (status >= 400 && status < 500 && status != 408 && status != 429) {
+	                log.error("Client error encountered ({}). Aborting retries.", status);
+	                break;
+	            }
+	            
+	            // For 5xx server errors, 408 timeouts, or 429 rate limits, let the loop continue and retry.
+	        } catch (Exception ex) {
+	            // Fallback catch for unexpected infrastructure issues (e.g., serialization errors, unknown network issues)
+	            log.error("Unexpected error sharing media files {}: {}", request.getMediaIds(), ex.getMessage(), ex);
+	        }
+	    }
+	    
+	    return false;
 	}
 
 	/**

@@ -2,10 +2,8 @@ package com.algomeet.xmpp.chatservice.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.data.redis.connection.ReactiveRedisConnectionFactory;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.data.redis.listener.ReactiveRedisMessageListenerContainer;
 import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
@@ -28,13 +26,7 @@ import lombok.extern.slf4j.Slf4j;
 @Configuration
 @RequiredArgsConstructor
 public class RedisConfig {
-
-	@Bean
-    public ReactiveRedisMessageListenerContainer reactiveRedisMessageListenerContainer(
-            ReactiveRedisConnectionFactory connectionFactory) {
-
-        return new ReactiveRedisMessageListenerContainer(connectionFactory);
-    }
+    private final RedisConnectionFactory connectionFactory;
 	
 	@Bean
     public RedisTemplate<String, Object> redisTemplate(RedisConnectionFactory connectionFactory) {
@@ -51,5 +43,26 @@ public class RedisConfig {
         
         return template;
     }
+	
+	@Bean    
+    public RedisTemplate<String, String> streamStringRedisTemplate() {
+        RedisTemplate<String, String> template = new RedisTemplate<>();
+        template.setConnectionFactory(connectionFactory);
 
+        /**
+         * Use plain string serialization for both channels and payloads.
+         *
+         * Faster than JSON serializers for Pub/Sub transport messaging.
+         */
+        StringRedisSerializer serializer = new StringRedisSerializer();
+
+        template.setKeySerializer(serializer);
+        template.setValueSerializer(serializer);
+        template.setHashKeySerializer(serializer);
+        template.setHashValueSerializer(serializer);
+
+        template.afterPropertiesSet();
+
+        return template;
+    }
 }

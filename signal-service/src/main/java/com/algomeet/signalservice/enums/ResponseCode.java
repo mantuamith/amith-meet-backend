@@ -28,6 +28,8 @@ public enum ResponseCode {
 	INVALID_DATE_FORMAT("INVALID_DATE_FORMAT", "invalid-date-format"),
 	MESSAGE_SYNC_IN_PROGRESS("MESSAGE_SYNC_IN_PROGRESS", "message-sync-inprogress"),
 	DUPLICATE_MESSAGE_ID("DUPLICATE_MESSAGE_ID", "duplicate-message-id"),
+	
+	MESSAGE_RETENTION_UPDATE_IN_PROGRESS("MESSAGE_RETENTION_UPDATE_IN_PROGRESS", "message-retention-update-inprogress"),
 	;
 	
     private final String code;

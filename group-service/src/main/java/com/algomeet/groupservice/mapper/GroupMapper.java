@@ -31,6 +31,7 @@ public class GroupMapper {
 		Group group = new Group();
 		group.setName(req.getName());
 		group.setDescription(req.getDescription());
+		group.setMessageRetentionDays(req.getMessageRetentionDays());
 
 		Set<Member> members = new HashSet<>();
 		long memberStartDate = Instant.now().toEpochMilli();

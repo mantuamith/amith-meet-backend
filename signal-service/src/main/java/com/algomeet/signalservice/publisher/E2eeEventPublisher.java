@@ -5,8 +5,8 @@ import java.util.UUID;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
 
+import com.algomeet.common.properties.CommonRedisTopicProperties;
 import com.algomeet.signalservice.dto.E2eeEvent;
-import com.algomeet.signalservice.properties.RedisTopicProperties;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -36,7 +36,7 @@ import lombok.extern.slf4j.Slf4j;
 public class E2eeEventPublisher {
 
     /** Centralized configuration for Redis topic naming conventions, such as the E2EE event topic. */
-    private final RedisTopicProperties redisTopicProperties;
+    private final CommonRedisTopicProperties redisTopicProperties;
 
     /** Shared template configured for JSON serialization of E2EE events to maintain cross-node compatibility. */
     private final RedisTemplate<String, E2eeEvent> redisTemplate;

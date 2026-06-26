@@ -31,4 +31,6 @@ public interface MucMessageView {
     Instant getCreatedAt();
     
     Boolean getCountable();
+    
+    List<UUID> getMediaIds();
 }

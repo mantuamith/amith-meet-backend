@@ -97,6 +97,9 @@ class FileControllerTest {
 
 	@MockBean
 	private FileValidator fileValidator;
+
+	@MockBean
+	private AcceptedFileProperties acceptedFileProperties;
 	
 	@MockBean
 	private UserFileRepository userFileRepository;
@@ -119,6 +122,7 @@ class FileControllerTest {
 		securityUtilMock = Mockito.mockStatic(SecurityUtil.class);
 		securityUtilMock.when(SecurityUtil::getUserKey).thenReturn(USER_KEY.toString());
 
+		when(acceptedFileProperties.getMaxFilesPerUpload()).thenReturn(10);
 		new MessageUtil(messageSource);
 	}
 

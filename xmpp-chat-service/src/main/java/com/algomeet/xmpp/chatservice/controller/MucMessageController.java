@@ -19,14 +19,15 @@ import com.algomeet.xmpp.chatservice.controller.doc.MucMessageControllerDoc;
 import com.algomeet.xmpp.chatservice.dto.CommonResponse;
 import com.algomeet.xmpp.chatservice.dto.MucMessageResponse;
 import com.algomeet.xmpp.chatservice.enums.ResponseCode;
+import com.algomeet.xmpp.chatservice.exceptions.GroupNotFoundException;
 import com.algomeet.xmpp.chatservice.service.MucMessageService;
 import com.algomeet.xmpp.chatservice.service.MucRoomService;
 import com.algomeet.xmpp.chatservice.util.SecurityUtil;
 import com.github.f4b6a3.uuid.UuidCreator;
 
-import io.swagger.v3.oas.annotations.Parameter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.publisher.Mono;
 
 @Slf4j
 @RestController
@@ -178,19 +179,45 @@ public class MucMessageController implements MucMessageControllerDoc{
 	
 	@DeleteMapping("/{groupId}/messages")
     public ResponseEntity<CommonResponse<Boolean>> purgeGroupMessages(
-            @Parameter(description = "The unique group/room UUID", required = true)
             @PathVariable UUID groupId) {
 		UUID userKey = UUID.fromString(SecurityUtil.getUserKey());  
 		
         log.warn("Administrative trigger: Hard purging all message records for group {}", groupId);
         try {
-        boolean purged = mucRoomService.purgeAllGroupMessages(groupId, userKey);
+        boolean purged = mucRoomService.purgeGroupConversation(groupId, userKey);
                 
         return ResponseEntity.ok(
                 CommonResponse.from(ResponseCode.SUCCESS, purged));
         } catch (AccessDeniedException ex) {
-        	return ResponseEntity.status(HttpStatus.FORBIDDEN)
-        			.body(CommonResponse.from(ResponseCode.SUCCESS, false));
+        	return ResponseEntity.status(HttpStatus.FORBIDDEN)     
+        			.body(CommonResponse.from(ResponseCode.ERROR, false));
         }
     }
+	
+	@PostMapping("/{groupId}/apply-message-retention-policy")
+	public Mono<ResponseEntity<CommonResponse<Object>>> applyMessageRetentionPolicy(
+	        @PathVariable UUID groupId,
+	        @RequestParam Integer messageRetentionDays) {
+	    
+	    // Assuming you have a way to extract the current user's UUID (e.g., from a security context or session)
+	    // Replace 'currentUserKey' with your actual user context extraction logic.
+	    UUID currentUserKey = UUID.fromString(SecurityUtil.getUserKey());  
+	    
+	    return mucRoomService.applyMessageRetentionPolicy(currentUserKey, groupId, messageRetentionDays)
+	            // .then() waits for completion (empty or not) and switches to your success response
+	            .then(Mono.just(ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS))))
+	            .onErrorReturn(
+	                    AccessDeniedException.class, 
+	                    ResponseEntity.status(HttpStatus.FORBIDDEN).body(CommonResponse.from(ResponseCode.ERROR))
+	            )
+	            .onErrorReturn(
+	                    GroupNotFoundException.class, 
+	                    ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.ERROR))
+	            )
+	            .onErrorReturn(
+	            		IllegalStateException.class, 
+	                    ResponseEntity.status(HttpStatus.CONFLICT).body(CommonResponse.from(ResponseCode.MESSAGE_RETENTION_UPDATE_IN_PROGRESS))
+	            )	            
+	            .onErrorResume(Exception.class, Mono::error);
+	}
 }
