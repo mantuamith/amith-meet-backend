@@ -1,7 +1,6 @@
 package com.algomeet.xmpp.chatservice.document;
 
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
 
