@@ -31,21 +31,19 @@ import lombok.NoArgsConstructor;
      */
     @CompoundIndex(
     	    name = "idxMsg_convId_stanzaIdDesc_partialVisible", 
-    	    def = "{'conversationId': 1, 'stanzaId': -1}",
+    	    def = "{'conversationId': 1, '_id.stanzaId': -1}",
     	    partialFilter = "{'hiddenAt': null}"
     	),
     
     /**
      * 2. Message history + range queries per conversation (ESR pattern)
-     *         deleteByUserKeyAndConversationId, getConversationStorageStats,
-     *         and findFirstByUserKeyAndConversationIdOrderByStanzaIdAsc.
+     * deleteByUserKeyAndConversationId, getConversationStorageStats,
+     * and findFirstByUserKeyAndConversationIdOrderByStanzaIdAsc.
      */
     @CompoundIndex(
         name = "idxMsg_userKey_updateCursorId_stanzaIdAsc", 
-        def = "{'userKey': 1, 'conversationId': 1, 'stanzaId': -1}"
+        def = "{'_id.userKey': 1, 'conversationId': 1, '_id.stanzaId': -1}"
     ),
-    
-
     
     /**
      * 3. Incremental sync cursor (update tracking + ordering)
@@ -54,17 +52,19 @@ import lombok.NoArgsConstructor;
      */
     @CompoundIndex(
     	    name = "idxMsg_conversationId_stanzaIdDesc_updateCursorId", 
-    	    def = "{'conversationId': 1, 'stanzaId': -1, 'updateCursorId': 1}"
+    	    def = "{'conversationId': 1, '_id.stanzaId': -1, 'updateCursorId': 1}"
     	),
     
     /**
-     * 4. Direct message lookup + lightweight ordering
+     * 4. UNIQUE COMPOUND CONSTRAINT: Direct message lookup + scoped uniqueness per user
+     * Ensures a messageId cannot be duplicated within the same user's message backup set.
      * Covers: findByMessageIdAndUserKey, and any chronological receipt processing (Read/Delivered states).
      * deleteByUserKey(UUID userKey) during account offboarding or device un-pairing actions.
      */
     @CompoundIndex(
-        name = "idxMsg_userKey", 
-        def = "{'userKey': 1, 'messageId': 1}"
+        name = "idxMsg_userKey_messageId_unique", 
+        def = "{'_id.userKey': 1, 'messageId': 1}",
+        unique = true
     ),
     
     /**
@@ -73,7 +73,7 @@ import lombok.NoArgsConstructor;
      */
     @CompoundIndex(
     	    name = "idxMsg_userKey_stanzaIdDesc_conversationId_partial", 
-    	    def = "{'userKey': 1, 'stanzaId': -1, 'conversationId': 1}",
+    	    def = "{'_id.userKey': 1, '_id.stanzaId': -1, 'conversationId': 1}",
     	    partialFilter = "{'deletedAt': null, 'hiddenAt': null}"
     	),
     
@@ -83,7 +83,7 @@ import lombok.NoArgsConstructor;
      */
     @CompoundIndex(
             name = "idxMsg_convId_senderKey_stanzaId_readAt", 
-            def = "{'conversationId': 1, 'senderKey': 1, 'stanzaId': -1, 'readAt': 1}"
+            def = "{'conversationId': 1, 'senderKey': 1, '_id.stanzaId': -1, 'readAt': 1}"
         ),
     /**
      * 7. Fetching reactions, replies, or message threads (e.g., finding edits/reactions for listed messages)
@@ -91,22 +91,33 @@ import lombok.NoArgsConstructor;
      */
     @CompoundIndex(
         name = "idxMsg_userKey_targetMessageId", 
-        def = "{'userKey': 1, 'targetMessageId': 1}"
+        def = "{'_id.userKey': 1, 'targetMessageId': 1}"
     ),
     /**
      * 8. Used for findFirstByConversationIdAndSenderKeyAndDeletedAtIsNullAndHiddenAtIsNullOrderByStanzaIdDesc()
      */
     @CompoundIndex(
     	    name = "idxMsg_convId_senderKey_stanzaIdDesc_partialActive", 
-    	    def = "{'conversationId': 1, 'senderKey': 1, 'stanzaId': -1}",
+    	    def = "{'conversationId': 1, 'senderKey': 1, '_id.stanzaId': -1}",
     	    partialFilter = "{'deletedAt': null, 'hiddenAt': null}"
-    	)
+    	),
+    
+    /**
+	 * Used for findByPurgeAtLessThanEqual
+	 */
+	@CompoundIndex(
+		    name = "idxMsg_purgeAt_id", 
+		    def = "{ 'purgeAt': 1, '_id.stanzaId': 1 }"
+		)
 })
 public class MessageBackupDocument {
 	// These constants match the @Field names or the variable names
+	// Points to nested properties inside the composite primary key (_id)
+    public static final String FIELD_USER_KEY = "_id.userKey";
+    public static final String FIELD_STANZA_ID = "_id.stanzaId";
+
+    // These fields are still sitting squarely at the root document layer    
     public static final String FIELD_CONVERSATION_ID = "conversationId";
-    public static final String FIELD_USER_KEY = "userKey";
-    public static final String FIELD_STANZA_ID = "stanzaId";
     public static final String FIELD_UPDATE_CURSOR_ID = "updateCursorId";
     public static final String FIELD_MESSAGE_ID = "messageId";
     public static final String FIELD_SENDER_KEY = "senderKey";
@@ -123,15 +134,15 @@ public class MessageBackupDocument {
     public static final String FIELD_EDIT_COUNT = "editCount";
     public static final String FIELD_TIMESTAMP = "timestamp";
     public static final String FIELD_SIZE = "size";
+    public static final String FIELD_TARGET_MESSAGE_ID = "targetMessageId";
     
 	/**
 	 * Globally unique and lexicographically sortable server-generated message identifier.
 	 * chronological sorting, pagination cursors, and cross-device synchronization.
 	 */
-	@Id
-	private UUID stanzaId;
+    @Id
+    private MessageBackupKey id; // This maps directly to MongoDB's native unique _id
 	
-	@Indexed(unique = true)
 	private UUID messageId;
 
 	/** 
@@ -145,13 +156,6 @@ public class MessageBackupDocument {
 	 */
     @Schema(hidden = true)
 	private String conversationId;
-
-    /**
-     * Auto populated field.
-     */
-    @Schema(hidden = true)
-	@Field("userKey")
-	private UUID userKey;   
 
     @NotNull
 	@Field("senderKey")
@@ -231,12 +235,10 @@ public class MessageBackupDocument {
 	
 	private List<UUID> mediaIds;
 	
-	/**
-	 * Optional: MongoDB TTL (Time To Live) index.
-	 * Automatically deletes messages after 12 months if never delivered.
-	 */
-	@Indexed(expireAfterSeconds = 12 * 2592000) 
-	private Instant expireAt;
-	
 	private Instant modifiedAt;
+	
+	/** 
+	 * Used for configuring deletion date of the chat message.
+	 */
+	private Instant purgeAt;
 }

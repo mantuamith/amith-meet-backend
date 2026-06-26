@@ -5,12 +5,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.cloud.openfeign.EnableFeignClients;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
-@SpringBootApplication(
-	    scanBasePackages = {
-	        "com.algomeet.xmpp.chatservice",
-	        "com.algomeet.common"
-	    }
-	)
+@SpringBootApplication
 @EnableFeignClients(basePackages = "com.algomeet.xmpp.chatservice.client")
 @EnableScheduling
 public class XmppChatServiceApplication {

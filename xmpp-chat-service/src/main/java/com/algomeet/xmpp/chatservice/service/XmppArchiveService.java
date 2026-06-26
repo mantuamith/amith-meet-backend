@@ -1,5 +1,6 @@
 package com.algomeet.xmpp.chatservice.service;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -16,7 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import com.algomeet.common.dto.Group;
-import com.algomeet.common.service.GroupCacheService;
+import com.algomeet.common.service.AbstractGroupCache;
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.constant.Constants;
 import com.algomeet.xmpp.chatservice.constant.XmppErrorConditions;
@@ -56,7 +57,7 @@ import reactor.core.publisher.Mono;
 public class XmppArchiveService {    
 	private final MucMessageRepository repository;
 	private final LocalStanzaDispatcher localStanzaDispatcher;
-	private final GroupCacheService groupCacheService;
+	private final AbstractGroupCache groupCacheService;
 	private final XmppUtil xmppUtil;
 	private final DomainProperties domainProperties;
 	private final ReactiveMongoTemplate reactiveMongoTemplate;
@@ -75,7 +76,8 @@ public class XmppArchiveService {
 	 * @param stanzaId The unique internal ID (UUIDv7) for database indexing.
 	 * @return A {@link Mono} containing the saved {@link MucMessage}.
 	 */
-	public Mono<MucMessage> archiveEvent(String xml, String id, String toRoomId, String toMucMember, String from, UUID stanzaId, Boolean isCountable) {	
+	public Mono<MucMessage> archiveEvent(String xml, String id, String toRoomId, String toMucMember, 
+			String from, UUID stanzaId, Boolean isCountable, List<UUID> mediaIds, Integer messageRetentionDays) {	
 		UUID messageId = StringUtils.hasText(id) 
 			    ? UUID.fromString(id) 
 			    : UuidCreator.getTimeOrderedEpoch();
@@ -88,10 +90,20 @@ public class XmppArchiveService {
 		event.setTo(StringUtils.hasText(toMucMember) ? UUID.fromString(toMucMember) : null);
 		event.setCountable(isCountable);
 		
+		if(messageRetentionDays != null && messageRetentionDays != -1) {
+			event.setPurgeAt(
+					Instant.now().plus(Duration.ofDays(messageRetentionDays))
+					);
+		}
+		
 		// Get target message ID for reactions and edits, they are not countable stanza.
 		// sample stanza: <target xmlns='urn:algomeet:meta:0' id='019e537d-31a0-7556-a160-7ac448312343'/>
 		String targetMessageId = !(isCountable) ? XmppCustomStanzaUtil.getTargetMessageId(xml) : null;
 		event.setTargetMessageId(targetMessageId != null ? UUID.fromString(targetMessageId) : null);
+		
+		// Set attachment file IDs
+    	event.setMediaIds(mediaIds);
+		
 		event.setStanzaXml(xml);
 
 		return repository.save(event);
@@ -108,7 +120,8 @@ public class XmppArchiveService {
 	 * @param stanzaId The unique internal ID (UUIDv7) for database indexing.
 	 * @return A {@link Mono} containing the saved {@link MucMessage}.
 	 */
-	public Mono<MucMessage> archiveEvent(String xml, String id, String toRoomId, String toMucMember, String from, UUID stanzaId) {	
+	public Mono<MucMessage> archiveEvent(String xml, String id, String toRoomId, String toMucMember, String from, 
+			UUID stanzaId, Integer messageRetentionDays) {	
 		UUID messageId = StringUtils.hasText(id) 
 			    ? UUID.fromString(id) 
 			    : UuidCreator.getTimeOrderedEpoch();
@@ -120,7 +133,13 @@ public class XmppArchiveService {
 		event.setFrom(UUID.fromString(from));
 		event.setTo(StringUtils.hasText(toMucMember) ? UUID.fromString(toMucMember) : null);
 		event.setCountable(XmppCustomStanzaUtil.isCountableMessage(xml));
-		event.setStanzaXml(xml);
+		event.setStanzaXml(xml);	
+		
+		if (messageRetentionDays != null && messageRetentionDays != -1) {
+			event.setPurgeAt(
+					Instant.now().plus(Duration.ofDays(messageRetentionDays))
+					);
+		}
 
 		return repository.save(event);
 	}
@@ -158,9 +177,6 @@ public class XmppArchiveService {
 			// Synchronize the current conversation starting point across local devices.
 			syncRoomDeletedMessages(roomId, principal).subscribe();
 			
-			// Sync recent updates
-//			syncRoomRecentUpdates(roomId, UUID.fromString(afterId), principal);
-
 			loadAfterWithRetry(roomId, UUID.fromString(afterId), principal, queryId, maxResults);
 		} else {
 			if (!StringUtils.hasText(beforeId)) {
@@ -345,41 +361,7 @@ public class XmppArchiveService {
 		return reactiveMongoTemplate.updateFirst(query, update, MucMessage.class)
 				.then();
 	}
-	
-	/**
-	 * Fetches and dispatches message updates (like retractions or view changes) that occurred 
-	 * in a specific room after a given cursor point.
-	 * 
-	 * @param roomId    The unique identifier of the MUC room.
-	 * @param afterId   The UUIDv7 cursor used to resume the update stream.
-	 * @param principal The session context of the user requesting the updates.
-	 */
-//	private void syncRoomRecentUpdates(UUID roomId, UUID afterId, XmppPrincipal principal) {
-//		log.info("Syncing updates for Room {}: starting from cursor {}", roomId, afterId);
-//
-//		// 1. Query the repository for all message changes in this room newer than the provided ULUUIDv7ID.
-//		// OrderByIdAsc ensures we process and dispatch updates in the exact order they occurred.
-//		Pageable pageable = PageRequest.of(0, 10000);
-//		repository.findByRoomIdAndUpdateCursorIdGreaterThanAndIdLessThanEqualOrderByIdAsc(roomId, afterId, afterId, pageable)
-//
-//		// 2. Filter: Ensure the update is relevant to the requesting principal.
-//		// This prevents leaking "Delete for Me" events or private stanzas to the wrong users.
-//		.filter(msg -> MamUtil.isPrincipalRecipient(msg, principal))
-//
-//		// 3. Sequential Dispatch: Use concatMap to ensure stanzas are sent to the local 
-//		// dispatcher in order. This maintains protocol consistency for the client.
-//		.concatMap(msg -> dispatchRecentUpdatesResult(msg, principal))
-//
-//		// 4. Subscription: Since this is a void-returning fire-and-forget background task,
-//		// we subscribe to trigger the reactive pipeline. 
-//		// NOTE: In a production environment, consider adding error logging inside .subscribe().
-//		.subscribe(
-//				null, 
-//				error -> log.error("Failed to sync updates for user {} in room {}: {}", 
-//						principal.getUserKey(), roomId, error.getMessage(), error)
-//				);
-//	}
-	
+		
 	private Mono<Void> syncRoomDeletedMessages(UUID roomId, XmppPrincipal principal) {
 	    log.info("Syncing deletes for Room {}", roomId);
 
@@ -465,7 +447,8 @@ public class XmppArchiveService {
 	    } 
 
 	    // Priority 3: Localized "Delete for Me" / Visibility toggles
-	    if (msg.getHiddenFromUserKeys() != null && msg.getHiddenFromUserKeys().contains(principal.getUserKey())) {
+	    if (msg.getHiddenFromUserKeys() != null 
+	    		&& msg.getHiddenFromUserKeys().contains(UUID.fromString(principal.getUserKey()))) {
 	        return Mono.just(Optional.of(mamUtil.buildHideEventXml(msg, principal)));
 	    }			
 

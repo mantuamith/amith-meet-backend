@@ -2,7 +2,6 @@ package com.algomeet.xmpp.chatservice.scheduler;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
@@ -48,7 +47,7 @@ public class MucMissedCallScheduler {
 	private final AtomicBoolean running = new AtomicBoolean(false);
 
 	/**
-	 * Main execution trigger. Subscribes to the reactive chain every 2 seconds.
+	 * Main execution trigger. Subscribes to the reactive chain every 1 second.
 	 * Using {@code fixedDelay} ensures that a new execution doesn't start until
 	 * the previous reactive subscription has been initialized.
 	 */

@@ -44,7 +44,7 @@ public class MissedCallScheduler {
 	private final AtomicBoolean running = new AtomicBoolean(false);
 
 	/**
-	 * Main execution trigger. Subscribes to the reactive chain every 2 seconds.
+	 * Main execution trigger. Subscribes to the reactive chain every 1 second.
 	 * Using {@code fixedDelay} ensures that a new execution doesn't start until
 	 * the previous reactive subscription has been initialized.
 	 */

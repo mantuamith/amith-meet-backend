@@ -4,7 +4,9 @@ import com.algomeet.xmpp.chatservice.util.MessageUtil;
 
 public enum ResponseCode {
 	AUTH_SESSION_REVOKED("AUTH_SESSION_REVOKED", "auth.session.revoked"),
-    SUCCESS("SUCCESS", "success");
+    SUCCESS("SUCCESS", "success"),
+	ERROR("ERROR", "error"),
+	MESSAGE_RETENTION_UPDATE_IN_PROGRESS("MESSAGE_RETENTION_UPDATE_IN_PROGRESS", "message-retention-update-inprogress"),;
 	
     private final String code;
     private final String message;

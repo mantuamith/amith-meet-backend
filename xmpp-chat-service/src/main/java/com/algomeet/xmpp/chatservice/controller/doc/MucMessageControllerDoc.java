@@ -1,7 +1,6 @@
 package com.algomeet.xmpp.chatservice.controller.doc;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.http.ResponseEntity;
@@ -20,6 +19,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import reactor.core.publisher.Mono;
 
 @Tag(name = "MUC Messages", description = "APIs for retrieving group chat messages and message updates")
 public interface MucMessageControllerDoc {
@@ -212,4 +212,33 @@ public interface MucMessageControllerDoc {
 	                example = "289c5f4d-58a0-4def-bf5b-0fd15c045575"
 	            )
 	            @PathVariable UUID groupId);
+	
+	@Tag(name = "MUC Room Administration", description = "Endpoints managing Multi-User Chat configurations and retention policies.")
+	@Operation(
+			summary = "Apply room message retention policy",
+			description = "Configures the duration (in days) that messages are retained within a specific MUC group before being eligible for automatic purging. Requires OWNER or ADMIN affiliation."
+			)
+	@ApiResponses(value = {
+			@ApiResponse(
+					responseCode = "200", 
+					description = "Retention policy applied successfully.",
+					content = @Content(schema = @Schema(implementation = CommonResponse.class))
+					),
+			@ApiResponse(
+					responseCode = "403", 
+					description = "Unauthorized. The user is not an Admin or Owner of this group.",
+					content = @Content(schema = @Schema(implementation = CommonResponse.class))
+					),
+			@ApiResponse(
+					responseCode = "404", 
+					description = "Group not found.",
+					content = @Content(schema = @Schema(hidden = true))
+					)
+	})
+	public Mono<ResponseEntity<CommonResponse<Object>>> applyMessageRetentionPolicy(
+			@Parameter(description = "The unique identifier (UUID) of the MUC group room", required = true)
+			@PathVariable UUID groupId,
+
+			@Parameter(description = "Number of days messages should be retained from creation time", required = true, example = "30")
+			@RequestParam Integer messageRetentionDays);
 }

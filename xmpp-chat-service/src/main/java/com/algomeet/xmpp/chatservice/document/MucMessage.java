@@ -1,7 +1,9 @@
 package com.algomeet.xmpp.chatservice.document;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
@@ -90,6 +92,13 @@ import lombok.NoArgsConstructor;
 		    name = "idxMuc_roomId_targetMessageId_partial", 
 		    def = "{ 'roomId': 1, 'targetMessageId': 1 }",
 		    partialFilter = "{ 'targetMessageId': { '$exists': true } }" 
+		),
+	/**
+	 * Used for findByPurgeAtLessThanEqual
+	 */
+	@CompoundIndex(
+		    name = "idxMuc_purgeAt_id", 
+		    def = "{ 'purgeAt': 1, '_id': 1 }"
 		)
 })
 public class MucMessage {   
@@ -164,11 +173,12 @@ public class MucMessage {
 	
     // Useful for finding all reactions, edits and etc to a specific message
     private UUID targetMessageId;    
-
-	/**
-	 * Optional: MongoDB TTL (Time To Live) index.
-	 * Automatically deletes messages after 12 months if never delivered.
+    
+    // Use to store message attachment file IDs
+    private List<UUID> mediaIds;
+    
+	/** 
+	 * Used for configuring deletion date of the chat message.
 	 */
-	@Indexed(expireAfterSeconds = 12 * 2592000) 
-	private Instant expireAt;
+	private Instant purgeAt;
 }

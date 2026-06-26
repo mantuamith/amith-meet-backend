@@ -91,6 +91,12 @@
 		    <artifactId>uuid-creator</artifactId>
 		    <version>6.0.0</version> <!-- Use the latest version available -->
 		</dependency>
+		
+		<dependency>
+			<groupId>com.algomeet</groupId>
+		    <artifactId>common-lib</artifactId>
+		    <version>1.0</version>
+		</dependency>
 
 		<!-- Add internal libraries -->
 		<dependency>

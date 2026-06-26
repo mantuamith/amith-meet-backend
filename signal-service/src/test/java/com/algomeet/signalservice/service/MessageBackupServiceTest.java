@@ -26,7 +26,11 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 
 import com.algomeet.signalservice.document.MessageBackupDocument;
+import com.algomeet.signalservice.document.MessageBackupKey;
+import com.algomeet.signalservice.dto.MessageBackupRequest;
+import com.algomeet.signalservice.dto.MessageBackupUpdateRequest;
 import com.algomeet.signalservice.exceptions.RecordNotFoundException;
+import com.algomeet.signalservice.mapper.MessageBackupMapper;
 import com.algomeet.signalservice.repository.MessageBackupRepository;
 import com.algomeet.signalservice.util.SecurityUtil;
 import com.github.f4b6a3.uuid.UuidCreator;
@@ -40,6 +44,8 @@ class MessageBackupServiceTest {
 	@InjectMocks
 	private MessageBackupService service;
 
+	private MessageBackupRequest request;
+	
 	private MessageBackupDocument document;
 	
 	@Mock
@@ -54,6 +60,7 @@ class MessageBackupServiceTest {
 	@Mock
 	private ValueOperations<String, String> valueOperations;
 
+	private UUID stanzaId;
 	private UUID messageId;
 	private UUID userKey;
 	private UUID senderKey;
@@ -61,20 +68,24 @@ class MessageBackupServiceTest {
 	
 	@BeforeEach
 	void setup() {
-		document = new MessageBackupDocument();
+		request = new MessageBackupRequest();
+		stanzaId = UuidCreator.getTimeOrderedEpoch();
 		messageId = UuidCreator.getTimeOrderedEpoch();
 		userKey = UuidCreator.getTimeOrderedEpoch();
 		senderKey = UuidCreator.getTimeOrderedEpoch();
 		receiverKey = UuidCreator.getTimeOrderedEpoch();
 		
-		document.setMessageId(messageId);
-		document.setUserKey(userKey);
-		document.setSenderKey(senderKey);
-		document.setReceiverKey(receiverKey);
-		document.setEncryptedMessage("ENCRYPTED_PAYLOAD");
-		document.setAlgorithm("AES/GCM/NoPadding");
-		document.setVersion("v1");
-		document.setSalt("U0FMVA==");
+		request.setStanzaId(stanzaId);
+		request.setMessageId(messageId);
+
+		request.setSenderKey(senderKey);
+		request.setReceiverKey(receiverKey);
+		request.setEncryptedMessage("ENCRYPTED_PAYLOAD");
+		request.setAlgorithm("AES/GCM/NoPadding");
+		request.setVersion("v1");
+		request.setSalt("U0FMVA==");
+		
+		document = MessageBackupMapper.toEntity(userKey, request);
 	}
 
 	/* -------------------------------------------------
@@ -92,7 +103,7 @@ class MessageBackupServiceTest {
 
 	        when(repository.save(document)).thenReturn(document);
 
-	        MessageBackupDocument result = service.insert(document);
+	        MessageBackupDocument result = service.insert(request);
 
 	        assertNotNull(result);
 	        assertEquals("msg-1", result.getMessageId());
@@ -107,7 +118,7 @@ class MessageBackupServiceTest {
 
 	@Test
 	void getMessage_success() {
-		when(repository.findById(messageId))
+		when(repository.findByMessageIdAndUserKey(messageId, userKey))
 		.thenReturn(Optional.of(document));
 
 		MessageBackupDocument result =
@@ -119,7 +130,7 @@ class MessageBackupServiceTest {
 
 	@Test
 	void getMessage_notFound() {
-		when(repository.findById(UuidCreator.getTimeOrderedEpoch()))
+		when(repository.findByMessageIdAndUserKey(UuidCreator.getTimeOrderedEpoch(), userKey))
 		.thenReturn(Optional.empty());
 
 		assertThrows(RecordNotFoundException.class,
@@ -132,7 +143,8 @@ class MessageBackupServiceTest {
 
 	@Test
 	void getMessages_success() {
-		when(repository.findAllById(List.of(messageId, UuidCreator.getTimeOrderedEpoch())))
+		when(repository.findAllById(List.of(messageId, UuidCreator.getTimeOrderedEpoch()).stream()
+				.map(id -> new MessageBackupKey(userKey, id)).toList()))
 		.thenReturn(List.of(document));
 
 		List<MessageBackupDocument> result =
@@ -152,26 +164,33 @@ class MessageBackupServiceTest {
 		UUID userKey2 = UuidCreator.getTimeOrderedEpoch();
 		UUID senderKey2 = UuidCreator.getTimeOrderedEpoch();
 		UUID receiverKey2 = UuidCreator.getTimeOrderedEpoch();
-		existingMsg.setUserKey(userKey2);
+		
+		existingMsg.setId(new MessageBackupKey(userKey2, UuidCreator.getTimeOrderedEpoch()));
 		existingMsg.setMessageId(messageId);
 		existingMsg.setSize(50L);
 		
-		when(repository.findById(messageId))
+		when(repository.findByMessageIdAndUserKey(messageId, userKey2))
 		.thenReturn(Optional.of(existingMsg));
 		
 
-		MessageBackupDocument update = new MessageBackupDocument();
-		update.setUserKey(userKey2);
+		MessageBackupUpdateRequest update = new MessageBackupUpdateRequest();
 		update.setEncryptedMessage("UPDATED_PAYLOAD");
-		update.setSenderKey(senderKey2);
-		update.setReceiverKey(receiverKey2);
 		update.setAlgorithm("AES-CBC");
 		update.setVersion("v2");
 		update.setSalt("TkVXX1NBTFQ=");
 		update.setSize(50L);
+		MessageBackupDocument updateResp = new MessageBackupDocument();
+		updateResp.setEncryptedMessage("UPDATED_PAYLOAD");
+		updateResp.setSenderKey(senderKey2);
+		updateResp.setReceiverKey(receiverKey2);
+		updateResp.setAlgorithm("AES-CBC");
+		updateResp.setVersion("v2");
+		updateResp.setSalt("TkVXX1NBTFQ=");
+		updateResp.setSize(50L);
+		
 		
 		when(repository.save(any(MessageBackupDocument.class)))
-		.thenReturn(update);
+		.thenReturn(updateResp);
 
 		MessageBackupDocument result =
 				service.update(userKey, messageId, update);
@@ -182,11 +201,12 @@ class MessageBackupServiceTest {
 
 	@Test
 	void update_notFound() {
-		when(repository.findById(messageId))
+		when(repository.findByMessageIdAndUserKey(messageId, userKey))
 		.thenReturn(Optional.empty());
 
+		MessageBackupUpdateRequest update = new MessageBackupUpdateRequest();
 		assertThrows(RecordNotFoundException.class,
-				() -> service.update(userKey, messageId, document));
+				() -> service.update(userKey, messageId, update));
 
 		verify(repository, never()).save(any());
 	}
@@ -199,25 +219,25 @@ class MessageBackupServiceTest {
 	void delete_success() {
 		MessageBackupDocument existingMsg = new MessageBackupDocument();
 		UUID userKey2 = UuidCreator.getTimeOrderedEpoch();
-
+		UUID stanzaId2 = UuidCreator.getTimeOrderedEpoch();
 		
-		existingMsg.setUserKey(userKey2);
+		existingMsg.setId(new MessageBackupKey(userKey2, UuidCreator.getTimeOrderedEpoch()));
 		existingMsg.setMessageId(messageId);
 		existingMsg.setSize(50L);
 		
-		when(repository.findById(messageId))
+		when(repository.findByMessageIdAndUserKey(messageId, userKey2))
 		.thenReturn(Optional.of(existingMsg));
 
-		doNothing().when(repository).deleteById(messageId);
+		doNothing().when(repository).deleteById(new MessageBackupKey(messageId, stanzaId2));
 
 		service.delete(userKey, List.of(messageId));
 
-		verify(repository).deleteById(messageId);
+		verify(repository).deleteById(new MessageBackupKey(messageId, stanzaId2));
 	}
 
 	@Test
 	void delete_notFound() {
-		when(repository.findById(messageId))
+		when(repository.findByMessageIdAndUserKey(messageId, userKey))
 		.thenReturn(Optional.empty());
 
 		assertThrows(RecordNotFoundException.class,
@@ -237,24 +257,9 @@ class MessageBackupServiceTest {
 		doNothing().when(repository)
 		.deleteByUserKeyAndConversationId(userKey, peerKey.toString());
 
-		service.deleteConversation(userKey, peerKey);
+		service.deleteConversation(userKey, peerKey, UuidCreator.getTimeOrderedEpoch());
 
 		verify(repository)
 		.deleteByUserKeyAndConversationId(userKey, peerKey.toString());
-	}
-
-	/* -------------------------------------------------
-	 * DELETE BY USER KEY
-	 * ------------------------------------------------- */
-
-	@Test
-	void deleteByUserKey_success() {
-		doNothing().when(repository)
-		.deleteByUserKey(userKey);
-
-		service.deleteByUserKey(userKey);
-
-		verify(repository)
-		.deleteByUserKey(userKey);
 	}
 }

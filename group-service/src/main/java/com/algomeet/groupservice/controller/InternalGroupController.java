@@ -15,6 +15,7 @@ import com.algomeet.groupservice.controller.swagger.InternalGroupControllerDoc;
 import com.algomeet.groupservice.dto.GroupResponse;
 import com.algomeet.groupservice.exceptions.GroupNotFoundException;
 import com.algomeet.groupservice.service.GroupService;
+import com.algomeet.groupservice.util.SecurityUtil;
 
 import lombok.AllArgsConstructor;
 
@@ -75,4 +76,31 @@ public class InternalGroupController implements InternalGroupControllerDoc{
 
 		return cleared;
 	}
+	
+	/**
+     * Endpoint to update the message retention period for a specific chat group.
+     * <p>
+     * Access is restricted to authorized roles (e.g., Owner/Admin) within the group service layer.
+     * </p>
+     *
+     * @param groupId              The unique identifier of the chat group.
+     * @param targetUserKey        The target user's key (Note: currently unused in the service call).
+     * @param messageRetentionDays The new retention period in days (-1 for infinite).
+     * @return {@code true} if the retention policy was successfully updated, {@code false} otherwise.
+     */
+    @PostMapping("/{groupId}/message-retention")
+    public Boolean updateGroupRetention(
+            @PathVariable UUID groupId,
+            @PathVariable(name = "userKey") UUID targetUserKey, 
+            @RequestParam(name = "messageRetentionDays") Integer messageRetentionDays) {
+
+        // Delegate the business logic, authorization check, and atomic database update to the service layer
+        boolean updated = groupService.updateGroupRetention(
+                groupId, 
+                messageRetentionDays, 
+                SecurityUtil.getUserKey() // Extracts the authenticated user making the request
+        );
+
+        return updated;
+    }
 }

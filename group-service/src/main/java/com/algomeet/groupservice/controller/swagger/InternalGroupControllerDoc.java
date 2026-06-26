@@ -89,4 +89,47 @@ public interface InternalGroupControllerDoc {
                     required = false,
                     example = "1779703910000")
             @RequestParam(name = "historyCutoff", required = false) Long historyCutoff);
+    
+    
+    /**
+     * Swagger documentation for updating chat group retention settings.
+     */
+    @Operation(
+        summary = "Update group message retention policy",
+        description = "Updates the number of days messages are retained before automatic deletion. " +
+                      "This operation requires Group OWNER or ADMIN privileges.",
+        parameters = {
+            @Parameter(
+                name = "groupId", 
+                description = "The unique UUID identifier of the chat group", 
+                required = true, 
+                example = "123e4567-e89b-12d3-a456-426614174000"
+            ),
+            @Parameter(
+                name = "messageRetentionDays", 
+                description = "Number of days to retain messages. Use -1 for infinite retention.", 
+                required = true, 
+                example = "30"
+            )
+        }
+    )
+    @ApiResponses(value = {
+        @ApiResponse(
+            responseCode = "200", 
+            description = "Retention policy successfully updated"
+        ),
+        @ApiResponse(
+            responseCode = "403", 
+            description = "Forbidden - User does not have OWNER or ADMIN roles in this group"
+        ),
+        @ApiResponse(
+            responseCode = "404", 
+            description = "Not Found - The specified group ID does not exist"
+        )
+    })
+    Boolean updateGroupRetention(
+            UUID groupId,
+            UUID targetUserKey, // Hidden or marked deprecated if redundant in future iterations
+            Integer messageRetentionDays
+    );
 }

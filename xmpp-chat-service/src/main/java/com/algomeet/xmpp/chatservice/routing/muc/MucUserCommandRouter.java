@@ -6,7 +6,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import com.algomeet.common.dto.GroupMember;
-import com.algomeet.common.service.GroupCacheService;
+import com.algomeet.common.service.AbstractGroupCache;
 import com.algomeet.common.dto.Group;
 import com.algomeet.multitenancy.context.TenantContext;
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
@@ -38,7 +38,7 @@ import lombok.extern.slf4j.Slf4j;
 @Component
 @RequiredArgsConstructor
 public class MucUserCommandRouter {    
-	private final GroupCacheService groupCacheService;
+	private final AbstractGroupCache groupCacheService;
 	private final MucAcceptInviteEventHandler mucAcceptInviteEventHandler;
 	private final MucChangeNickNameEventHandler mucChangeNickNameEventHandler;
 	private final MucMemberJoinEventHandler mucMemberJoinEventHandler;

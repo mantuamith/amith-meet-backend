@@ -13,6 +13,7 @@ import com.algomeet.xmpp.chatservice.enums.PresenceStatusCode;
 import com.algomeet.xmpp.chatservice.enums.XmppErrorType;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
+import com.algomeet.xmpp.chatservice.publisher.ExitGroupMemberMediaCleanupEventPublisher;
 import com.algomeet.xmpp.chatservice.routing.dispacher.LocalStanzaDispatcher;
 import com.algomeet.xmpp.chatservice.routing.muc.MucMessageRouter;
 import com.algomeet.xmpp.chatservice.service.XmppArchiveService;
@@ -38,6 +39,7 @@ public class MucKickEventHandler {
 	private final XmppUtil xmppUtil;
 	private final MucMessageRouter xmppBroadCastHandler;
 	private final XmppArchiveService xmppArchiveService;
+	private final ExitGroupMemberMediaCleanupEventPublisher exitGroupMemberMediaCleanupEventPublisher;
 	
 	/**
 	 * Processes a request to forcibly remove (kick) an occupant from the room.
@@ -107,7 +109,7 @@ public class MucKickEventHandler {
 		// Insert stanza ID
 		String forArchiveXmlLog = XmppStanzaUtil.insertStanzaId(xmlLogStanza, stanzaId.toString(), domainProperties.getDomain());
 		
-		saveToDatabase(messageId, roomBareJid, sender, stanzaId, forArchiveXmlLog);
+		saveToDatabase(messageId, roomBareJid, sender, stanzaId, forArchiveXmlLog, group.getMessageRetentionDays());
 
 		/**
 		 * ----------------------------------------------------------
@@ -124,6 +126,10 @@ public class MucKickEventHandler {
 				group,
 				null,
 				forArchiveXmlLog);
+		
+		// Cleanup up member group messages media files		
+		exitGroupMemberMediaCleanupEventPublisher.publish(
+				UUID.fromString(XmppUtil.getRoomId(roomJid)), UUID.fromString(victimUserKey));
 
 		log.info("Kick successful: {} removed from {}", victimJid, roomJid);
 	}
@@ -187,7 +193,8 @@ public class MucKickEventHandler {
 				String roomBareJid,
 				GroupMember sender,
 				UUID stanzaId,
-				String xml) {
+				String xml,
+				Integer messageRetentionDays) {
 
 			xmppArchiveService.archiveEvent(
 					xml,
@@ -195,7 +202,8 @@ public class MucKickEventHandler {
 					XmppUtil.getRoomId(roomBareJid),
 					null,
 					sender.getUserKey(),
-					stanzaId);
+					stanzaId,
+					messageRetentionDays);
 		}
 	
 }

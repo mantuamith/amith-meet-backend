@@ -135,7 +135,7 @@ public class MucCallTrackerService {
 	/**
 	 * Finalizes session, notifies parties, and then handles the document lifecycle.
 	 */
-	public Mono<Void> finalizeAndNotify(String sid, String userSessionId, String reason) {
+	public Mono<Void> finalizeAndNotify(String sid, String userSessionId, String reason, Integer messageRetentionDays) {
 		// A Semaphore with 1 permit acts exactly like a non-reentrant lock
 	    RSemaphoreReactive semaphore = redissonReactiveClient.getSemaphore("xmpp:lock:finalize:sid:" + sid + ":user-session-id:" + userSessionId);
 
@@ -169,7 +169,8 @@ public class MucCallTrackerService {
 												session.getId(),
 												session.getSid(),
 												session.getCallee(),
-												reason
+												reason,
+												messageRetentionDays
 												))	
 										.collectList()
 										.doFinally(sig -> {	
@@ -220,7 +221,7 @@ public class MucCallTrackerService {
 														callSession.get().getCaller().toString(),
 														callSession.get().getRoomId().toString(),
 														ChatType.GROUPCHAT,
-														calleeMsg);
+														calleeMsg, messageRetentionDays);
 
 												repository.deleteBySid(sid).subscribe();
 											}
@@ -243,7 +244,8 @@ public class MucCallTrackerService {
 	public Mono<Void> finalizeAndNotifySynchronized(String id,
 			String sid, 
 			UUID calleeUserKey,
-			String reason) {
+			String reason,
+			Integer messageRetentionDays) {
 
 		/**
 		 * Unique distributed lock key per call session record.
@@ -281,7 +283,7 @@ public class MucCallTrackerService {
 					 * Lock acquired successfully.
 					 * Proceed to core logic.
 					 */
-					return finalizeAndNotify(id, reason);
+					return finalizeAndNotify(id, reason, messageRetentionDays);
 				},
 
 				// Release on normal completion.
@@ -313,7 +315,7 @@ public class MucCallTrackerService {
 	 * @param reason Call termination reason (e.g. success, dropped)
 	 * @return completion signal when persistence is finished
 	 */
-	private Mono<Void> finalizeAndNotify(String id, String reason) {
+	private Mono<Void> finalizeAndNotify(String id, String reason, Integer messageRetentionDays) {
 		return repository.findById(id)
 
 				// Ignore sessions already finalized.
@@ -371,7 +373,7 @@ public class MucCallTrackerService {
 							session.getCaller().toString(),
 							session.getRoomId().toString(),
 							ChatType.GROUPCHAT,
-							calleeMsg);
+							calleeMsg, messageRetentionDays);
 
 					// Persist finalized session state.
 					return repository.save(session).then();
@@ -406,13 +408,13 @@ public class MucCallTrackerService {
 				.then();
 	}
 
-	private void publish(String id, String to, String from, String toRoomId, ChatType chatType, String payload) {    
+	private void publish(String id, String to, String from, String toRoomId, ChatType chatType, String payload, Integer messageRetentionDays) {    
 
 		UUID stanzaId = UuidCreator.getTimeOrderedEpoch();
 		// Insert stanza ID
 		String forArchiveXml = XmppStanzaUtil.insertStanzaId(payload, stanzaId.toString(), domainProperties.getDomain());
 
-		xmppArchiveService.archiveEvent(forArchiveXml, id, toRoomId, to, from, stanzaId)
+		xmppArchiveService.archiveEvent(forArchiveXml, id, toRoomId, to, from, stanzaId, messageRetentionDays)
 		.doFinally(signal -> {
 			// publish to cluster for synchronization
 			clusterMessagePublisher.convertAndSendToUser(id.toString(), to, from, chatType, forArchiveXml);

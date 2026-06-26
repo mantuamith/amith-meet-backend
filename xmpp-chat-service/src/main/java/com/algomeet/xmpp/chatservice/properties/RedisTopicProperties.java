@@ -35,14 +35,4 @@ public class RedisTopicProperties {
      * Default: cluster-sync-topic
      */
     private String clusterSync = "cluster-sync-topic";
-
-    /**
-     * Redis topic used for End-to-End Encryption (E2EE) related events.
-     *
-     * This includes events such as key updates, device synchronization,
-     * and secure messaging state propagation.
-     *
-     * Default: e2ee-event-topic
-     */
-    private String e2eeEvents = "e2ee-event-topic";
 }

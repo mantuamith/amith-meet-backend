@@ -17,6 +17,7 @@ import com.algomeet.groupservice.dto.GroupPermissionsResponse;
 import com.algomeet.groupservice.dto.GroupRequest;
 import com.algomeet.groupservice.dto.GroupResponse;
 import com.algomeet.groupservice.dto.UpdateGroupRequest;
+import com.algomeet.groupservice.dto.UpdateRetentionRequest;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -309,4 +310,47 @@ public interface GroupControllerDoc {
     				required = true
     				)
     		@RequestParam String userKey);
+    
+    /**
+     * Swagger documentation for patching group retention policies.
+     */
+    @Operation(
+        summary = "Patch group message retention days",
+        description = "Partially updates a group's configuration by changing its message retention policy. " +
+                      "Requires the executing user to have OWNER or ADMIN privileges within the group.",
+        parameters = {
+            @Parameter(
+                name = "groupId", 
+                description = "The unique UUID identifier of the chat group", 
+                required = true, 
+                example = "123e4567-e89b-12d3-a456-426614174000"
+            )
+        }
+    )
+    @ApiResponses(value = {
+        @ApiResponse(
+            responseCode = "200", 
+            description = "Retention policy updated successfully",
+            content = @Content(schema = @Schema(implementation = CommonResponse.class))
+        ),
+        @ApiResponse(
+            responseCode = "400", 
+            description = "Bad Request - Invalid request body structure or validation constraints failed",
+            content = @Content
+        ),
+        @ApiResponse(
+            responseCode = "403", 
+            description = "Forbidden - The user is not an OWNER or ADMIN of the group",
+            content = @Content
+        ),
+        @ApiResponse(
+            responseCode = "404", 
+            description = "Not Found - The requested group ID does not exist",
+            content = @Content(schema = @Schema(implementation = CommonResponse.class))
+        )
+    })
+    ResponseEntity<CommonResponse<?>> patchGroupRetention(
+            UUID groupId,
+            UpdateRetentionRequest request
+    );
 }

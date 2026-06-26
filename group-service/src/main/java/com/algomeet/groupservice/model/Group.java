@@ -79,4 +79,15 @@ public class Group {
     		)
     @CreationTimestamp
     private Instant dateCreated;
+    
+    /**
+     * Number of days group chat messages are retained before automatic deletion.
+     *
+     * Default -1 means no expiration.
+     */
+    @Column(
+        name = "message_retention_days",
+        columnDefinition = "integer default -1"
+    )
+    private Integer messageRetentionDays = -1;
 }
