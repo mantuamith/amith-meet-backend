@@ -231,45 +231,52 @@ public class MucRoomService {
     }    
 
     public Mono<Void> applyMessageRetentionPolicy(UUID userKey, UUID groupId, Integer messageRetentionDays) {
-        return Mono.defer(() -> {
-            // 1. Resolve Group details from cache
-            Group group = groupCacheService.refreshGroupCache(groupId.toString());
-            if (group == null) {
-                return Mono.error(new GroupNotFoundException("Group not found exception " + groupId));
-            }
+        Integer retentionDays = messageRetentionDays != -1 ? messageRetentionDays : null;
+
+        // Use Mono.usingWhen to manage the lock lifecycle across the ENTIRE sequence
+        return Mono.usingWhen(
+            // Phase 1: Resource Acquisition (Acquire lock at the absolute start)
+            Mono.fromCallable(() -> mucMessageRetentionLockManager.acquireLock(groupId))
+                .flatMap(token -> token != null 
+                    ? Mono.just(token) 
+                    : Mono.error(new IllegalStateException("Could not acquire retention update lock."))),
             
-            // 2. Validate user authority
-            Optional<GroupMember> memberOpt = SearchUtil.findMember(group, userKey.toString());
-            if (memberOpt.isEmpty() || !(MucAffiliation.OWNER.name().equals(memberOpt.get().getRole())
-                    || MucAffiliation.ADMIN.name().equals(memberOpt.get().getRole()))) {
-                return Mono.error(new AccessDeniedException("Unauthorized to purge the group messages."));
-            }
-            
-            return Mono.just(groupId);
-        })
-        .flatMap(id -> {
-            // 3. Use Mono.usingWhen to perfectly manage the lifecycle of our distributed lock
-            return Mono.usingWhen(
-                // Resource acquisition phase
-                Mono.fromCallable(() -> mucMessageRetentionLockManager.acquireLock(id))
-                    .flatMap(token -> token != null ? Mono.just(token) : Mono.error(new IllegalStateException("Could not acquire retention update lock."))),
-                
-                // Actual business pipeline execution phase
-                token -> mucMessageRepository.updatePurgeAtByRoomId(id, messageRetentionDays),
-                
-                // Cleanup phase: Triggered on successful execution completion
-                token -> Mono.fromRunnable(() -> mucMessageRetentionLockManager.releaseLock(token)),
-                
-                // Cleanup phase: Triggered if the repository query errors out
-                (token, error) -> Mono.fromRunnable(() -> {
-                    log.error("Error occurred during message retention policy update for room: {}", id, error);
-                    mucMessageRetentionLockManager.releaseLock(token);
+            // Phase 2: Business Pipeline Execution (Everything protected under the lock)
+            token -> Mono.fromCallable(() -> groupClient.updateGroupRetention(groupId, userKey, messageRetentionDays))
+                .flatMap(success -> {
+                    if (Boolean.FALSE.equals(success)) {
+                        return Mono.error(new RuntimeException("Failed to update the group retention policy via client."));
+                    }
+                    
+                    // Fetch group cache details safely within the stream
+                    Group group = groupCacheService.refreshGroupCache(groupId.toString());
+                    if (group == null) {
+                        return Mono.error(new GroupNotFoundException("Group not found exception " + groupId));
+                    }
+                    
+                    // Validate authority rules
+                    Optional<GroupMember> memberOpt = SearchUtil.findMember(group, userKey.toString());
+                    if (memberOpt.isEmpty() || !(MucAffiliation.OWNER.name().equals(memberOpt.get().getRole())
+                            || MucAffiliation.ADMIN.name().equals(memberOpt.get().getRole()))) {
+                        return Mono.error(new AccessDeniedException("Unauthorized to purge the group messages."));
+                    }
+                    
+                    // If validation passes, proceed directly to updating database records
+                    return mucMessageRepository.updatePurgeAtByRoomId(groupId, retentionDays);
                 }),
                 
-                // Cleanup phase: Triggered if the downstream pipeline cancels early
-                token -> Mono.fromRunnable(() -> mucMessageRetentionLockManager.releaseLock(token))
-            );
-        })
-        .then(); // Transforms final Mono output into a neat Mono<Void>
+            // Phase 3: Cleanup on Success Completion
+            token -> Mono.fromRunnable(() -> mucMessageRetentionLockManager.releaseLock(token)),
+            
+            // Phase 4: Cleanup on Error (Ensures lock release if network or database calls fail)
+            (token, error) -> Mono.fromRunnable(() -> {
+                log.error("Error occurred during message retention policy update for room: {}", groupId, error);
+                mucMessageRetentionLockManager.releaseLock(token);
+            }),
+            
+            // Phase 5: Cleanup on Downstream Cancellation
+            token -> Mono.fromRunnable(() -> mucMessageRetentionLockManager.releaseLock(token))
+        )
+        .then(); // Emits Mono<Void> on successful termination
     }
 }

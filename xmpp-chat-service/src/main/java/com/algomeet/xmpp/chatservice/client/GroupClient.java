@@ -34,5 +34,12 @@ public interface GroupClient {
             @PathVariable("groupId") UUID groupId,
             @PathVariable("userKey") UUID userKey,
             @RequestParam(name = "historyCutoff", required = false) Long historyCutoff);
+    
+    
+    @PostMapping("/internal/groups/{groupId}/message-retention")
+    Boolean updateGroupRetention(
+            @PathVariable UUID groupId,
+            @PathVariable(name = "userKey") UUID targetUserKey, 
+            @RequestParam(name = "messageRetentionDays") Integer messageRetentionDays);    
 }
 

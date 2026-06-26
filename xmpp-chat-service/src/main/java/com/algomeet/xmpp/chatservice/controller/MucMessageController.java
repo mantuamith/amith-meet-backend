@@ -202,9 +202,8 @@ public class MucMessageController implements MucMessageControllerDoc{
 	    // Assuming you have a way to extract the current user's UUID (e.g., from a security context or session)
 	    // Replace 'currentUserKey' with your actual user context extraction logic.
 	    UUID currentUserKey = UUID.fromString(SecurityUtil.getUserKey());  
-
-	    Integer retentionDays = messageRetentionDays != -1 ? messageRetentionDays : null;
-	    return mucRoomService.applyMessageRetentionPolicy(currentUserKey, groupId, retentionDays)
+	    
+	    return mucRoomService.applyMessageRetentionPolicy(currentUserKey, groupId, messageRetentionDays)
 	            // .then() waits for completion (empty or not) and switches to your success response
 	            .then(Mono.just(ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS))))
 	            .onErrorReturn(

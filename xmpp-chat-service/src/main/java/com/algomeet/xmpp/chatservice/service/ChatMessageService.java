@@ -60,23 +60,27 @@ public class ChatMessageService {
 	}
 
 	public Mono<Void> applyMessageRetentionPolicy(UUID userKey, UUID peerKey, Integer messageRetentionDays) {
-		Integer retentionDays = (messageRetentionDays != -1) ? messageRetentionDays : null;
+	    Integer retentionDays = (messageRetentionDays != -1) ? messageRetentionDays : null;
 
-		return Mono.defer(() -> {
-			// If lock is not acquired, another process is already updating retention.
-			if (chatMessageRetentionLockManager.isLocked(userKey, peerKey)) {
-				return Mono.error(new IllegalStateException("Could not acquire retention update lock."));
-			}
+	    return Mono.defer(() -> {
+	        // 1. ATOMIC ACQUIRE: Attempt to acquire the distributed lock
+	        ChatMessageRetentionLockManager.LockToken lockToken = 
+	                chatMessageRetentionLockManager.acquireLock(userKey, peerKey);
 
-			return conversationSettingService
-					.saveOrUpdateRetentionDays(userKey, peerKey, retentionDays)
-					.flatMap(savedSetting -> conversationSettingsCacheService.evictSettings(userKey, peerKey)
-							.then(offlineMessageRepository.updatePurgeAtByToAndFrom(
-									userKey,
-									peerKey,
-									retentionDays))
-							)
-					.then();
-		});
+	        // If the token comes back null, the lock was not acquired (another process is running)
+	        if (lockToken == null) {
+	            return Mono.error(new IllegalStateException("Could not acquire retention update lock. Process already running."));
+	        }
+
+	        // 2. EXECUTE THE PIPELINE
+	        return conversationSettingService
+	                .saveOrUpdateRetentionDays(userKey, peerKey, retentionDays)
+	                .flatMap(savedSetting -> conversationSettingsCacheService.evictSettings(userKey, peerKey)
+	                        .then(offlineMessageRepository.updatePurgeAtByToAndFrom(userKey, peerKey, retentionDays))
+	                )
+	                .then()
+	                // 3. SAFE RELEASE: Guarantees lock token release using the Lua script regardless of outcome
+	                .doFinally(signalType -> chatMessageRetentionLockManager.releaseLock(lockToken));
+	    });
 	}
 }
