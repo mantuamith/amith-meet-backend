@@ -584,7 +584,7 @@ public class MessageBackupService {
 			throw new IllegalStateException("Could not acquire retention update lock.");
 		}
 		
-		applyMessageBackupRetentionStreamPublisher.publish(userKey, peerKey);
+		applyMessageBackupRetentionStreamPublisher.publish(userKey, peerKey, messageRetentionDays);
 	}
 		
 	public void applyMessageBackupRetention(UUID userKey, UUID peerKey, Integer messageRetentionDays) {

@@ -113,7 +113,7 @@ public class PurgeMessageBackupConsumer implements StreamListener<String, MapRec
 			// Retrieve message content
 			String userKey = message.getValue().get(PurgeBackupMessageFields.USER_KEY);
 
-			if (StringUtils.isEmpty(userKey)) {
+			if (!StringUtils.isEmpty(userKey)) {
 				messageBackupService.purgeMessageBackup(UUID.fromString(userKey));
 			}
 

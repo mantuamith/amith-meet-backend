@@ -43,7 +43,7 @@ public class ConversationUtil {
      * @return deterministic conversation ID for 1:1 chat
      */
     public static String getConversationId(String userKey, String sender, String receiver) {
-    	if (!(StringUtils.hasText(userKey) || StringUtils.hasText(sender) || StringUtils.hasText(receiver))) {
+    	if (!(StringUtils.hasText(userKey) && StringUtils.hasText(sender) && StringUtils.hasText(receiver))) {
     		throw new RuntimeException("Cannot generate conversation ID either one or more of required parameters has empty or null value");
     	}
     	
@@ -64,7 +64,7 @@ public class ConversationUtil {
      * @return deterministic conversation ID
      */
     public static String getConversationId(String userKey, String peerIUserKey) {
-    	if (!(StringUtils.hasText(userKey) || StringUtils.hasText(peerIUserKey))) {
+    	if (!(StringUtils.hasText(userKey) && StringUtils.hasText(peerIUserKey))) {
     		throw new RuntimeException("Cannot generate conversation ID either one or more of required parameters has empty or null value");
     	}
         return (userKey + DELIMITER + peerIUserKey);

@@ -101,61 +101,69 @@ public class PurgeExpiredBackupMessageScheduler {
 	 * Handles core blocking processing logic for retrieving and purging the data stream.
 	 */
 	private int executePurgePipeline() {
-		int totalRowDeletedCount = 0;
-		Instant now = Instant.now();
-		final int maxLimit = 200;
-		int page = 0;
+	    int totalRowDeletedCount = 0;
+	    Instant now = Instant.now();
+	    // Track the starting time of the entire processing job
+	    Instant jobStartTime = Instant.now(); 
+	    final int maxLimit = 200;
+	    // Define the maximum allowed runtime duration (12 hours)
+	    final Duration maxDuration = Duration.ofHours(12);
 
-		// 1. Enforce pagination with a strict limit of 200 items max
-	    Pageable pageable = PageRequest.of(page, maxLimit);
+	    // 1. Enforce pagination with a strict limit of 200 items max
+	    Pageable pageable = PageRequest.of(0, maxLimit);
 	    
 	    while (true) {
-			// Fetch the items synchronously from your standard MongoRepository
-			List<MessageBackupPurgeView> expiredMessages = messageBackupRepository.findByPurgeAtLessThanEqual(now, pageable);
-	
-			if (expiredMessages.isEmpty()) {
-				return totalRowDeletedCount;
-			}
-	
-			log.info("Found {} expired backup messages eligible for cleanup.", expiredMessages.size());
-	
-			// Process attachments cleanup notifications
-			expiredMessages.stream()
-				.filter(view -> view.getMediaIds() != null && !view.getMediaIds().isEmpty() && view.getDeletedAt() == null)
-				.forEach(view -> {
-					try {
-						messageMediaDeleteEventPublisher.publish(
-							null, 
-							view.getMediaIds().stream().map(UUID::toString).collect(Collectors.toSet()), 
-							Stream.of(view.getSenderKey(), view.getReceiverKey())
-								.filter(Objects::nonNull)
-								.map(UUID::toString)
-								.collect(Collectors.toSet()),
-							null, 
-							view.getMessageId().toString()
-						);
-					} catch (Exception e) {
-						log.error("Failed to publish media delete event for message ID: {}", view.getMessageId(), e);
-					}
-				});
-	
-			// Extract IDs to purge from database
-			List<MessageBackupKey> idsToDelete = expiredMessages.stream()
-					.map(view -> new MessageBackupKey(view.getUserKey(), view.getStanzaId()))
-					.toList();
-	
-			log.debug("Purging {} expired backup message records from the database", idsToDelete.size());
-			
-			// Use standard MongoRepository built-in batch deletion tool
-			messageBackupRepository.deleteAllById(idsToDelete);
-			totalRowDeletedCount += idsToDelete.size();
-			page += page + 1;
-			
-			if (idsToDelete.size() < maxLimit) {
-				break;
-			}
+	        // Safety timeout check: break loop if processing has exceeded 12 hours
+	        if (Duration.between(jobStartTime, Instant.now()).compareTo(maxDuration) > 0) {
+	            log.warn("Purge pipeline aborted: Processing time exceeded maximum limit of 12 hours. Deleted so far: {}", totalRowDeletedCount);
+	            break;
+	        }
+
+	        // Fetch the items synchronously from your standard MongoRepository
+	        List<MessageBackupPurgeView> expiredMessages = messageBackupRepository.findByPurgeAtLessThanEqual(now, pageable);
+
+	        if (expiredMessages.isEmpty()) {
+	            return totalRowDeletedCount;
+	        }
+
+	        log.info("Found {} expired backup messages eligible for cleanup.", expiredMessages.size());
+
+	        // Process attachments cleanup notifications
+	        expiredMessages.stream()
+	            .filter(view -> view.getMediaIds() != null && !view.getMediaIds().isEmpty() && view.getDeletedAt() == null)
+	            .forEach(view -> {
+	                try {
+	                    messageMediaDeleteEventPublisher.publish(
+	                        null, 
+	                        view.getMediaIds().stream().map(UUID::toString).collect(Collectors.toSet()), 
+	                        Stream.of(view.getSenderKey(), view.getReceiverKey())
+	                            .filter(Objects::nonNull)
+	                            .map(UUID::toString)
+	                            .collect(Collectors.toSet()),
+	                        null, 
+	                        view.getMessageId().toString()
+	                    );
+	                } catch (Exception e) {
+	                    log.error("Failed to publish media delete event for message ID: {}", view.getMessageId(), e);
+	                }
+	            });
+
+	        // Extract IDs to purge from database
+	        List<MessageBackupKey> idsToDelete = expiredMessages.stream()
+	                .map(view -> new MessageBackupKey(view.getUserKey(), view.getStanzaId()))
+	                .toList();
+
+	        log.debug("Purging {} expired backup message records from the database", idsToDelete.size());
+	        
+	        // Use standard MongoRepository built-in batch deletion tool
+	        messageBackupRepository.deleteAllById(idsToDelete);
+	        totalRowDeletedCount = totalRowDeletedCount + idsToDelete.size();
+	        
+	        if (idsToDelete.size() < maxLimit) {
+	            break;
+	        }
 	    }
 
-		return totalRowDeletedCount;
+	    return totalRowDeletedCount;
 	}
 }
