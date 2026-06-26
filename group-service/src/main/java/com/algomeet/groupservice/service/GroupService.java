@@ -26,6 +26,7 @@ import com.algomeet.groupservice.dto.GroupResponse;
 import com.algomeet.groupservice.dto.MemberRequest;
 import com.algomeet.groupservice.dto.RolePermissionsPatchRequest;
 import com.algomeet.groupservice.dto.UpdateGroupRequest;
+import com.algomeet.groupservice.dto.UpdateRetentionRequest;
 import com.algomeet.groupservice.enums.GroupRole;
 import com.algomeet.groupservice.enums.ResponseCode;
 import com.algomeet.groupservice.exceptions.GroupNotFoundException;
@@ -34,6 +35,7 @@ import com.algomeet.groupservice.model.Group;
 import com.algomeet.groupservice.model.Member;
 import com.algomeet.groupservice.model.RolePermissions;
 import com.algomeet.groupservice.repository.GroupRepository;
+import com.algomeet.groupservice.util.SecurityUtil;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -245,10 +247,6 @@ public class GroupService {
 
 		if (request.getDescription() != null) {
 			group.setDescription(request.getDescription());
-		}
-		
-		if (request.getMessageRetentionDays() != null) {
-			group.setMessageRetentionDays(request.getMessageRetentionDays());
 		}
 
 		Member user = findMember(group.getMembers(), userKey);
@@ -479,5 +477,26 @@ public class GroupService {
 
         log.info("Successfully cleared timeline via localized database row update.");
         return true;
+    }
+    
+    public boolean updateGroupRetention(UUID groupId, Integer messageRetentionDays, String userKey) {
+        // 1. Fetch the group to inspect members & roles
+        Group group = getGroupOrThrow(groupId);    
+        Member user = findMember(group.getMembers(), userKey);
+        
+        // 2. Corrected permission check: User must be an OWNER OR an ADMIN
+        boolean isAuthorized = GroupRole.OWNER.equals(user.getRole()) || GroupRole.ADMIN.equals(user.getRole());
+        if (!isAuthorized) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You are not authorized to update this group's retention policy");
+        }
+
+        // 3. Utilize your optimized native query to update the DB atomically
+        int updatedRows = groupRepository.updateGroupRetention(groupId, messageRetentionDays);
+        
+        if (updatedRows == 0) {
+            throw new GroupNotFoundException("Group not found when trying to update retention policy");
+        }
+        
+        return (updatedRows > 0);
     }
 }
