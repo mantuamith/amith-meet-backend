@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
-import com.algomeet.common.service.GroupCacheService;
+import com.algomeet.common.service.AbstractGroupCache;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -27,21 +27,6 @@ import com.algomeet.mediaservice.service.FileAccessPermission;
 import com.algomeet.mediaservice.service.GroupFileAccessEntryService;
 import com.algomeet.mediaservice.service.impl.FileAccessPermissionImpl;
 
-/**
- * Tests for the three bugs fixed in UserFileServiceImpl:
- *
- *  Bug 1 - "delete for me" must NOT mark cleanupEligibleAt when countByFileId == 0
- *           (i.e. shareFile() never ran), because recipients still rely on the
- *           conversationId / FileAccessEntry for access.
- *
- *  Bug 2 - InternalFileController.batchDelete was passing SecurityUtil.getUserKey()
- *           instead of the @RequestParam userKey -- already fixed at controller level;
- *           the service-layer effect (canDeleteForOthers evaluated with wrong key) is
- *           verified here indirectly via the correct-key path.
- *
- *  Bug 3 - conversationId bypass in hasPermission() must require an active
- *           FileAccessEntry instead of granting READ to any authenticated user.
- */
 @ExtendWith(MockitoExtension.class)
 class UserFileServiceImplDeleteTest {
 
@@ -50,7 +35,7 @@ class UserFileServiceImplDeleteTest {
     @Mock private FileAccessEntryService fileAccessEntryService;
     @Mock private FileAccessEntryRepository fileAccessEntryRepository;
     @Mock private FileAccessPermission fileAccessPermission;
-    @Mock private GroupCacheService groupCacheService;
+    @Mock private AbstractGroupCache groupCacheService;
     @Mock private GroupFileAccessEntryService groupFileAccessEntryService;
 
     @InjectMocks
@@ -185,8 +170,8 @@ class UserFileServiceImplDeleteTest {
                     eq(UUID.fromString(RECEIVER_KEY)), eq(UUID.fromString(file.getId()))))
                     .thenReturn(true);
 
-            FileAccessPermission fileAccessPermission = new FileAccessPermissionImpl(fileAccessEntryService, null, null);
-            assertTrue(fileAccessPermission.hasPermission(file, RECEIVER_KEY, FilePermission.READ));
+            FileAccessPermission localPerm = new FileAccessPermissionImpl(fileAccessEntryService, null, null);
+            assertTrue(localPerm.hasPermission(file, RECEIVER_KEY, FilePermission.READ));
             assertTrue(realPermission.hasPermission(file, RECEIVER_KEY, FilePermission.READ),
                     "Receiver with FileAccessEntry must be granted READ");
         }
@@ -196,8 +181,8 @@ class UserFileServiceImplDeleteTest {
             UserFileDocument file = makeFile(SENDER_KEY, "conv-001");
             String strangerKey = UUID.randomUUID().toString();
 
-            FileAccessPermission fileAccessPermission = new FileAccessPermissionImpl(fileAccessEntryService, null, null);
-            assertFalse(fileAccessPermission.hasPermission(file, strangerKey, FilePermission.READ));
+            FileAccessPermission localPerm = new FileAccessPermissionImpl(fileAccessEntryService, null, null);
+            assertFalse(localPerm.hasPermission(file, strangerKey, FilePermission.READ));
             assertFalse(realPermission.hasPermission(file, strangerKey, FilePermission.READ),
                     "User with no FileAccessEntry must be denied even when conversationId is set");
         }
@@ -209,8 +194,8 @@ class UserFileServiceImplDeleteTest {
             when(fileAccessEntryService.getPermissions(
                     eq(UUID.fromString(receiverKey)), eq(UUID.fromString(file.getId()))))
                     .thenReturn(Set.of(FilePermission.READ));
-            FileAccessPermission fileAccessPermission = new FileAccessPermissionImpl(fileAccessEntryService, null, null);
-            assertTrue(fileAccessPermission.hasPermission(file, receiverKey, FilePermission.READ));
+            FileAccessPermission localPerm = new FileAccessPermissionImpl(fileAccessEntryService, null, null);
+            assertTrue(localPerm.hasPermission(file, receiverKey, FilePermission.READ));
             assertTrue(realPermission.hasPermission(file, receiverKey, FilePermission.READ));
         }
 
@@ -227,7 +212,6 @@ class UserFileServiceImplDeleteTest {
         @Test
         void hasPermission_owner_alwaysGranted() {
             UserFileDocument file = makeFile(SENDER_KEY, "conv-001");
-            FileAccessPermission fileAccessPermission = new FileAccessPermissionImpl(fileAccessEntryService, null, null);
             assertTrue(realPermission.hasPermission(file, SENDER_KEY, FilePermission.READ));
             assertTrue(realPermission.hasPermission(file, SENDER_KEY, FilePermission.DELETE));
             assertTrue(realPermission.hasPermission(file, SENDER_KEY, FilePermission.SHARE));
