@@ -36,7 +36,7 @@ public class SecurityConfig {
                         .requestMatchers(
                         		"/internal/**",
                         		"/notifications/subscribe").permitAll()
-                        
+                        .requestMatchers("/actuator/**").permitAll() 
                         // Swagger - start
                         .requestMatchers("/swagger-ui.html").permitAll() 
                         .requestMatchers("/swagger-ui/index.html").permitAll()   
