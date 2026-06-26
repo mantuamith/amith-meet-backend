@@ -242,6 +242,10 @@
             <id>github-mtc</id>
             <url>https://maven.pkg.github.com/Algoframe-Private-Limited/multi-tenancy-core</url>
         </repository>
+        <repository>
+            <id>github</id>
+            <url>https://maven.pkg.github.com/Algoframe-Private-Limited/algomeet-backend</url>
+        </repository>
     </repositories>
 
 </project>
