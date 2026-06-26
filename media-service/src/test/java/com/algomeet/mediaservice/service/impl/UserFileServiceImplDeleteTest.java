@@ -99,7 +99,6 @@ class UserFileServiceImplDeleteTest {
             when(fileAccessEntryService.revokeAccess(eq(UUID.fromString(RECEIVER_KEY)), any(), eq(MESSAGE_ID)))
                     .thenReturn(true);
             when(fileAccessEntryService.countByFileId(any())).thenReturn(1L);
-            when(fileAccessPermission.hasPermission(any(), any(), any())).thenReturn(true);
 
             service.softDeleteAndMarkForCleanupIfOrphaned(
                     Set.of(file.getId()), SENDER_KEY, Set.of(RECEIVER_KEY), GROUP_ID, MESSAGE_ID);
@@ -117,7 +116,6 @@ class UserFileServiceImplDeleteTest {
             when(repository.findAllById(anyCollection())).thenReturn(List.of(file));
             when(fileAccessPermission.hasPermission(any(UserFileDocument.class), eq(SENDER_KEY), eq(FilePermission.DELETE))).thenReturn(true);
             when(fileAccessEntryService.revokeAccess(any(), any(), any())).thenReturn(true);
-            when(fileAccessPermission.hasPermission(any(), any(), any())).thenReturn(true);
             when(fileAccessEntryService.countByFileId(any())).thenReturn(0L);
 
             service.softDeleteAndMarkForCleanupIfOrphaned(
@@ -139,7 +137,6 @@ class UserFileServiceImplDeleteTest {
             when(repository.findAllById(anyCollection())).thenReturn(List.of(file));
             when(fileAccessPermission.hasPermission(any(UserFileDocument.class), eq(SENDER_KEY), eq(FilePermission.DELETE))).thenReturn(true);
             when(fileAccessEntryService.revokeAccess(any(), any(), any())).thenReturn(true);
-            when(fileAccessPermission.hasPermission(any(), any(), any())).thenReturn(true);
             when(fileAccessEntryService.countByFileId(any())).thenReturn(2L);
 
             service.softDeleteAndMarkForCleanupIfOrphaned(
