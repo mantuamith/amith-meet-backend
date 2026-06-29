@@ -101,7 +101,7 @@ public class PinMessageHandler {
 		}
 	}
 
-	public void handlePinChatMessage(String id, String receiverKey, ParsedMessage message, XmppPrincipal principal) {
+	public void handlePinChatMessageForEveryone(String id, String receiverKey, ParsedMessage message, XmppPrincipal principal) {
 		String conversationId = DeterministicConversationIdUtil.getConversationId(
 				UUID.fromString(principal.getUserKey()), UUID.fromString(receiverKey));
 
@@ -117,7 +117,7 @@ public class PinMessageHandler {
 		.subscribe();
 	}
 
-	public void handlePinGroupMessage(String id, String groupId, ParsedMessage message, XmppPrincipal principal) {
+	public void handlePinGroupMessageForEveryone(String id, String groupId, ParsedMessage message, XmppPrincipal principal) {
 		PinMucMessage document = PinMucMessage.builder()
 				.id(new PinMucMessageId(UUID.fromString(groupId), UUID.fromString(id), UUID.fromString(principal.getUserKey())))
 				.seq(UuidCreator.getTimeOrderedEpoch())

@@ -24,10 +24,10 @@ public class PinMessageUtil {
 		try {
 			ParsedMessage message = pinMessageStaxParser.parse(xml);
 			if (ViewManageEnum.PIN.getValue().equals(message.action)) {
-				pinMessageHandler.handlePinChatMessage(id, receiverKey, message, principal);
+				pinMessageHandler.handlePinChatMessageForEveryone(id, receiverKey, message, principal);
 				
 			} else if(ViewManageEnum.UNPIN.getValue().equals(message.action)) {
-				unpinMessageHandler.handleUnpinChatMessage(id, receiverKey, message, principal);
+				unpinMessageHandler.handleUnpinChatMessageForEveryone(id, receiverKey, message, principal);
 			}
 
 		} catch(Exception ex) {
@@ -39,10 +39,10 @@ public class PinMessageUtil {
 		try {
 			ParsedMessage message = pinMessageStaxParser.parse(xml);
 			if (ViewManageEnum.PIN.getValue().equals(message.action)) {
-				pinMessageHandler.handlePinGroupMessage(id, groupId, message, principal);
+				pinMessageHandler.handlePinGroupMessageForEveryone(id, groupId, message, principal);
 				
 			} else if(ViewManageEnum.UNPIN.getValue().equals(message.action)) {
-				unpinMessageHandler.handleUnpinChatMessage(id, groupId, message, principal);
+				unpinMessageHandler.handleUnpinGroupMessageForEveryone(id, groupId, message, principal);
 			}
 
 

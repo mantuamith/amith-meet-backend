@@ -81,14 +81,14 @@ public class UnpinMessageHandler {
 		}
 	}
 	
-	public void handleUnpinChatMessage(String id, String receiverKey, ParsedMessage message, XmppPrincipal principal) {
+	public void handleUnpinChatMessageForEveryone(String id, String receiverKey, ParsedMessage message, XmppPrincipal principal) {
 		pinChatMessageService.unpinMessage(UUID.fromString(principal.getUserKey()), UUID.fromString(receiverKey), UUID.fromString(message.id))
 		.subscribeOn(DB_SCHEDULER)
 		.doOnError(err -> log.error("Failed handling direct chat un-pin lifecycle routing execution", err))
 		.subscribe();
 	}
 
-	public void handleUnpinGroupMessage(String id, String groupId, ParsedMessage message, XmppPrincipal principal) {
+	public void handleUnpinGroupMessageForEveryone(String id, String groupId, ParsedMessage message, XmppPrincipal principal) {
 		pinMucMessageService.unpinMessage(UUID.fromString(groupId), UUID.fromString(message.id), UUID.fromString(principal.getUserKey()))
 		.subscribeOn(DB_SCHEDULER)		
 		.doOnError(err -> log.error("Failed handling group chat un-pin lifecycle routing execution", err))
