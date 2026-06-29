@@ -121,7 +121,7 @@ public class PinMessageHandler {
 		PinMucMessage document = PinMucMessage.builder()
 				.id(new PinMucMessageId(UUID.fromString(groupId), UUID.fromString(id), UUID.fromString(principal.getUserKey())))
 				.seq(UuidCreator.getTimeOrderedEpoch())
-				.pinnedForEveryone(false)
+				.pinnedForEveryone(true)
 				.build();
 
 		pinMucMessageService.pinMessage(document)
