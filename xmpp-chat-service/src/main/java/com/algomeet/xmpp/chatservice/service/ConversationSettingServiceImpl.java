@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import com.algomeet.common.dto.ConversationSettings;
 import com.algomeet.xmpp.chatservice.document.ConversationSetting;
 import com.algomeet.xmpp.chatservice.repository.ConversationSettingRepository;
+import com.algomeet.xmpp.chatservice.util.DeterministicConversationIdUtil;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,10 +24,8 @@ public class ConversationSettingServiceImpl implements ConversationSettingsServi
      * Generates the deterministic conversation ID using lexicographical ordering.
      * Format: lowerUserKey_higherUserKey
      */
-    public String getConversationId(UUID userKeyA, UUID userKeyB) {
-        String strA = userKeyA.toString();
-        String strB = userKeyB.toString();
-        return strA.compareTo(strB) < 0 ? strA + "_" + strB : strB + "_" + strA;
+    public String getConversationId(UUID userKeyA, UUID userKeyB) {        
+        return DeterministicConversationIdUtil.getConversationId(userKeyA, userKeyB);
     }
 
     /**

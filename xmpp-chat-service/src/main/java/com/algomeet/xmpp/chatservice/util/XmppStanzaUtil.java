@@ -31,6 +31,8 @@ public class XmppStanzaUtil {
 	private static final String NS_DISPLAYED_MARKER = "urn:xmpp:chat-markers:0";
 	private static final String NS_RECEIPTS = "urn:xmpp:receipts";
 	private static final String RETRACTED_TAG = "<retracted xmlns='urn:xmpp:message-retract:1'/>";
+	
+	private static final String NS_PIN_OR_UNPIN_MESSAGE = "urn:xmpp:algomeet:pin:0";
 
 	// Matches <body>...</body> across multiple lines (?s mode)
 	private static final Pattern BODY_PATTERN = Pattern.compile("(?s)<body>.*?</body>");
@@ -528,5 +530,13 @@ public class XmppStanzaUtil {
 		return new StringBuilder(xml)
 				.insert(insertAt, replacement)
 				.toString();
-	}   	
+	}   
+	
+	public static boolean isPinOrUnpinStanza(String xml) {
+		if (XmppStanzaUtil.isMessageStanza(xml)) {
+			return xml.indexOf(NS_PIN_OR_UNPIN_MESSAGE) != -1 && xml.indexOf(BODY_TAG) == -1;
+		}
+
+		return false;
+	}
 }

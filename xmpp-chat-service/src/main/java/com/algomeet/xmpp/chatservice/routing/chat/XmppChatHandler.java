@@ -25,12 +25,14 @@ import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.routing.call.CallLifeCycleTracker;
 import com.algomeet.xmpp.chatservice.routing.call.JingleNotificationHandler;
+import com.algomeet.xmpp.chatservice.routing.view.PinMessageHandler;
 import com.algomeet.xmpp.chatservice.service.OfflineMessageService;
 import com.algomeet.xmpp.chatservice.service.UnreadCountService;
 import com.algomeet.xmpp.chatservice.session.UserSessionRegistry;
 import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
 import com.algomeet.xmpp.chatservice.session.model.UserSession;
 import com.algomeet.xmpp.chatservice.stanza.parser.MediaReferenceParser;
+import com.algomeet.xmpp.chatservice.util.PinMessageUtil;
 import com.algomeet.xmpp.chatservice.util.XmppCustomStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppReadUtil;
 import com.algomeet.xmpp.chatservice.util.XmppReceiptUtil;
@@ -67,6 +69,7 @@ public class XmppChatHandler {
 	private final XmppUtil xmppUtil;
 	private final XmppRetractUtil xmppRetractUtil;
 	private final MediaClient mediaClient;
+	private final PinMessageUtil pinMessageUtil;
 	
 	// Define a dedicated thread pool for your database work so Netty doesn't starve
 	private static final Scheduler DB_SCHEDULER = Schedulers.newBoundedElastic(200, 10000, "xmpp-chat-db-workers");
@@ -86,6 +89,11 @@ public class XmppChatHandler {
 		
 		// Get user sessions from redis
 		Set<UserSession> sessions = userSessionRegistry.getSessions(toUserKey);
+		
+		// Check pin/unpin message stanza
+		if (XmppStanzaUtil.isPinOrUnpinStanza(originalXml)) {
+			pinMessageUtil.handlePinOrUnpinChatMessage(id, toUserKey, originalXml, principal);
+		}
 
 		// Persistence & XEP-0198 Acknowledgment
 		boolean isArchivable = XmppStanzaUtil.isArchivable(originalXml);
