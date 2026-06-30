@@ -118,7 +118,10 @@ import jakarta.validation.Valid;
                 @RequestParam(defaultValue = "20") int size) {
 
             final String currentUser = getCurrentUserName();
-            ensureGroupMembership(groupId, currentUser);
+            final GroupDto group = groupClient.getGroupById(groupId);
+            ensureGroupMembership(group, currentUser);
+
+            final Long historyVisibleFrom = resolveHistoryVisibleFrom(group, currentUser);
             final int clampedPage = Math.max(page, 0);
             final int pageSize    = Math.min(Math.max(size, 1), 100);
 
@@ -127,30 +130,43 @@ import jakarta.validation.Valid;
                     .and(Sort.by(Sort.Direction.DESC, "_id"));
 
             if (paged) {
-                // Get "newest page first" then flip to ASC within the page for UI
                 Pageable p = PageRequest.of(clampedPage, pageSize, descSort);
-
                 List<MessageDocument> pageDesc = messageRepository.findVisibleGroupMessages(groupId, currentUser, p);
-
-                List<MessageDocument> pageAsc = new ArrayList<>(pageDesc); // ensure mutable
+                List<MessageDocument> pageAsc = new ArrayList<>(pageDesc);
                 Collections.reverse(pageAsc);
-
-                return pageAsc.stream()
-                        .map(messageMapper::toResponse)
-                        .collect(Collectors.toList());
+                return toVisibleGroupResponses(pageAsc, currentUser, historyVisibleFrom);
             } else {
-                // Non-paged: fetch latest 100 (DESC) then present ASC
                 Pageable p = PageRequest.of(0, 100, descSort);
-
                 List<MessageDocument> latestDesc = messageRepository.findVisibleGroupMessages(groupId, currentUser, p);
-
-                List<MessageDocument> latestAsc = new ArrayList<>(latestDesc); // mutable copy
+                List<MessageDocument> latestAsc = new ArrayList<>(latestDesc);
                 Collections.reverse(latestAsc);
-
-                return latestAsc.stream()
-                        .map(messageMapper::toResponse)
-                        .collect(Collectors.toList());
+                return toVisibleGroupResponses(latestAsc, currentUser, historyVisibleFrom);
             }
+        }
+
+        /**
+         * Returns the earliest timestamp (ms) the current user may see, or null if full history is allowed.
+         * History is restricted to messages sent after the member joined when sendMessageHistory is false
+         * for their role.
+         */
+        private Long resolveHistoryVisibleFrom(GroupDto group, String currentUser) {
+            if (group == null || group.getMembers() == null) return null;
+
+            Member self = group.getMembers().stream()
+                    .filter(m -> currentUser.equals(m.getUsername()))
+                    .findFirst()
+                    .orElse(null);
+
+            if (self == null || self.getRole() == null || self.getMemberStartDate() == null) return null;
+
+            RolePermissionsDto perms = group.getRolePermissions() != null
+                    ? group.getRolePermissions().get(self.getRole())
+                    : null;
+
+            if (perms != null && !perms.isSendMessageHistory()) {
+                return self.getMemberStartDate();
+            }
+            return null;
         }
 
         //API to GET  Recent Messages for a User ( all messaages from all users).
@@ -183,8 +199,7 @@ import jakarta.validation.Valid;
             return auth.getName(); // now returns username instead of email
         }
 
-        private void ensureGroupMembership(String groupId, String username) {
-            GroupDto group = groupClient.getGroupById(groupId);
+        private void ensureGroupMembership(GroupDto group, String username) {
             boolean isMember = group != null
                     && group.getMembers() != null
                     && group.getMembers().stream()
@@ -193,6 +208,14 @@ import jakarta.validation.Valid;
             if (!isMember) {
                 throw new ResponseStatusException(org.springframework.http.HttpStatus.FORBIDDEN, "Not a member of the group");
             }
+        }
+
+        private List<MessageResponse> toVisibleGroupResponses(List<MessageDocument> docs, String currentUser, Long historyVisibleFrom) {
+            return docs.stream()
+                    .filter(message -> message != null && message.isVisibleTo(currentUser))
+                    .filter(message -> historyVisibleFrom == null || message.getTimestamp() >= historyVisibleFrom)
+                    .map(messageMapper::toResponse)
+                    .collect(Collectors.toList());
         }
 
         @PostMapping("/clear")

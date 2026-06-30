@@ -9,8 +9,8 @@ spring:
 
   servlet:
     multipart:
-      max-file-size: 150MB
-      max-request-size: 350MB
+      max-file-size: 80MB
+      max-request-size: 80MB
 
   datasource:
     url: ${SPRING_DATASOURCE_URL}
@@ -68,10 +68,23 @@ media:
     image-extensions: [jpg, jpeg, png, webp, gif, bmp, tiff, tif, heic, heif, svg, ico]
     video-extensions: [mp4, m4v, mkv, webm, avi, mov, wmv, flv, f4v, mpeg, mpg, 3gp, 3g2, ogv]
     audio-extensions: [mp3, wav, m4a, aac, ogg, opus, flac, amr, wma, aiff, aif, au]
-    document-extensions: [pdf, doc, docx, xls, xlsx, ppt, pptx, txt, rtf, csv, odt, ods, odp, epub, md, zip, rar, 7z, tar, gz, tgz, bz2, tbz, xz, txz, lz, lzma, zst]
+    document-extensions: [pdf, doc, docx, xls, xlsx, ppt, pptx, txt, rtf, csv, odt, ods, odp, epub, md]
+    archive-extensions: [zip, rar, 7z, tar, gz, tgz, bz2, tbz, xz, txz, lz, lzma, zst]
+    # Per-type size limits (bytes) — 80 MB per product requirements
+    max-image-size: 83886080       # 80 MB
+    max-video-size: 83886080       # 80 MB
+    max-audio-size: 83886080       # 80 MB
+    max-document-size: 83886080    # 80 MB
+    max-archive-size: 83886080     # 80 MB
+    max-files-per-upload: 10
 
 jwt:
   secret: ${JWT_SECRET}
 
 server:
   port: 8095
+
+feign:
+  client:
+    group-service:
+      url: ${GROUP_SERVICE_URL:http://localhost:8087}

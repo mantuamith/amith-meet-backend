@@ -1,6 +1,7 @@
 package com.algomeet.chatservice.dto;
 
 import com.algomeet.chatservice.document.EncrytionMetadata;
+import com.algomeet.chatservice.model.MessageMediaType;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
@@ -11,6 +12,7 @@ import java.util.List;
 public class RecentReceivedMessageResponse {
     private String contactId;
     private String newMessage;
+    private MessageMediaType recentMessageMediaType;
     private Long timestamp;
     private Integer nMessages; // Nullable count of unread messages
     private List<EncrytionMetadata> encryptionMetadata;

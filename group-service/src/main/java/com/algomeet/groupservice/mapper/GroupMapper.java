@@ -86,6 +86,14 @@ public class GroupMapper {
 		}
 
 		dto.setMembers(members);
+
+		Map<GroupRole, RolePermissionsResponse> rolePermissions = new EnumMap<>(GroupRole.class);
+		if (entity.getRolePermissions() != null) {
+			entity.getRolePermissions().forEach((role, permissions) ->
+					rolePermissions.put(role, toPermissionsResponse(permissions)));
+		}
+		dto.setRolePermissions(rolePermissions);
+
 		return dto;
 	}
 

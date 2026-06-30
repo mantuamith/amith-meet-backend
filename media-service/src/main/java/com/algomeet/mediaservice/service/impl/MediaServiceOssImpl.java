@@ -8,6 +8,7 @@ import java.util.Date;
 import java.util.UUID;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
@@ -19,6 +20,7 @@ import com.algomeet.mediaservice.dto.MediaUploadResponse;
 import com.algomeet.mediaservice.dto.StorageUsageAdjustmentRequest;
 import com.algomeet.mediaservice.enums.Storage;
 import com.algomeet.mediaservice.enums.UploadContext;
+import com.algomeet.mediaservice.service.FileAccessPermission;
 import com.algomeet.mediaservice.service.MediaServiceOss;
 import com.algomeet.mediaservice.service.UserFileService;
 import com.algomeet.mediaservice.util.MediaMetadataExtractor;
@@ -38,6 +40,7 @@ public class MediaServiceOssImpl implements MediaServiceOss {
     private final StorageProperties storageProperties;
     private UserStorageUsageService userStorageUsageService;
     private MediaMetadataExtractor metadataExtractor;
+    private FileAccessPermission fileAccessPermission;
 
     @Override
     public MediaUploadResponse upload(
@@ -97,8 +100,18 @@ public class MediaServiceOssImpl implements MediaServiceOss {
         }
     }
 
-    public String getReadUrl(String userKey, String mediaId) {
-        UserFileDocument fileDoc = userFileService.getFile(mediaId, userKey, FilePermission.READ);
+    public String getReadUrl(String userKey, UUID groupId, String mediaId) {
+        UserFileDocument fileDoc = userFileService.getFile(mediaId);
+
+        return getReadUrl(fileDoc, userKey, groupId);
+    }
+    
+    public String getReadUrl(UserFileDocument fileDoc, String userKey, UUID groupId) {
+    	// Check read permission
+        if (!fileAccessPermission.hasPermission(fileDoc, userKey, groupId, FilePermission.READ)) {
+    		throw new AccessDeniedException("Permission denied: " + FilePermission.READ + " ID: " + fileDoc.getId());
+    	}
+        
         String objectKey = fileDoc.getAbsolutePath();
 
         Date expiration = new Date(

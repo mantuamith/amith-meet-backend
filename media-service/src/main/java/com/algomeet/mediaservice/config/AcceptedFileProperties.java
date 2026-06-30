@@ -15,9 +15,13 @@ public class AcceptedFileProperties {
     private Set<String> videoExtensions;
     private Set<String> documentExtensions;
     private Set<String> audioExtensions;
+    private Set<String> archiveExtensions;
 
-    private long maxImageSize    = 20_971_520L;   // 20 MB default
-    private long maxVideoSize    = 209_715_200L;  // 200 MB default
-    private long maxAudioSize    = 52_428_800L;   // 50 MB default
-    private long maxDocumentSize = 104_857_600L;  // 100 MB default
+    private long maxImageSize    = 83_886_080L;   // 80 MB
+    private long maxVideoSize    = 83_886_080L;   // 80 MB
+    private long maxAudioSize    = 83_886_080L;   // 80 MB
+    private long maxDocumentSize = 83_886_080L;   // 80 MB
+    private long maxArchiveSize  = 83_886_080L;   // 80 MB
+
+    private int maxFilesPerUpload = 10;
 }

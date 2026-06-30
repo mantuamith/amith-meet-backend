@@ -13,14 +13,12 @@ public class OpenApiConfig {
     @Bean
     public OpenAPI customOpenAPI() {
         return new OpenAPI()
-                // 1. Define Bearer authentication scheme
                 .components(new Components().addSecuritySchemes("bearerAuth",
                         new SecurityScheme()
                                 .type(SecurityScheme.Type.HTTP)
                                 .scheme("bearer")
                                 .bearerFormat("JWT")
                 ))
-                // 2. Apply this auth to all endpoints
                 .addSecurityItem(new SecurityRequirement().addList("bearerAuth"));
     }
 }

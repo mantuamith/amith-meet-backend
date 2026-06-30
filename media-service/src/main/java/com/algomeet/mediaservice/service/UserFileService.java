@@ -10,8 +10,10 @@ import java.util.UUID;
 public interface UserFileService {
 
     UserFileDocument create(UserFileDocument file);
-
-    UserFileDocument getFile(String fileId, String userKey, FilePermission permission);
+    
+    UserFileDocument getFile(String fileId);
+    
+    UserFileDocument getFile(String fileId, String userKey, UUID groupId, FilePermission permission);
 
     List<UserFileDocument> listMyFiles(String userKey);
 
@@ -20,10 +22,10 @@ public interface UserFileService {
     void updateLastRead(String fileId);
 
     void deleteFile(String fileId, String userKey);
-
-    boolean hasPermission(UserFileDocument file, String userKey, FilePermission permission);
     
-    void softDeleteAndMarkForCleanupIfOrphaned(Set<String> fileIds, String userKey, Set<String> deleteWithUserKeys, UUID messageId);
+    void softDeleteAndMarkForCleanupIfOrphaned(Set<String> fileIds, String userKey, Set<String> deleteWithUserKeys, UUID groupId, UUID messageId);
     
-    void shareFile(Set<String> fileIds, String userKey, List<String> shareWithUserKeys, UUID messageId);
+    void softDeleteAndMarkForCleanupIfOrphaned(Set<String> fileIds, String userKey, Set<String> deleteWithUserKeys, UUID groupId, UUID messageId, boolean performedByAdmin);
+    
+    void shareFile(Set<String> fileIds, String userKey, List<String> shareWithUserKeys, UUID groupId, UUID messageId);
 }

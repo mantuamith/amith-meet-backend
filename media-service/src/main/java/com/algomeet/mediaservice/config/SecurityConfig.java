@@ -35,7 +35,8 @@ public class SecurityConfig {
                 		.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(
                         		"/internal/**").permitAll()
-                        
+                        .requestMatchers(HttpMethod.GET, "/v1/documents/sessions/*/files/*/content").permitAll()
+
                         // Swagger - start
                         .requestMatchers("/swagger-ui.html").permitAll() 
                         .requestMatchers("/swagger-ui/index.html").permitAll()   
@@ -46,8 +47,9 @@ public class SecurityConfig {
                         .requestMatchers("/swagger-ui/swagger-initializer.js").permitAll()  
                         .requestMatchers("/swagger-ui/favicon-32x32.png").permitAll()  
                         .requestMatchers("/swagger-ui/favicon-16x16.png").permitAll()  
-                        .requestMatchers("/v3/api-docs/swagger-config").permitAll() 
-                        .requestMatchers("/v3/api-docs").permitAll() 
+                        .requestMatchers("/v3/api-docs/swagger-config").permitAll()
+                        .requestMatchers("/v3/api-docs").permitAll()
+                        .requestMatchers("/v3/api-docs/**").permitAll()
                         // Swagger - end                  
                         
                         .anyRequest().authenticated()

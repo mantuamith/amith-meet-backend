@@ -8,5 +8,6 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 public class Member {
 	private String userKey;
 	private String username;
-
+	private String role;
+	private Long memberStartDate;
 }

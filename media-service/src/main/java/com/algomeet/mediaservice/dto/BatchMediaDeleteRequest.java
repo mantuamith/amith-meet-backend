@@ -19,12 +19,15 @@ public class BatchMediaDeleteRequest {
 	private Set<String> mediaIds;
 	
 	@Schema(
-			description = "List of user keys whose access should be revoked. To permanently remove a file when no access references remain, "
-					+ "the media owner's user key must also be included in this list."
+			description = "Add owner's and recipient user keys whose access should also be revoked (e.g., chat participants when retracting or deleting a message). "
+					+ "Typically used for one-to-one chats."
 		)
-	@NotNull(message = "User keys list cannot be null")
-	@NotEmpty(message = "At least one User key must be provided")
 	private Set<String> deleteWithUserKeys;
+	
+	@Schema(
+            description = "Chat Group ID the file(s) access to be revoked, removing all group members access simultaneously. Typically used for group chats."
+        )
+    private UUID groupId;
 	
 	@Schema(
     	    description = "Required chat message ID associated with the file attachment. Used to track file references and manage attachment lifecycle.",
