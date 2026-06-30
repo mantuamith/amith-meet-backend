@@ -20,14 +20,14 @@ public class PinMessageUtil {
 	private final PinMessageStaxParser pinMessageStaxParser;
 	private final UnpinMessageHandler unpinMessageHandler;
 
-	public void handlePinOrUnpinChatMessage(String id, String receiverKey, String xml, XmppPrincipal principal) {
+	public void handlePinOrUnpinChatMessage(String receiverKey, String xml, XmppPrincipal principal) {
 		try {
 			ParsedMessage message = pinMessageStaxParser.parse(xml);
 			if (ViewManageEnum.PIN.getValue().equals(message.action)) {
-				pinMessageHandler.handlePinChatMessageForEveryone(id, receiverKey, message, principal);
+				pinMessageHandler.handlePinChatMessageForEveryone(receiverKey, message, principal);
 				
 			} else if(ViewManageEnum.UNPIN.getValue().equals(message.action)) {
-				unpinMessageHandler.handleUnpinChatMessageForEveryone(id, receiverKey, message, principal);
+				unpinMessageHandler.handleUnpinChatMessageForEveryone(receiverKey, message, principal);
 			}
 
 		} catch(Exception ex) {
@@ -35,14 +35,14 @@ public class PinMessageUtil {
 		}		
 	}
 
-	public void handlePinOrUnpinGroupMessage(String id, String groupId, String xml, XmppPrincipal principal) {
+	public void handlePinOrUnpinGroupMessage(String groupId, String xml, XmppPrincipal principal) {
 		try {
 			ParsedMessage message = pinMessageStaxParser.parse(xml);
 			if (ViewManageEnum.PIN.getValue().equals(message.action)) {
-				pinMessageHandler.handlePinGroupMessageForEveryone(id, groupId, message, principal);
+				pinMessageHandler.handlePinGroupMessageForEveryone(groupId, message, principal);
 				
 			} else if(ViewManageEnum.UNPIN.getValue().equals(message.action)) {
-				unpinMessageHandler.handleUnpinGroupMessageForEveryone(id, groupId, message, principal);
+				unpinMessageHandler.handleUnpinGroupMessageForEveryone(groupId, message, principal);
 			}
 
 

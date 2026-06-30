@@ -136,7 +136,7 @@ public class XmppMucHandler {
 			
 			// Check pin/unpin message stanza
 			if (XmppStanzaUtil.isPinOrUnpinStanza(originalXml)) {
-				pinMessageUtil.handlePinOrUnpinChatMessage(id, toRoomId, originalXml, principal);
+				pinMessageUtil.handlePinOrUnpinChatMessage(toRoomId, originalXml, principal);
 			}
 
 			// 2. DIRECT PRIVATE MESSAGE (PM) WITHIN MUC CHECK

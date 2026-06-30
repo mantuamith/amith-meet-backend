@@ -92,7 +92,7 @@ public class XmppChatHandler {
 		
 		// Check pin/unpin message stanza
 		if (XmppStanzaUtil.isPinOrUnpinStanza(originalXml)) {
-			pinMessageUtil.handlePinOrUnpinChatMessage(id, toUserKey, originalXml, principal);
+			pinMessageUtil.handlePinOrUnpinChatMessage(toUserKey, originalXml, principal);
 		}
 
 		// Persistence & XEP-0198 Acknowledgment
