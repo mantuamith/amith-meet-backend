@@ -37,6 +37,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final ProsodyFileSharingTokenService prosodyFileSharingTokenService;
     private static final AntPathMatcher PATHS = new AntPathMatcher();
     private static final String SESSION_DOCUMENTS_PATTERN = "/v1/documents/sessions/**";
+    private static final String SESSION_DOCUMENT_DOWNLOAD_PATTERN = "/v1/documents/sessions/*/files/*/content";
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
@@ -64,14 +65,21 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 && SecurityContextHolder.getContext().getAuthentication() == null) {
 
             String token = authHeader.substring(7);
+
+            // 2a) Session-document endpoints (other than the presigned-URL download) only ever
+            // carry a Prosody-issued token; skip the auth-service HMAC check entirely.
+            if (requiresProsodyToken(request.getServletPath())) {
+                if (authenticateProsodyToken(token)) {
+                    chain.doFilter(request, response);
+                    return;
+                }
+                unauthorized(response, ResponseCode.AUTH_SESSION_REVOKED);
+                return;
+            }
+
             try {
-                // 2a) Validate JWT
+                // 2b) Validate JWT
                 if (!jwtUtil.isTokenValid(token)) {
-                    if (PATHS.match(SESSION_DOCUMENTS_PATTERN, request.getServletPath())
-                            && tryAuthenticateProsodyToken(token)) {
-                        chain.doFilter(request, response);
-                        return;
-                    }
                     unauthorized(response, ResponseCode.AUTH_SESSION_REVOKED); // or AUTH_LOGIN_FAILED if you prefer
                     return;
                 }
@@ -113,7 +121,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         chain.doFilter(request, response);
     }
 
-    private boolean tryAuthenticateProsodyToken(String token) {
+    private boolean requiresProsodyToken(String servletPath) {
+        return PATHS.match(SESSION_DOCUMENTS_PATTERN, servletPath)
+                && !PATHS.match(SESSION_DOCUMENT_DOWNLOAD_PATTERN, servletPath);
+    }
+
+    private boolean authenticateProsodyToken(String token) {
         try {
             ProsodyFileSharingPrincipal principal = prosodyFileSharingTokenService.parseAndValidate(token);
 
@@ -128,7 +141,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             SecurityContextHolder.getContext().setAuthentication(auth);
             return true;
         } catch (JwtException | IllegalArgumentException ex) {
-            log.debug("Prosody file-sharing JWT verification failed: {}", ex.getMessage());
+            log.warn("Prosody file-sharing JWT verification failed: {}", ex.getMessage());
             return false;
         }
     }
