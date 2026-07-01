@@ -1,5 +1,6 @@
 package com.algomeet.signalservice.mapper;
 
+import java.time.Instant;
 import java.util.UUID;
 
 import com.algomeet.signalservice.dto.MessageBackupRequest;
@@ -35,6 +36,12 @@ public class MessageBackupMapper {
         entity.setVersion(request.getVersion());
         entity.setSalt(request.getSalt());
         entity.setMediaIds(request.getMediaIds());
+        
+        if (request.getCreatedAt() != null) {
+        	//Convert from ISO-8601 representation to Instant
+        	Instant createdAtInstant = Instant.parse(request.getCreatedAt());
+        	entity.setTimestamp(createdAtInstant);      	
+        }
 
         return entity;
     }
