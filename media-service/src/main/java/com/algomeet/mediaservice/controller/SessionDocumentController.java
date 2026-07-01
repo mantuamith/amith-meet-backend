@@ -38,7 +38,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 
 @RestController
-@RequestMapping("/v1/documents/sessions/{sessionId}/files")
+@RequestMapping("/media/v1/documents/sessions/{sessionId}/files")
 @RequiredArgsConstructor
 public class SessionDocumentController implements SessionDocumentControllerDoc {
 
@@ -190,7 +190,7 @@ public class SessionDocumentController implements SessionDocumentControllerDoc {
     private String buildDownloadUrl(SessionDocument document) {
         String token = accessTokenService.createAccessToken(document.getSessionId(), document.getFileId());
         return ServletUriComponentsBuilder.fromCurrentContextPath()
-                .path("/v1/documents/sessions/{sessionId}/files/{fileId}/content")
+                .path("/media/v1/documents/sessions/{sessionId}/files/{fileId}/content")
                 .queryParam("token", token)
                 .buildAndExpand(document.getSessionId(), document.getFileId())
                 .toUriString();
