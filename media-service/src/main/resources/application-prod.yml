@@ -43,6 +43,7 @@ spring:
 storage:
   active-upload-storage: ${STORAGE_ACTIVE_UPLOAD_STORAGE:local}
   unshared-file-expiration-hours: 1
+  document-access-url-secret: ${PRESIGNED_URL_SECRET}
 
   local:
     dir: ${STORAGE_LOCAL_DIR:/tmp/media/}
