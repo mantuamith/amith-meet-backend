@@ -117,6 +117,7 @@ public class SessionDocumentController implements SessionDocumentControllerDoc {
             @PathVariable String sessionId,
             @PathVariable String fileId,
             @RequestParam(required = false) String token) throws IOException {
+        requireMatchingMeeting(sessionId);
         if (!StringUtils.hasText(requestUserContext.getUserKey())) {
             accessTokenService.validateAccessToken(token, sessionId, fileId);
         }

@@ -193,6 +193,16 @@ class SessionDocumentControllerTest {
     }
 
     @Test
+    void downloadDocumentRejectsProsodyTokenWhenMeetingIdMismatches() {
+        when(requestUserContext.getMeetingId()).thenReturn("other-session");
+
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class,
+                () -> controller.downloadDocument("session-1", "file-1", null));
+
+        assertEquals(HttpStatus.FORBIDDEN, exception.getStatusCode());
+    }
+
+    @Test
     void deleteDocumentReturnsOk() {
         ResponseEntity<Void> response = controller.deleteDocument("session-1", "file-1");
 
