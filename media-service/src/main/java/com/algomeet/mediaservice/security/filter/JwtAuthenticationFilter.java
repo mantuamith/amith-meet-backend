@@ -36,8 +36,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtUtil jwtUtil;
     private final ProsodyFileSharingTokenService prosodyFileSharingTokenService;
     private static final AntPathMatcher PATHS = new AntPathMatcher();
-    private static final String SESSION_DOCUMENTS_PATTERN = "/v1/documents/sessions/**";
-    private static final String SESSION_DOCUMENT_DOWNLOAD_PATTERN = "/v1/documents/sessions/*/files/*/content";
+    private static final String SESSION_DOCUMENTS_PATTERN = "/media/v1/documents/sessions/**";
+    private static final String SESSION_DOCUMENT_DOWNLOAD_PATTERN = "/media/v1/documents/sessions/*/files/*/content";
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {

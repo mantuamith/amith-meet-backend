@@ -130,7 +130,7 @@ class SessionDocumentControllerTest {
         assertEquals(1, response.getBody().size());
         assertEquals("file-1", response.getBody().get(0).getObjectId());
         assertTrue(response.getBody().get(0).getPreSignedUrl()
-                .contains("/v1/documents/sessions/session-1/files/file-1/content?token=signed-token"));
+                .contains("/media/v1/documents/sessions/session-1/files/file-1/content?token=signed-token"));
     }
 
     @Test
@@ -151,7 +151,7 @@ class SessionDocumentControllerTest {
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals("file-1", response.getBody().getFileId());
         assertTrue(response.getBody().getPresignedUrl()
-                .contains("/v1/documents/sessions/session-1/files/file-1/content?token=signed-token"));
+                .contains("/media/v1/documents/sessions/session-1/files/file-1/content?token=signed-token"));
     }
 
     @Test
