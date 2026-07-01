@@ -3,12 +3,18 @@ package com.algomeet.signalservice.mapper;
 import java.time.Instant;
 import java.util.UUID;
 
+import org.springframework.util.StringUtils;
+
 import com.algomeet.signalservice.dto.MessageBackupRequest;
 import com.algomeet.signalservice.dto.MessageBackupResponse;
 import com.algomeet.signalservice.repository.projection.MessageBackupView;
+
+import lombok.extern.slf4j.Slf4j;
+
 import com.algomeet.signalservice.document.MessageBackupDocument;
 import com.algomeet.signalservice.document.MessageBackupKey;
 
+@Slf4j
 public class MessageBackupMapper {
 
     public static MessageBackupDocument toEntity(UUID userKey, MessageBackupRequest request) {
@@ -37,10 +43,14 @@ public class MessageBackupMapper {
         entity.setSalt(request.getSalt());
         entity.setMediaIds(request.getMediaIds());
         
-        if (request.getCreatedAt() != null) {
+        if (StringUtils.hasText(request.getCreatedAt())) {
         	//Convert from ISO-8601 representation to Instant
-        	Instant createdAtInstant = Instant.parse(request.getCreatedAt());
-        	entity.setTimestamp(createdAtInstant);      	
+        	try {
+        		Instant createdAtInstant = Instant.parse(request.getCreatedAt());
+        		entity.setTimestamp(createdAtInstant);
+        	} catch(Exception ex) {
+        		log.error("Error parsint createdAt {}", request.getCreatedAt(), ex);
+        	}
         }
 
         return entity;
