@@ -16,4 +16,6 @@ public class Constants {
 	public static final UUID SMALLEST_UUID_V7 = UUID.fromString("00000000-0000-7000-8000-000000000000");
 	
 	public static final UUID LARGEST_UUID_V7 = UUID.fromString("ffffffff-ffff-7fff-bfff-ffffffffffff");
+		
+	public static final Integer UNLIMITED_MESSAGE_RETENTION_DAYS = -1;
 }

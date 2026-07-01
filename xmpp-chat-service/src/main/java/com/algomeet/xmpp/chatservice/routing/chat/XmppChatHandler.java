@@ -166,7 +166,7 @@ public class XmppChatHandler {
             	//
             	// This is a custom acknowledgment (not client XEP-0198 ack),
             	// used to provide early delivery assurance back to the sender.
-				XmppServerAckUtil.send(ctx, id, domainProperties.getDomain(), stanzaId.toString()); 
+				XmppServerAckUtil.send(ctx, id, domainProperties.getDomain(), stanzaId.toString(), saved.getRetentionDays()); 
 
 				if (isAckStanza) {
 					/*

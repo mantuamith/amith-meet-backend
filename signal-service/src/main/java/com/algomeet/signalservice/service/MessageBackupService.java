@@ -26,6 +26,7 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.bson.Document;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -33,6 +34,7 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.aggregation.Aggregation;
 import org.springframework.data.mongodb.core.aggregation.AggregationOptions;
 import org.springframework.data.mongodb.core.aggregation.AggregationResults;
+import org.springframework.data.mongodb.core.aggregation.AggregationUpdate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -595,16 +597,8 @@ public class MessageBackupService {
 	        throw new IllegalStateException("Could not acquire retention update lock.");
 	    }
 	    
-	    try {
-	        Integer retentionDays = (messageRetentionDays != -1) ? messageRetentionDays : null;
-	        
-	        // Update backup retention records for the requestor
-	        String requestorConversationId = ConversationUtil.getConversationId(userKey.toString(), peerKey.toString());        
-	        repository.updatePurgeAtByConversationId(requestorConversationId, retentionDays);    
-	        
-	        // Update backup retention records for the peer
-	        String peerConversationId = ConversationUtil.getConversationId(peerKey.toString(), userKey.toString());        
-	        repository.updatePurgeAtByConversationId(peerConversationId, retentionDays);    
+	    try {     
+	        updatePurgeAtByToAndFrom(peerKey, userKey, messageRetentionDays);    
 
 	    } finally {
 	        // Always release the lock in the finally block so it clears even if repository throws an error
@@ -619,4 +613,43 @@ public class MessageBackupService {
 	public List<MessageBackupDocument> fetchMessagesByIds(List<UUID> messageIds, UUID currentUserKey) {
 		return repository.findByMessageIdInAndUserKey(messageIds, currentUserKey);
 	}	
+	
+	public long updatePurgeAtByToAndFrom(UUID to, UUID from, Integer messageRetentionDays) {		
+		// Update backup retention records for the requestor
+        String requestorConversationId = ConversationUtil.getConversationId(to.toString(), from.toString());   
+        
+        // Update backup retention records for the peer
+        String peerConversationId = ConversationUtil.getConversationId(from.toString(), to.toString()); 
+		
+	    // Wrap each distinct logical branch inside a separate Criteria instance
+	    Query query = new Query(
+	        new Criteria().orOperator(
+	                Criteria.where(MessageBackupDocument.FIELD_CONVERSATION_ID).is(requestorConversationId),
+	                Criteria.where(MessageBackupDocument.FIELD_CONVERSATION_ID).is(peerConversationId)
+	            )
+	    );
+
+	    // Fallback if retention days is null or explicit flag
+	    if (messageRetentionDays == null || messageRetentionDays == -1) {
+	        AggregationUpdate clearUpdate = AggregationUpdate.update().set(MessageBackupDocument.FIELD_PURGE_AT).toValue(null);
+	        UpdateResult result = mongoTemplate.updateMulti(query, clearUpdate, MessageBackupDocument.class);
+	        return result.getModifiedCount();
+	    }
+
+	    // Convert days to milliseconds for the calculation
+	    long retentionMs = (long) messageRetentionDays * 86400000L;
+
+	    // Direct BSON Aggregation Expression evaluating field rules database-side
+	    AggregationUpdate pipelineUpdate = AggregationUpdate.update()
+	        .set(MessageBackupDocument.FIELD_PURGE_AT)
+	        .toValue(
+	            new Document("$add", List.of(
+	                new Document("$ifNull", List.of("$" + MessageBackupDocument.FIELD_TIMESTAMP, "$$NOW")),
+	                retentionMs
+	            ))
+	        );
+
+	    UpdateResult result = mongoTemplate.updateMulti(query, pipelineUpdate, MessageBackupDocument.class);
+	    return result.getModifiedCount();
+	}
 }

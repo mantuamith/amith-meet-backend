@@ -12,6 +12,7 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
 import com.algomeet.common.dto.ConversationSettings;
+import com.algomeet.xmpp.chatservice.constant.Constants;
 import com.algomeet.xmpp.chatservice.document.OfflineMessage;
 import com.algomeet.xmpp.chatservice.repository.OfflineMessageRepository;
 import com.algomeet.xmpp.chatservice.util.XmppCustomStanzaUtil;
@@ -67,14 +68,18 @@ public class OfflineMessageService {
         // 1. Fetch conversation settings reactively from the cache service
         return conversationSettingsCacheService.getCachedSettings(fromUuid, toUuid)
                 // 2. Map or fallback to a default if settings are empty (e.g. conversation doesn't exist yet)
-                .defaultIfEmpty(new ConversationSettings(-1)) 
+                .defaultIfEmpty(new ConversationSettings(Constants.UNLIMITED_MESSAGE_RETENTION_DAYS)) 
                 // 3. Pipeline the resolved settings to compute the retention time and save the message
                 .flatMap(conversationSettings -> {
                     
-                    // FIXED: Changed TemporalUnit.DAY to ChronoUnit.DAYS
-                    Instant purgeAt = (conversationSettings.getMessageRetentionDays() != null && conversationSettings.getMessageRetentionDays() != -1) 
-                            ? Instant.now().plus(conversationSettings.getMessageRetentionDays(), ChronoUnit.DAYS)
-                            : null;
+                	Integer retentionDays = conversationSettings.getMessageRetentionDays();
+                	if (retentionDays == null) {
+                	    retentionDays = Constants.UNLIMITED_MESSAGE_RETENTION_DAYS;
+                	}
+
+                	Instant purgeAt = retentionDays.equals(Constants.UNLIMITED_MESSAGE_RETENTION_DAYS)
+                	        ? null
+                	        : Instant.now().plus(retentionDays, ChronoUnit.DAYS);
 
                     OfflineMessage offlineMessage = OfflineMessage.builder()
                             .messageId(messageId)
@@ -87,6 +92,7 @@ public class OfflineMessageService {
                             .stanzaXml(originalXml)
                             .mediaIds(mediaIds)
                             .purgeAt(purgeAt)
+                            .retentionDays(retentionDays)
                             .build();
 
                     return offlineMessageRepository.save(offlineMessage);

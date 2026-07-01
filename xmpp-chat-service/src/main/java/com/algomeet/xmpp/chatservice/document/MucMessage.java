@@ -104,6 +104,8 @@ public class MucMessage {
 	public static final String FIELD_ID = "id"; // StanzaId
 	public static final String FIELD_ROOM_ID = "roomId";
 	public static final String FIELD_DELETED_AT = "deletedAt";
+	public static final String FIELD_PURGE_AT = "purgeAt";
+	public static final String FIELD_CREATED_AT = "createdAt";
 
 	@Id
 	private UUID id;           // Stanza ID - UUID v7

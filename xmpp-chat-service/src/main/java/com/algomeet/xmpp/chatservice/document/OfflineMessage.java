@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.UUID;
 
 import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.Transient;
 import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.index.Indexed;
@@ -66,10 +67,15 @@ import lombok.Data;
 		)
 })
 public class OfflineMessage {	
+	public static final String FIELD_TO = "to";
+	public static final String FIELD_FROM = "from";
+	public static final String FIELD_PURGE_AT = "purgeAt";
+	public static final String FIELD_CREATED_AT = "createdAt";
+	
 	@Id
 	private UUID stanzaId; 
 	
-	@Indexed(unique = true)
+	@Indexed(unique = true, sparse = true)
 	private UUID messageId;          // The Message ID from the <message id='...'> attribute
 
 	private UUID from;        // Sender user key / ID
@@ -118,4 +124,7 @@ public class OfflineMessage {
 	 * Used for configuring deletion date of the chat message.
 	 */
 	private Instant purgeAt;
+	
+	@Transient
+	private Integer retentionDays;
 }

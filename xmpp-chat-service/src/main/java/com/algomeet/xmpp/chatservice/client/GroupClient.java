@@ -39,7 +39,7 @@ public interface GroupClient {
     @PostMapping("/internal/groups/{groupId}/message-retention")
     Boolean updateGroupRetention(
             @PathVariable UUID groupId,
-            @PathVariable(name = "userKey") UUID targetUserKey, 
+            @RequestParam(name = "userKey") UUID targetUserKey, 
             @RequestParam(name = "messageRetentionDays") Integer messageRetentionDays);    
 }
 

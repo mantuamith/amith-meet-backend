@@ -1,21 +1,27 @@
 package com.algomeet.xmpp.chatservice.service;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 import org.apache.commons.lang3.StringUtils;
+import org.bson.Document;
+import org.springframework.data.mongodb.core.ReactiveMongoTemplate;
+import org.springframework.data.mongodb.core.aggregation.AggregationUpdate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
 import com.algomeet.common.dto.Group;
 import com.algomeet.common.dto.GroupMember;
-import com.algomeet.common.redis.lock.ChatMessageRetentionLockManager;
 import com.algomeet.common.redis.lock.MucMessageRetentionLockManager;
 import com.algomeet.common.service.AbstractGroupCache;
 import com.algomeet.xmpp.chatservice.client.GroupClient;
 import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.constant.Constants;
+import com.algomeet.xmpp.chatservice.document.MucMessage;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.enums.MucAffiliation;
 import com.algomeet.xmpp.chatservice.exceptions.GroupNotFoundException;
@@ -27,12 +33,13 @@ import com.algomeet.xmpp.chatservice.util.DeleteMediaUtil;
 import com.algomeet.xmpp.chatservice.util.SearchUtil;
 import com.algomeet.xmpp.chatservice.util.XmppSyncStanzaComposer;
 import com.github.f4b6a3.uuid.UuidCreator;
-
+import com.mongodb.client.result.UpdateResult;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
+
 
 @Slf4j
 @Service
@@ -48,6 +55,7 @@ public class MucRoomService {
     private final PurgeGroupConversationStreamPublisher purgeGroupConversationStreamPublisher;
     private final MucMessageRouter mucMessageRouter;
 	private final MucMessageRetentionLockManager mucMessageRetentionLockManager;
+	private final ReactiveMongoTemplate reactiveMongoTemplate; 
     
     /**
      * Handles the business flow for clearing a member's history timeline.
@@ -262,7 +270,7 @@ public class MucRoomService {
                     }
                     
                     // If validation passes, proceed directly to updating database records
-                    return mucMessageRepository.updatePurgeAtByRoomId(groupId, retentionDays);
+                    return updatePurgeAtByRoomId(groupId, retentionDays);
                 }),
                 
             // Phase 3: Cleanup on Success Completion
@@ -278,5 +286,32 @@ public class MucRoomService {
             token -> Mono.fromRunnable(() -> mucMessageRetentionLockManager.releaseLock(token))
         )
         .then(); // Emits Mono<Void> on successful termination
+    }
+    
+    public Mono<Long> updatePurgeAtByRoomId(UUID roomId, Integer messageRetentionDays) {
+        Query query = Query.query(Criteria.where(MucMessage.FIELD_ROOM_ID).is(roomId));
+
+        // Fallback if retention days is null or explicit flag
+        if (messageRetentionDays == null || messageRetentionDays == -1) {
+            AggregationUpdate clearUpdate = AggregationUpdate.update().set(MucMessage.FIELD_PURGE_AT).toValue(null);
+            return reactiveMongoTemplate.updateMulti(query, clearUpdate, MucMessage.class)
+                    .map(UpdateResult::getModifiedCount);
+        }
+
+        // Convert days to milliseconds for the calculation
+        long retentionMs = (long) messageRetentionDays * 86400000L;
+
+        // Direct BSON Aggregation Expression
+        AggregationUpdate pipelineUpdate = AggregationUpdate.update()
+            .set(MucMessage.FIELD_PURGE_AT)
+            .toValue(
+                new Document("$add", List.of(
+                    new Document("$ifNull", List.of("$" + MucMessage.FIELD_CREATED_AT, "$$NOW")),
+                    retentionMs
+                ))
+            );
+
+        return reactiveMongoTemplate.updateMulti(query, pipelineUpdate, MucMessage.class)
+                .map(UpdateResult::getModifiedCount);
     }
 }

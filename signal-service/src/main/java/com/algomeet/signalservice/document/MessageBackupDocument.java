@@ -135,6 +135,7 @@ public class MessageBackupDocument {
     public static final String FIELD_TIMESTAMP = "timestamp";
     public static final String FIELD_SIZE = "size";
     public static final String FIELD_TARGET_MESSAGE_ID = "targetMessageId";
+    public static final String FIELD_PURGE_AT = "purgeAt";
     
 	/**
 	 * Globally unique and lexicographically sortable server-generated message identifier.
