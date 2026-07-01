@@ -49,6 +49,7 @@ storage:
   active-upload-storage: local
   unshared-file-expiration-hours: 1
   document-access-url-expiration-minutes: 180
+  document-access-url-secret: ${PRESIGNED_URL_SECRET:cGxlYXNlLWNoYW5nZS10aGlzLWxvY2FsLWRldi1zZWNyZXQ=}
 
   local:
     dir: /tmp/media/
