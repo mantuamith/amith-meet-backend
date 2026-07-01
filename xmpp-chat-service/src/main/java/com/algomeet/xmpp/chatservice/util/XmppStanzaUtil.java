@@ -31,6 +31,8 @@ public class XmppStanzaUtil {
 	private static final String NS_DISPLAYED_MARKER = "urn:xmpp:chat-markers:0";
 	private static final String NS_RECEIPTS = "urn:xmpp:receipts";
 	private static final String RETRACTED_TAG = "<retracted xmlns='urn:xmpp:message-retract:1'/>";
+	
+	private static final String NS_PIN_OR_UNPIN_MESSAGE = "urn:xmpp:algomeet:pin:0";
 
 	// Matches <body>...</body> across multiple lines (?s mode)
 	private static final Pattern BODY_PATTERN = Pattern.compile("(?s)<body>.*?</body>");
@@ -528,5 +530,27 @@ public class XmppStanzaUtil {
 		return new StringBuilder(xml)
 				.insert(insertAt, replacement)
 				.toString();
-	}   	
+	}   
+	
+	/**
+	 * Determines whether the provided XML payload represents a valid Pin or Unpin stanza.
+	 * To minimize parsing overhead on high-throughput Netty threads, this uses fast string 
+	 * lookups before attempting deep structural XML parsing.
+	 *
+	 * @param xml The raw XMPP stanza string incoming from the channel network layer.
+	 * @return true if the stanza is a message envelope containing the pin/unpin namespace 
+	 * and lacks a body tag; false otherwise.
+	 */
+	public static boolean isPinOrUnpinStanza(String xml) {
+		// Verify the payload is structurally bounded as an XMPP <message> stanza first
+		if (XmppStanzaUtil.isMessageStanza(xml)) {
+			
+			// A valid pin/unpin action MUST contain the dedicated protocol namespace 
+			// AND it MUST NOT contain a <body> element (ensuring regular chat text messages 
+			// containing the namespace text by coincidence aren't misrouted).
+			return xml.indexOf(NS_PIN_OR_UNPIN_MESSAGE) != -1 && xml.indexOf(BODY_TAG) == -1;
+		}
+
+		return false;
+	}
 }

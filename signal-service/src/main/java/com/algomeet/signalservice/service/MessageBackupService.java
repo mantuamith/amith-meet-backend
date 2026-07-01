@@ -410,7 +410,7 @@ public class MessageBackupService {
 	}
 	
 	public void delete(UUID userKey, List<UUID> messageIds) {
-		List<MessageBackupView> forDeleteList = repository.findByMessageIdInAndUserKey(messageIds, userKey);	
+		List<MessageBackupView> forDeleteList = repository.findViewByMessageIdInAndUserKey(messageIds, userKey);	
 		if (forDeleteList.isEmpty()) {
 			throw new RecordNotFoundException("Message IDs not found");
 		}
@@ -615,5 +615,8 @@ public class MessageBackupService {
 	        }
 	    }
 	}
-	
+		
+	public List<MessageBackupDocument> fetchMessagesByIds(List<UUID> messageIds, UUID currentUserKey) {
+		return repository.findByMessageIdInAndUserKey(messageIds, currentUserKey);
+	}	
 }

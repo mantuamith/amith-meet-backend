@@ -66,7 +66,22 @@ public interface MessageBackupRepository extends MongoRepository<MessageBackupDo
      * @return a {@link List} of matching {@link MessageBackupView}s, or an empty list if no matches are found
      */
 	@Query("{ 'messageId': { '$in': ?0 }, '_id.userKey': ?1 }")
-    List<MessageBackupView> findByMessageIdInAndUserKey(List<UUID> messageIds, UUID userKey);
+    List<MessageBackupDocument> findByMessageIdInAndUserKey(List<UUID> messageIds, UUID userKey);
+	
+	/**
+     * Finds a list of message backup documents matching a collection of message IDs 
+     * and a specific user key.
+     * <p>
+     * This method utilizes Spring Data's method-name derivation to generate a MongoDB 
+     * {@code $in} query under the hood.
+     * </p>
+     *
+     * @param messageIds a {@link List} of {@link UUID}s representing the target messages
+     * @param userKey    the {@link UUID} of the user who owns or is authorized to access these backups
+     * @return a {@link List} of matching {@link MessageBackupView}s, or an empty list if no matches are found
+     */
+	@Query("{ 'messageId': { '$in': ?0 }, '_id.userKey': ?1 }")
+    List<MessageBackupView> findViewByMessageIdInAndUserKey(List<UUID> messageIds, UUID userKey);
 
 
 	/**

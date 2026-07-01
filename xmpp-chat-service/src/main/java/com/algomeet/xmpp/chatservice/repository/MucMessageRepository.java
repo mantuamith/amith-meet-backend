@@ -1,6 +1,7 @@
 package com.algomeet.xmpp.chatservice.repository;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.data.domain.Pageable;
@@ -245,4 +246,7 @@ public interface MucMessageRepository extends ReactiveMongoRepository<MucMessage
 	        "  } " +
 	        "} ]")
 	Mono<Long> updatePurgeAtByRoomId(UUID roomId, Integer messageRetentionDays);
+	
+	
+	Flux<MucMessage> findByMessageIdIn(List<UUID> messageIds);
 }

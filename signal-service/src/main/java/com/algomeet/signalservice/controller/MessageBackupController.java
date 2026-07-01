@@ -36,6 +36,7 @@ import com.algomeet.signalservice.dto.MessageBackupRequest;
 import com.algomeet.signalservice.dto.MessageBackupResponse;
 import com.algomeet.signalservice.dto.MessageBackupUpdateRequest;
 import com.algomeet.signalservice.dto.MessageStatusUpdateRequest;
+import com.algomeet.signalservice.dto.GetMessagesByIdsRequest;
 import com.algomeet.signalservice.enums.ResponseCode;
 import com.algomeet.signalservice.exceptions.MessageInsertInProgressException;
 import com.algomeet.signalservice.exceptions.MessageUpdateStatusInProgressException;
@@ -229,7 +230,7 @@ public class MessageBackupController implements MessageBackupControllerDoc{
      * @return A standard API wrapper containing a list of the latest {@link MessageBackupDocument}s
      */
     @GetMapping("/conversations")
-    public ResponseEntity<CommonResponse<List<MessageBackupDocument>>> getConversations() {
+    public ResponseEntity<CommonResponse<List<MessageBackupResponse>>> getConversations() {
 
         // 1. Resolve the principal identity of the currently authenticated session
         String currentUserKey = SecurityUtil.getUserKey();
@@ -241,7 +242,10 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 
         // 3. Encapsulate the result matrix within a uniform response structure and return an HTTP 200 OK
         return ResponseEntity.ok(
-                CommonResponse.from(ResponseCode.SUCCESS, messages)
+                CommonResponse.from(ResponseCode.SUCCESS, messages
+                		.stream()
+                		.map(m -> MessageBackupMapper.from(m))
+                		.toList())
         );
     }
 
@@ -458,5 +462,19 @@ public class MessageBackupController implements MessageBackupControllerDoc{
     		return ResponseEntity.status(HttpStatus.CONFLICT).body(
     				CommonResponse.from(ResponseCode.MESSAGE_RETENTION_UPDATE_IN_PROGRESS));
     	}    	
-    }    
+    }   
+    
+    @PostMapping("/{peerKey}/messages/by-ids")
+	public ResponseEntity<CommonResponse<List<MessageBackupResponse>>> findMessagesByIds(
+	        @PathVariable UUID groupId,
+	        @RequestBody @Validated GetMessagesByIdsRequest request) {
+
+	    UUID currentUserKey = UUID.fromString(SecurityUtil.getUserKey());
+	    List<MessageBackupDocument> messages = messageBackupService.fetchMessagesByIds(request.getMessageIds(), currentUserKey);
+	    
+	    return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, messages
+        		.stream()
+        		.map(m -> MessageBackupMapper.from(m))
+        		.toList()));
+	}
 }

@@ -2,13 +2,15 @@ package com.algomeet.xmpp.chatservice.stanza;
 
 import java.util.Objects;
 
+import com.algomeet.xmpp.chatservice.enums.ViewManageEnum;
+
 /**
  * Represents a synchronization stanza used to update message visibility 
  * across a user's multiple devices (e.g., hiding a message on mobile and web).
  * * Uses the 'headline' message type to ensure background processing without 
  * affecting unread message counts or triggering notifications.
  */
-public class ViewManagementSyncStanza {
+public class ViewManageSyncStanza {
 	private final String from;
 	private final String to;
 	private final String id;
@@ -17,7 +19,7 @@ public class ViewManagementSyncStanza {
 	private final String room;
 	private final String targetId;
 
-	private ViewManagementSyncStanza(Builder builder) {
+	private ViewManageSyncStanza(Builder builder) {
 		this.from = builder.from;
 		this.to = builder.to;
 		this.id = builder.id;
@@ -66,7 +68,7 @@ public class ViewManagementSyncStanza {
 		private String from;
 		private String to;
 		private String id;
-		private String action = "hide"; // Default action
+		private String action = ViewManageEnum.HIDE.getValue(); // Default action
 		private String room;
 		private String targetId;
 
@@ -103,11 +105,11 @@ public class ViewManagementSyncStanza {
 			return this;
 		}
 
-		public ViewManagementSyncStanza build() {
+		public ViewManageSyncStanza build() {
 			Objects.requireNonNull(from, "From JID is required");
 			Objects.requireNonNull(id, "Stanza ID is required");
 			Objects.requireNonNull(targetId, "Target message ID is required");
-			return new ViewManagementSyncStanza(this);
+			return new ViewManageSyncStanza(this);
 		}
 	}
 }

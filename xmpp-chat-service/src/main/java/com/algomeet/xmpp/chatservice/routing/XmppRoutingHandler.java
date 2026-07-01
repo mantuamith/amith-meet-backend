@@ -19,7 +19,7 @@ import com.algomeet.xmpp.chatservice.routing.mam.XmppMamHandler;
 import com.algomeet.xmpp.chatservice.routing.muc.XmppMucHandler;
 import com.algomeet.xmpp.chatservice.routing.sm.XmppStreamManagementStanzaHandler;
 import com.algomeet.xmpp.chatservice.routing.state.XmppUserGlobalPresenceHandler;
-import com.algomeet.xmpp.chatservice.routing.vm.XmppViewManagementHandler;
+import com.algomeet.xmpp.chatservice.routing.view.XmppViewManageHandler;
 import com.algomeet.xmpp.chatservice.service.OfflineMessageService;
 import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
@@ -69,7 +69,7 @@ public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocke
 	private final XmppMamHandler xmppMamHandler;
 	private final DomainProperties domainProperties;
 	private final XmppUtil xmppUtil;
-	private final XmppViewManagementHandler xmppViewManagementHandler;
+	private final XmppViewManageHandler xmppViewManagementHandler;
 
 	/**
 	 * Entry point for incoming WebSocket text frames.
