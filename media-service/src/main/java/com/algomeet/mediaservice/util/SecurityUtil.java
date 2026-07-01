@@ -66,6 +66,38 @@ public class SecurityUtil {
 		return null;
 	}
 
+	public static String getMeetingId() {
+		Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+		try {
+			if (auth != null
+					&& auth.getDetails() != null) {
+				if(auth.getDetails() instanceof Map) {
+					return (String) ((Map) auth.getDetails()).get("meeting_id");
+				}
+			}
+		} catch(Exception ex) {
+			log.error("Error retriving meeting id {}", ex.getMessage(), ex);
+		}
+
+		return null;
+	}
+
+	public static boolean isFileUploadFeatureEnabled() {
+		Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+		try {
+			if (auth != null
+					&& auth.getDetails() != null) {
+				if(auth.getDetails() instanceof Map) {
+					return Boolean.parseBoolean((String) ((Map) auth.getDetails()).get("feature_file_upload"));
+				}
+			}
+		} catch(Exception ex) {
+			log.error("Error retriving file-upload feature flag {}", ex.getMessage(), ex);
+		}
+
+		return false;
+	}
+
 	public static boolean isAdminUser() {
 		return UserRole.ROLE_ADMIN.equals(getUserRole());
 	}

@@ -12,4 +12,12 @@ public class RequestUserContext {
     public Integer getTenantId() {
         return SecurityUtil.getTenantId();
     }
+
+    public String getMeetingId() {
+        return SecurityUtil.getMeetingId();
+    }
+
+    public boolean isFileUploadFeatureEnabled() {
+        return SecurityUtil.isFileUploadFeatureEnabled();
+    }
 }

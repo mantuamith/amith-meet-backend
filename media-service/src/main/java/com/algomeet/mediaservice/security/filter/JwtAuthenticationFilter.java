@@ -15,7 +15,11 @@ import org.springframework.util.AntPathMatcher;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import com.algomeet.mediaservice.enums.ResponseCode;
+import com.algomeet.mediaservice.security.ProsodyFileSharingPrincipal;
+import com.algomeet.mediaservice.security.ProsodyFileSharingTokenService;
 import com.algomeet.mediaservice.util.JwtUtil;
+
+import io.jsonwebtoken.JwtException;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -30,7 +34,9 @@ import lombok.extern.slf4j.Slf4j;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtUtil jwtUtil;
+    private final ProsodyFileSharingTokenService prosodyFileSharingTokenService;
     private static final AntPathMatcher PATHS = new AntPathMatcher();
+    private static final String SESSION_DOCUMENTS_PATTERN = "/v1/documents/sessions/**";
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
@@ -61,6 +67,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             try {
                 // 2a) Validate JWT
                 if (!jwtUtil.isTokenValid(token)) {
+                    if (PATHS.match(SESSION_DOCUMENTS_PATTERN, request.getServletPath())
+                            && tryAuthenticateProsodyToken(token)) {
+                        chain.doFilter(request, response);
+                        return;
+                    }
                     unauthorized(response, ResponseCode.AUTH_SESSION_REVOKED); // or AUTH_LOGIN_FAILED if you prefer
                     return;
                 }
@@ -100,6 +111,26 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         // 3) Continue filter chain
         chain.doFilter(request, response);
+    }
+
+    private boolean tryAuthenticateProsodyToken(String token) {
+        try {
+            ProsodyFileSharingPrincipal principal = prosodyFileSharingTokenService.parseAndValidate(token);
+
+            @SuppressWarnings("serial")
+            var auth = new UsernamePasswordAuthenticationToken(principal.userId(), null, Collections.emptyList());
+            auth.setDetails(Map.of(
+                    "user_key", principal.userId() != null ? principal.userId() : "",
+                    "meeting_id", principal.meetingId() != null ? principal.meetingId() : "",
+                    "feature_file_upload", String.valueOf(principal.fileUploadFeatureEnabled()),
+                    "affiliation", principal.affiliation() != null ? principal.affiliation() : "",
+                    "display_name", principal.displayName() != null ? principal.displayName() : ""));
+            SecurityContextHolder.getContext().setAuthentication(auth);
+            return true;
+        } catch (JwtException | IllegalArgumentException ex) {
+            log.debug("Prosody file-sharing JWT verification failed: {}", ex.getMessage());
+            return false;
+        }
     }
 
     private void unauthorized(HttpServletResponse res, ResponseCode rc) throws IOException {
