@@ -24,7 +24,7 @@ public class DeleteMediaUtil {
 	private final DeleteMessageMediaEventPublisher deleteMessageMediaEventPublisher;
 	
 	public void deleteMediaFilesForHiddenMessages(List<UUID> messageBackupIds, UUID userKey) {
-		List<MessageBackupView> messages = repository.findByMessageIdInAndUserKey(messageBackupIds, userKey);
+		List<MessageBackupView> messages = repository.findViewByMessageIdInAndUserKey(messageBackupIds, userKey);
 		
 		for (MessageBackupView msg : messages) {
 			if(!CollectionUtils.isEmpty(msg.getMediaIds())) {
@@ -38,7 +38,7 @@ public class DeleteMediaUtil {
 	}
 	
 	public void deleteMediaFilesForRetractedMessages(List<UUID> messageBackupIds, UUID userKey) {
-		List<MessageBackupView> messages = repository.findByMessageIdInAndUserKey(messageBackupIds, userKey);
+		List<MessageBackupView> messages = repository.findViewByMessageIdInAndUserKey(messageBackupIds, userKey);
 		
 		for (MessageBackupView msg : messages) {
 			if(!CollectionUtils.isEmpty(msg.getMediaIds())) {

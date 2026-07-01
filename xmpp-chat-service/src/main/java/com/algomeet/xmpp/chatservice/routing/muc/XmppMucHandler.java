@@ -134,9 +134,13 @@ public class XmppMucHandler {
 
 		} else {
 			
-			// Check pin/unpin message stanza
+			// Check if the incoming XML payload is a message view management stanza (specifically a Pin or Unpin request)
 			if (XmppStanzaUtil.isPinOrUnpinStanza(originalXml)) {
-				pinMessageUtil.handlePinOrUnpinChatMessage(toRoomId, originalXml, principal);
+			    log.debug("Routing pin/unpin chat message stanza for session user: {}", principal.getUserKey());
+			    
+			    // Hand off parsing, action evaluation, and database/cluster synchronization 
+			    // to the dedicated PinMessageUtil handler
+			    pinMessageUtil.handlePinOrUnpinChatMessage(toRoomId, originalXml, principal);
 			}
 
 			// 2. DIRECT PRIVATE MESSAGE (PM) WITHIN MUC CHECK

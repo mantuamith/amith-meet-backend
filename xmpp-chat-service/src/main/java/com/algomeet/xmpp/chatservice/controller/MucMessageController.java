@@ -7,10 +7,12 @@ import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -18,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.algomeet.xmpp.chatservice.controller.doc.MucMessageControllerDoc;
 import com.algomeet.xmpp.chatservice.dto.CommonResponse;
 import com.algomeet.xmpp.chatservice.dto.MucMessageResponse;
+import com.algomeet.xmpp.chatservice.dto.GetMessagesByIdsRequest;
 import com.algomeet.xmpp.chatservice.enums.ResponseCode;
 import com.algomeet.xmpp.chatservice.exceptions.GroupNotFoundException;
 import com.algomeet.xmpp.chatservice.service.MucMessageService;
@@ -63,28 +66,32 @@ public class MucMessageController implements MucMessageControllerDoc{
 	 *         {@link MucMessageResponse} objects ordered chronologically.
 	 */
 	@GetMapping("/{groupId}/messages")
-	public ResponseEntity<CommonResponse<List<MucMessageResponse>>> getMessages(
+	public Mono<ResponseEntity<CommonResponse<List<MucMessageResponse>>>> getMessages(
 	        @PathVariable UUID groupId,
 	        @RequestParam(value = "before", required = false) UUID beforeStanzaId,
-	        @RequestParam(value = "after", required = false) UUID afterStanzaId,    		
-	        @RequestParam(value = "page", defaultValue = "0") int page, 
+	        @RequestParam(value = "after", required = false) UUID afterStanzaId,
+	        @RequestParam(value = "page", defaultValue = "0") int page,
 	        @RequestParam(value = "size", defaultValue = "20") int size) {
 
 	    UUID userKey = UUID.fromString(SecurityUtil.getUserKey());
-	    List<MucMessageResponse> messages;
+
+	    Mono<List<MucMessageResponse>> messagesMono;
 
 	    if (afterStanzaId != null) {
-	        messages = mucMessageService.getMessagesAfter(
-	                userKey, groupId, afterStanzaId, page, size);   
+	        messagesMono = mucMessageService.getMessagesAfter(
+	                userKey, groupId, afterStanzaId, page, size);
 	    } else {
 	        // Fallback: If 'before' is missing, default to a fresh time-ordered UUID
-	        UUID targetBeforeId = (beforeStanzaId != null) ? beforeStanzaId : UuidCreator.getTimeOrderedEpoch();
-	        
-	        messages = mucMessageService.getMessagesBefore(
-	                userKey, groupId, targetBeforeId, page, size);   
+	        UUID targetBeforeId = (beforeStanzaId != null)
+	                ? beforeStanzaId
+	                : UuidCreator.getTimeOrderedEpoch();
+
+	        messagesMono = mucMessageService.getMessagesBefore(
+	                userKey, groupId, targetBeforeId, page, size);
 	    }
 
-	    return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, messages));
+	    return messagesMono.map(messages ->
+	            ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, messages)));
 	}
 
 	/**
@@ -109,21 +116,20 @@ public class MucMessageController implements MucMessageControllerDoc{
 	 * @return A standardized {@link CommonResponse} containing incremental
 	 *         {@link MucMessageResponse} update records.
 	 */
-	@GetMapping("/{groupId}/massages/updates")
-	public ResponseEntity<CommonResponse<List<MucMessageResponse>>> getMessageUpdates(
-			@PathVariable UUID groupId,
-			@RequestParam("untilStanzaId") UUID untilStanzaId,
-			@RequestParam(value = "page", defaultValue = "0") int page,
-			@RequestParam(value = "size", defaultValue = "20") int size) {
+	@GetMapping("/{groupId}/messages/updates")
+	public Mono<ResponseEntity<CommonResponse<List<MucMessageResponse>>>> getModifiedMessages(
+	        @PathVariable UUID groupId,
+	        @RequestParam("untilStanzaId") UUID untilStanzaId,
+	        @RequestParam(value = "page", defaultValue = "0") int page,
+	        @RequestParam(value = "size", defaultValue = "20") int size) {
 
-		// Get the authenticated user's key
-		String userKey = SecurityUtil.getUserKey();                  
+	    UUID userKey = UUID.fromString(SecurityUtil.getUserKey());
 
-		return ResponseEntity.ok(CommonResponse.from(
-				ResponseCode.SUCCESS, 
-				mucMessageService.getMessageUpdates(UUID.fromString(userKey), groupId, untilStanzaId, page, size)
-				));
-	}  
+	    return mucMessageService
+	            .getModifiedMessages(userKey, groupId, untilStanzaId, page, size)
+	            .map(messages -> ResponseEntity.ok(
+	                    CommonResponse.from(ResponseCode.SUCCESS, messages)));
+	}
 
 	/**
      * Retrieves the chat inbox overview for the currently authenticated user.
@@ -140,17 +146,16 @@ public class MucMessageController implements MucMessageControllerDoc{
      *         {@link MucMessageResponse} objects sorted by recent activity.
      */
 	@GetMapping("/conversations")
-	public ResponseEntity<CommonResponse<List<MucMessageResponse>>> getConversations(){
-		// Get the authenticated user's key
-		String userKey = SecurityUtil.getUserKey();                  
+	public Mono<ResponseEntity<CommonResponse<List<MucMessageResponse>>>> getConversations() {
 
-		return ResponseEntity.ok(CommonResponse.from(
-				ResponseCode.SUCCESS, 
-				mucMessageService.getConversations(UUID.fromString(userKey))
-				));
+	    UUID userKey = UUID.fromString(SecurityUtil.getUserKey());
+
+	    return mucMessageService.getConversations(userKey)
+	            .map(conversations -> ResponseEntity.ok(
+	                    CommonResponse.from(ResponseCode.SUCCESS, conversations)
+	            ));
 	}
-	
-	
+		
 	/**
 	 * Clears the calling user's personal view of the group chat conversation history timeline.
 	 * <p>
@@ -219,5 +224,16 @@ public class MucMessageController implements MucMessageControllerDoc{
 	                    ResponseEntity.status(HttpStatus.CONFLICT).body(CommonResponse.from(ResponseCode.MESSAGE_RETENTION_UPDATE_IN_PROGRESS))
 	            )	            
 	            .onErrorResume(Exception.class, Mono::error);
+	}
+	
+	@PostMapping("/{groupId}/messages/by-ids")
+	public Mono<ResponseEntity<CommonResponse<List<MucMessageResponse>>>> findMessagesByIds(
+	        @PathVariable UUID groupId,
+	        @RequestBody @Validated GetMessagesByIdsRequest request) {
+
+	    UUID currentUserKey = UUID.fromString(SecurityUtil.getUserKey());
+	    return mucMessageService.fetchMessagesByIds(request.getMessageIds(), currentUserKey)
+	            .collectList()
+	            .map(messages -> ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, messages)));
 	}
 }

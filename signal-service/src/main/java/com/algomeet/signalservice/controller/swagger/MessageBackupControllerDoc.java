@@ -14,6 +14,7 @@ import com.algomeet.signalservice.dto.MessageBackupRequest;
 import com.algomeet.signalservice.dto.MessageBackupResponse;
 import com.algomeet.signalservice.dto.MessageBackupUpdateRequest;
 import com.algomeet.signalservice.dto.MessageStatusUpdateRequest;
+import com.algomeet.signalservice.dto.GetMessagesByIdsRequest;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -227,4 +228,54 @@ public interface MessageBackupControllerDoc {
     public ResponseEntity<CommonResponse<MessageBackupResponse>> getConversationLastReceived(
     		@Parameter(description = "The unique UUID identifier of the chat participant who authored the message", required = true, example = "e2b349d4-1a73-45bb-b302-123456789abc")
     		@PathVariable UUID peerKey);
+    
+
+    @Operation(
+    		summary = "Apply message retention policy",
+    		description = "Configures the number of days messages are retained in a 1-on-1 chat with a peer. " +
+    				"Triggers background updates. Returns a conflict status if a retention update task is already executing."
+    		)
+    @ApiResponses(value = {
+    		@ApiResponse(
+    				responseCode = "200", 
+    				description = "Retention policy successfully scheduled or updated.",
+    				content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonResponse.class))
+    				),
+    		@ApiResponse(
+    				responseCode = "409", 
+    				description = "Conflict. A message retention calculation or lifecycle sync update is already running for this thread.", 
+    				content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonResponse.class))
+    				),
+    		@ApiResponse(
+    				responseCode = "400", 
+    				description = "Invalid UUID formatting provided in path or parameter constraint violations.", 
+    				content = @Content(schema = @Schema(hidden = true))
+    				)
+    })
+    public ResponseEntity<CommonResponse<?>> applyMessageRetentionPolicy(
+    		@Parameter(description = "The unique UUID of the peer user in the 1-on-1 chat thread", required = true, example = "4a1b2c3d-4e5f-6a7b-8c9d-0e1f2a3b4c5d")
+    		@PathVariable UUID peerKey,
+    		@Parameter(description = "Number of days to keep messages active before policy auto-purge executes", required = true, example = "30")
+    		@RequestParam Integer messageRetentionDays);
+
+    @Operation(
+    		summary = "Batch fetch direct messages by IDs",
+    		description = "Retrieves an explicit collection of historical backup messages from a chat thread using an array of message UUIDs."
+    		)
+    @ApiResponses(value = {
+    		@ApiResponse(
+    				responseCode = "200", 
+    				description = "Successfully compiled historical message payloads.",
+    				content = @Content(mediaType = "application/json", schema = @Schema(implementation = MessageBackupResponse.class))
+    				),
+    		@ApiResponse(
+    				responseCode = "400", 
+    				description = "Invalid validation rules or payload formatting constraints violated.", 
+    				content = @Content(schema = @Schema(hidden = true))
+    				)
+    })
+    public ResponseEntity<CommonResponse<List<MessageBackupResponse>>> findMessagesByIds(
+    		@Parameter(description = "The unique UUID of the peer user in the 1-on-1 chat thread", required = true, example = "4a1b2c3d-4e5f-6a7b-8c9d-0e1f2a3b4c5d")
+    		@PathVariable UUID peerKey, // Changed placeholder name logic to match URI safely
+    		@RequestBody @Validated GetMessagesByIdsRequest request);
 }

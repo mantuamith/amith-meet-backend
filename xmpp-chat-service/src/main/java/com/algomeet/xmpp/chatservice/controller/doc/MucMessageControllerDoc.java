@@ -4,11 +4,14 @@ import java.util.List;
 import java.util.UUID;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 
 import com.algomeet.xmpp.chatservice.dto.CommonResponse;
 import com.algomeet.xmpp.chatservice.dto.MucMessageResponse;
+import com.algomeet.xmpp.chatservice.dto.GetMessagesByIdsRequest;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -49,7 +52,7 @@ public interface MucMessageControllerDoc {
 			@ApiResponse(responseCode = "403", description = "Forbidden"),
 			@ApiResponse(responseCode = "404", description = "Group not found")
 	})
-	public ResponseEntity<CommonResponse<List<MucMessageResponse>>> getMessages(
+	public Mono<ResponseEntity<CommonResponse<List<MucMessageResponse>>>> getMessages(
 
 			@Parameter(
 					description = "Unique group identifier",
@@ -84,9 +87,9 @@ public interface MucMessageControllerDoc {
 			@RequestParam(value = "size", defaultValue = "20") int size);
 
 	@Operation(
-			summary = "Get message updates",
+			summary = "Get modified messages",
 			description = """
-					Retrieves message updates up to the provided stanza ID.
+					Retrieves modified messages up to the provided stanza ID.
 
 					This endpoint is commonly used for:
 					- message synchronization
@@ -97,7 +100,7 @@ public interface MucMessageControllerDoc {
 	@ApiResponses(value = {
 			@ApiResponse(
 					responseCode = "200",
-					description = "Message updates retrieved successfully",
+					description = "Modified messages retrieved successfully",
 					content = @Content(
 							mediaType = "application/json",
 							array = @ArraySchema(schema = @Schema(implementation = MucMessageResponse.class))
@@ -108,7 +111,7 @@ public interface MucMessageControllerDoc {
 			@ApiResponse(responseCode = "403", description = "Forbidden"),
 			@ApiResponse(responseCode = "404", description = "Group not found")
 	})
-	public ResponseEntity<CommonResponse<List<MucMessageResponse>>> getMessageUpdates(
+	public Mono<ResponseEntity<CommonResponse<List<MucMessageResponse>>>> getModifiedMessages(
 
 			@Parameter(
 					description = "Unique group identifier",
@@ -171,7 +174,7 @@ public interface MucMessageControllerDoc {
 	        @ApiResponse(responseCode = "401", description = "Unauthorized"),
 	        @ApiResponse(responseCode = "403", description = "Forbidden")
 	})
-	public ResponseEntity<CommonResponse<List<MucMessageResponse>>> getConversations();
+	public Mono<ResponseEntity<CommonResponse<List<MucMessageResponse>>>> getConversations();
 	
 	@Operation(
 	        summary = "Hard delete all group messages administratively",
@@ -241,4 +244,32 @@ public interface MucMessageControllerDoc {
 
 			@Parameter(description = "Number of days messages should be retained from creation time", required = true, example = "30")
 			@RequestParam Integer messageRetentionDays);
+	
+	
+	@Operation(
+	        summary = "Batch fetch group messages by IDs",
+	        description = "Retrieves a specific list of group chat messages using a batch collection of message UUIDs. " +
+	                      "Verifies user channel visibility, filters out hidden assets, and automatically appends read-cursor metrics."
+	    )
+	    @ApiResponses(value = {
+	        @ApiResponse(
+	            responseCode = "200", 
+	            description = "Successfully retrieved message payloads matching the target IDs.",
+	            content = @Content(mediaType = "application/json", schema = @Schema(implementation = MucMessageResponse.class))
+	        ),
+	        @ApiResponse(
+	            responseCode = "400", 
+	            description = "Invalid UUID formatting provided in path or payload validation constraints failed.", 
+	            content = @Content(schema = @Schema(hidden = true))
+	        ),
+	        @ApiResponse(
+	            responseCode = "403", 
+	            description = "Access denied. The authenticated user is not a permitted member of this group chat context.", 
+	            content = @Content(schema = @Schema(hidden = true))
+	        )
+	    })
+	    public Mono<ResponseEntity<CommonResponse<List<MucMessageResponse>>>> findMessagesByIds(
+	            @Parameter(description = "The unique UUID of the target MUC group room", required = true, example = "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d")
+	            @PathVariable UUID groupId,
+	            @RequestBody @Validated GetMessagesByIdsRequest request);
 }

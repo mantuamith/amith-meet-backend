@@ -532,8 +532,22 @@ public class XmppStanzaUtil {
 				.toString();
 	}   
 	
+	/**
+	 * Determines whether the provided XML payload represents a valid Pin or Unpin stanza.
+	 * To minimize parsing overhead on high-throughput Netty threads, this uses fast string 
+	 * lookups before attempting deep structural XML parsing.
+	 *
+	 * @param xml The raw XMPP stanza string incoming from the channel network layer.
+	 * @return true if the stanza is a message envelope containing the pin/unpin namespace 
+	 * and lacks a body tag; false otherwise.
+	 */
 	public static boolean isPinOrUnpinStanza(String xml) {
+		// Verify the payload is structurally bounded as an XMPP <message> stanza first
 		if (XmppStanzaUtil.isMessageStanza(xml)) {
+			
+			// A valid pin/unpin action MUST contain the dedicated protocol namespace 
+			// AND it MUST NOT contain a <body> element (ensuring regular chat text messages 
+			// containing the namespace text by coincidence aren't misrouted).
 			return xml.indexOf(NS_PIN_OR_UNPIN_MESSAGE) != -1 && xml.indexOf(BODY_TAG) == -1;
 		}
 

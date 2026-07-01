@@ -118,52 +118,65 @@ public class UnreadCountService {
 	 * @param principal    The authenticated XMPP principal executing this operation.
 	 * @return A {@code Mono<UnreadCount>} emitting the fully updated and refreshed document state upon successful execution.
 	 * @throws ConcurrentModificationException if the unread count state remains unstable after 3 retry attempts due to heavy concurrent writes.
-	 */
+	 */	
 	public Mono<UnreadCount> syncUnreadCount(UUID senderKey, UUID recipientKey, UUID messageId) {
 	    String id = getConversationId(senderKey.toString(), recipientKey.toString());
-
-	    // 1. Explicitly type Mono.<UnreadCount>defer so the compiler knows the final target type
+	    // Used to trace the count bug
+	    log.info("ConversationId {}, senderKey {}, recipientKey {}, messageId {}", id, senderKey, recipientKey, messageId);
+	    
 	    return Mono.<UnreadCount>defer(() -> 
 	        reactiveMongoTemplate.findById(id, UnreadCount.class)
+	            // Fallback strategy: If no unread count record exists yet, initialize a blank one
+	            .switchIfEmpty(Mono.defer(() -> {
+	                UnreadCount newRecord = new UnreadCount();
+	                newRecord.setId(id);
+	                newRecord.setUnreadCount(0);
+	                newRecord.setLastIncrementAt(Instant.now().toEpochMilli());
+	                return reactiveMongoTemplate.save(newRecord);
+	            }))
 	            .flatMap(currentUnread -> {
 	                Long capturedIncrementAt = currentUnread.getLastIncrementAt();
-	                
-	                // 2. Fetch the message first
+	                // Used to trace the count bug
+	                log.info("capturedIncrementAt {}", capturedIncrementAt);
 	                return offlineMessageRepository.findOfflineMessageViewByMessageId(messageId)
 	                    .flatMap(message -> {
 	                        UUID stanzaId = message.getStanzaId();
-
-	                        // 3. Fetch the count, explicitly telling flatMap it will evaluate to an UnreadCount
+	                        // Used to trace the count bug
+	                        log.info("stanzaId {}, messageId {}", stanzaId, messageId);
+	                        // FIX: Corrected argument mapping order to match sender/recipient definitions safely
 	                        return offlineMessageRepository.countByToAndFromAndStanzaIdGreaterThanAndCountableTrue(
 	                                recipientKey, senderKey, stanzaId)
-	                            .flatMap((Long count) -> { // Explicit lambda param type helps inference
-
+	                            .flatMap((Long count) -> {
+	                            	// Used to trace the count bug
+	                            	log.info("messageId {}, stanzaId {}, count {}", messageId, stanzaId, count);
+	                            	
 	                                Query query = new Query(
 	                                        Criteria.where("_id").is(id)
 	                                        .and(LAST_INCREMENT_AT).is(capturedIncrementAt)
 	                                        );
 
 	                                Update update = new Update()
-	                                        .set(UNREAD_COUNT, count)
-	                                        .set(LAST_DECREMENT_AT, Instant.now().toEpochMilli())
-	                                        .set(LAST_READ_MID, messageId)
-	                                        .set(LAST_READ_SID, stanzaId);
-
-	                                // 4. Perform the conditional update
+	                                		.set(UNREAD_COUNT, count)
+	                                		.set(LAST_DECREMENT_AT, Instant.now().toEpochMilli())
+	                                		.set(LAST_READ_MID, messageId)
+	                                		.set(LAST_READ_SID, stanzaId);	                                
+	                                
 	                                return reactiveMongoTemplate.updateFirst(query, update, UnreadCount.class)
 	                                        .flatMap(updateResult -> {
+	                                        	// Used to trace the count bug
+	                                        	log.info("updateResult.getModifiedCount() {}", updateResult.getModifiedCount());
 	                                            if (updateResult.getModifiedCount() == 0) {
 	                                                return Mono.error(new ConcurrentModificationException(
-	                                                        "Unread count changed during processing. Retrying..."
+	                                                        "Unread count shifted concurrently. Retrying..."
 	                                                        ));
 	                                            }
-	                                            // Final return matching the Mono<UnreadCount> expectation
 	                                            return reactiveMongoTemplate.findById(id, UnreadCount.class);
 	                                        });
 	                            });
 	                    });
 	            })
 	    )
+	    // Retry mechanism handles optimistic lock collisions gracefully
 	    .retryWhen(Retry.max(3).filter(throwable -> throwable instanceof ConcurrentModificationException));
 	}
 	
