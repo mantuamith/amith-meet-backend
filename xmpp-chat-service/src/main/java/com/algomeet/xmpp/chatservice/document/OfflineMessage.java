@@ -5,7 +5,6 @@ import java.util.List;
 import java.util.UUID;
 
 import org.springframework.data.annotation.Id;
-import org.springframework.data.annotation.Transient;
 import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.index.Indexed;
@@ -124,7 +123,4 @@ public class OfflineMessage {
 	 * Used for configuring deletion date of the chat message.
 	 */
 	private Instant purgeAt;
-	
-	@Transient
-	private Integer retentionDays;
 }

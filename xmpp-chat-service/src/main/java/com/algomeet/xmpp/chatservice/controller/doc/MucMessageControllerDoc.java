@@ -238,7 +238,7 @@ public interface MucMessageControllerDoc {
 					content = @Content(schema = @Schema(hidden = true))
 					)
 	})
-	public Mono<ResponseEntity<CommonResponse<Object>>> applyMessageRetentionPolicy(
+	public Mono<ResponseEntity<CommonResponse<Object>>> updateMessageRetention(
 			@Parameter(description = "The unique identifier (UUID) of the MUC group room", required = true)
 			@PathVariable UUID groupId,
 

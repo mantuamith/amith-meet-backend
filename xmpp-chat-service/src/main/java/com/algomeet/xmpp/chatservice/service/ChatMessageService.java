@@ -34,9 +34,7 @@ public class ChatMessageService {
 	private final UnreadCountService unreadCountService;
 	private final ClusterMessagePublisher clusterMessagePublisher;
 	private final DomainProperties domainProperties;
-	private final ConversationSettingServiceImpl conversationSettingService;
-	private final ChatMessageRetentionLockManager chatMessageRetentionLockManager;
-	private final ConversationSettingsCacheService conversationSettingsCacheService;
+
 	private final ReactiveMongoTemplate reactiveMongoTemplate; 
 
 	public Mono<UnreadCount> timelineCutoff(UUID userKey, UUID peerKey, UUID cutoffMessageId, UUID cutoffStanzaId) {	    
@@ -67,31 +65,6 @@ public class ChatMessageService {
 				.deleteByToAndFromAndDeliveredAtIsNotNullAndStanzaIdLessThanEqual(userKey, peerKey, cutoffStanzaId)
 				// .then() waits for the deletion to complete, then moves to the next Mono
 				.then(Mono.defer(() -> unreadCountService.syncUnreadCountByStanzaId(peerKey, userKey, cutoffMessageId, cutoffStanzaId)));
-	}
-
-	public Mono<Void> applyMessageRetentionPolicy(UUID userKey, UUID peerKey, Integer messageRetentionDays) {
-	    Integer retentionDays = (messageRetentionDays != -1) ? messageRetentionDays : null;
-
-	    return Mono.defer(() -> {
-	        // 1. ATOMIC ACQUIRE: Attempt to acquire the distributed lock
-	        ChatMessageRetentionLockManager.LockToken lockToken = 
-	                chatMessageRetentionLockManager.acquireLock(userKey, peerKey);
-
-	        // If the token comes back null, the lock was not acquired (another process is running)
-	        if (lockToken == null) {
-	            return Mono.error(new IllegalStateException("Could not acquire retention update lock. Process already running."));
-	        }
-
-	        // 2. EXECUTE THE PIPELINE
-	        return conversationSettingService
-	                .saveOrUpdateRetentionDays(userKey, peerKey, retentionDays)
-	                .flatMap(savedSetting -> conversationSettingsCacheService.evictSettings(userKey, peerKey)
-	                        .then(updatePurgeAtByToAndFrom(userKey, peerKey, retentionDays))
-	                )
-	                .then()
-	                // 3. SAFE RELEASE: Guarantees lock token release using the Lua script regardless of outcome
-	                .doFinally(signalType -> chatMessageRetentionLockManager.releaseLock(lockToken));
-	    });
 	}
 	
 	public Mono<Long> updatePurgeAtByToAndFrom(UUID to, UUID from, Integer messageRetentionDays) {

@@ -5,12 +5,12 @@ import org.springframework.data.mongodb.repository.ReactiveMongoRepository;
 import org.springframework.data.mongodb.repository.Update;
 import org.springframework.stereotype.Repository;
 
-import com.algomeet.xmpp.chatservice.document.ConversationSetting;
+import com.algomeet.xmpp.chatservice.document.ConversationSettingsDocument;
 
 import reactor.core.publisher.Mono;
 
 @Repository
-public interface ConversationSettingRepository extends ReactiveMongoRepository<ConversationSetting, String> {
+public interface ConversationSettingRepository extends ReactiveMongoRepository<ConversationSettingsDocument, String> {
     /**
      * Updates or sets the message retention days for a specific conversation ID.
      */

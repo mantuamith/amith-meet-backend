@@ -47,12 +47,7 @@ public class ConversationSettingsCacheService extends AbstractConversationSettin
         return redisTemplate.opsForValue().get(key)
                 // --- Layer 1: Cache Lookup Handling ---
                 .map(cachedObj -> {
-                    if (EMPTY_SENTINEL.equals(cachedObj)) {
-                        log.debug("Cache penetration match: Conversation ID {} flagged as non-existent.", conversationId);
-                        // Wrap in a custom empty state carrier or handle transparently
-                        return EMPTY_SENTINEL; 
-                    }
-                    log.debug("Cache hit for conversation ID: {}", conversationId);
+                    log.info("Cache hit for conversation ID: {}", conversationId);
                     return (ConversationSettings) cachedObj;
                 })
                 // Log and bypass Redis transient lookup failures without crashing the application pipeline
@@ -62,20 +57,22 @@ public class ConversationSettingsCacheService extends AbstractConversationSettin
                 })
                 // --- Layer 2: Cache Miss Handling (Database Fetch + Cache Populate) ---
                 .switchIfEmpty(Mono.defer(() -> {
-                    log.debug("Cache miss encountered. Fetching settings for conversation ID: {} from downstream database.", conversationId);
+                    log.info("Cache miss encountered. Fetching settings for conversation ID: {} from downstream database.", conversationId);
                     
                     return conversationSettingsService.getSettings(conversationId)
                             // If DB returns a document, write to Redis with standard TTL
                             .flatMap(settings -> redisTemplate.opsForValue().set(key, settings, cacheTtl)
                                     .thenReturn(settings))
                             // If DB returns nothing (null/empty), cache the sentinel wrapper to block cache-penetration attacks
-                            .switchIfEmpty(Mono.defer(() -> 
-                                    redisTemplate.opsForValue().set(key, EMPTY_SENTINEL, Duration.ofMinutes(5))
-                                            .thenReturn(EMPTY_SENTINEL)
+                            .switchIfEmpty(Mono.defer(() -> {
+                            	
+                            	return redisTemplate.opsForValue().set(key, EMPTY_SENTINEL, Duration.ofMinutes(5))
+                            			.thenReturn(EMPTY_SENTINEL);
+                            }
                             ));
                 }))
                 // --- Layer 3: Final Output Mapping ---
-                .flatMap(result -> EMPTY_SENTINEL.equals(result) ? Mono.empty() : Mono.just(result));
+                .flatMap(result -> Mono.just(result));
     }
 
     /**

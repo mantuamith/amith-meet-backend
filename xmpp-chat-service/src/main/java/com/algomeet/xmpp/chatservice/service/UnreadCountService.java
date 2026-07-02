@@ -122,7 +122,6 @@ public class UnreadCountService {
 	public Mono<UnreadCount> syncUnreadCount(UUID senderKey, UUID recipientKey, UUID messageId) {
 	    String id = getConversationId(senderKey.toString(), recipientKey.toString());
 	    // Used to trace the count bug
-	    log.info("ConversationId {}, senderKey {}, recipientKey {}, messageId {}", id, senderKey, recipientKey, messageId);
 	    
 	    return Mono.<UnreadCount>defer(() -> 
 	        reactiveMongoTemplate.findById(id, UnreadCount.class)
@@ -137,19 +136,16 @@ public class UnreadCountService {
 	            .flatMap(currentUnread -> {
 	                Long capturedIncrementAt = currentUnread.getLastIncrementAt();
 	                // Used to trace the count bug
-	                log.info("capturedIncrementAt {}", capturedIncrementAt);
 	                return offlineMessageRepository.findOfflineMessageViewByMessageId(messageId)
 	                    .flatMap(message -> {
 	                        UUID stanzaId = message.getStanzaId();
 	                        // Used to trace the count bug
-	                        log.info("stanzaId {}, messageId {}", stanzaId, messageId);
+	                        log.debug("stanzaId {}, messageId {}", stanzaId, messageId);
 	                        // FIX: Corrected argument mapping order to match sender/recipient definitions safely
 	                        return offlineMessageRepository.countByToAndFromAndStanzaIdGreaterThanAndCountableTrue(
 	                                recipientKey, senderKey, stanzaId)
 	                            .flatMap((Long count) -> {
-	                            	// Used to trace the count bug
-	                            	log.info("messageId {}, stanzaId {}, count {}", messageId, stanzaId, count);
-	                            	
+	                            	// Used to trace the count bug	                            	
 	                                Query query = new Query(
 	                                        Criteria.where("_id").is(id)
 	                                        .and(LAST_INCREMENT_AT).is(capturedIncrementAt)
@@ -164,7 +160,6 @@ public class UnreadCountService {
 	                                return reactiveMongoTemplate.updateFirst(query, update, UnreadCount.class)
 	                                        .flatMap(updateResult -> {
 	                                        	// Used to trace the count bug
-	                                        	log.info("updateResult.getModifiedCount() {}", updateResult.getModifiedCount());
 	                                            if (updateResult.getModifiedCount() == 0) {
 	                                                return Mono.error(new ConcurrentModificationException(
 	                                                        "Unread count shifted concurrently. Retrying..."

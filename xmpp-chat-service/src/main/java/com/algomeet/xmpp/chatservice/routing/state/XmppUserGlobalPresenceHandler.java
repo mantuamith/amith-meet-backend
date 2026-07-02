@@ -57,7 +57,6 @@ public class XmppUserGlobalPresenceHandler {
 	 * @param xml       raw XMPP presence stanza
 	 */
 	public void processPresence(ChannelHandlerContext ctx, XmppPrincipal principal, String xml) {
-
 		// RFC 6121: Only process "self-broadcast" presence directed to server
 		// (e.g., <presence/> or initial availability updates)
 		if (isSelfBroadcastPresence(xml)) {

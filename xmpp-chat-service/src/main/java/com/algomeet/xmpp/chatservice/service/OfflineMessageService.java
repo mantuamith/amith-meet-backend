@@ -12,6 +12,7 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
 import com.algomeet.common.dto.ConversationSettings;
+import com.algomeet.xmpp.chatservice.beans.OfflineMessageWithRetention;
 import com.algomeet.xmpp.chatservice.constant.Constants;
 import com.algomeet.xmpp.chatservice.document.OfflineMessage;
 import com.algomeet.xmpp.chatservice.repository.OfflineMessageRepository;
@@ -60,7 +61,7 @@ public class OfflineMessageService {
      * @param originalXml The raw XML payload to be stored.
      * @return A {@link Mono} emitting the saved {@link OfflineMessage}.
      */
-    public Mono<OfflineMessage> save(UUID messageId, UUID stanzaId, String to, String from, String type, Boolean isAckStanza, 
+    public Mono<OfflineMessageWithRetention> save(UUID messageId, UUID stanzaId, String to, String from, String type, Boolean isAckStanza, 
     		boolean isCountable, String originalXml, List<UUID> mediaIds) {
         UUID fromUuid = UUID.fromString(from);
         UUID toUuid = UUID.fromString(to);
@@ -92,10 +93,12 @@ public class OfflineMessageService {
                             .stanzaXml(originalXml)
                             .mediaIds(mediaIds)
                             .purgeAt(purgeAt)
-                            .retentionDays(retentionDays)
                             .build();
+                    
+                    OfflineMessageWithRetention offlineMessageWithRetention = new OfflineMessageWithRetention(offlineMessage, retentionDays);
 
-                    return offlineMessageRepository.save(offlineMessage);
+                    return offlineMessageRepository.save(offlineMessage)
+                    		.thenReturn(offlineMessageWithRetention);
                 });
     }
     

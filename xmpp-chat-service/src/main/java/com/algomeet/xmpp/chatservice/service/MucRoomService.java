@@ -24,12 +24,15 @@ import com.algomeet.xmpp.chatservice.constant.Constants;
 import com.algomeet.xmpp.chatservice.document.MucMessage;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.enums.MucAffiliation;
+import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
 import com.algomeet.xmpp.chatservice.exceptions.GroupNotFoundException;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.publisher.PurgeGroupConversationStreamPublisher;
 import com.algomeet.xmpp.chatservice.repository.MucMessageRepository;
 import com.algomeet.xmpp.chatservice.routing.muc.MucMessageRouter;
+import com.algomeet.xmpp.chatservice.stanza.SyncMessageRetentionStanza;
 import com.algomeet.xmpp.chatservice.util.DeleteMediaUtil;
+import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.algomeet.xmpp.chatservice.util.SearchUtil;
 import com.algomeet.xmpp.chatservice.util.XmppSyncStanzaComposer;
 import com.github.f4b6a3.uuid.UuidCreator;
@@ -56,6 +59,7 @@ public class MucRoomService {
     private final MucMessageRouter mucMessageRouter;
 	private final MucMessageRetentionLockManager mucMessageRetentionLockManager;
 	private final ReactiveMongoTemplate reactiveMongoTemplate; 
+	private final JidUtil jidUtil;
     
     /**
      * Handles the business flow for clearing a member's history timeline.
@@ -238,7 +242,7 @@ public class MucRoomService {
                 UUID.fromString(groupId));
     }    
 
-    public Mono<Void> applyMessageRetentionPolicy(UUID userKey, UUID groupId, Integer messageRetentionDays) {
+    public Mono<Void> updateMessageRetention(UUID userKey, UUID groupId, Integer messageRetentionDays) {
         Integer retentionDays = messageRetentionDays != -1 ? messageRetentionDays : null;
 
         // Use Mono.usingWhen to manage the lock lifecycle across the ENTIRE sequence
@@ -270,7 +274,25 @@ public class MucRoomService {
                     }
                     
                     // If validation passes, proceed directly to updating database records
-                    return updatePurgeAtByRoomId(groupId, retentionDays);
+                    return updatePurgeAtByRoomId(groupId, retentionDays)
+                    		.then(Mono.fromRunnable(() -> {
+                    			String messageId = UuidCreator.getTimeOrderedEpoch().toString();
+
+                    			// Compose and send sync message to group members and echo message to user's online devices
+                    			SyncMessageRetentionStanza syncStanza = SyncMessageRetentionStanza.builder() 
+                    					.id(messageId)
+                    					.from(jidUtil.getGroupBareJid(groupId.toString()) + "/" + userKey.toString())
+                    					.retentiondays(messageRetentionDays) 
+                    					.type(XmppMessageType.GROUPCHAT.getXmlValue())
+                    					.build(); 
+
+                    			// Distribute via router to all active occupants in the room
+                    			mucMessageRouter.broadcastToOccupants(messageId, 
+                    					userKey.toString(), 
+                    					group, 
+                    					syncStanza.toXml(), 
+                    					true);
+                    		}));
                 }),
                 
             // Phase 3: Cleanup on Success Completion

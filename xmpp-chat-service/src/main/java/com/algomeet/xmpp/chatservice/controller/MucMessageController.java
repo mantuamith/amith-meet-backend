@@ -199,8 +199,8 @@ public class MucMessageController implements MucMessageControllerDoc{
         }
     }
 	
-	@PostMapping("/{groupId}/apply-message-retention-policy")
-	public Mono<ResponseEntity<CommonResponse<Object>>> applyMessageRetentionPolicy(
+	@PostMapping("/{groupId}/message-retention")
+	public Mono<ResponseEntity<CommonResponse<Object>>> updateMessageRetention(
 	        @PathVariable UUID groupId,
 	        @RequestParam Integer messageRetentionDays) {
 	    
@@ -208,7 +208,7 @@ public class MucMessageController implements MucMessageControllerDoc{
 	    // Replace 'currentUserKey' with your actual user context extraction logic.
 	    UUID currentUserKey = UUID.fromString(SecurityUtil.getUserKey());  
 	    
-	    return mucRoomService.applyMessageRetentionPolicy(currentUserKey, groupId, messageRetentionDays)
+	    return mucRoomService.updateMessageRetention(currentUserKey, groupId, messageRetentionDays)
 	            // .then() waits for completion (empty or not) and switches to your success response
 	            .then(Mono.just(ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS))))
 	            .onErrorReturn(
