@@ -25,3 +25,10 @@ Thumbs.db
 # VS Code (if used)
 .vscode/
 workspace/
+
+# Local docker-compose testing (media-service, etc.) — stays local only, never tracked
+local/
+docker-compose.media-local.yml
+docker-compose.media-local.env
+docker-compose.media-local.env.example
+media-service/LOCAL_TESTING.md
