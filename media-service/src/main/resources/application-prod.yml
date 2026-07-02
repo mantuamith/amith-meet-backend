@@ -32,7 +32,7 @@ spring:
       auto-index-creation: true
 
     redis:
-      host: redis-svc
+      host: ${REDIS_HOST:redis-svc}
       port: 6379
       password: ${REDIS_PASSWORD}
 
@@ -84,6 +84,7 @@ jwt:
 
 server:
   port: 8095
+  forward-headers-strategy: framework
 
 feign:
   client:

@@ -87,6 +87,7 @@ media:
 
 server:
   port: 8095
+  forward-headers-strategy: framework
 
 jwt:
   secret: ${JWT_SECRET:Y0h4TkFxWkd6Um9TTktOVlFobU9naFN3SzY5cWhVY08=}
