@@ -247,29 +247,7 @@ public class MessageBackupService {
 
 		// 3. Collect to standard ArrayList for significantly faster processing and serialization
 		List<MessageBackupDocument> modifiedRecords = new ArrayList<>(mongoTemplate.find(query, MessageBackupDocument.class));
-
-		// 4. Inject Conversation Start Indicator ONLY on Page 0
-		if (page == 0) {
-			Optional<MessageBackupDocument> optCurrentFirstMessage = repository.findFirstByUserKeyAndConversationIdOrderByStanzaIdAsc(userKey, conversationId);
-
-			if (optCurrentFirstMessage.isPresent()) {
-				MessageBackupDocument conversationStartMessage = optCurrentFirstMessage.get();
-				// Otherwise, mark it and inject it cleanly as the first item
-				conversationStartMessage.setStartOfConversation(true);
-				// Lighten the message
-				conversationStartMessage.setEncryptedMessage(null);
-				modifiedRecords.add(0, conversationStartMessage);
-				
-			} else {
-				MessageBackupDocument conversationStartMessage = new MessageBackupDocument();
-				conversationStartMessage.setStartOfConversation(true);
-				conversationStartMessage.setMessageId(Constants.NIL_UUID);
-				conversationStartMessage.setId(new MessageBackupKey(userKey, Constants.NIL_UUID));
-				
-				return List.of(conversationStartMessage);
-			}
-		}
-
+	
 		return modifiedRecords;
 	}
 
@@ -368,6 +346,80 @@ public class MessageBackupService {
 				);
 
 		return results.getMappedResults();
+	}
+		
+	/**
+	 * Retrieves the earliest retained message metadata anchor points per conversation for a given user.
+	 * Designed to safely run across 1B+ records by discarding heavy encrypted payloads early in the pipeline.
+	 */
+	public List<MessageBackupDocument> getEarliestRetainedMessages(UUID userKey) {
+	    // allowDiskUse(true) kept as a safety guardrail, though RAM usage will drop by ~99% due to early projection
+	    AggregationOptions options = AggregationOptions.builder().allowDiskUse(true).build();
+
+	    Aggregation aggregation = Aggregation.newAggregation(
+	            // Stage 1: Fast IXSCAN lookup utilizing: idxMsg_userKey_stanzaIdDesc_conversationId_partial
+	            Aggregation.match(
+	                    Criteria.where(FIELD_USER_KEY).is(userKey)
+	                            .and(FIELD_DELETED_AT).is(null)
+	                            .and(FIELD_HIDDEN_AT).is(null)
+	            ),
+
+	            // Stage 2: CRITICAL EARLY PROJECTION
+	            // Strip encryptedMessage string right away. Keep only the requested identity fields.
+	            Aggregation.project()
+	                    .and(FIELD_USER_KEY).as("userKey")
+	                    .and(FIELD_STANZA_ID).as("stanzaId")
+	                    .and(FIELD_CONVERSATION_ID).as("conversationId")
+	                    .and(FIELD_MESSAGE_ID).as("messageId")
+	                    .and(FIELD_SENDER_KEY).as("senderKey")
+	                    .and(FIELD_RECEIVER_KEY).as("receiverKey"),
+
+	            // Stage 3: Sort aligned with chronological scanning order
+	            Aggregation.sort(Sort.Direction.ASC, FIELD_CONVERSATION_ID, FIELD_STANZA_ID),
+
+	            // Stage 4: Group and capture the earliest surviving element profile
+	            Aggregation.group(FIELD_CONVERSATION_ID).first(Aggregation.ROOT).as("earliestMessage"),
+
+	            // Stage 5: Push inner object back to root space
+	            Aggregation.replaceRoot("earliestMessage"),
+
+	            // Stage 6: Enforce final uniform payload constraints across the network wire
+	            Aggregation.project()
+	                    .and("userKey").as("userKey")
+	                    .and("stanzaId").as("stanzaId")
+	                    .and("conversationId").as("conversationId")
+	                    .and("messageId").as("messageId")
+	                    .and("senderKey").as("senderKey")
+	                    .and("receiverKey").as("receiverKey"),
+
+	            // Stage 7: Sort by stanza ID chronologically
+	            Aggregation.sort(Sort.Direction.ASC, "stanzaId")
+	    ).withOptions(options);
+
+	    // Execute with Document.class to minimize mapper reflection pipeline footprint
+	    AggregationResults<Document> results = mongoTemplate.aggregate(
+	            aggregation, "message_backups", Document.class
+	    );
+
+	    return results.getMappedResults().stream()
+	            .map(doc -> {
+	                MessageBackupDocument partialDoc = new MessageBackupDocument();
+	                
+	                // Reconstruct the composite Primary Key ID structure
+	                MessageBackupKey compositeKey = new MessageBackupKey();
+	                compositeKey.setUserKey(doc.get("userKey", UUID.class));
+	                compositeKey.setStanzaId(doc.get("stanzaId", UUID.class));
+	                partialDoc.setId(compositeKey);
+	                
+	                // Populate root level identity properties
+	                partialDoc.setConversationId(doc.getString("conversationId"));
+	                partialDoc.setMessageId(doc.get("messageId", UUID.class));
+	                partialDoc.setSenderKey(doc.get("senderKey", UUID.class));
+	                partialDoc.setReceiverKey(doc.get("receiverKey", UUID.class));
+	                
+	                return partialDoc;
+	            })
+	            .collect(Collectors.toList());
 	}
 
 	public MessageBackupDocument update(UUID userKey,  UUID messageId, MessageBackupUpdateRequest backupReq) {	

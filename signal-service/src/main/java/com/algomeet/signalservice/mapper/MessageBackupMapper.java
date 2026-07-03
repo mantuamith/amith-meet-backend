@@ -78,7 +78,6 @@ public class MessageBackupMapper {
                 .targetMessageId(doc.getTargetMessageId() != null ? doc.getTargetMessageId().toString() : null)
                 .replyToMessageId(doc.getReplyToMessageId() != null ? doc.getReplyToMessageId().toString() : null)
                 .editCount(doc.getEditCount())
-                .isStartOfConversation(doc.getStartOfConversation())
                 // Meta info
                 .algorithm(doc.getAlgorithm())
                 .version(doc.getVersion())

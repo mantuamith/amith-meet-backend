@@ -194,10 +194,7 @@ public class MessageBackupDocument {
     private UUID replyToMessageId;  
   
     private Integer editCount;
-    
-    @Transient
-    private Boolean startOfConversation = false; // Initialize to avoid null-omission
-    
+        
     private Long hiddenAt;
     
     @Indexed(unique = false, sparse = true)
