@@ -135,8 +135,7 @@ public class ContactPresenceService {
 				for (UUID contactUserKey : acceptedContacts) {
 					// Construct the broadcast presence stanza
 					String directPresence = new DirectedPresenceBuilder()
-							.from(principal.getBareJid()) // Removed redundant "BROADCAST" string for standard JID compliance
-							.to(jidUtil.getBareJid(contactUserKey.toString()))
+							.from(principal.getBareJid()) 
 							.state(newState)
 							.build();					
 
