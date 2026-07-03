@@ -35,7 +35,6 @@ public class MucMessageMapper {
 				response.setIsHidden(true);
 		}
 
-		response.setStartOfRoomConversation(document.getStartOfRoomConversation());
 		if(document.getCreatedAt() != null) {
 			response.setCreatedAt(document.getCreatedAt().toEpochMilli());
 		}

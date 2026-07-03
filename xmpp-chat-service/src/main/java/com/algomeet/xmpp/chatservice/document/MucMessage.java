@@ -131,11 +131,6 @@ public class MucMessage {
 
 	private Set<UUID> hiddenFromUserKeys = new HashSet<>();
 
-	// Indicates whether this record represents the current starting point of the room conversation.
-	// Used to synchronize hard-deleted messages across local devices.
-	@Transient
-	private Boolean startOfRoomConversation = false;
-
 	/**
 	 * Monotonically increasing UUIDv7 used as a synchronization cursor for this message record.
 	 *
