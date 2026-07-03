@@ -6,9 +6,9 @@ import java.util.Objects;
  * Represents an XMPP Message Stanza for Message Retention Synchronization.
  * 
 	<message
-	    from='room1@conference.example.com'
-	    to='bob@example.com/mobile'
-	    type='groupchat'
+	    from='<Room ID>@conference.algomeet.app | <User Key>@algomeet.app'
+	    to='<User Key>@algomeet.app'
+	    type='headline'
 	    id='sync-retention-001'>
 	
 	    <sync-message-retention

@@ -283,7 +283,7 @@ public class MucRoomService {
                     					.id(messageId)
                     					.from(jidUtil.getGroupBareJid(groupId.toString()) + "/" + userKey.toString())
                     					.retentiondays(messageRetentionDays) 
-                    					.type(XmppMessageType.GROUPCHAT.getXmlValue())
+                    					.type(XmppMessageType.HEADLINE.getXmlValue())
                     					.build(); 
 
                     			// Distribute via router to all active occupants in the room

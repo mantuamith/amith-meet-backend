@@ -55,7 +55,7 @@ public class ConversationSettingsFacade {
 	                	                    .from(jidUtil.getBareJid(userKey.toString()))
 	                	                    .to(jidUtil.getBareJid(peerKey.toString()))   
 	                	                    .retentiondays(messageRetentionDays) // Note: ensure messageRetentionDays is accessible in this scope
-	                	                    .type(XmppMessageType.CHAT.getXmlValue())
+	                	                    .type(XmppMessageType.HEADLINE.getXmlValue())
 	                	                    .build();    
 	                	            
 	                	            clusterMessagePublisher.convertAndSendToUser(
