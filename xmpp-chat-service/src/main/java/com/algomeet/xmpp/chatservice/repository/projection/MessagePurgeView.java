@@ -14,5 +14,6 @@ public interface MessagePurgeView {
 	UUID getTo();          // Receiver user key / ID
     
     List<UUID> getMediaIds();
-
+    
+    Boolean getCountable();
 }

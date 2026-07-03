@@ -2,9 +2,12 @@ package com.algomeet.xmpp.chatservice.scheduler;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -13,13 +16,17 @@ import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import org.springframework.util.CollectionUtils;
 
+import com.algomeet.xmpp.chatservice.beans.MessageSenderAndReceiver;
 import com.algomeet.xmpp.chatservice.publisher.DeleteMessageMediaEventPublisher;
 import com.algomeet.xmpp.chatservice.repository.OfflineMessageRepository;
 import com.algomeet.xmpp.chatservice.repository.projection.MessagePurgeView;
+import com.algomeet.xmpp.chatservice.service.UnreadCountService;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 @Slf4j
@@ -30,6 +37,7 @@ public class PurgeExpiredOfflineMessageScheduler {
 	private final OfflineMessageRepository messageRepository;
 	private final DeleteMessageMediaEventPublisher messageMediaDeleteEventStreamPublisher;
 	private final ReactiveStringRedisTemplate redisTemplate; 
+	private final UnreadCountService unreadCountService;
 
 	private static final String LOCK_KEY = "lock:scheduler:expired-offline-messages-purge";
 	
@@ -81,9 +89,16 @@ public class PurgeExpiredOfflineMessageScheduler {
 		return messageRepository.findByPurgeAtLessThanEqual(now)
 			.buffer(500) 
 			.flatMap(batch -> {
-				List<UUID> idsToDelete = batch.stream()
-						.map(MessagePurgeView::getStanzaId)
-						.toList();
+				List<UUID> idsToDelete = new ArrayList<>();
+				Set<MessageSenderAndReceiver> senderAndReceiverKeys = new HashSet<>();
+				
+				batch.stream()
+						.forEach(m -> {
+							idsToDelete.add(m.getStanzaId());
+							if(m.getCountable() != null && m.getCountable()) {
+								senderAndReceiverKeys.add(new MessageSenderAndReceiver(m.getFrom(), m.getTo()));
+							}
+						});
 
 				log.debug("Purging a batch of {} expired messages", idsToDelete.size());
 
@@ -104,7 +119,19 @@ public class PurgeExpiredOfflineMessageScheduler {
 					});
 				
 				return messageRepository.deleteAllById(idsToDelete)
-						.thenReturn(idsToDelete.size());
+				        .then(Mono.defer(() -> {
+				            if (CollectionUtils.isEmpty(senderAndReceiverKeys)) {
+				                // Explicitly provide the type argument to prevent type inference from falling back to Object
+				                return Mono.<Void>empty();
+				            }
+				            
+				            // Explicitly use flatMapSequential or type-hint the Flux flatMap
+				            return Flux.fromIterable(senderAndReceiverKeys)
+				                    .flatMap(pair -> unreadCountService.syncUnreadCount(pair.sender(), pair.receiver()))
+				                    // then() safely drops downstream evaluation expectations and transitions cleanly to Mono<Void>
+				                    .then(); 
+				        }))
+				        .thenReturn(idsToDelete.size());
 			})
 			.reduce(0, Integer::sum);
 	}

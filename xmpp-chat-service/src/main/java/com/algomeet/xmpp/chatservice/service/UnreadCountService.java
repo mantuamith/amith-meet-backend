@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
+import com.algomeet.xmpp.chatservice.constant.Constants;
 import com.algomeet.xmpp.chatservice.document.UnreadCount;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
@@ -215,6 +216,64 @@ public class UnreadCountService {
 
 	            })
 	    )
+	    .retryWhen(Retry.max(3).filter(throwable -> throwable instanceof ConcurrentModificationException));
+	}
+	
+	/**
+	 * Use for cleanup retention batch process
+	 * @param senderKey
+	 * @param recipientKey
+	 * @return
+	 */
+	public Mono<Void> syncUnreadCount(UUID senderKey, UUID recipientKey) {
+	    String id = getConversationId(senderKey.toString(), recipientKey.toString());
+	    // Used to trace the count bug
+	    
+	    return Mono.<Void>defer(() -> 
+	        reactiveMongoTemplate.findById(id, UnreadCount.class)
+	            // Fallback strategy: If no unread count record exists yet, initialize a blank one
+	            .switchIfEmpty(Mono.defer(() -> {
+	                UnreadCount newRecord = new UnreadCount();
+	                newRecord.setId(id);
+	                newRecord.setUnreadCount(0);
+	                newRecord.setLastIncrementAt(Instant.now().toEpochMilli());
+	                return reactiveMongoTemplate.save(newRecord);
+	            }))
+	            .flatMap(currentUnread -> {
+	                Long capturedIncrementAt = currentUnread.getLastIncrementAt();
+	   
+	                		UUID stanzaId = currentUnread.getLastReadSid() != null ? currentUnread.getLastReadSid() : Constants.SMALLEST_UUID_V7;
+	                        // Used to trace the count bug
+	                        log.debug("stanzaId {}", stanzaId);
+	                        // FIX: Corrected argument mapping order to match sender/recipient definitions safely
+	                        return offlineMessageRepository.countByToAndFromAndStanzaIdGreaterThanAndCountableTrue(
+	                                recipientKey, senderKey, stanzaId)
+	                            .flatMap((Long count) -> {
+	                                
+	                            	// Used to trace the count bug	                            	
+	                                Query query = new Query(
+	                                        Criteria.where("_id").is(id)
+	                                        .and(LAST_INCREMENT_AT).is(capturedIncrementAt)
+	                                        );
+
+	                                Update update = new Update()
+	                                		.set(UNREAD_COUNT, count)
+	                                		.set(LAST_DECREMENT_AT, Instant.now().toEpochMilli());	                                
+	                                
+	                                return reactiveMongoTemplate.updateFirst(query, update, UnreadCount.class)
+	                                        .flatMap(updateResult -> {
+	                                        	// Used to trace the count bug
+	                                            if (updateResult.getModifiedCount() == 0) {
+	                                                return Mono.error(new ConcurrentModificationException(
+	                                                        "Unread count shifted concurrently. Retrying..."
+	                                                        ));
+	                                            }
+	                                            return Mono.empty();
+	                                        });
+	                            });
+	            })
+	    )
+	    // Retry mechanism handles optimistic lock collisions gracefully
 	    .retryWhen(Retry.max(3).filter(throwable -> throwable instanceof ConcurrentModificationException));
 	}
 	
