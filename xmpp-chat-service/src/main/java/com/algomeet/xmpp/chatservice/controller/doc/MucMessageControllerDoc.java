@@ -286,8 +286,7 @@ public interface MucMessageControllerDoc {
 					responseCode = "200",
 					description = "Successfully retrieved active room history synchronization boundaries.",
 					content = @Content(
-							mediaType = "application/json",
-							schema = @Schema(implementation = MucMessageResponse.class)
+							mediaType = "application/json"
 							)
 					),
 			@ApiResponse(
@@ -302,4 +301,45 @@ public interface MucMessageControllerDoc {
 					)
 	})
 	public Mono<ResponseEntity<CommonResponse<List<MucMessageResponse>>>> getConversationSyncBoundaries();
+	
+	@Operation(
+			summary = "Clear personal chat history timeline window",
+			description = "Clears the calling user's personal view of the group chat conversation history timeline. " +
+					"Captures the authenticated user's credentials from the security context and registers " +
+					"the current server system time as their historical visibility checkpoint boundary. " +
+					"Messages generated prior to this timestamp are filtered out during subsequent synchronization loops."
+			)
+	@ApiResponses(value = {
+			@ApiResponse(
+					responseCode = "200",
+					description = "Timeline threshold boundary advanced successfully.",
+					content = @Content(
+							mediaType = "application/json"
+							)
+					),
+			@ApiResponse(
+					responseCode = "400",
+					description = "Bad Request - Invalid UUID string syntax passed in the URL path segment.",
+					content = @Content(schema = @Schema(implementation = CommonResponse.class))
+					),
+			@ApiResponse(
+					responseCode = "404",
+					description = "Not Found - Specified group space does not exist or the user is not an active participant.",
+					content = @Content(schema = @Schema(implementation = CommonResponse.class))
+					),
+			@ApiResponse(
+					responseCode = "500",
+					description = "Internal Server Error - Thread starvation or database transaction routing failure.",
+					content = @Content(schema = @Schema(implementation = CommonResponse.class))
+					)
+	})
+
+	public ResponseEntity<CommonResponse<Boolean>> clearMemberHistoryTimeline(
+			@Parameter(
+					name = "groupId",
+					description = "The unique UUID of the target group room to clear.",
+					required = true,
+					example = "4a1b2c3d-5e6f-7a8b-9c0d-1e2f3a4b5c6d"
+					)
+			@PathVariable UUID groupId);
 }
