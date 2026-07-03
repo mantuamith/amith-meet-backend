@@ -15,7 +15,6 @@ public abstract class PresenceBuilder<T extends PresenceBuilder<T>> {
     protected T self() { return (T) this; }
 
     public T from(String from) { this.from = from; return self(); }
-    public T to(String to) { this.to = to; return self(); }
     public T state(UserState state) { this.state = state; return self(); }
     public T updatedAt(Long updatedAt) { this.updatedAt = updatedAt; return self(); }
     public T domain(String domain) { this.domain = domain; return self(); }
