@@ -121,8 +121,28 @@ public class XmppStreamManagementStanzaHandler {
 		    	   Long lastAck = Long.parseLong(sessionMap.get(XmppSmSessionRedisUtil.FIELD_H).toString());
 		    	   String prevUserSessionId = sessionMap.get(XmppSmSessionRedisUtil.FIELD_USER_SESSION_ID).toString();
 		    	   log.info("Resume connection of previous user session ID: {}, h: {}", prevUserSessionId, lastAck);
-		    	   
-		    	   // 1. Re-bind to local Netty context
+		    	   		    	   	    	   
+		    	   /**
+		            * Marks the current Netty channel session as successfully resumed
+		            * under Stream Management (XEP-0198).
+		            *
+		            * This indicates that the client has reconnected using a valid
+		            * previous SM session (previd) and the server has accepted the
+		            * resumption request.
+		            *
+		            * Effects of setting this flag:
+		            * - Enables replay continuation of buffered stanzas (if any)
+		            * - Differentiates resumed session from a fresh login session
+		            * - Helps prevent duplicate processing of previously acknowledged stanzas
+		            *
+		            * Note:
+		            * This is stored as a channel-level attribute and is only valid
+		            * for the lifetime of the active connection.
+		            */
+		           ctx.channel()
+		               .attr(XmppSessionAttributes.SM_RESUMPTION_SUCCESS_KEY)
+		               .set(new AtomicBoolean(true));
+		            // 1. Re-bind to local Netty context	
 		            XmppSmSessionUtil.initSmSession(ctx, true, prevId, lastAck);
 		            
 		            // 2. Resume dropped call:

@@ -91,15 +91,15 @@ public class InternalGroupController implements InternalGroupControllerDoc{
     @PostMapping("/{groupId}/message-retention")
     public Boolean updateGroupRetention(
             @PathVariable UUID groupId,
-            @PathVariable(name = "userKey") UUID targetUserKey, 
+            @RequestParam(name = "userKey") UUID targetUserKey, 
             @RequestParam(name = "messageRetentionDays") Integer messageRetentionDays) {
 
         // Delegate the business logic, authorization check, and atomic database update to the service layer
         boolean updated = groupService.updateGroupRetention(
                 groupId, 
                 messageRetentionDays, 
-                SecurityUtil.getUserKey() // Extracts the authenticated user making the request
-        );
+                targetUserKey.toString()
+                );
 
         return updated;
     }

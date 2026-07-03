@@ -12,9 +12,8 @@ public class DirectedPresenceBuilder extends PresenceBuilder<DirectedPresenceBui
     public String build() {
         String mucNamespace = isGroup ? " <x xmlns='http://jabber.org/protocol/muc'/>" : "";
         
-        return String.format("<presence from='%s' to='%s'%s>%s%s %s</presence>",
+        return String.format("<presence from='%s'%s>%s%s %s</presence>",
                 from, 
-                to, 
                 getTypeAttr(), 
                 getStatusXml(), 
                 mucNamespace, 

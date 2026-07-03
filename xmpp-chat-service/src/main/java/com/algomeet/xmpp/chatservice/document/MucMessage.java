@@ -104,6 +104,9 @@ public class MucMessage {
 	public static final String FIELD_ID = "id"; // StanzaId
 	public static final String FIELD_ROOM_ID = "roomId";
 	public static final String FIELD_DELETED_AT = "deletedAt";
+	public static final String FIELD_PURGE_AT = "purgeAt";
+	public static final String FIELD_CREATED_AT = "createdAt";
+	public static final String FIELD_MESSAGE_ID = "messageId";
 
 	@Id
 	private UUID id;           // Stanza ID - UUID v7
@@ -127,11 +130,6 @@ public class MucMessage {
 	private Long deletedAt;
 
 	private Set<UUID> hiddenFromUserKeys = new HashSet<>();
-
-	// Indicates whether this record represents the current starting point of the room conversation.
-	// Used to synchronize hard-deleted messages across local devices.
-	@Transient
-	private Boolean startOfRoomConversation = false;
 
 	/**
 	 * Monotonically increasing UUIDv7 used as a synchronization cursor for this message record.

@@ -66,10 +66,15 @@ import lombok.Data;
 		)
 })
 public class OfflineMessage {	
+	public static final String FIELD_TO = "to";
+	public static final String FIELD_FROM = "from";
+	public static final String FIELD_PURGE_AT = "purgeAt";
+	public static final String FIELD_CREATED_AT = "createdAt";
+	
 	@Id
 	private UUID stanzaId; 
 	
-	@Indexed(unique = true)
+	@Indexed(unique = true, sparse = true)
 	private UUID messageId;          // The Message ID from the <message id='...'> attribute
 
 	private UUID from;        // Sender user key / ID

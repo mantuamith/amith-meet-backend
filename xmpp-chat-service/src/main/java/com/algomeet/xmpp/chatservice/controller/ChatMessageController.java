@@ -42,24 +42,5 @@ public class ChatMessageController {
 
         return chatMessageService.timelineCutoff(UUID.fromString(userKey), peerKey, cutoffMessageId, cutoffStanzaId)
                 .map(unreadCount -> ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, unreadCount)));
-    }
-    
-    @PostMapping("/{peerKey}/apply-message-retention-policy")
-    public Mono<ResponseEntity<CommonResponse<Object>>> applyMessageRetentionPolicy(
-    		@PathVariable UUID peerKey,
-    		@RequestParam Integer messageRetentionDays) {
-
-    	// Assuming you have a way to extract the current user's UUID (e.g., from a security context or session)
-    	// Replace 'currentUserKey' with your actual user context extraction logic.
-    	UUID currentUserKey = UUID.fromString(SecurityUtil.getUserKey());  
-    	
-    	return chatMessageService.applyMessageRetentionPolicy(currentUserKey, peerKey, messageRetentionDays)
-    			// .then() waits for completion (empty or not) and switches to your success response
-	            .then(Mono.just(ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS))))
-	            .onErrorReturn(
-	            		IllegalStateException.class, 
-	                    ResponseEntity.status(HttpStatus.CONFLICT).body(CommonResponse.from(ResponseCode.MESSAGE_RETENTION_UPDATE_IN_PROGRESS))
-	            )	 
-    			.onErrorResume(Exception.class, ex -> Mono.error(ex));
-    }
+    }   
 }

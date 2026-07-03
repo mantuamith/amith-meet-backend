@@ -166,7 +166,7 @@ public class XmppChatHandler {
             	//
             	// This is a custom acknowledgment (not client XEP-0198 ack),
             	// used to provide early delivery assurance back to the sender.
-				XmppServerAckUtil.send(ctx, id, domainProperties.getDomain(), stanzaId.toString()); 
+				XmppServerAckUtil.send(ctx, id, domainProperties.getDomain(), stanzaId.toString(), saved.retentionDays()); 
 
 				if (isAckStanza) {
 					/*
@@ -215,15 +215,13 @@ public class XmppChatHandler {
 	            if (originalXml.contains(XmppReadUtil.NS_DISPLAYS)) {
 	                String ackMessageId = xmppReadUtil.getAckMessageId(originalXml);
 	                
-	                // Used to trace the count bug
-	                log.info("ackMessageId {}, senderKey {}, recipientKey {} xml {}", ackMessageId, fromUserKey, toUserKey, originalXml);
-	                
+	                // Used to trace the count bug                
 	                if (StringUtils.hasText(ackMessageId)) {
 	                    Mono<Void> readReceiptTask = unreadCountService.syncUnreadCount(UUID.fromString(toUserKey), UUID.fromString(fromUserKey), UUID.fromString(ackMessageId))
 	                            // Safely switch to purge logic ONLY if sync returns a valid data model
 	                            .flatMap(success -> {
 	                            	 // Used to trace the count bug
-	                            	log.info("success.getLastReadSid() {}", success.getLastReadSid());
+	                            	log.debug("success.getLastReadSid() {}", success.getLastReadSid());
 	                                if (success == null || success.getLastReadSid() == null) {
 	                                    return Mono.empty();
 	                                }

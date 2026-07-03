@@ -479,6 +479,7 @@ public class GroupService {
         return true;
     }
     
+    @Transactional
     public boolean updateGroupRetention(UUID groupId, Integer messageRetentionDays, String userKey) {
         // 1. Fetch the group to inspect members & roles
         Group group = getGroupOrThrow(groupId);    

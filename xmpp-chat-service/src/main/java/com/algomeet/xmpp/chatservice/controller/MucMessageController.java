@@ -155,6 +155,26 @@ public class MucMessageController implements MucMessageControllerDoc{
 	                    CommonResponse.from(ResponseCode.SUCCESS, conversations)
 	            ));
 	}
+	
+	/**
+	 * Retrieves the synchronization boundary for each group conversation.
+	 * <p>
+	 * For every group that the authenticated user belongs to, this endpoint returns
+	 * the earliest retained message after message retention policies have been applied.
+	 * Clients can use these boundaries to determine whether locally stored messages
+	 * that precede the returned message ID should be discarded during synchronization.
+	 *
+	 * @return a list containing the earliest retained message for each accessible group conversation
+	 */
+	@GetMapping("/conversations/sync-boundaries")
+	public Mono<ResponseEntity<CommonResponse<List<MucMessageResponse>>>> getConversationSyncBoundaries() {
+	    UUID userKey = UUID.fromString(SecurityUtil.getUserKey());
+
+	    return mucMessageService.getEarliestRetainedMessages(userKey)
+	            .map(conversations -> ResponseEntity.ok(
+	                    CommonResponse.from(ResponseCode.SUCCESS, conversations)
+	            ));
+	}
 		
 	/**
 	 * Clears the calling user's personal view of the group chat conversation history timeline.
@@ -199,8 +219,8 @@ public class MucMessageController implements MucMessageControllerDoc{
         }
     }
 	
-	@PostMapping("/{groupId}/apply-message-retention-policy")
-	public Mono<ResponseEntity<CommonResponse<Object>>> applyMessageRetentionPolicy(
+	@PostMapping("/{groupId}/message-retention")
+	public Mono<ResponseEntity<CommonResponse<Object>>> updateMessageRetention(
 	        @PathVariable UUID groupId,
 	        @RequestParam Integer messageRetentionDays) {
 	    
@@ -208,7 +228,7 @@ public class MucMessageController implements MucMessageControllerDoc{
 	    // Replace 'currentUserKey' with your actual user context extraction logic.
 	    UUID currentUserKey = UUID.fromString(SecurityUtil.getUserKey());  
 	    
-	    return mucRoomService.applyMessageRetentionPolicy(currentUserKey, groupId, messageRetentionDays)
+	    return mucRoomService.updateMessageRetention(currentUserKey, groupId, messageRetentionDays)
 	            // .then() waits for completion (empty or not) and switches to your success response
 	            .then(Mono.just(ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS))))
 	            .onErrorReturn(

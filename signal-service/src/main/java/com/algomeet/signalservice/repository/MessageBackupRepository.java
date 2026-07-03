@@ -159,20 +159,5 @@ public interface MessageBackupRepository extends MongoRepository<MessageBackupDo
 		
 	@Query("{ '_id.userKey': ?0}") // Target only un-purged records in the message backup
 	@Update("{ '$set': { 'purgeAt': ?1 } }")
-	Long updatePurgeAtByUserKey(UUID userKey, Instant purgeTime);
-	
-	
-	@Query("{ 'conversationId': ?0}") // target conversations
-	@Update("[ { " +
-	        "  '$set': { " +
-	        "    'purgeAt': { " +
-	        "      '$cond': [ " +
-	        "        { '$eq': [ ?2, null ] }, " + // Condition: if messageRetentionDays is null
-	        "        null, " +                    // Then: set purgeAt to null
-	        "        { '$add': [ { '$ifNull': [ '$createdAt', '$$NOW' ] }, { '$multiply': [ ?2, 86400000 ] } ] } " + // Else: run calculation
-	        "      ] " +
-	        "    } " +
-	        "  } " +
-	        "} ]")
-	Long updatePurgeAtByConversationId(String conversationId, Integer messageRetentionDays);
+	Long updatePurgeAtByUserKey(UUID userKey, Instant purgeTime);		
 }
