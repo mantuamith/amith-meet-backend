@@ -21,7 +21,6 @@ import org.springframework.util.CollectionUtils;
 import com.algomeet.xmpp.chatservice.beans.MessageSenderAndReceiver;
 import com.algomeet.xmpp.chatservice.publisher.DeleteMessageMediaEventPublisher;
 import com.algomeet.xmpp.chatservice.repository.OfflineMessageRepository;
-import com.algomeet.xmpp.chatservice.repository.projection.MessagePurgeView;
 import com.algomeet.xmpp.chatservice.service.UnreadCountService;
 
 import lombok.RequiredArgsConstructor;
