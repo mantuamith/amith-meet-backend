@@ -290,8 +290,7 @@ public interface MessageBackupControllerDoc {
                 responseCode = "200",
                 description = "Successfully retrieved active conversation boundaries.",
                 content = @Content(
-                    mediaType = "application/json",
-                    schema = @Schema(implementation = MessageBackupResponse.class)
+                    mediaType = "application/json"
                 )
             ),
             @ApiResponse(
