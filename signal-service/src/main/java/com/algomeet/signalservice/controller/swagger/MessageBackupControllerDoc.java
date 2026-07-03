@@ -278,4 +278,32 @@ public interface MessageBackupControllerDoc {
     		@Parameter(description = "The unique UUID of the peer user in the 1-on-1 chat thread", required = true, example = "4a1b2c3d-4e5f-6a7b-8c9d-0e1f2a3b4c5d")
     		@PathVariable UUID peerKey, // Changed placeholder name logic to match URI safely
     		@RequestBody @Validated GetMessagesByIdsRequest request);
+    
+        @Operation(
+            summary = "Get conversation history synchronization boundaries",
+            description = "Retrieves the earliest surviving/retained message metadata anchors for all of the authenticated user's conversations. " +
+                          "Used by client synchronization engines to determine the local message history clipping bounds " +
+                          "after database retention or compaction routines have run."
+        )
+        @ApiResponses(value = {
+            @ApiResponse(
+                responseCode = "200",
+                description = "Successfully retrieved active conversation boundaries.",
+                content = @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(implementation = MessageBackupResponse.class)
+                )
+            ),
+            @ApiResponse(
+                responseCode = "401",
+                description = "Unauthorized - Missing or invalid security token.",
+                content = @Content(schema = @Schema(implementation = CommonResponse.class))
+            ),
+            @ApiResponse(
+                responseCode = "500",
+                description = "Internal Server Error - Database connection or data streaming failure.",
+                content = @Content(schema = @Schema(implementation = CommonResponse.class))
+            )
+        })
+        public ResponseEntity<CommonResponse<List<MessageBackupResponse>>> getConversationSyncBoundaries();
 }
