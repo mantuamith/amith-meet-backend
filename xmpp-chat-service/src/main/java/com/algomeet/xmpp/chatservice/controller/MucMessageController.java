@@ -155,6 +155,26 @@ public class MucMessageController implements MucMessageControllerDoc{
 	                    CommonResponse.from(ResponseCode.SUCCESS, conversations)
 	            ));
 	}
+	
+	/**
+	 * Retrieves the synchronization boundary for each group conversation.
+	 * <p>
+	 * For every group that the authenticated user belongs to, this endpoint returns
+	 * the earliest retained message after message retention policies have been applied.
+	 * Clients can use these boundaries to determine whether locally stored messages
+	 * that precede the returned message ID should be discarded during synchronization.
+	 *
+	 * @return a list containing the earliest retained message for each accessible group conversation
+	 */
+	@GetMapping("/conversations/sync-boundaries")
+	public Mono<ResponseEntity<CommonResponse<List<MucMessageResponse>>>> getConversationSyncBoundaries() {
+	    UUID userKey = UUID.fromString(SecurityUtil.getUserKey());
+
+	    return mucMessageService.getEarliestRetainedMessages(userKey)
+	            .map(conversations -> ResponseEntity.ok(
+	                    CommonResponse.from(ResponseCode.SUCCESS, conversations)
+	            ));
+	}
 		
 	/**
 	 * Clears the calling user's personal view of the group chat conversation history timeline.
