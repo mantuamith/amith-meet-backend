@@ -26,7 +26,9 @@ public class UserProfileUpdateRequest implements SecuredDto{
     private String role;
     private Integer tenantId;
     /** Preferred language */
-    private String lang;
+    private String lang;    
+    
+    private Integer messageRetentionDays;
     
 	@Override
 	public void secured() {

@@ -58,6 +58,9 @@ public class UserProfile {
     
     private Boolean securityQuestionsEnabled;
     
+    @Column(name = "message_retention_days", nullable = false, columnDefinition = "INT DEFAULT -1")
+    private Integer messageRetentionDays = -1;
+    
     @PrePersist
     protected void onCreate() {
         this.registrationDate = Instant.now();

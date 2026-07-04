@@ -36,6 +36,7 @@ public class UserProfileResponse implements SecuredDto{
     private String role;
     private Integer tenantId;
     private String lang;
+    private Integer messageRetentionDays;
     
     public Boolean getSecurityQuestionsEnabled() {
     	if(securityQuestionsEnabled == null) {
