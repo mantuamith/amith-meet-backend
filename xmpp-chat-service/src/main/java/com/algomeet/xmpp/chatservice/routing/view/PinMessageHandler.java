@@ -1,8 +1,11 @@
 package com.algomeet.xmpp.chatservice.routing.view;
 
 import java.util.UUID;
+
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
+
+import com.algomeet.common.util.DeterministicConversationIdUtil;
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.document.PinChatMessage;
@@ -17,10 +20,10 @@ import com.algomeet.xmpp.chatservice.service.PinMucMessageService;
 import com.algomeet.xmpp.chatservice.stanza.ViewManageSyncStanza;
 import com.algomeet.xmpp.chatservice.stanza.parser.PinMessageStaxParser.ParsedMessage;
 import com.algomeet.xmpp.chatservice.stanza.parser.ViewManageStaxParser;
-import com.algomeet.xmpp.chatservice.util.DeterministicConversationIdUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
 import com.github.f4b6a3.uuid.UuidCreator;
+
 import io.netty.channel.ChannelHandlerContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

@@ -5,9 +5,9 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 
 import com.algomeet.common.service.ConversationIdProvider;
+import com.algomeet.common.util.DeterministicConversationIdUtil;
 import com.algomeet.xmpp.chatservice.document.ConversationSettingsDocument;
 import com.algomeet.xmpp.chatservice.repository.ConversationSettingRepository;
-import com.algomeet.xmpp.chatservice.util.DeterministicConversationIdUtil;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

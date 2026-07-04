@@ -16,6 +16,7 @@ import com.algomeet.xmpp.chatservice.beans.OfflineMessageWithRetention;
 import com.algomeet.xmpp.chatservice.constant.Constants;
 import com.algomeet.xmpp.chatservice.document.OfflineMessage;
 import com.algomeet.xmpp.chatservice.repository.OfflineMessageRepository;
+import com.algomeet.xmpp.chatservice.util.XmppCustomRetentionStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppCustomStanzaUtil;
 
 import lombok.AllArgsConstructor;
@@ -50,56 +51,109 @@ public class OfflineMessageService {
     private final OfflineMessageRepository offlineMessageRepository;    
     private final ReactiveMongoTemplate mongoTemplate;
     private final ConversationSettingsCacheService conversationSettingsCacheService;
+    private final ConversationSettingsFacade conversationSettingsFacade;
     
     /**
-     * Persists a stanza as an offline document.
+     * ersists a stanza as an offline document.
      * 
-     * @param id          The unique Stanza ID.
-     * @param to          The recipient's User Key or JID.
-     * @param from        The sender's User Key or JID.
-     * @param type        The XMPP message type (e.g., chat, groupchat).
-     * @param originalXml The raw XML payload to be stored.
-     * @return A {@link Mono} emitting the saved {@link OfflineMessage}.
+     * @param messageId
+     * @param stanzaId
+     * @param to
+     * @param from
+     * @param type
+     * @param isAckStanza
+     * @param isCountable
+     * @param originalXml
+     * @param mediaIds
+     * @return A {@link Mono} emitting the saved {@link OfflineMessageWithRetention}.
      */
     public Mono<OfflineMessageWithRetention> save(UUID messageId, UUID stanzaId, String to, String from, String type, Boolean isAckStanza, 
-    		boolean isCountable, String originalXml, List<UUID> mediaIds) {
+            boolean isCountable, String originalXml, List<UUID> mediaIds) {
         UUID fromUuid = UUID.fromString(from);
         UUID toUuid = UUID.fromString(to);
 
         // 1. Fetch conversation settings reactively from the cache service
         return conversationSettingsCacheService.getCachedSettings(fromUuid, toUuid)
-                // 2. Map or fallback to a default if settings are empty (e.g. conversation doesn't exist yet)
                 .defaultIfEmpty(new ConversationSettings(Constants.UNLIMITED_MESSAGE_RETENTION_DAYS)) 
-                // 3. Pipeline the resolved settings to compute the retention time and save the message
                 .flatMap(conversationSettings -> {
                     
-                	Integer retentionDays = conversationSettings.getMessageRetentionDays();
-                	if (retentionDays == null) {
-                	    retentionDays = Constants.UNLIMITED_MESSAGE_RETENTION_DAYS;
-                	}
+                    // Track your final resolved retention days across the reactive pipeline
+                    int initialRetentionDays = conversationSettings.getMessageRetentionDays() != null 
+                            ? conversationSettings.getMessageRetentionDays() 
+                            : Constants.UNLIMITED_MESSAGE_RETENTION_DAYS;
+                         
+                    Integer parsedNewRetentionDays = null;
+                    if (XmppCustomRetentionStanzaUtil.messageHasRetention(originalXml)) {
+                        if (initialRetentionDays == Constants.UNLIMITED_MESSAGE_RETENTION_DAYS) {
+                            String newRetentionDaysStr = null;
+                            try {
+                                newRetentionDaysStr = XmppCustomRetentionStanzaUtil.getMessageRetentionDays(originalXml);
+                                parsedNewRetentionDays = Integer.parseInt(newRetentionDaysStr);
+                            } catch(Exception ex) {
+                                log.error("Error parsing retention days from payload {} ", newRetentionDaysStr, ex);
+                            }
+                        }
+                    }
 
-                	Instant purgeAt = retentionDays.equals(Constants.UNLIMITED_MESSAGE_RETENTION_DAYS)
-                	        ? null
-                	        : Instant.now().plus(retentionDays, ChronoUnit.DAYS);
+                    // If no update is required, continue with the initial value
+                    if (parsedNewRetentionDays == null || parsedNewRetentionDays == Constants.UNLIMITED_MESSAGE_RETENTION_DAYS) {
+                        return saveOfflineMessage(messageId, stanzaId, toUuid, fromUuid, type, isAckStanza, isCountable, originalXml, mediaIds, initialRetentionDays);
+                    }
 
-                    OfflineMessage offlineMessage = OfflineMessage.builder()
-                            .messageId(messageId)
-                            .stanzaId(stanzaId)
-                            .to(toUuid)
-                            .from(fromUuid)
-                            .messageType(type)
-                            .isAckStanza(isAckStanza)
-                            .countable(isCountable)
-                            .stanzaXml(originalXml)
-                            .mediaIds(mediaIds)
-                            .purgeAt(purgeAt)
-                            .build();
-                    
-                    OfflineMessageWithRetention offlineMessageWithRetention = new OfflineMessageWithRetention(offlineMessage, retentionDays);
+                    // Capture a final copy for the reactive stream down below
+                    final int targetRetentionDays = parsedNewRetentionDays;
 
-                    return offlineMessageRepository.save(offlineMessage)
-                    		.thenReturn(offlineMessageWithRetention);
+                    // 2. Safely update message retention through the facade
+                    Mono<Integer> resolvedRetentionDaysMono = conversationSettingsFacade.updateMessageRetention(fromUuid, toUuid, targetRetentionDays)
+                    		// If our update succeeds, pass our target retention days down the chain
+                    		.thenReturn(targetRetentionDays)
+                    		// If a lock collision happens, retrieve the updated configuration from the cache
+                    		.onErrorResume(IllegalStateException.class, ex -> {
+                    			log.warn("Lock collision encountered. Another process is updating the config. Fetching latest settings from cache...");
+
+                    			return conversationSettingsCacheService.getCachedSettings(fromUuid, toUuid)
+                    					// If the cache lookup comes up empty, default back to your original initial configuration
+                    					.map(convSettings -> convSettings.getMessageRetentionDays() != null 
+                    					? convSettings.getMessageRetentionDays() 
+                    							: Constants.UNLIMITED_MESSAGE_RETENTION_DAYS)
+                    					.defaultIfEmpty(initialRetentionDays);
+                    		})
+                    		// Catch-all block for any other unexpected database or infrastructure issues
+                    		.onErrorResume(ex -> {
+                    			log.error("Critical failure during retention update pipeline execution. Falling back to initial configuration: {}", initialRetentionDays, ex);
+                    			return Mono.just(initialRetentionDays);
+                    		});
+
+                    // 3. Chain seamlessly into your saving logic using the dynamically resolved retention days
+                    return resolvedRetentionDaysMono.flatMap(finalRetentionDays ->  {
+                    	return saveOfflineMessage(messageId, stanzaId, toUuid, fromUuid, type, isAckStanza, isCountable, originalXml, mediaIds, finalRetentionDays);
+                    });
                 });
+    }
+
+    private Mono<OfflineMessageWithRetention> saveOfflineMessage(UUID messageId, UUID stanzaId, UUID toUuid, UUID fromUuid, String type, 
+            Boolean isAckStanza, boolean isCountable, String originalXml, List<UUID> mediaIds, int retentionDays) {
+        
+        Instant purgeAt = (retentionDays == Constants.UNLIMITED_MESSAGE_RETENTION_DAYS)
+                ? null
+                : Instant.now().plus(retentionDays, java.time.temporal.ChronoUnit.DAYS);
+
+        OfflineMessage offlineMessage = OfflineMessage.builder()
+                .messageId(messageId)
+                .stanzaId(stanzaId)
+                .to(toUuid)
+                .from(fromUuid)
+                .messageType(type)
+                .isAckStanza(isAckStanza)
+                .countable(isCountable)
+                .stanzaXml(originalXml)
+                .mediaIds(mediaIds)
+                .purgeAt(purgeAt)
+                .build();
+        
+        OfflineMessageWithRetention result = new OfflineMessageWithRetention(offlineMessage, retentionDays);
+
+        return offlineMessageRepository.save(offlineMessage).thenReturn(result);
     }
     
     /**

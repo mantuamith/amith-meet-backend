@@ -14,9 +14,4 @@ public class RedisStreamProperties {
      * Redis stream key for storing purge message backup events.
      */
     private String purgeMessageBackup = "purge-message-backup-stream";
-    
-    /**
-     * Redis stream key for storing apply message backup retention events.
-     */
-    private String applyMessageBackupRetention = "apply-message-backup-retention-stream";
 }

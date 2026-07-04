@@ -1,4 +1,4 @@
-package com.algomeet.xmpp.chatservice.util;
+package com.algomeet.common.util;
 
 import java.util.UUID;
 

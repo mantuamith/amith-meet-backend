@@ -469,25 +469,7 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 
         return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, responseBody));
     }
-    
-    @PostMapping("/{peerKey}/apply-message-retention-policy")
-    public ResponseEntity<CommonResponse<?>> applyMessageRetentionPolicy(
-    		@PathVariable UUID peerKey,
-    		@RequestParam Integer messageRetentionDays) {
-
-    	try {
-    		UUID currentUserKey = UUID.fromString(SecurityUtil.getUserKey());  
-    		messageBackupService.applyMessageRetentionPolicy(currentUserKey, peerKey, messageRetentionDays);
-
-    		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
-    	} catch(IllegalStateException ex) {
-    		log.error("Error {}", ex.getMessage(), ex);
-    		
-    		return ResponseEntity.status(HttpStatus.CONFLICT).body(
-    				CommonResponse.from(ResponseCode.MESSAGE_RETENTION_UPDATE_IN_PROGRESS));
-    	}    	
-    }   
-    
+           
     @PostMapping("/{peerKey}/messages/by-ids")
 	public ResponseEntity<CommonResponse<List<MessageBackupResponse>>> findMessagesByIds(
 	        @PathVariable UUID groupId,

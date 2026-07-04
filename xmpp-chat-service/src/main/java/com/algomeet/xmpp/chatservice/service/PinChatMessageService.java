@@ -4,10 +4,10 @@ import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 
+import com.algomeet.common.util.DeterministicConversationIdUtil;
 import com.algomeet.xmpp.chatservice.document.PinChatMessage;
 import com.algomeet.xmpp.chatservice.exceptions.PinMessageNotFoundException;
 import com.algomeet.xmpp.chatservice.repository.PinChatMessageRepository;
-import com.algomeet.xmpp.chatservice.util.DeterministicConversationIdUtil;
 import com.algomeet.xmpp.chatservice.util.SecurityUtil;
 
 import lombok.RequiredArgsConstructor;
