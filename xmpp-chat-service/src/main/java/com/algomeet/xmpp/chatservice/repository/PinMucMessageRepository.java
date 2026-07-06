@@ -23,7 +23,7 @@ public interface PinMucMessageRepository extends ReactiveMongoRepository<PinMucM
     @Query(value = "{ '_id.groupId': ?0, '$or': [ { 'pinnedBy': ?1 }, { 'pinnedForEveryone': true } ] }", 
            sort = "{ 'seq': 1 }")
     Flux<PinMucMessage> findPinnedMessages(
-            String conversationId, 
+    		UUID groupId,
             UUID pinnedBy
     );
 

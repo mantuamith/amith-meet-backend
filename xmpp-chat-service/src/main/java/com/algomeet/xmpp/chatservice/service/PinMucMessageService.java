@@ -107,7 +107,7 @@ public class PinMucMessageService {
      * Finds pinned messages matching your exact compound index structure inside a MUC space, ordered by seq ascending.
      * Evaluates Visibility boundary rules: matches either targeted user's personal pins OR global channel announcements.
      */
-    public Flux<PinMucMessage> findPinnedMessages(String groupId, UUID pinnedBy) {    	
+    public Flux<PinMucMessage> findPinnedMessages(UUID groupId, UUID pinnedBy) {    	
         return pinMucMessageRepository.findPinnedMessages(groupId, pinnedBy)
                 .subscribeOn(MUC_DB_SCHEDULER)
                 .publishOn(MUC_DB_SCHEDULER)

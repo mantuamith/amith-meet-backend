@@ -87,7 +87,7 @@ public class PinMucMessageController {
      */
     @GetMapping("/{groupId}/pins")
     public Mono<ResponseEntity<CommonResponse<List<PinMucMessageResponse>>>> findPinnedMessages(
-            @PathVariable String groupId) {
+            @PathVariable UUID groupId) {
     	
     	UUID pinnedBy = UUID.fromString(SecurityUtil.getUserKey());    	
         return pinMucMessageService.findPinnedMessages(groupId, pinnedBy)
