@@ -40,6 +40,41 @@ public class ReactiveClusterMessagePublisher extends AbstractClusterMessagePubli
 	private final ReactiveRedisTemplate<String, String> reactiveRedisTemplate;
 	private final RedisTopicProperties redisTopicProperties;
 	
+	/**
+	 * Convenience overload that resolves the originating session ID from the
+	 * authenticated principal and disables carbon copy delivery.
+	 *
+	 * <p>When same-session echo is disabled, the sender's session ID is attached
+	 * so receiving nodes can skip the originating device while still delivering
+	 * to the user's other active sessions.</p>
+	 *
+	 * @param id          Unique stanza/message ID
+	 * @param to          Recipient user key or JID
+	 * @param from        Sender user key or JID
+	 * @param chatType    CHAT / GROUPCHAT
+	 * @param isAllowEcho Whether delivery back to the same session is allowed
+	 * @param payload     Raw XML stanza payload
+	 * @param principal   Authenticated XMPP session principal
+	 */
+	public Mono<Void> convertAndSendToUser(
+	        String id,
+	        String to,
+	        String from,
+	        ChatType chatType,
+	        Boolean isAllowEcho,
+	        String payload,
+	        XmppPrincipal principal) {
+
+	    String sessionId = null;
+
+	    // Include session ID only when same-session echo is disabled.
+	    if (principal != null && !isAllowEcho) {
+	        sessionId = principal.getSessionId();
+	    }
+
+	    return convertAndSendToUser(id, to, from, chatType, isAllowEcho, sessionId, false, false, payload);
+	}
+		
 	public Mono<Void> convertAndSendToUser(
 	        String id,
 	        String to,

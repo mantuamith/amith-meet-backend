@@ -44,7 +44,7 @@ public interface PinMucMessageRepository extends ReactiveMongoRepository<PinMucM
      * Deletes a record by its nested composite ID properties and returns the deletion count (0 or 1).
      * Spring Data automatically handles fields prefixed with 'id' or '_id' for composite keys.
      */
-    Mono<Long> deleteById_GroupIdAndId_MessageIdAndPinnedByAndPinnedForEveryoneIsFalse(
+    Mono<Long> deleteById_GroupIdAndId_MessageIdAndId_PinnedByAndPinnedForEveryoneIsFalse(
             UUID groupId, 
             UUID messageId, 
             UUID pinnedBy

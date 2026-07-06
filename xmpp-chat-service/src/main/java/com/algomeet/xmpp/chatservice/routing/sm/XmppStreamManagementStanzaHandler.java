@@ -19,6 +19,8 @@ import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Scheduler;  // <--- Singular
+import reactor.core.scheduler.Schedulers; // <--- Singular package, Plural class
 
 /**
  * <p>Handles XEP-0198 Stream Management protocol elements specifically for 
@@ -52,6 +54,11 @@ public class XmppStreamManagementStanzaHandler {
 	 * @param xml       The raw XML string (either {@code <r/>} or {@code <a/>}).
 	 * @param principal The authenticated user session.
 	 */
+	
+	// Fixed package resolution path here
+    private static final Scheduler SM_WORKER_SCHEDULER = 
+            Schedulers.newBoundedElastic(100, 5000, "xmpp-sm-workers");
+	
 	public void process(ChannelHandlerContext ctx, String xml, XmppPrincipal principal) {	
 		if (isStreamManagementReq(xml)) {                        
 			// SM must be explicitly enabled for the session (<enable xmlns='urn:xmpp:sm:3'/>)
@@ -103,6 +110,10 @@ public class XmppStreamManagementStanzaHandler {
 		    String prevId = XmppStanzaUtil.getAttribute(xml, "previd");
 		    
 		    log.debug("Received <resume /> for previd: {} with client-h: {}", prevId, XmppStanzaUtil.getAttribute(xml, "h"));
+		    
+		    // NON-BLOCKING BARRIER: Turn off auto-read on the TCP socket channel.
+	        // This stops incoming stanzas from interleaving without freezing the execution thread.
+	        ctx.channel().config().setAutoRead(false);
 
 		    /**
 		     * STRATEGY: Sequence Alignment & State Restoration
@@ -111,10 +122,11 @@ public class XmppStreamManagementStanzaHandler {
 		     * TCP buffer. We must restore the 'h' counter and re-bind the session 
 		     * before the next handler in the pipeline attempts to process them.
 		     */
-		 // Example usage in your Resumption Handler
+	        // Example usage in your Resumption Handler
 		    String userKey = principal.getBareJid(); // Get the owner of the session
-
+		    
 		    xmppSmRedisUtil.getSmSessionData(prevId)
+	        .subscribeOn(SM_WORKER_SCHEDULER) // Offload I/O lookup off the Netty worker thread
 		    .filter(sessionMap -> !sessionMap.isEmpty()) 
 		    // Type Hint <sessionMap> ensures the compiler knows the final return type of the flatMap
 		    .<Long>flatMap(sessionMap -> {   
@@ -160,6 +172,12 @@ public class XmppStreamManagementStanzaHandler {
 		        .doOnNext(lastAck -> {
 		            sendResumeResponse(ctx, lastAck);
 		        })
+		        .doFinally(signalType -> {
+	                // RE-ENABLE READS: Once processing is complete (success, failure, or cancel),
+	                // turn auto-read back on to flush waiting downstream stanzas.
+	                ctx.channel().config().setAutoRead(true);
+	                ctx.read(); // Explicitly request a fresh read pass 
+	            })
 		        /**
 		         * .block() is used intentionally here.
 		         * By blocking the current Netty thread, we prevent "Stanza Interleaving" 
