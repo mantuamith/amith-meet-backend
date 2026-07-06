@@ -15,6 +15,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import reactor.core.publisher.Mono;
 
 
 @Tag(
@@ -46,7 +47,7 @@ public interface ContactControllerDoc {
         )
     })
     @GetMapping
-    public ResponseEntity<CommonResponse<List<String>>> getRecentContacts(
+    public Mono<ResponseEntity<CommonResponse<List<String>>>> getRecentContacts(
             @Parameter(description = "Zero-based page index", example = "0")
             @RequestParam(value = "page", defaultValue = "0") int page,
 

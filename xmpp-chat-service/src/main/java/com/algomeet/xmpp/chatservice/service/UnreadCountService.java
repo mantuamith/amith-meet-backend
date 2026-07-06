@@ -12,7 +12,7 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
-import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
+import com.algomeet.xmpp.chatservice.cluster.publisher.ReactiveClusterMessagePublisher; // FIXED: Consistent reactive variant mapping
 import com.algomeet.xmpp.chatservice.constant.Constants;
 import com.algomeet.xmpp.chatservice.document.UnreadCount;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
@@ -25,6 +25,8 @@ import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Scheduler;
+import reactor.core.scheduler.Schedulers;
 import reactor.util.retry.Retry;
 import static com.algomeet.xmpp.chatservice.document.UnreadCount.*;
 
@@ -34,8 +36,10 @@ import static com.algomeet.xmpp.chatservice.document.UnreadCount.*;
 public class UnreadCountService {
 	private final ReactiveMongoTemplate reactiveMongoTemplate;
 	private final DomainProperties domainProperties;
-	private final ClusterMessagePublisher clusterMessagePublisher;
+	private final ReactiveClusterMessagePublisher reactiveClusterMessagePublisher; // FIXED: Swapped to reactive
 	private final OfflineMessageRepository offlineMessageRepository;
+
+	private static final Scheduler DB_WORKER_POOL = Schedulers.newBoundedElastic(150, 8000, "unread-count-workers");
 
 	/**
 	 * Non-blocking increment of the unread count.
@@ -52,6 +56,7 @@ public class UnreadCountService {
 
 		// upsert returns the updated document
 		return reactiveMongoTemplate.upsert(query, update, UnreadCount.class)
+				.subscribeOn(DB_WORKER_POOL)
 				.then(reactiveMongoTemplate.findById(id, UnreadCount.class));
 	}
 
@@ -70,7 +75,7 @@ public class UnreadCountService {
 	 * @param messageId    The UUID (typically UUIDv7) representing the checkpoint up to which messages have been read.
 	 * @param principal    The authenticated XMPP principal executing this operation.
 	 * @return A {@code Mono<UnreadCount>} emitting the updated document state after the decrement, 
-	 *         or the existing state if no decrement occurred.
+	 * or the existing state if no decrement occurred.
 	 */
 	public Mono<UnreadCount> decrementUnreadCount(String senderKey, String recipientKey, UUID messageId, XmppPrincipal principal) {
 		// Generate the unique composite document ID for this specific sender-recipient boundary
@@ -86,12 +91,9 @@ public class UnreadCountService {
 
 		// 1. Execute the conditional update first
 		return reactiveMongoTemplate.updateFirst(query, update, UnreadCount.class)
+				.subscribeOn(DB_WORKER_POOL)
 				// 2. Once the update completes, pull the fresh/unmodified document state back
-				.then(reactiveMongoTemplate.findById(id, UnreadCount.class))
-				// 3. Return the resolved document within the reactive pipeline stream
-				.flatMap(unreadCount -> {
-					return Mono.just(unreadCount);
-				});
+				.then(reactiveMongoTemplate.findById(id, UnreadCount.class));
 	}
 
 	/**
@@ -104,19 +106,18 @@ public class UnreadCountService {
 	 * <p>
 	 * <b>Workflow:</b>
 	 * <ol>
-	 *   <li>Fetches the current baseline {@code UnreadCount} to capture the {@code lastIncrementAt} timestamp.</li>
-	 *   <li>Queries the absolute remaining pending messages from the {@code offlineMessageRepository}.</li>
-	 *   <li>Executes an atomic conditional update matching the document ID and the captured timestamp.</li>
-	 *   <li>If a race condition occurs (e.g., a new message arrives mid-flight and modifies the timestamp), 
-	 *       the update fails to modify any document, throwing a {@link ConcurrentModificationException}.</li>
-	 *   <li>The operation intercepts this conflict and uses {@code Mono.defer()} to pull fresh state and retry up to 3 times.</li>
+	 * <li>Fetches the current baseline {@code UnreadCount} to capture the {@code lastIncrementAt} timestamp.</li>
+	 * <li>Queries the absolute remaining pending messages from the {@code offlineMessageRepository}.</li>
+	 * <li>Executes an atomic conditional update matching the document ID and the captured timestamp.</li>
+	 * <li>If a race condition occurs (e.g., a new message arrives mid-flight and modifies the timestamp), 
+	 * the update fails to modify any document, throwing a {@link ConcurrentModificationException}.</li>
+	 * <li>The operation intercepts this conflict and uses {@code Mono.defer()} to pull fresh state and retry up to 3 times.</li>
 	 * </ol>
 	 * </p>
 	 *
 	 * @param senderKey    The unique identifier/key of the user who sent the messages.
 	 * @param recipientKey The unique identifier/key of the user who received the messages (owner of the unread count).
 	 * @param messageId    The UUID (typically UUIDv7) representing the checkpoint up to which messages have been read.
-	 * @param principal    The authenticated XMPP principal executing this operation.
 	 * @return A {@code Mono<UnreadCount>} emitting the fully updated and refreshed document state upon successful execution.
 	 * @throws ConcurrentModificationException if the unread count state remains unstable after 3 retry attempts due to heavy concurrent writes.
 	 */	
@@ -172,6 +173,7 @@ public class UnreadCountService {
 	                    });
 	            })
 	    )
+	    .subscribeOn(DB_WORKER_POOL)
 	    // Retry mechanism handles optimistic lock collisions gracefully
 	    .retryWhen(Retry.max(3).filter(throwable -> throwable instanceof ConcurrentModificationException));
 	}
@@ -182,6 +184,14 @@ public class UnreadCountService {
 	    // 1. Explicitly type Mono.<UnreadCount>defer so the compiler knows the final target type
 	    return Mono.<UnreadCount>defer(() -> 
 	        reactiveMongoTemplate.findById(id, UnreadCount.class)
+	            // FIXED: Re-added switchIfEmpty placeholder fallback execution mapping rule safely
+	            .switchIfEmpty(Mono.defer(() -> {
+	                UnreadCount newRecord = new UnreadCount();
+	                newRecord.setId(id);
+	                newRecord.setUnreadCount(0);
+	                newRecord.setLastIncrementAt(Instant.now().toEpochMilli());
+	                return reactiveMongoTemplate.save(newRecord);
+	            }))
 	            .flatMap(currentUnread -> {
 	                Long capturedIncrementAt = currentUnread.getLastIncrementAt();
 
@@ -216,6 +226,7 @@ public class UnreadCountService {
 
 	            })
 	    )
+	    .subscribeOn(DB_WORKER_POOL)
 	    .retryWhen(Retry.max(3).filter(throwable -> throwable instanceof ConcurrentModificationException));
 	}
 	
@@ -273,6 +284,7 @@ public class UnreadCountService {
 	                            });
 	            })
 	    )
+	    .subscribeOn(DB_WORKER_POOL)
 	    // Retry mechanism handles optimistic lock collisions gracefully
 	    .retryWhen(Retry.max(3).filter(throwable -> throwable instanceof ConcurrentModificationException));
 	}
@@ -284,11 +296,11 @@ public class UnreadCountService {
 				.then(Mono.defer(() -> {
 	            /**
 	             * <message from='.algomeet.app'
-	             *          type='headline'>
-	             *     <sync xmlns='urn:xmpp:algomeet:sync:history'>
-	             *         <conversation peer-key='userKey'
-	             *                       cleared-until-message-id='xxxxxx' />
-	             *     </sync>
+	             * type='headline'>
+	             * <sync xmlns='urn:xmpp:algomeet:sync:history'>
+	             * <conversation peer-key='userKey'
+	             * cleared-until-message-id='xxxxxx' />
+	             * </sync>
 	             * </message>
 	             */
 
@@ -302,15 +314,16 @@ public class UnreadCountService {
 	            String clusterMessageId = UuidCreator.getTimeOrderedEpoch().toString();
 	            
 	            // 3. Dispatch the timeline clearance payload to secondary user devices
-	            clusterMessagePublisher.convertAndSendToUser(
+	            // FIXED: Correctly chain the return statement into the reactive graph pipeline execution flow
+	            return reactiveClusterMessagePublisher.convertAndSendToUser(
 	                    clusterMessageId,
 	                    recipientKey.toString(), 
 	                    recipientKey.toString(), 
 	                    ChatType.CHAT, 
-	                    payload
+	                    false,
+	                    payload,
+	                    null
 	            );
-	            
-	            return Mono.empty(); // Satisfies the lazy transformation contract
 				}));
 	}
 
@@ -321,6 +334,7 @@ public class UnreadCountService {
 		Query query = new Query(Criteria.where(USER_KEY).is(UUID.fromString(userKey)));
 
 		return reactiveMongoTemplate.find(query, UnreadCount.class)
+				.subscribeOn(DB_WORKER_POOL)
 				.map(UnreadCount::getUnreadCount)
 				.reduce(0, Integer::sum);
 	}
@@ -333,7 +347,8 @@ public class UnreadCountService {
 		Query query = new Query(Criteria.where(USER_KEY).is(UUID.fromString(recipientKey))
 				.and(UNREAD_COUNT).gt(0));
 
-		return reactiveMongoTemplate.find(query, UnreadCount.class);
+		return reactiveMongoTemplate.find(query, UnreadCount.class)
+				.subscribeOn(DB_WORKER_POOL);
 	}
 
 	/**
@@ -343,6 +358,7 @@ public class UnreadCountService {
 		String id = getConversationId(senderKey, recipientKey);
 
 		return reactiveMongoTemplate.findById(id, UnreadCount.class)
+				.subscribeOn(DB_WORKER_POOL)
 				.map(UnreadCount::getUnreadCount)
 				.defaultIfEmpty(0);
 	}    
@@ -369,14 +385,14 @@ public class UnreadCountService {
 				.limit(size);
 
 		return reactiveMongoTemplate.find(query, UnreadCount.class)
+				.subscribeOn(DB_WORKER_POOL)
 				.map(UnreadCount::getId)
 				.distinct(); 
 	}
 	
 	/**
     * Generates a deterministic conversation identifier from two keys.
-    * 
-    * @param senderKey The UUID of the sender
+    * * @param senderKey The UUID of the sender
     * @param recipientKey The UUID of the recipient
     * @return A formatted String "senderKey_recipientKey"
     */

@@ -1,8 +1,6 @@
 package com.algomeet.xmpp.chatservice.controller;
 
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Set;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -18,61 +16,44 @@ import com.algomeet.xmpp.chatservice.service.UnreadCountService;
 import com.algomeet.xmpp.chatservice.util.SecurityUtil;
 
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.publisher.Mono;
 
 @Slf4j
 @RestController
 @RequestMapping("/api/chat/recent-contacts")
-public class ContactController implements ContactControllerDoc{
+public class ContactController implements ContactControllerDoc {
 
     @Autowired
     private UnreadCountService unreadCountService;
 
     /**
-     * Retrieves a paginated list of recent contact IDs.
-     * * @param page Zero-based page index (defaults to 0 for the most recent contacts).
-     * @param size Number of records per page (defaults to 20 to balance UI load and performance).
-     * @return A list of unique participant keys involved in recent unread counts/interactions.
+     * Retrieves a paginated list of recent contact IDs reactively.
      */
     @Override
     @GetMapping
-    public ResponseEntity<CommonResponse<List<String>>> getRecentContacts(
+    public Mono<ResponseEntity<CommonResponse<List<String>>>> getRecentContacts(
             @RequestParam(value = "page", defaultValue = "0") int page, 
             @RequestParam(value = "size", defaultValue = "20") int size) {
         
-        // 1. Get the authenticated user's key
         String userKey = SecurityUtil.getUserKey();
         
-        // 2. Prepare an ordered Set to handle the logic of splitting composite IDs 
-        // while maintaining the 'Recent First' sort order from MongoDB.
-        Set<String> recentContacts = new LinkedHashSet<>();
-       
-        // 3. Fetch paginated data from the reactive service.
-        // We block here to convert the reactive stream into a synchronous list 
-        // for this specific REST endpoint.
-        List<String> recentContactList = unreadCountService.getRecentContactKeysReactive(userKey, page, size)
+        // Process the underlying continuous dynamic flux pipeline completely non-blockingly
+        return unreadCountService.getRecentContactKeysReactive(userKey, page, size) // Returns Flux<String>
+                // 1. Map individual composite items (e.g. "userA_userB") into distinct arrays
+                .map(contact -> contact.split("_"))
+                // 2. Flatten arrays into a sequential stream of standalone keys, maintaining order
+                .flatMapIterable(List::of)
+                // 3. Native deduplication: drops duplicates while preserving insertion order (like a LinkedHashSet)
+                .distinct()
+                // 4. Structural cleanup rule: The user should not see themselves as a "recent contact"
+                .filter(contactKey -> !contactKey.equals(userKey))
+                // 5. Gather all the remaining valid matching keys into a clean, bound List
                 .collectList()
-                .block(); 
-
-        if (recentContactList != null) {
-            for (String contact : recentContactList) {
-                // 5. Split composite IDs (e.g., "userA_userB") into individual keys
-                String[] contactArr = contact.split("_");
-                
-                recentContacts.add(contactArr[0]);
-                
-                if (contactArr.length > 1) {
-                    recentContacts.add(contactArr[1]);
-                }
-            }
-        }
-        
-        // 6. Final cleanup: The user should not see themselves as a "recent contact"
-        recentContacts.remove(userKey);
-        
-        return ResponseEntity.ok(CommonResponse.from(
-                ResponseCode.SUCCESS, 
-                recentContacts.stream().toList()
-        ));
+                // 6. Map the final collected list into your standard HTTP envelope
+                .map(cleanContactList -> ResponseEntity.ok(
+                        CommonResponse.from(ResponseCode.SUCCESS, cleanContactList)
+                ))
+                .onErrorReturn(ResponseEntity.status(500)
+                        .body(CommonResponse.from(ResponseCode.ERROR, List.of())));
     }
-   
 }
