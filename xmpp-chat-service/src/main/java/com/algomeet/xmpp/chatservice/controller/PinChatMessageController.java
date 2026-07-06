@@ -55,7 +55,7 @@ public class PinChatMessageController {
         String conversationId = DeterministicConversationIdUtil.getConversationId(userKey, peerKey);
 
         PinChatMessage document = PinChatMessage.builder()
-                .id(new PinChatMessageId(conversationId, request.getMessageId(), request.getPinnedBy()))
+                .id(new PinChatMessageId(conversationId, request.getMessageId(), userKey))
                 .seq(UuidCreator.getTimeOrderedEpoch())
                 .pinnedForEveryone(request.isPinnedForEveryone())
                 .expiration(expirationInstant)

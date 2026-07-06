@@ -19,9 +19,6 @@ public class PinMucMessageRequest {
 
 	@NotNull(message = "Message ID is required")
 	private UUID messageId;
-
-	@NotNull(message = "Pinned By user ID is required")
-	private UUID pinnedBy;
 	
 	@NotBlank(message = "The unique session ID of the connected user. It is returned after user successfully connected to chat websocket.")
 	private String sessionId;
