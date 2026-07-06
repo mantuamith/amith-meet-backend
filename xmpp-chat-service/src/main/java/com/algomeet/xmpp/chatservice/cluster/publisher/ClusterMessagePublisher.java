@@ -13,6 +13,7 @@ import com.algomeet.xmpp.chatservice.util.ClusterSyncProtocolUtil;
 import com.github.f4b6a3.uuid.UuidCreator;
 
 import lombok.Data;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -39,7 +40,7 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 @Component
-@Data
+@Getter
 public class ClusterMessagePublisher extends AbstractClusterMessagePublisher{
 	/**
 	 * Redis client used to publish {@link ClusterSyncMessage} objects

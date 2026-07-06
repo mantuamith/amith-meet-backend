@@ -19,9 +19,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.algomeet.xmpp.chatservice.controller.doc.MucMessageControllerDoc;
 import com.algomeet.xmpp.chatservice.dto.CommonResponse;
-import com.algomeet.xmpp.chatservice.dto.MucMessageResponse;
 import com.algomeet.xmpp.chatservice.dto.GetMessagesByIdsRequest;
-import com.algomeet.xmpp.chatservice.dto.HideMessageRequest;
+import com.algomeet.xmpp.chatservice.dto.MucMessageResponse;
 import com.algomeet.xmpp.chatservice.enums.ResponseCode;
 import com.algomeet.xmpp.chatservice.exceptions.GroupNotFoundException;
 import com.algomeet.xmpp.chatservice.service.MucMessageService;
@@ -258,16 +257,4 @@ public class MucMessageController implements MucMessageControllerDoc{
 	            .collectList()
 	            .map(messages -> ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, messages)));
 	}	
-	
-	/*
-	@PostMapping("/{groupId}/messages/hide")
-	public Mono<ResponseEntity<CommonResponse<?>>> hideMessages(
-	        @PathVariable UUID groupId,
-	        @RequestBody @Validated HideMessageRequest request) {
-
-	    UUID currentUserKey = UUID.fromString(SecurityUtil.getUserKey());
-	    return mucMessageService.fetchMessagesByIds(request.getMessageIds(), currentUserKey)
-	            .collectList()
-	            .map(messages -> ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, messages)));
-	} */
 }

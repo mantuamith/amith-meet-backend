@@ -1,5 +1,6 @@
 package com.algomeet.xmpp.chatservice.cluster.publisher;
 
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
@@ -31,15 +32,23 @@ import reactor.core.publisher.Mono;
 
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class ReactiveClusterMessagePublisher extends AbstractClusterMessagePublisher{
+
+	public ReactiveClusterMessagePublisher(
+			@Qualifier("reactiveStringRedisTemplate")
+			ReactiveRedisTemplate<String, String> reactiveRedisTemplate,
+			RedisTopicProperties redisTopicProperties) {
+		this.reactiveRedisTemplate = reactiveRedisTemplate;
+		this.redisTopicProperties = redisTopicProperties;
+	}
+
 	/**
 	 * Redis client used to publish {@link ClusterSyncMessage} objects
 	 * to subscribed cluster nodes.
 	 */
 	private final ReactiveRedisTemplate<String, String> reactiveRedisTemplate;
 	private final RedisTopicProperties redisTopicProperties;
-	
+
 	/**
 	 * Convenience overload that resolves the originating session ID from the
 	 * authenticated principal and disables carbon copy delivery.
@@ -57,45 +66,45 @@ public class ReactiveClusterMessagePublisher extends AbstractClusterMessagePubli
 	 * @param principal   Authenticated XMPP session principal
 	 */
 	public Mono<Void> convertAndSendToUser(
-	        String id,
-	        String to,
-	        String from,
-	        ChatType chatType,
-	        Boolean isAllowEcho,
-	        String payload,
-	        XmppPrincipal principal) {
+			String id,
+			String to,
+			String from,
+			ChatType chatType,
+			Boolean isAllowEcho,
+			String payload,
+			XmppPrincipal principal) {
 
-	    String sessionId = null;
+		String sessionId = null;
 
-	    // Include session ID only when same-session echo is disabled.
-	    if (principal != null && !isAllowEcho) {
-	        sessionId = principal.getSessionId();
-	    }
+		// Include session ID only when same-session echo is disabled.
+		if (principal != null && !isAllowEcho) {
+			sessionId = principal.getSessionId();
+		}
 
-	    return convertAndSendToUser(id, to, from, chatType, isAllowEcho, sessionId, false, false, payload);
+		return convertAndSendToUser(id, to, from, chatType, isAllowEcho, sessionId, false, false, payload);
 	}
-		
+
 	public Mono<Void> convertAndSendToUser(
-	        String id,
-	        String to,
-	        String from,
-	        ChatType chatType,
-	        Boolean isAllowEcho,
-	        Boolean shouldCarbon,
-	        Boolean isAckStanza,
-	        String payload,
-	        XmppPrincipal principal) {
+			String id,
+			String to,
+			String from,
+			ChatType chatType,
+			Boolean isAllowEcho,
+			Boolean shouldCarbon,
+			Boolean isAckStanza,
+			String payload,
+			XmppPrincipal principal) {
 
-	    String sessionId = null;
+		String sessionId = null;
 
-	    // Include session ID only when same-session echo is disabled.
-	    if (principal != null && !isAllowEcho) {
-	        sessionId = principal.getSessionId();
-	    }
+		// Include session ID only when same-session echo is disabled.
+		if (principal != null && !isAllowEcho) {
+			sessionId = principal.getSessionId();
+		}
 
-	    return convertAndSendToUser(id, to, from, chatType, isAllowEcho, sessionId, shouldCarbon, isAckStanza, payload);
+		return convertAndSendToUser(id, to, from, chatType, isAllowEcho, sessionId, shouldCarbon, isAckStanza, payload);
 	}
-	
+
 	/**
 	 * Convenience overload that resolves the originating session ID from the
 	 * authenticated principal and disables carbon copy delivery.
@@ -113,18 +122,18 @@ public class ReactiveClusterMessagePublisher extends AbstractClusterMessagePubli
 	 * @param principal   Authenticated XMPP session principal
 	 */
 	public Mono<Void> convertAndSendToUser(
-	        String id,
-	        String to,
-	        String from,
-	        ChatType chatType,
-	        Boolean isAllowEcho,
-	        Boolean shouldCarbon,
-	        String payload,
-	        String sessionId) {
+			String id,
+			String to,
+			String from,
+			ChatType chatType,
+			Boolean isAllowEcho,
+			Boolean shouldCarbon,
+			String payload,
+			String sessionId) {
 
-	    return convertAndSendToUser(id, to, from, chatType, isAllowEcho, sessionId, shouldCarbon, false, payload);
+		return convertAndSendToUser(id, to, from, chatType, isAllowEcho, sessionId, shouldCarbon, false, payload);
 	}
-	
+
 	/**
 	 * Publishes a cluster synchronization message to Redis.
 	 *
@@ -248,7 +257,7 @@ public class ReactiveClusterMessagePublisher extends AbstractClusterMessagePubli
 					);
 		}
 	}
-	
+
 	private Mono<Void> publish(String msg) {
 		/**
 		 * Publish to shared Redis topic.

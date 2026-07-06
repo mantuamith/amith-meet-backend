@@ -47,9 +47,9 @@ public class ConversationSettingsFacade {
 	public Mono<Void> updateMessageRetention(UUID userKey, UUID peerKey, Integer messageRetentionDays, String sessionId) {
 		String lockValue = UUID.randomUUID().toString();
 		long ttlMinutes = 5; 
-
-		log.info("Attempting to acquire reactive lock for purge group conversation recovery...");
+		
 		String lockKey = LOCAL_LOCK_KEY + DeterministicConversationIdUtil.getConversationId(userKey, peerKey);
+		log.info("Attempting to acquire lock for retention update: key={}", lockKey);
 
 		return reactiveRedisTemplate.opsForValue()
 				.setIfAbsent(lockKey, lockValue, Duration.ofMinutes(ttlMinutes))

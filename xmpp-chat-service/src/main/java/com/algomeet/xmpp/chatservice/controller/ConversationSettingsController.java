@@ -20,6 +20,7 @@ import com.algomeet.xmpp.chatservice.service.ConversationSettingsCacheService;
 import com.algomeet.xmpp.chatservice.service.ConversationSettingsFacade;
 import com.algomeet.xmpp.chatservice.util.SecurityUtil;
 
+import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
 import reactor.core.publisher.Mono;
 
@@ -68,7 +69,7 @@ public class ConversationSettingsController implements ConversationSettingsContr
     public Mono<ResponseEntity<CommonResponse<Object>>> updateMessageRetention(
     		@PathVariable UUID peerKey,
     		@RequestParam Integer messageRetentionDays,
-    		@RequestParam String sessionId) {
+    		@RequestParam @NotBlank String sessionId) {
 
     	// Assuming you have a way to extract the current user's UUID (e.g., from a security context or session)
     	// Replace 'currentUserKey' with your actual user context extraction logic.
