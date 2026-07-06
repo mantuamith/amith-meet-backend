@@ -259,6 +259,7 @@ public class MucMessageController implements MucMessageControllerDoc{
 	            .map(messages -> ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, messages)));
 	}	
 	
+	/*
 	@PostMapping("/{groupId}/messages/hide")
 	public Mono<ResponseEntity<CommonResponse<?>>> hideMessages(
 	        @PathVariable UUID groupId,
@@ -268,5 +269,5 @@ public class MucMessageController implements MucMessageControllerDoc{
 	    return mucMessageService.fetchMessagesByIds(request.getMessageIds(), currentUserKey)
 	            .collectList()
 	            .map(messages -> ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, messages)));
-	}
+	} */
 }
