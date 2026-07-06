@@ -14,9 +14,6 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class PinMucMessageRequest {
-	@NotNull(message = "Group Id cannot be blank")
-	private UUID groupId;
-
 	@NotNull(message = "Message ID is required")
 	private UUID messageId;
 	

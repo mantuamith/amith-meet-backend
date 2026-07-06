@@ -52,7 +52,7 @@ public class PinMucMessageController {
         }
 
         PinMucMessage document = PinMucMessage.builder()
-                .id(new PinMucMessageId(request.getGroupId(), request.getMessageId(), userKey))
+                .id(new PinMucMessageId(groupId, request.getMessageId(), userKey))
                 .seq(UuidCreator.getTimeOrderedEpoch())
                 .pinnedForEveryone(request.isPinnedForEveryone())
                 .expiration(expirationInstant)
