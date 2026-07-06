@@ -1,4 +1,4 @@
-package com.algomeet.signalservice.constant;
+package com.algomeet.common.constant;
 
 public class MessageBackupRetentionFields {
 	public static final String USER_KEY = "user-key";

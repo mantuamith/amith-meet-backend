@@ -6,12 +6,14 @@ import org.springframework.stereotype.Component;
 
 import com.algomeet.common.dto.GroupMember;
 import com.algomeet.common.dto.Group;
+import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.constant.XmppErrorConditions;
 import com.algomeet.xmpp.chatservice.enums.MucAffiliation;
 import com.algomeet.xmpp.chatservice.enums.XmppErrorType;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.routing.dispacher.LocalStanzaDispatcher;
 import com.algomeet.xmpp.chatservice.routing.muc.MucMessageRouter;
+import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.algomeet.xmpp.chatservice.util.MucCommandUtil;
 import com.algomeet.xmpp.chatservice.util.MucRoleUtil;
@@ -78,7 +80,8 @@ public class MucUnMuteEventHandler {
 		// This notifies all occupants that the user has regained voice.
 		String unmutePresence = buildUnmutePresence(roomBareJid, victimUserKey, affiliation, targetJid, senderJid, reason);
 
-		mucMessageRouter.broadcastToOccupants(id, sender.getUserKey(), group, unmutePresence, true);
+		XmppPrincipal principal = ctx.channel().attr(XmppSessionAttributes.PRINCIPAL).get(); 
+		mucMessageRouter.broadcastToOccupants(id, sender.getUserKey(), group, unmutePresence, principal.getSessionId());
 		
 		// 6. Send IQ Result back to the admin to confirm success
 		sendSuccessResponse(ctx, senderJid, roomJid, id);

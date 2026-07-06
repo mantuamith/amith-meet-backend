@@ -14,4 +14,10 @@ public class CommonRedisStreamProperties {
      * Redis stream key for asynchronously cleaning up media belonging to deleted messages.
      */
     private String messageMediaDeleteEvents = "message-media-delete-events";
+    
+    
+    /**
+     * Redis stream key for asynchronously updating message backup retention.
+     */
+    private String messageBackupRetentionUpdateEvents = "message-backup-retention-update-events";
 }

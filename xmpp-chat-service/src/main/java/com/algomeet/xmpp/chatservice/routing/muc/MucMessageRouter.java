@@ -135,19 +135,31 @@ public class MucMessageRouter {
 	/**
 	 * Iterates through all room occupants and publishes the presence update to the cluster.
 	 */
-	public void broadcastToOccupants(String id, String senderKey, Group group, String payload, boolean isAllowEcho) {
+	public void broadcastToOccupants(String id, String senderKey, Group group, String payload) {
 		if(group == null || group.getMembers() == null) {
 			return;
 		}
 		
-		for(GroupMember receiver : group.getMembers()) {
-			if (!isAllowEcho) {
-				if (receiver.getUserKey().equalsIgnoreCase(senderKey)) {
-					continue;
-				}
-			}
-			
+		for(GroupMember receiver : group.getMembers()) {			
 			clusterMessagePublisher.convertAndSendToUser(id, receiver.getUserKey(), senderKey, ChatType.GROUPCHAT, payload);
+		}
+	}
+	
+	/**
+	 * Iterates through all room occupants and publishes the presence update to the cluster except don't echo to same user session ID as sender.
+	 */
+	public void broadcastToOccupants(String id, String senderKey, Group group, String payload, String sessionId) {
+		if(group == null || group.getMembers() == null) {
+			return;
+		}
+		
+		XmppPrincipal principal = XmppPrincipal.builder()
+				.sessionId(sessionId)
+				.build();
+		
+		for(GroupMember receiver : group.getMembers()) {			
+			clusterMessagePublisher.convertAndSendToUser(id, receiver.getUserKey(), senderKey, ChatType.GROUPCHAT, 
+					false, payload, principal);
 		}
 	}	
 

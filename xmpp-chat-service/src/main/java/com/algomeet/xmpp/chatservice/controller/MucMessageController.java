@@ -19,8 +19,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.algomeet.xmpp.chatservice.controller.doc.MucMessageControllerDoc;
 import com.algomeet.xmpp.chatservice.dto.CommonResponse;
-import com.algomeet.xmpp.chatservice.dto.MucMessageResponse;
 import com.algomeet.xmpp.chatservice.dto.GetMessagesByIdsRequest;
+import com.algomeet.xmpp.chatservice.dto.MucMessageResponse;
 import com.algomeet.xmpp.chatservice.enums.ResponseCode;
 import com.algomeet.xmpp.chatservice.exceptions.GroupNotFoundException;
 import com.algomeet.xmpp.chatservice.service.MucMessageService;
@@ -188,47 +188,55 @@ public class MucMessageController implements MucMessageControllerDoc{
 	 * @return a response wrapper containing {@code true} if the database cutoff record was updated successfully
 	 */
 	@PostMapping("/{groupId}/timeline-cutoff")
-	public ResponseEntity<CommonResponse<Boolean>> clearMemberHistoryTimeline(
-			@PathVariable UUID groupId) {
+	public Mono<ResponseEntity<CommonResponse<Boolean>>> clearMemberHistoryTimeline(
+	        @PathVariable UUID groupId) {
 
-		UUID userKey = UUID.fromString(SecurityUtil.getUserKey());        
+	    UUID userKey = UUID.fromString(SecurityUtil.getUserKey());        
+	    log.info("Triggering timeline cutoff history clearance for user {} in group {}", userKey, groupId);
 
-		boolean cleared = mucRoomService.clearMemberHistoryTimeline(
-				groupId,
-				userKey,
-				Instant.now()).block();
-				
-		return ResponseEntity.ok(
-				CommonResponse.from(ResponseCode.SUCCESS, cleared));
+	    // Call the service layer reactively and map the boolean outcome
+	    return mucRoomService.clearMemberHistoryTimeline(groupId, userKey, Instant.now())
+	            .map(cleared -> ResponseEntity.ok(
+	                    CommonResponse.from(ResponseCode.SUCCESS, cleared)))
+	            // Safe fallback trap for unexpected runtime errors (HTTP 500)
+	            .onErrorReturn(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+	                    .body(CommonResponse.from(ResponseCode.ERROR, false)));
 	}
 	
 	@DeleteMapping("/{groupId}/messages")
-    public ResponseEntity<CommonResponse<Boolean>> purgeGroupMessages(
-            @PathVariable UUID groupId) {
-		UUID userKey = UUID.fromString(SecurityUtil.getUserKey());  
-		
-        log.warn("Administrative trigger: Hard purging all message records for group {}", groupId);
-        try {
-        boolean purged = mucRoomService.purgeGroupConversation(groupId, userKey);
-                
-        return ResponseEntity.ok(
-                CommonResponse.from(ResponseCode.SUCCESS, purged));
-        } catch (AccessDeniedException ex) {
-        	return ResponseEntity.status(HttpStatus.FORBIDDEN)     
-        			.body(CommonResponse.from(ResponseCode.ERROR, false));
-        }
-    }
+	public Mono<ResponseEntity<CommonResponse<Boolean>>> purgeGroupMessages(
+	        @PathVariable UUID groupId) {
+	    
+	    UUID userKey = UUID.fromString(SecurityUtil.getUserKey());  
+	    log.warn("Administrative trigger: Hard purging all message records for group {}", groupId);
+	    
+	    return mucRoomService.purgeGroupConversation(groupId, userKey)
+	            // Map the boolean result into an HTTP 200 OK success response wrapping
+	            .map(purged -> ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, purged)))
+	            
+	            // Asynchronously trap AccessDeniedException and convert to HTTP 403 Forbidden
+	            .onErrorResume(AccessDeniedException.class, ex -> {
+	                log.warn("Unauthorized administrative purge bypass attempt by user {} on group {}", userKey, groupId);
+	                return Mono.just(ResponseEntity.status(HttpStatus.FORBIDDEN)
+	                        .body(CommonResponse.from(ResponseCode.ERROR, false)));
+	            })
+	            
+	            // Safe fallback trap for unexpected runtime errors (HTTP 500)
+	            .onErrorReturn(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+	                    .body(CommonResponse.from(ResponseCode.ERROR, false)));
+	}
 	
 	@PostMapping("/{groupId}/message-retention")
 	public Mono<ResponseEntity<CommonResponse<Object>>> updateMessageRetention(
 	        @PathVariable UUID groupId,
-	        @RequestParam Integer messageRetentionDays) {
+	        @RequestParam Integer messageRetentionDays,
+    		@RequestParam String sessionId) {
 	    
 	    // Assuming you have a way to extract the current user's UUID (e.g., from a security context or session)
 	    // Replace 'currentUserKey' with your actual user context extraction logic.
 	    UUID currentUserKey = UUID.fromString(SecurityUtil.getUserKey());  
 	    
-	    return mucRoomService.updateMessageRetention(currentUserKey, groupId, messageRetentionDays)
+	    return mucRoomService.updateMessageRetention(currentUserKey, groupId, messageRetentionDays, sessionId)
 	            // .then() waits for completion (empty or not) and switches to your success response
 	            .then(Mono.just(ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS))))
 	            .onErrorReturn(
@@ -255,5 +263,5 @@ public class MucMessageController implements MucMessageControllerDoc{
 	    return mucMessageService.fetchMessagesByIds(request.getMessageIds(), currentUserKey)
 	            .collectList()
 	            .map(messages -> ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, messages)));
-	}
+	}	
 }

@@ -69,6 +69,7 @@ public class GroupMapper {
 		dto.setDescription(entity.getDescription());
 		dto.setOwnerUserKey(entity.getOwnerUserKey());
 		dto.setCreatedAt(entity.getDateCreated().toEpochMilli());
+		dto.setMessageRetentionDays(entity.getMessageRetentionDays());
 
 		Set<MemberResponse> members = new HashSet<>();
 		if (entity.getMembers() != null) {

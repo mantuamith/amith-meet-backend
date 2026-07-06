@@ -16,10 +16,10 @@ public interface PinChatMessageRepository extends ReactiveMongoRepository<PinCha
 
 	/**
      * Finds pinned messages matching your exact compound index structure, ordered by seq ascending.
-     * Matches: conversationId AND (pinnedBy OR pinnedForEveryone == true)
+     * Matches: _id.conversationId AND (_id.pinnedBy OR pinnedForEveryone == true)
      * Sorts: { 'seq': 1 } (1 = Ascending, -1 = Descending)
      */
-    @Query(value = "{ '_id.conversationId': ?0, '$or': [ { 'pinnedBy': ?1 }, { 'pinnedForEveryone': true } ] }", 
+    @Query(value = "{ '_id.conversationId': ?0, '$or': [ { '_id.pinnedBy': ?1 }, { 'pinnedForEveryone': true } ] }", 
            sort = "{ 'seq': 1 }")
     Flux<PinChatMessage> findPinnedMessages(
             String conversationId, 
@@ -43,7 +43,7 @@ public interface PinChatMessageRepository extends ReactiveMongoRepository<PinCha
      * Deletes a record by its nested composite ID properties and returns the deletion count (0 or 1).
      * Spring Data automatically handles fields prefixed with 'id' or '_id' for composite keys.
      */
-    Mono<Long> deleteById_ConversationIdAndId_MessageIdAndId_PinnedBy(
+    Mono<Long> deleteById_ConversationIdAndId_MessageIdAndId_PinnedByAndPinnedForEveryoneIsFalse(
             String conversationId, 
             UUID messageId, 
             UUID pinnedBy

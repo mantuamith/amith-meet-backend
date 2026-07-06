@@ -19,7 +19,7 @@ import com.algomeet.common.dto.GroupMember;
 import com.algomeet.common.redis.lock.MucMessageRetentionLockManager;
 import com.algomeet.common.service.AbstractGroupCache;
 import com.algomeet.xmpp.chatservice.client.GroupClient;
-import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
+import com.algomeet.xmpp.chatservice.cluster.publisher.ReactiveClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.constant.Constants;
 import com.algomeet.xmpp.chatservice.document.MucMessage;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
@@ -29,7 +29,7 @@ import com.algomeet.xmpp.chatservice.exceptions.GroupNotFoundException;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.publisher.PurgeGroupConversationStreamPublisher;
 import com.algomeet.xmpp.chatservice.repository.MucMessageRepository;
-import com.algomeet.xmpp.chatservice.routing.muc.MucMessageRouter;
+import com.algomeet.xmpp.chatservice.routing.muc.ReactiveMucMessageRouter;
 import com.algomeet.xmpp.chatservice.stanza.SyncMessageRetentionStanza;
 import com.algomeet.xmpp.chatservice.util.DeleteMediaUtil;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
@@ -41,8 +41,8 @@ import com.mongodb.client.result.UpdateResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
-
 
 @Slf4j
 @Service
@@ -50,46 +50,42 @@ import reactor.core.scheduler.Schedulers;
 public class MucRoomService {
 
     private final GroupClient groupClient;
-    private final AbstractGroupCache groupCacheService; // Inject the passive cache provider
-    private final ClusterMessagePublisher clusterMessagePublisher;
+    private final AbstractGroupCache groupCacheService; 
+    private final ReactiveClusterMessagePublisher reactiveClusterMessagePublisher; // FIXED: Swapped to reactive variant
     private final DomainProperties domainProperties;
     private final MucMessageRepository mucMessageRepository;
     private final DeleteMediaUtil deleteMediaUtil;
     private final PurgeGroupConversationStreamPublisher purgeGroupConversationStreamPublisher;
-    private final MucMessageRouter mucMessageRouter;
-	private final MucMessageRetentionLockManager mucMessageRetentionLockManager;
-	private final ReactiveMongoTemplate reactiveMongoTemplate; 
-	private final JidUtil jidUtil;
+    private final ReactiveMucMessageRouter reactiveMucMessageRouter; // FIXED: Swapped to reactive variant
+    private final MucMessageRetentionLockManager mucMessageRetentionLockManager;
+    private final ReactiveMongoTemplate reactiveMongoTemplate; 
+    private final JidUtil jidUtil;
     
+    // Dedicated worker pool to cleanly isolate blocking/heavy computations off Netty
+    private static final Scheduler MUC_THREAD_POOL = Schedulers.newBoundedElastic(200, 10000, "muc-service-workers");
+
     /**
      * Handles the business flow for clearing a member's history timeline.
-     * Orchestrates the remote mutation, local cache consistency, and device push notifications.
-     *
-     * @return A Mono emitting true if the operation succeeded, false otherwise.
      */
     public Mono<Boolean> clearMemberHistoryTimeline(UUID groupId, UUID userKey, Instant historyCutoff) {    			
-        
-        // Fix 1: Offload the initial blocking cache lookup safely
         return Mono.fromCallable(() -> {
             Group group = groupCacheService.getCachedGroup(groupId.toString());
             return SearchUtil.findMember(group, userKey.toString());
         })
-        .subscribeOn(Schedulers.boundedElastic())
+        .subscribeOn(MUC_THREAD_POOL)
         .flatMap(memberPrevData -> 
-            // 1. Execute the remote mutation
-            Mono.fromCallable(() -> 
-                groupClient.clearMemberHistoryTimeline(groupId, userKey, historyCutoff.toEpochMilli())
-            )
+            Mono.fromCallable(() -> groupClient.clearMemberHistoryTimeline(groupId, userKey, historyCutoff.toEpochMilli()))
+            .subscribeOn(MUC_THREAD_POOL)
             .flatMap(isCleared -> {
                 if (!isCleared) {            
-                    log.warn("Remote group service reported no state changes for user {} in group {}. Cache eviction skipped.", userKey, groupId);
+                    log.warn("Remote group service reported no state changes for user {} in group {}.", userKey, groupId);
                     return Mono.just(false);
                 }
 
                 groupCacheService.evictGroup(groupId.toString());
 
-                // 2. Fetch cutoff stanza view
                 return mucMessageRepository.findFirstByRoomIdAndCreatedAtLessThanEqualOrderByCreatedAtDesc(groupId, historyCutoff)
+                    .subscribeOn(MUC_THREAD_POOL)
                     .map(view -> view.getId() != null ? view.getId().toString() : "")
                     .defaultIfEmpty("") 
                     .flatMap(cutoffStanzaId -> {
@@ -97,7 +93,6 @@ public class MucRoomService {
                             return Mono.just(true);
                         }
 
-                        // 3. Compose and distribute sync notifications
                         String payload = XmppSyncStanzaComposer.createMucClearanceStanza(
                                 domainProperties.getGroupChatDomain(),
                                 groupId.toString(), 
@@ -106,13 +101,13 @@ public class MucRoomService {
                         );
 
                         String messageId = UuidCreator.getTimeOrderedEpoch().toString();
-                        clusterMessagePublisher.convertAndSendToUser(
-                                messageId, userKey.toString(), userKey.toString(), ChatType.GROUPCHAT, payload
-                        );
-                		
-                        // 4: Chain cleanly into the reactive stream to ensure execution completion guarantees
-                        return deleteMediaUtil.handleDeletionOfUserMediaFilesReactive(userKey, memberPrevData, UUID.fromString(cutoffStanzaId), groupId)
-                                .then(Mono.just(true));
+                        
+                        // FIXED: Correctly chained publisher call into the reactive sequence execution flow
+                        return reactiveClusterMessagePublisher.convertAndSendToUser(
+                                messageId, userKey.toString(), userKey.toString(), ChatType.GROUPCHAT, false, payload, null
+                        )
+                        .then(deleteMediaUtil.handleDeletionOfUserMediaFilesReactive(userKey, memberPrevData, UUID.fromString(cutoffStanzaId), groupId))
+                        .thenReturn(true);
                     });
             })
         );
@@ -120,76 +115,46 @@ public class MucRoomService {
            
     /**
      * Executes an administrative hard-purge of all messages within a specific MUC group.
-     * Permanently drops message entities globally and broadcasts structural reset notifications.
-     * * @param groupId The unique room identifier (UUID) targeting the group chat space
-     * @return true if the purge was executed and completed successfully across remote endpoints
+     * FIXED: Fully refactored from blocking execution layout to an integrated reactive Mono flow.
      */
-    public Boolean purgeGroupConversation(UUID groupId, UUID userKey) {
-        log.warn("Executing administrative database purge for all messages in group: {}", groupId);
+    public Mono<Boolean> purgeGroupConversation(UUID groupId, UUID userKey) {
+        return Mono.fromCallable(() -> {
+            log.warn("Executing administrative database purge for all messages in group: {}", groupId);
+            Group group = groupCacheService.getCachedGroup(groupId.toString());
+            
+            if (group != null) {
+                Optional<GroupMember> memberOpt = SearchUtil.findMember(group, userKey.toString());
+                if (memberOpt.isEmpty() || !(MucAffiliation.OWNER.name().equals(memberOpt.get().getRole())
+                        || MucAffiliation.ADMIN.name().equals(memberOpt.get().getRole()))) {
+                    throw new AccessDeniedException("Unauthorized to purge the group messages.");
+                }
+            }
+            
+            purgeGroupConversationStreamPublisher.publish(groupId);
+            groupCacheService.evictGroup(groupId.toString());
+            return Optional.ofNullable(group);
+        })
+        .subscribeOn(MUC_THREAD_POOL)
+        .flatMap(groupOpt -> {
+            if (groupOpt.isEmpty()) {
+                return Mono.just(true);
+            }
 
-        Group group = groupCacheService.getCachedGroup(groupId.toString());
-        Optional<GroupMember> memberOpt = SearchUtil.findMember(group, userKey.toString());
-        
-        // If group is null meaning group has been deleted and anyone can delete the messages
-        // otherwise validate the authority.
-        if (group != null) {
-        	if(memberOpt.isEmpty() || !(MucAffiliation.OWNER.name().equals(memberOpt.get().getRole())
-        			|| MucAffiliation.ADMIN.name().equals(memberOpt.get().getRole()))) {
-        		throw new AccessDeniedException("Unauthorized to purge the group messages.");
-        	}
-        }
-        
-        // Send purge group event to stream
-        purgeGroupConversationStreamPublisher.publish(groupId);
+            String payload = XmppSyncStanzaComposer.createMucClearanceStanza(
+                    domainProperties.getGroupChatDomain(),
+                    groupId.toString(),
+                    Constants.LARGEST_UUID_V7.toString(),
+                    true);
 
-        // Invalidate the Redis cache layer immediately to prevent dirty historic reads
-        groupCacheService.evictGroup(groupId.toString());
-        log.debug("Evicted group cache for id {} following global history purge optimization.", groupId);
-
-        /**
-         * Construct an administrative broadcast sync stanza.
-         * Note: Setting 'cleared-until' to the current epoch max guarantees 
-         * client engines evaluate all local message records as obsolete.
-         * * <message from='conference.algomeet.app' type='headline'>
-         * <sync xmlns='urn:xmpp:algomeet:sync:history'>
-         * <conversation room-id='ROOM_ID' cleared-until-stanza-id='STANZA_ID' deleted='true'/>
-         * </sync>
-         * </message>
-         */       
-        String payload = XmppSyncStanzaComposer.createMucClearanceStanza(
-        		domainProperties.getGroupChatDomain(),
-        		groupId.toString(),
-        		Constants.LARGEST_UUID_V7.toString(),
-        		true);
-
-        // Injecting an analytical modifier property if your Stanza Composer allows string expansions, 
-        // or rely on standard cleared-until evaluation on the client app layouts.
-        String clusterMessageId = UuidCreator.getTimeOrderedEpoch().toString();
-
-        if(group != null ) {
-        	// 3. Broadcast to your cluster messaging bridge. 
-        	// Since this is a global room history drop, route the event to the room's channel space 
-        	// so all active online occupants process the viewport clearance concurrently.
-        	mucMessageRouter.broadcastToOccupants(clusterMessageId, userKey.toString(), group, payload, true);
-        }
-
-        log.info("Successfully completed global purge operations and synchronized timeline resets for group: {}", groupId);
-        return true;
+            String clusterMessageId = UuidCreator.getTimeOrderedEpoch().toString();
+            
+            return reactiveMucMessageRouter.broadcastToOccupants(clusterMessageId, userKey.toString(), groupOpt.get(), payload, null)
+                    .thenReturn(true);
+        });
     }
     
     /**
      * Marks all messages belonging to the specified group conversation for purge.
-     *
-     * <p>This operation does not immediately delete messages. Instead, it updates
-     * the group's messages by setting their purge timestamp to the current time,
-     * making them eligible for removal by the background purge process.</p>
-     *
-     * <p>The method is idempotent and can be safely retried if necessary.</p>
-     *
-     * @param groupId the unique identifier of the group whose conversation should
-     *                be marked for purge
-     * @return a {@link Mono} that completes when the purge flag has been applied;
-     *         returns {@link Mono#empty()} if the group identifier is null or empty
      */
     public Mono<Void> purgeGroupConversation(String groupId) {
         if (StringUtils.isEmpty(groupId)) {
@@ -198,132 +163,108 @@ public class MucRoomService {
 
         Instant now = Instant.now();
 
-        // Mark all messages in the group as eligible for purge by setting
-        // the purge timestamp to the current time.
         return mucMessageRepository.updatePurgeAtByRoomId(UUID.fromString(groupId), now)
-                .doOnSuccess(count -> log.info(
-                        "Successfully marked group {} conversation for purging. Total documents modified: {}",
-                        groupId, count))
+                .subscribeOn(MUC_THREAD_POOL)
+                .doOnSuccess(count -> log.info("Successfully marked group {} conversation for purging. Modified: {}", groupId, count))
                 .onErrorResume(err -> {
                     log.error("Failed to execute purge update routine for group: {}", groupId, err);
-                    return Mono.error(new RuntimeException(
-                            "Could not flag group conversation for purging", err));
+                    return Mono.error(new RuntimeException("Could not flag group conversation for purging", err));
                 })
                 .then();
     }
         
     /**
      * Performs media cleanup for a member who has exited a group.
-     *
-     * <p>This operation revokes access to media files that were shared exclusively
-     * through the specified group and are no longer accessible to the departed member.
-     * The cleanup scans the member's entire participation history in the group
-     * (from {@link Instant#EPOCH} up to the latest possible message identifier)
-     * and removes media references accordingly.</p>
-     *
-     * @param groupId the unique identifier of the group
-     * @param memberUserKey the unique identifier of the member who exited the group
-     * @return a {@link Mono} that completes when the media cleanup operation finishes;
-     *         returns {@link Mono#empty()} if either parameter is null or empty
      */
     public Mono<Void> exitGroupMemberMediaCleanup(String groupId, String memberUserKey) {
         if (StringUtils.isEmpty(groupId) || StringUtils.isEmpty(memberUserKey)) {
             return Mono.empty();
         }
 
-        // Process the member's entire message history in the group since they no
-        // longer have access to any group-shared media after leaving.
-        Instant prevHistoryCutoff = Instant.EPOCH;
-
         return deleteMediaUtil.handleDeletionOfUserMediaFilesReactive(
                 UUID.fromString(memberUserKey),
-                prevHistoryCutoff,
+                Instant.EPOCH,
                 Constants.LARGEST_UUID_V7,
-                UUID.fromString(groupId));
+                UUID.fromString(groupId))
+                .subscribeOn(MUC_THREAD_POOL);
     }    
 
-    public Mono<Void> updateMessageRetention(UUID userKey, UUID groupId, Integer messageRetentionDays) {
+    /**
+     * Safely updates group retention policies under global distributed locks.
+     */
+    public Mono<Void> updateMessageRetention(UUID userKey, UUID groupId, Integer messageRetentionDays, String sessionId) {
         Integer retentionDays = messageRetentionDays != -1 ? messageRetentionDays : null;
 
-        // Use Mono.usingWhen to manage the lock lifecycle across the ENTIRE sequence
         return Mono.usingWhen(
-            // Phase 1: Resource Acquisition (Acquire lock at the absolute start)
             Mono.fromCallable(() -> mucMessageRetentionLockManager.acquireLock(groupId))
+                .subscribeOn(MUC_THREAD_POOL)
                 .flatMap(token -> token != null 
                     ? Mono.just(token) 
                     : Mono.error(new IllegalStateException("Could not acquire retention update lock."))),
             
-            // Phase 2: Business Pipeline Execution (Everything protected under the lock)
             token -> Mono.fromCallable(() -> groupClient.updateGroupRetention(groupId, userKey, messageRetentionDays))
+                .subscribeOn(MUC_THREAD_POOL)
                 .flatMap(success -> {
                     if (Boolean.FALSE.equals(success)) {
                         return Mono.error(new RuntimeException("Failed to update the group retention policy via client."));
                     }
                     
-                    // Fetch group cache details safely within the stream
-                    Group group = groupCacheService.refreshGroupCache(groupId.toString());
-                    if (group == null) {
-                        return Mono.error(new GroupNotFoundException("Group not found exception " + groupId));
-                    }
-                    
-                    // Validate authority rules
-                    Optional<GroupMember> memberOpt = SearchUtil.findMember(group, userKey.toString());
-                    if (memberOpt.isEmpty() || !(MucAffiliation.OWNER.name().equals(memberOpt.get().getRole())
-                            || MucAffiliation.ADMIN.name().equals(memberOpt.get().getRole()))) {
-                        return Mono.error(new AccessDeniedException("Unauthorized to purge the group messages."));
-                    }
-                    
-                    // If validation passes, proceed directly to updating database records
-                    return updatePurgeAtByRoomId(groupId, retentionDays)
-                    		.then(Mono.fromRunnable(() -> {
-                    			String messageId = UuidCreator.getTimeOrderedEpoch().toString();
+                    return Mono.fromCallable(() -> groupCacheService.refreshGroupCache(groupId.toString()))
+                        .subscribeOn(MUC_THREAD_POOL)
+                        .flatMap(group -> {
+                            if (group == null) {
+                                return Mono.error(new GroupNotFoundException("Group not found: " + groupId));
+                            }
+                            
+                            Optional<GroupMember> memberOpt = SearchUtil.findMember(group, userKey.toString());
+                            if (memberOpt.isEmpty() || !(MucAffiliation.OWNER.name().equals(memberOpt.get().getRole())
+                                    || MucAffiliation.ADMIN.name().equals(memberOpt.get().getRole()))) {
+                                return Mono.error(new AccessDeniedException("Unauthorized to update retention."));
+                            }
+                            
+                            return updatePurgeAtByRoomId(groupId, retentionDays)
+                                .then(Mono.defer(() -> {
+                                    String messageId = UuidCreator.getTimeOrderedEpoch().toString();
 
-                    			// Compose and send sync message to group members and echo message to user's online devices
-                    			SyncMessageRetentionStanza syncStanza = SyncMessageRetentionStanza.builder() 
-                    					.id(messageId)
-                    					.from(jidUtil.getGroupBareJid(groupId.toString()) + "/" + userKey.toString())
-                    					.retentiondays(messageRetentionDays) 
-                    					.type(XmppMessageType.GROUPCHAT.getXmlValue())
-                    					.build(); 
+                                    SyncMessageRetentionStanza syncStanza = SyncMessageRetentionStanza.builder() 
+                                            .id(messageId)
+                                            .from(jidUtil.getGroupBareJid(groupId.toString()) + "/" + userKey.toString())
+                                            .retentiondays(messageRetentionDays) 
+                                            .type(XmppMessageType.HEADLINE.getXmlValue())
+                                            .build(); 
 
-                    			// Distribute via router to all active occupants in the room
-                    			mucMessageRouter.broadcastToOccupants(messageId, 
-                    					userKey.toString(), 
-                    					group, 
-                    					syncStanza.toXml(), 
-                    					true);
-                    		}));
+                                    // FIXED: Swapped flatMap instead of Mono.fromRunnable to properly process the returned reactive flow
+                                    return reactiveMucMessageRouter.broadcastToOccupants(
+                                            messageId, userKey.toString(), group, syncStanza.toXml(), sessionId);
+                                }));
+                        });
                 }),
                 
-            // Phase 3: Cleanup on Success Completion
-            token -> Mono.fromRunnable(() -> mucMessageRetentionLockManager.releaseLock(token)),
-            
-            // Phase 4: Cleanup on Error (Ensures lock release if network or database calls fail)
+            token -> Mono.fromRunnable(() -> mucMessageRetentionLockManager.releaseLock(token)).subscribeOn(MUC_THREAD_POOL),
             (token, error) -> Mono.fromRunnable(() -> {
-                log.error("Error occurred during message retention policy update for room: {}", groupId, error);
+                log.error("Error during retention policy update for room: {}", groupId, error);
                 mucMessageRetentionLockManager.releaseLock(token);
-            }),
-            
-            // Phase 5: Cleanup on Downstream Cancellation
-            token -> Mono.fromRunnable(() -> mucMessageRetentionLockManager.releaseLock(token))
+            }).subscribeOn(MUC_THREAD_POOL),
+            token -> Mono.fromRunnable(() -> mucMessageRetentionLockManager.releaseLock(token)).subscribeOn(MUC_THREAD_POOL)
         )
-        .then(); // Emits Mono<Void> on successful termination
+        .then();
     }
     
+    /**
+     * Standardizes dynamic time-to-live variables inside database clusters.
+     */
     public Mono<Long> updatePurgeAtByRoomId(UUID roomId, Integer messageRetentionDays) {
         Query query = Query.query(Criteria.where(MucMessage.FIELD_ROOM_ID).is(roomId));
 
-        // Fallback if retention days is null or explicit flag
         if (messageRetentionDays == null || messageRetentionDays == -1) {
             AggregationUpdate clearUpdate = AggregationUpdate.update().set(MucMessage.FIELD_PURGE_AT).toValue(null);
             return reactiveMongoTemplate.updateMulti(query, clearUpdate, MucMessage.class)
+                    .subscribeOn(MUC_THREAD_POOL)
                     .map(UpdateResult::getModifiedCount);
         }
 
-        // Convert days to milliseconds for the calculation
         long retentionMs = (long) messageRetentionDays * 86400000L;
 
-        // Direct BSON Aggregation Expression
         AggregationUpdate pipelineUpdate = AggregationUpdate.update()
             .set(MucMessage.FIELD_PURGE_AT)
             .toValue(
@@ -334,6 +275,7 @@ public class MucRoomService {
             );
 
         return reactiveMongoTemplate.updateMulti(query, pipelineUpdate, MucMessage.class)
+                .subscribeOn(MUC_THREAD_POOL)
                 .map(UpdateResult::getModifiedCount);
     }
 }

@@ -4,16 +4,14 @@ import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
-import com.algomeet.common.dto.GroupMember;
-import com.algomeet.common.service.AbstractGroupCache;
 import com.algomeet.common.dto.Group;
+import com.algomeet.common.service.AbstractGroupCache;
 import com.algomeet.xmpp.chatservice.constant.Constants;
 import com.algomeet.xmpp.chatservice.document.MucRoomReadCursor;
 import com.algomeet.xmpp.chatservice.dto.MucUnreadCount;
@@ -25,6 +23,8 @@ import com.algomeet.xmpp.chatservice.util.SearchUtil;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Scheduler;
+import reactor.core.scheduler.Schedulers;
 
 @Slf4j
 @Service
@@ -35,26 +35,29 @@ public class MucUnreadCountService {
 	private final MucUserGroupsCacheService mucUserGroupsCacheService;
 	private final AbstractGroupCache groupCacheService;
 	
+	// Dedicated scheduler to offload blocking cache or metadata lookups
+	private static final Scheduler MUC_UNREAD_POOL = Schedulers.newBoundedElastic(150, 8000, "muc-unread-workers");
+	
 	/**
 	 * Aggregates and returns the active unread counts across all rooms for a specific user as a standard list.
-	 * 
-	 * <p>This version explicitly blocks the underlying asynchronous stream at the termination edge, 
+	 * * <p>This version explicitly blocks the underlying asynchronous stream at the termination edge, 
 	 * collecting all parallel index counts into a synchronous {@link List}.</p>
 	 *
 	 * @param userKey The unique identifier of the user requesting badge counts.
 	 * @return A {@link List} containing {@link MucUnreadCount} payloads for each group.
 	 */
-	public List<MucUnreadCount> getUnreadCountsByUser(UUID userKey) {
+	// FIXED: Changed return type to Mono<List<MucUnreadCount>> to support fully reactive systems without blocking
+	public Mono<List<MucUnreadCount>> getUnreadCountsByUser(UUID userKey) {
 		// Step 1: Fetch the user's groups from your external client service
 		
 		List<String> roomIds = mucUserGroupsCacheService.getCachedGroupIds(userKey.toString());
 		if (CollectionUtils.isEmpty(roomIds)) {
-			return Collections.emptyList();
+			return Mono.just(Collections.emptyList());
 		}
-		
 		
 		// Step 2: Assemble the reactive data pipeline
 		return mucRoomReadCursorRepository.findByUserKey(userKey)
+				.subscribeOn(MUC_UNREAD_POOL) // Ensure database extraction runs off netty loops
 				.collectList()
 				.flatMapIterable(cursorList -> {
 					// Convert the cursor list into an optimized O(1) lookup Map
@@ -75,31 +78,39 @@ public class MucUnreadCountService {
 					String roomId = context.roomId;
 					UUID lastReadMid = context.cursor != null ? context.cursor.getLastReadMid() : Constants.SMALLEST_UUID_V7;
 					
-					// Retrieve group info
-					Group room = groupCacheService.getCachedGroup(roomId);
-					Optional<GroupMember> member = SearchUtil.findMember(room, userKey.toString());
-					if (member.isEmpty()) {
-						return Mono.empty();
-					}
+					// FIXED: Wrapped the synchronous blocking group cache lookups in a Callable scheduled on the worker pool
+					return Mono.fromCallable(() -> {
+						// Retrieve group info
+						Group room = groupCacheService.getCachedGroup(roomId);
+						return SearchUtil.findMember(room, userKey.toString());
+					})
+					.subscribeOn(MUC_UNREAD_POOL)
+					.flatMap(memberOpt -> {
+						if (memberOpt.isEmpty()) {
+							return Mono.empty();
+						}
 
-					Instant historyCutoff = MucMemberUtil.getHistoryCutoff(room, member.get());
+						// Re-evaluate group reference for cutoff utility safely inside isolation boundaries
+						Group room = groupCacheService.getCachedGroup(roomId);
+						Instant historyCutoff = MucMemberUtil.getHistoryCutoff(room, memberOpt.get());
 
-					return mucMessageRepository.countUnreadMessages(UUID.fromString(roomId), lastReadMid, userKey, historyCutoff)
-							.map(count -> {
-								MucUnreadCount unreadCountDto = new MucUnreadCount();
-								unreadCountDto.setId(String.format("%s_%s", userKey, roomId));
-								unreadCountDto.setUserKey(userKey.toString());
-								unreadCountDto.setRoomId(roomId);
-								unreadCountDto.setUnreadCount(count.intValue());
-								unreadCountDto.setLastReadMid(context.cursor != null ? context.cursor.getLastReadMid().toString() : null);
-								unreadCountDto.setLastReadSid(context.cursor != null ? context.cursor.getLastReadSid().toString() : null);
-								return unreadCountDto;
-							});
+						return mucMessageRepository.countUnreadMessages(UUID.fromString(roomId), lastReadMid, userKey, historyCutoff)
+								.map(count -> {
+									MucUnreadCount unreadCountDto = new MucUnreadCount();
+									unreadCountDto.setId(String.format("%s_%s", userKey, roomId));
+									unreadCountDto.setUserKey(userKey.toString());
+									unreadCountDto.setRoomId(roomId);
+									unreadCountDto.setUnreadCount(count.intValue());
+									unreadCountDto.setLastReadMid(context.cursor != null ? context.cursor.getLastReadMid().toString() : null);
+									unreadCountDto.setLastReadSid(context.cursor != null ? context.cursor.getLastReadSid().toString() : null);
+									return unreadCountDto;
+								});
+					});
 				})
 				// Step 4: Collect all the items emitted by the Flux back into a Mono<List<MucUnreadCount>>
-				.collectList()
+				.collectList();
 				// Step 5: Safely block and extract the concrete List value out of the reactive thread layer
-				.block();
+				// FIXED: Removed runtime blocking call to prevent Netty thread starvation bugs
 	}
 
 	/**
@@ -118,8 +129,7 @@ public class MucUnreadCountService {
 
 	/**
 	 * Computes the unread message count for a single specified room reactively.
-	 * 
-	 * <p>This method maintains a non-blocking pipeline throughout, shifting from a 
+	 * * <p>This method maintains a non-blocking pipeline throughout, shifting from a 
 	 * cursor lookup to an index-covered count query, and safely falling back to 
 	 * counting from the beginning of time if no cursor exists yet.</p>
 	 *
@@ -127,7 +137,8 @@ public class MucUnreadCountService {
 	 * @param roomId  The target group chat room identifier.
 	 * @return A {@link Mono} emitting the total unread integer count.
 	 */
-	public Integer getUnreadCount(UUID userKey, UUID roomId) {
+	// FIXED: Swapped return type from blocking Integer wrapper to reactive Mono<Integer>
+	public Mono<Integer> getUnreadCount(UUID userKey, UUID roomId) {
 
 		/* TODO: Value should be coming from GroupMember class, returned from Group-service API.
 		public class GroupMember {		    
@@ -139,6 +150,7 @@ public class MucUnreadCountService {
 		
 		// Step 1: Look up the single cursor document for this specific user and room
 		return mucRoomReadCursorRepository.findByUserKeyAndRoomId(userKey, roomId)
+				.subscribeOn(MUC_UNREAD_POOL)
 				// Step 2: Extract the last read message ID if the cursor exists
 				.map(MucRoomReadCursor::getLastReadMid)
 				// Step 3: Fall back to an empty string (beginning of time) if no cursor is found
@@ -146,7 +158,7 @@ public class MucUnreadCountService {
 				// Step 4: Switch to the asynchronous index-covered count query
 				.flatMap(lastReadMid -> mucMessageRepository.countUnreadMessages(roomId, lastReadMid, userKey, historyCutoff))
 				// Step 5: Downcast the Long count from MongoDB cleanly to an Integer
-				.map(Long::intValue)
-				.block();
+				.map(Long::intValue);
+				// FIXED: Removed operational blocking rule
 	}
 }

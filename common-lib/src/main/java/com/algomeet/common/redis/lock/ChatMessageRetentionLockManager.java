@@ -2,13 +2,14 @@ package com.algomeet.common.redis.lock;
 
 import java.time.Duration;
 import java.util.Collections;
-import java.util.Objects;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
+
+import com.algomeet.common.util.DeterministicConversationIdUtil;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -17,9 +18,10 @@ public class ChatMessageRetentionLockManager {
 	@Autowired
 	@Qualifier("commonStringRedisTemplate")
 	private RedisTemplate<String, String> redisTemplate;	
-	private final static String LOCK_KEY_PREFIX = "common:lock:chat:update-retention:id:";
+	
+	protected final static String LOCK_KEY_PREFIX = "common:lock:chat:update-retention:id:";
 
-	private static final String RELEASE_LUA_SCRIPT = 
+	protected static final String RELEASE_LUA_SCRIPT = 
 			"if redis.call('get', KEYS[1]) == ARGV[1] then " +
 					"    return redis.call('del', KEYS[1]) " +
 					"else " +
@@ -28,17 +30,6 @@ public class ChatMessageRetentionLockManager {
 
 	private static final DefaultRedisScript<Long> RELEASE_SCRIPT = 
 			new DefaultRedisScript<>(RELEASE_LUA_SCRIPT, Long.class);
-
-	/**
-	 * Context-agnostic deterministic key generator for pairs of entities.
-	 */
-	private String getBiDirectionalKey(UUID keyA, UUID keyB) {
-		Objects.requireNonNull(keyA, "keyA must not be null");
-		Objects.requireNonNull(keyB, "keyB must not be null");
-		String strA = keyA.toString();
-		String strB = keyB.toString();
-		return strA.compareTo(strB) < 0 ? strA + "_" + strB : strB + "_" + strA;
-	}
 
 	/**
 	 * Tries to acquire a lock. Returns a LockToken if successful, or null/empty if it fails.
@@ -52,7 +43,7 @@ public class ChatMessageRetentionLockManager {
 	public LockToken acquireLock(UUID userKey, UUID peerKey, Duration ttl) {
 		Duration lockTtl = (ttl != null) ? ttl : Duration.ofMinutes(10);
 
-		String lockKey =  LOCK_KEY_PREFIX + getBiDirectionalKey(userKey, peerKey);
+		String lockKey =  LOCK_KEY_PREFIX + DeterministicConversationIdUtil.getConversationId(userKey, peerKey);
 		String tokenValue = UUID.randomUUID().toString();
 
 		Boolean acquired = redisTemplate.opsForValue()
@@ -70,7 +61,7 @@ public class ChatMessageRetentionLockManager {
 	 * @return true if the lock exists in Redis, false otherwise.
 	 */
 	public boolean isLocked(UUID userKey, UUID peerKey) {
-		String lockKey = LOCK_KEY_PREFIX + getBiDirectionalKey(userKey, peerKey);
+		String lockKey = LOCK_KEY_PREFIX + DeterministicConversationIdUtil.getConversationId(userKey, peerKey);
 
 		Boolean exists = redisTemplate.hasKey(lockKey);
 		return Boolean.TRUE.equals(exists);

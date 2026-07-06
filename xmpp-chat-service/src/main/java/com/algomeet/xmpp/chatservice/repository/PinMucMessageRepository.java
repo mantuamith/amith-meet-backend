@@ -17,13 +17,13 @@ public interface PinMucMessageRepository extends ReactiveMongoRepository<PinMucM
 
 	/**
      * Finds pinned messages matching your exact compound index structure, ordered by seq ascending.
-     * Matches: conversationId AND (pinnedBy OR pinnedForEveryone == true)
+     * Matches: _id.groupId AND (_id.pinnedBy OR pinnedForEveryone == true)
      * Sorts: { 'seq': 1 } (1 = Ascending, -1 = Descending)
      */
-    @Query(value = "{ '_id.groupId': ?0, '$or': [ { 'pinnedBy': ?1 }, { 'pinnedForEveryone': true } ] }", 
+    @Query(value = "{ '_id.groupId': ?0, '$or': [ { '_id.pinnedBy': ?1 }, { 'pinnedForEveryone': true } ] }", 
            sort = "{ 'seq': 1 }")
     Flux<PinMucMessage> findPinnedMessages(
-            String conversationId, 
+    		UUID groupId,
             UUID pinnedBy
     );
 
@@ -44,7 +44,7 @@ public interface PinMucMessageRepository extends ReactiveMongoRepository<PinMucM
      * Deletes a record by its nested composite ID properties and returns the deletion count (0 or 1).
      * Spring Data automatically handles fields prefixed with 'id' or '_id' for composite keys.
      */
-    Mono<Long> deleteById_GroupIdAndId_MessageIdAndId_PinnedBy(
+    Mono<Long> deleteById_GroupIdAndId_MessageIdAndId_PinnedByAndPinnedForEveryoneIsFalse(
             UUID groupId, 
             UUID messageId, 
             UUID pinnedBy

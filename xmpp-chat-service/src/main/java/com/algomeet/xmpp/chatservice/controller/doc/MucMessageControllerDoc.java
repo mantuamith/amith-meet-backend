@@ -207,7 +207,7 @@ public interface MucMessageControllerDoc {
 									)
 			}
 			)
-	public ResponseEntity<CommonResponse<Boolean>> purgeGroupMessages(
+	public Mono<ResponseEntity<CommonResponse<Boolean>>> purgeGroupMessages(
 			@Parameter(
 					name = "groupId",
 					description = "The unique room/group identifier (UUID) targeting the message archive to be wiped.",
@@ -243,7 +243,11 @@ public interface MucMessageControllerDoc {
 			@PathVariable UUID groupId,
 
 			@Parameter(description = "Number of days messages should be retained from creation time", required = true, example = "30")
-			@RequestParam Integer messageRetentionDays);
+			@RequestParam Integer messageRetentionDays,
+
+			@Parameter(description = "The unique session ID of the connected user", 
+				    required = true)
+    		@RequestParam String sessionId);
 
 
 	@Operation(
@@ -334,7 +338,7 @@ public interface MucMessageControllerDoc {
 					)
 	})
 
-	public ResponseEntity<CommonResponse<Boolean>> clearMemberHistoryTimeline(
+	public Mono<ResponseEntity<CommonResponse<Boolean>>> clearMemberHistoryTimeline(
 			@Parameter(
 					name = "groupId",
 					description = "The unique UUID of the target group room to clear.",

@@ -27,7 +27,8 @@ import org.springframework.data.redis.stream.StreamMessageListenerContainer;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
-import com.algomeet.signalservice.constant.MessageBackupRetentionFields;
+import com.algomeet.common.constant.MessageBackupRetentionFields;
+import com.algomeet.common.properties.CommonRedisStreamProperties;
 import com.algomeet.signalservice.properties.RedisStreamProperties;
 import com.algomeet.signalservice.service.MessageBackupService;
 
@@ -40,7 +41,7 @@ import lombok.extern.slf4j.Slf4j;
 @Service
 public class ApplyMessageBackupRetentionConsumer implements StreamListener<String, MapRecord<String, String, String>> {
 	@Autowired
-	private RedisStreamProperties redisStreamProperties;
+	private CommonRedisStreamProperties redisStreamProperties;
 	
 	@Autowired
 	private RedisConnectionFactory connectionFactory;
@@ -70,7 +71,7 @@ public class ApplyMessageBackupRetentionConsumer implements StreamListener<Strin
 
 	@PostConstruct
 	public void init() {
-		String streamKey = redisStreamProperties.getApplyMessageBackupRetention();
+		String streamKey = redisStreamProperties.getMessageBackupRetentionUpdateEvents();
 
 		// 1. Setup Group (Blocking is okay here as it only runs once at startup)
 		try {
@@ -109,7 +110,7 @@ public class ApplyMessageBackupRetentionConsumer implements StreamListener<Strin
 		log.info("Received message: {}", message.getId());
 		
 		try {
-			String streamKey = redisStreamProperties.getApplyMessageBackupRetention();
+			String streamKey = redisStreamProperties.getMessageBackupRetentionUpdateEvents();
 
 			// Retrieve message content
 			String userKey = message.getValue().get(MessageBackupRetentionFields.USER_KEY);
@@ -186,7 +187,7 @@ public class ApplyMessageBackupRetentionConsumer implements StreamListener<Strin
 	}
 	
 	private void executeCleanupPipeline() {
-	    String streamKey = redisStreamProperties.getApplyMessageBackupRetention();
+	    String streamKey = redisStreamProperties.getMessageBackupRetentionUpdateEvents();
 	    log.debug("Checking for abandoned messages in group {}...", GROUP_NAME);
 
 	    // Evict idle consumers

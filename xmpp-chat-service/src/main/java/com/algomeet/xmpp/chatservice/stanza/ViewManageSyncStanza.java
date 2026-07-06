@@ -17,6 +17,7 @@ public class ViewManageSyncStanza {
 	private final String type;
 	private final String action;
 	private final String room;
+	private final String peer;
 	private final String targetId;
 
 	private ViewManageSyncStanza(Builder builder) {
@@ -26,7 +27,9 @@ public class ViewManageSyncStanza {
 		this.type = "headline"; // Standard for background sync
 		this.action = builder.action;
 		this.room = builder.room;
+		this.peer = builder.peer;
 		this.targetId = builder.targetId;
+		
 	}
 
 	public static Builder builder() {
@@ -55,6 +58,11 @@ public class ViewManageSyncStanza {
 		if (room != null && !room.isBlank()) {
 			sb.append("room='").append(room).append("' ");
 		}
+		
+		// Only append the peer attribute if peer is provided
+		if (peer != null && !peer.isBlank()) {
+			sb.append("peer='").append(peer).append("' ");
+		}
 
 		sb.append("id='").append(targetId).append("'/>")
 		.append("</query>")
@@ -70,6 +78,7 @@ public class ViewManageSyncStanza {
 		private String id;
 		private String action = ViewManageEnum.HIDE.getValue(); // Default action
 		private String room;
+		private String peer;
 		private String targetId;
 
 		public Builder from(String from) {
@@ -94,6 +103,11 @@ public class ViewManageSyncStanza {
 
 		public Builder room(String room) {
 			this.room = room;
+			return this;
+		}
+		
+		public Builder peer(String peer) {
+			this.peer = peer;
 			return this;
 		}
 

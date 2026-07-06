@@ -45,7 +45,6 @@ import org.springframework.util.CollectionUtils;
 
 import com.algomeet.common.dto.ConversationSettings;
 import com.algomeet.common.redis.lock.ChatMessageRetentionLockManager;
-import com.algomeet.signalservice.constant.Constants;
 import com.algomeet.signalservice.document.MessageBackupDocument;
 import com.algomeet.signalservice.document.MessageBackupKey;
 import com.algomeet.signalservice.dto.MessageBackupRequest;
@@ -55,7 +54,6 @@ import com.algomeet.signalservice.exceptions.MessageInsertInProgressException;
 import com.algomeet.signalservice.exceptions.MessageUpdateStatusInProgressException;
 import com.algomeet.signalservice.exceptions.RecordNotFoundException;
 import com.algomeet.signalservice.mapper.MessageBackupMapper;
-import com.algomeet.signalservice.publisher.ApplyMessageBackupRetentionStreamPublisher;
 import com.algomeet.signalservice.publisher.PurgeMessageBackupStreamPublisher;
 import com.algomeet.signalservice.repository.MessageBackupRepository;
 import com.algomeet.signalservice.repository.projection.ConversationStorageStats;
@@ -85,7 +83,6 @@ public class MessageBackupService {
 	private final HideUtil hideUtil;
 	private final DeleteMediaUtil deleteMediaUtil;
 	private final PurgeMessageBackupStreamPublisher purgeMessageBackupStreamPublisher;
-	private final ApplyMessageBackupRetentionStreamPublisher applyMessageBackupRetentionStreamPublisher;
 	private final ChatMessageRetentionLockManager chatMessageRetentionLockManager;
 	private final ConversationSettingsCacheService conversationSettingsCacheService;
 
@@ -632,15 +629,7 @@ public class MessageBackupService {
 		// Delete user storage usage
 		mediaService.deleteStorage(userKey.toString());
 	}
-	
-	public void applyMessageRetentionPolicy(UUID userKey, UUID peerKey, Integer messageRetentionDays) {
-		if (chatMessageRetentionLockManager.isLocked(userKey, peerKey)) {
-			throw new IllegalStateException("Could not acquire retention update lock.");
-		}
-		
-		applyMessageBackupRetentionStreamPublisher.publish(userKey, peerKey, messageRetentionDays);
-	}
-		
+				
 	public void applyMessageBackupRetention(UUID userKey, UUID peerKey, Integer messageRetentionDays) {
 		ChatMessageRetentionLockManager.LockToken lockToken = chatMessageRetentionLockManager.acquireLock(userKey, peerKey);
 	    
