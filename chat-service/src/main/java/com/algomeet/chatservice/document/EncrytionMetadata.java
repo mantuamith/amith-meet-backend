@@ -20,6 +20,10 @@ public class EncrytionMetadata {
     // Distribution ID for group messages
     @Field("distributionId")
     private String distributionId; 
+    
+    // Sender deviceId
+    @Field("senderDeviceId")
+    private String senderDeviceId;
 
     // Receiver deviceId
     @Field("deviceId")
