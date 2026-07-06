@@ -5,13 +5,14 @@ import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.algomeet.common.dto.ConversationSettings;
+import com.algomeet.xmpp.chatservice.controller.doc.ConversationSettingsControllerDoc;
 import com.algomeet.xmpp.chatservice.dto.CommonResponse;
 import com.algomeet.xmpp.chatservice.dto.ConversationSettingsResponse;
 import com.algomeet.xmpp.chatservice.enums.ResponseCode;
@@ -25,7 +26,7 @@ import reactor.core.publisher.Mono;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/chat/conversations")
-public class ConversationSettingsController {
+public class ConversationSettingsController implements ConversationSettingsControllerDoc{
     private final ConversationSettingsCacheService conversationSettingsCacheService;
     private final ConversationSettingsFacade conversationSettingsFacade;
 
@@ -63,16 +64,17 @@ public class ConversationSettingsController {
                         .body(CommonResponse.from(ResponseCode.SUCCESS, responseDto.getMessageRetentionDays())));
     }
     
-    @PostMapping("/{peerKey}/settings/retention-days")
+    @PatchMapping("/{peerKey}/settings/retention-days")
     public Mono<ResponseEntity<CommonResponse<Object>>> updateMessageRetention(
     		@PathVariable UUID peerKey,
-    		@RequestParam Integer messageRetentionDays) {
+    		@RequestParam Integer messageRetentionDays,
+    		@RequestParam String sessionId) {
 
     	// Assuming you have a way to extract the current user's UUID (e.g., from a security context or session)
     	// Replace 'currentUserKey' with your actual user context extraction logic.
     	UUID currentUserKey = UUID.fromString(SecurityUtil.getUserKey());  
     	
-    	return conversationSettingsFacade.updateMessageRetention(currentUserKey, peerKey, messageRetentionDays)
+    	return conversationSettingsFacade.updateMessageRetention(currentUserKey, peerKey, messageRetentionDays, sessionId)
     			// .then() waits for completion (empty or not) and switches to your success response
 	            .then(Mono.just(ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS))))
 	            .onErrorReturn(

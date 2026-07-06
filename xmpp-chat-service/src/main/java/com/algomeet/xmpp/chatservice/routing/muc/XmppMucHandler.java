@@ -10,9 +10,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
+import com.algomeet.common.dto.Group;
 import com.algomeet.common.dto.GroupMember;
 import com.algomeet.common.service.AbstractGroupCache;
-import com.algomeet.common.dto.Group;
 import com.algomeet.multitenancy.context.TenantContext;
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.client.MediaClient;
@@ -22,7 +22,6 @@ import com.algomeet.xmpp.chatservice.enums.PresenceType;
 import com.algomeet.xmpp.chatservice.enums.XmppErrorType;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
-import com.algomeet.xmpp.chatservice.routing.view.PinMessageHandler;
 import com.algomeet.xmpp.chatservice.service.MucMessageReadCursorService;
 import com.algomeet.xmpp.chatservice.service.MucMessageService;
 import com.algomeet.xmpp.chatservice.service.MucRetractionService;
@@ -30,7 +29,6 @@ import com.algomeet.xmpp.chatservice.service.XmppArchiveService;
 import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
 import com.algomeet.xmpp.chatservice.stanza.parser.MediaReferenceParser;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
-import com.algomeet.xmpp.chatservice.util.PinMessageUtil;
 import com.algomeet.xmpp.chatservice.util.SearchUtil;
 import com.algomeet.xmpp.chatservice.util.XmppCustomStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppReadUtil;
@@ -78,7 +76,6 @@ public class XmppMucHandler {
 	private final MucMessageReadCursorService mucMessageReadService;
 	private final MucMessageService mucMessageService;
 	private final MediaClient mediaClient;
-	private final PinMessageUtil pinMessageUtil;
 
 	// Define a dedicated thread pool for your database work so Netty doesn't starve
 	private static final Scheduler DB_SCHEDULER = Schedulers.newBoundedElastic(200, 10000, "xmpp-muc-db-workers");
@@ -133,15 +130,6 @@ public class XmppMucHandler {
 			mucRetractionService.retract(ctx, id, toRoomJid, originalXml, principal);								
 
 		} else {
-			
-			// Check if the incoming XML payload is a message view management stanza (specifically a Pin or Unpin request)
-			if (XmppStanzaUtil.isPinOrUnpinStanza(originalXml)) {
-			    log.debug("Routing pin/unpin chat message stanza for session user: {}", principal.getUserKey());
-			    
-			    // Hand off parsing, action evaluation, and database/cluster synchronization 
-			    // to the dedicated PinMessageUtil handler
-			    pinMessageUtil.handlePinOrUnpinChatMessage(toRoomId, originalXml, principal);
-			}
 
 			// 2. DIRECT PRIVATE MESSAGE (PM) WITHIN MUC CHECK
 			GroupMember pmToMucMember = resolveDirectPmRecipient(ctx, id, fromJid, toRoomJid, group);

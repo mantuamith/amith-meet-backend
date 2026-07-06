@@ -43,7 +43,7 @@ public interface PinChatMessageRepository extends ReactiveMongoRepository<PinCha
      * Deletes a record by its nested composite ID properties and returns the deletion count (0 or 1).
      * Spring Data automatically handles fields prefixed with 'id' or '_id' for composite keys.
      */
-    Mono<Long> deleteById_ConversationIdAndId_MessageIdAndId_PinnedBy(
+    Mono<Long> deleteById_ConversationIdAndId_MessageIdAndId_PinnedByAndPinnedForEveryoneIsFalse(
             String conversationId, 
             UUID messageId, 
             UUID pinnedBy

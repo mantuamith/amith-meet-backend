@@ -30,6 +30,7 @@ import reactor.core.scheduler.Schedulers;
 @Slf4j
 @Component
 @RequiredArgsConstructor
+@Deprecated
 public class HideMessageHandler {
 	
 	// Dedicated thread pool for database work to prevent Netty thread starvation

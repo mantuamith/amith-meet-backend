@@ -13,9 +13,6 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class PinChatMessageRequest {
-	@NotNull(message = "Peer Key cannot be blank")
-	private UUID peerKey;
-
 	@NotNull(message = "Message ID is required")
 	private UUID messageId;
 

@@ -12,6 +12,7 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
 import com.algomeet.common.dto.ConversationSettings;
+import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.beans.OfflineMessageWithRetention;
 import com.algomeet.xmpp.chatservice.constant.Constants;
 import com.algomeet.xmpp.chatservice.document.OfflineMessage;
@@ -68,7 +69,7 @@ public class OfflineMessageService {
      * @return A {@link Mono} emitting the saved {@link OfflineMessageWithRetention}.
      */
     public Mono<OfflineMessageWithRetention> save(UUID messageId, UUID stanzaId, String to, String from, String type, Boolean isAckStanza, 
-            boolean isCountable, String originalXml, List<UUID> mediaIds) {
+            boolean isCountable, String originalXml, List<UUID> mediaIds, String sessionId) {
         UUID fromUuid = UUID.fromString(from);
         UUID toUuid = UUID.fromString(to);
 
@@ -104,7 +105,7 @@ public class OfflineMessageService {
                     final int targetRetentionDays = parsedNewRetentionDays;
 
                     // 2. Safely update message retention through the facade
-                    Mono<Integer> resolvedRetentionDaysMono = conversationSettingsFacade.updateMessageRetention(fromUuid, toUuid, targetRetentionDays)
+                    Mono<Integer> resolvedRetentionDaysMono = conversationSettingsFacade.updateMessageRetention(fromUuid, toUuid, targetRetentionDays, sessionId)
                     		// If our update succeeds, pass our target retention days down the chain
                     		.thenReturn(targetRetentionDays)
                     		// If a lock collision happens, retrieve the updated configuration from the cache

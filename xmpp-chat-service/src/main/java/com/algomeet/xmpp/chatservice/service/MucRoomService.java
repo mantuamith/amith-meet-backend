@@ -13,11 +13,13 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
+import org.springframework.web.bind.annotation.RequestParam;
 
 import com.algomeet.common.dto.Group;
 import com.algomeet.common.dto.GroupMember;
 import com.algomeet.common.redis.lock.MucMessageRetentionLockManager;
 import com.algomeet.common.service.AbstractGroupCache;
+import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.client.GroupClient;
 import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.constant.Constants;
@@ -30,6 +32,7 @@ import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.publisher.PurgeGroupConversationStreamPublisher;
 import com.algomeet.xmpp.chatservice.repository.MucMessageRepository;
 import com.algomeet.xmpp.chatservice.routing.muc.MucMessageRouter;
+import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
 import com.algomeet.xmpp.chatservice.stanza.SyncMessageRetentionStanza;
 import com.algomeet.xmpp.chatservice.util.DeleteMediaUtil;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
@@ -169,7 +172,7 @@ public class MucRoomService {
         if(group != null ) {
         	// 3. Broadcast to your cluster messaging bridge. 
         	// Since this is a global room history drop, route the event to the room's channel space 
-        	// so all active online occupants process the viewport clearance concurrently.
+        	// so all active online occupants process the viewport clearance concurrently.    
         	mucMessageRouter.broadcastToOccupants(clusterMessageId, userKey.toString(), group, payload, true);
         }
 
@@ -242,7 +245,8 @@ public class MucRoomService {
                 UUID.fromString(groupId));
     }    
 
-    public Mono<Void> updateMessageRetention(UUID userKey, UUID groupId, Integer messageRetentionDays) {
+    public Mono<Void> updateMessageRetention(UUID userKey, UUID groupId, Integer messageRetentionDays,
+    		String sessionId) {
         Integer retentionDays = messageRetentionDays != -1 ? messageRetentionDays : null;
 
         // Use Mono.usingWhen to manage the lock lifecycle across the ENTIRE sequence
@@ -273,6 +277,7 @@ public class MucRoomService {
                         return Mono.error(new AccessDeniedException("Unauthorized to purge the group messages."));
                     }
                     
+                    
                     // If validation passes, proceed directly to updating database records
                     return updatePurgeAtByRoomId(groupId, retentionDays)
                     		.then(Mono.fromRunnable(() -> {
@@ -291,7 +296,7 @@ public class MucRoomService {
                     					userKey.toString(), 
                     					group, 
                     					syncStanza.toXml(), 
-                    					true);
+                    					sessionId);
                     		}));
                 }),
                 

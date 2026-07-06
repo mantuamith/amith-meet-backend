@@ -21,6 +21,7 @@ import com.algomeet.xmpp.chatservice.controller.doc.MucMessageControllerDoc;
 import com.algomeet.xmpp.chatservice.dto.CommonResponse;
 import com.algomeet.xmpp.chatservice.dto.MucMessageResponse;
 import com.algomeet.xmpp.chatservice.dto.GetMessagesByIdsRequest;
+import com.algomeet.xmpp.chatservice.dto.HideMessageRequest;
 import com.algomeet.xmpp.chatservice.enums.ResponseCode;
 import com.algomeet.xmpp.chatservice.exceptions.GroupNotFoundException;
 import com.algomeet.xmpp.chatservice.service.MucMessageService;
@@ -222,13 +223,14 @@ public class MucMessageController implements MucMessageControllerDoc{
 	@PostMapping("/{groupId}/message-retention")
 	public Mono<ResponseEntity<CommonResponse<Object>>> updateMessageRetention(
 	        @PathVariable UUID groupId,
-	        @RequestParam Integer messageRetentionDays) {
+	        @RequestParam Integer messageRetentionDays,
+    		@RequestParam String sessionId) {
 	    
 	    // Assuming you have a way to extract the current user's UUID (e.g., from a security context or session)
 	    // Replace 'currentUserKey' with your actual user context extraction logic.
 	    UUID currentUserKey = UUID.fromString(SecurityUtil.getUserKey());  
 	    
-	    return mucRoomService.updateMessageRetention(currentUserKey, groupId, messageRetentionDays)
+	    return mucRoomService.updateMessageRetention(currentUserKey, groupId, messageRetentionDays, sessionId)
 	            // .then() waits for completion (empty or not) and switches to your success response
 	            .then(Mono.just(ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS))))
 	            .onErrorReturn(
@@ -250,6 +252,17 @@ public class MucMessageController implements MucMessageControllerDoc{
 	public Mono<ResponseEntity<CommonResponse<List<MucMessageResponse>>>> findMessagesByIds(
 	        @PathVariable UUID groupId,
 	        @RequestBody @Validated GetMessagesByIdsRequest request) {
+
+	    UUID currentUserKey = UUID.fromString(SecurityUtil.getUserKey());
+	    return mucMessageService.fetchMessagesByIds(request.getMessageIds(), currentUserKey)
+	            .collectList()
+	            .map(messages -> ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, messages)));
+	}	
+	
+	@PostMapping("/{groupId}/messages/hide")
+	public Mono<ResponseEntity<CommonResponse<?>>> hideMessages(
+	        @PathVariable UUID groupId,
+	        @RequestBody @Validated HideMessageRequest request) {
 
 	    UUID currentUserKey = UUID.fromString(SecurityUtil.getUserKey());
 	    return mucMessageService.fetchMessagesByIds(request.getMessageIds(), currentUserKey)

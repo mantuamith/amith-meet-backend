@@ -31,7 +31,6 @@ import com.algomeet.xmpp.chatservice.session.UserSessionRegistry;
 import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
 import com.algomeet.xmpp.chatservice.session.model.UserSession;
 import com.algomeet.xmpp.chatservice.stanza.parser.MediaReferenceParser;
-import com.algomeet.xmpp.chatservice.util.PinMessageUtil;
 import com.algomeet.xmpp.chatservice.util.XmppCustomStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppReadUtil;
 import com.algomeet.xmpp.chatservice.util.XmppReceiptUtil;
@@ -68,7 +67,6 @@ public class XmppChatHandler {
 	private final XmppUtil xmppUtil;
 	private final XmppRetractUtil xmppRetractUtil;
 	private final MediaClient mediaClient;
-	private final PinMessageUtil pinMessageUtil;
 	
 	// Define a dedicated thread pool for your database work so Netty doesn't starve
 	private static final Scheduler DB_SCHEDULER = Schedulers.newBoundedElastic(200, 10000, "xmpp-chat-db-workers");
@@ -88,15 +86,6 @@ public class XmppChatHandler {
 		
 		// Get user sessions from redis
 		Set<UserSession> sessions = userSessionRegistry.getSessions(toUserKey);
-		
-		// Check if the incoming XML payload is a message view management stanza (specifically a Pin or Unpin request)
-		if (XmppStanzaUtil.isPinOrUnpinStanza(originalXml)) {
-			log.debug("Routing pin/unpin chat message stanza for session user: {}", principal.getUserKey());
-
-			// Hand off parsing, action evaluation, and database/cluster synchronization 
-			// to the dedicated PinMessageUtil handler
-			pinMessageUtil.handlePinOrUnpinChatMessage(toUserKey, originalXml, principal);
-		}
 
 		// Persistence & XEP-0198 Acknowledgment
 		boolean isArchivable = XmppStanzaUtil.isArchivable(originalXml);
@@ -154,7 +143,7 @@ public class XmppChatHandler {
 			
 			final String archivedXml = forArchiveXml;			
 			offlineMessageService.save(messageId, stanzaId, toUserKey, fromUserKey, type, isAckStanza, 
-					isCountable, forArchiveXml, mediaIds)
+					isCountable, forArchiveXml, mediaIds, principal.getSessionId())
 			.flatMap(saved -> {
 				// Return server acknowledgment execution context
 				// Send an immediate server-level acknowledgment to the sender.

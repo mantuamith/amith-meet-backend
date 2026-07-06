@@ -40,7 +40,7 @@ public class ReactiveClusterMessagePublisher extends AbstractClusterMessagePubli
 	private final ReactiveRedisTemplate<String, String> reactiveRedisTemplate;
 	private final RedisTopicProperties redisTopicProperties;
 	
-	public Mono<Void> convertAndSendToUserReactive(
+	public Mono<Void> convertAndSendToUser(
 	        String id,
 	        String to,
 	        String from,
@@ -58,7 +58,36 @@ public class ReactiveClusterMessagePublisher extends AbstractClusterMessagePubli
 	        sessionId = principal.getSessionId();
 	    }
 
-	    return convertAndSendToUserReactive(id, to, from, chatType, isAllowEcho, sessionId, shouldCarbon, isAckStanza, payload);
+	    return convertAndSendToUser(id, to, from, chatType, isAllowEcho, sessionId, shouldCarbon, isAckStanza, payload);
+	}
+	
+	/**
+	 * Convenience overload that resolves the originating session ID from the
+	 * authenticated principal and disables carbon copy delivery.
+	 *
+	 * <p>When same-session echo is disabled, the sender's session ID is attached
+	 * so receiving nodes can skip the originating device while still delivering
+	 * to the user's other active sessions.</p>
+	 *
+	 * @param id          Unique stanza/message ID
+	 * @param to          Recipient user key or JID
+	 * @param from        Sender user key or JID
+	 * @param chatType    CHAT / GROUPCHAT
+	 * @param isAllowEcho Whether delivery back to the same session is allowed
+	 * @param payload     Raw XML stanza payload
+	 * @param principal   Authenticated XMPP session principal
+	 */
+	public Mono<Void> convertAndSendToUser(
+	        String id,
+	        String to,
+	        String from,
+	        ChatType chatType,
+	        Boolean isAllowEcho,
+	        Boolean shouldCarbon,
+	        String payload,
+	        String sessionId) {
+
+	    return convertAndSendToUser(id, to, from, chatType, isAllowEcho, sessionId, shouldCarbon, false, payload);
 	}
 	
 	/**
@@ -84,7 +113,7 @@ public class ReactiveClusterMessagePublisher extends AbstractClusterMessagePubli
 	 *
 	 * @throws ClusterMessageException if Redis publish fails.
 	 */
-	public Mono<Void> convertAndSendToUserReactive(
+	public Mono<Void> convertAndSendToUser(
 			String id,
 			String to,
 			String from,

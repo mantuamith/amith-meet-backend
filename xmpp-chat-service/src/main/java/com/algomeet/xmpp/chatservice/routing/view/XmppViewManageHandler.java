@@ -21,12 +21,12 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Component
 @RequiredArgsConstructor
+@Deprecated
 public class XmppViewManageHandler {
 	private final ViewManageStaxParser viewManagementStaxParser;
 	private final XmppUtil xmppUtil;
 	private final DomainProperties domainProperties;
 	private final HideMessageHandler hideMessageHandler;
-	private final PinMessageHandler pinMessageHandler;
 	
 	/**
 	 * Main entry point for processing incoming View Management XML.
@@ -39,15 +39,7 @@ public class XmppViewManageHandler {
 				switch (item.action) {
 				case "hide":
 					hideMessageHandler.handleHide(ctx, vmIq.iqId, principal, item);
-					break;
-					
-				case "pin":
-					pinMessageHandler.handlePin(ctx, vmIq.iqId, principal, item);
-					break;
-					
-				case "unpin":
-					pinMessageHandler.handlePin(ctx, vmIq.iqId, principal, item);
-					break;
+					break;				
 				default:
 					// Reject unsupported actions with a standard XMPP error
 					xmppUtil.sendError(ctx, vmIq.iqId, principal.getBareJid(), domainProperties.getDomain(), 

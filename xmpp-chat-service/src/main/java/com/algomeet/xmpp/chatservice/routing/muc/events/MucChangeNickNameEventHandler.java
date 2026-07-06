@@ -5,8 +5,10 @@ import org.springframework.util.StringUtils;
 
 import com.algomeet.common.dto.GroupMember;
 import com.algomeet.common.dto.Group;
+import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.enums.MucAffiliation;
 import com.algomeet.xmpp.chatservice.routing.muc.MucMessageRouter;
+import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.algomeet.xmpp.chatservice.util.MucRoleUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
@@ -58,7 +60,8 @@ public class MucChangeNickNameEventHandler {
                 MucRoleUtil.getMucRole(sender.getRole()).getValue());
 
         // 3. Broadcast "Old Nick" exit to the Room
-        mucMessageRouter.broadcastToOccupants(UuidCreator.getTimeOrderedEpoch().toString(), sender.getUserKey(), group, renamePresence, true);
+        XmppPrincipal principal = ctx.channel().attr(XmppSessionAttributes.PRINCIPAL).get();   
+        mucMessageRouter.broadcastToOccupants(UuidCreator.getTimeOrderedEpoch().toString(), sender.getUserKey(), group, renamePresence, principal.getSessionId());
         
         // 4. Construct the available presence 
         String availablePresence = buildAvailablePresence(roomBareJid, sender.getUserKey(), mucAffiliation, 

@@ -9,6 +9,7 @@ import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 
 import com.algomeet.common.util.DeterministicConversationIdUtil;
+import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.cluster.publisher.ReactiveClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
@@ -43,7 +44,7 @@ public class ConversationSettingsFacade {
 					"    return 0 " +
 					"end";
 
-	public Mono<Void> updateMessageRetention(UUID userKey, UUID peerKey, Integer messageRetentionDays) {
+	public Mono<Void> updateMessageRetention(UUID userKey, UUID peerKey, Integer messageRetentionDays, String sessionId) {
 		String lockValue = UUID.randomUUID().toString();
 		long ttlMinutes = 5; 
 
@@ -66,7 +67,7 @@ public class ConversationSettingsFacade {
 								if (isLocked) {
 									return Mono.error(new IllegalStateException("Could not acquire retention update lock. Process already running."));
 								}
-								return executeUpdateMessageRetention(userKey, peerKey, messageRetentionDays);
+								return executeUpdateMessageRetention(userKey, peerKey, messageRetentionDays, sessionId);
 
 							})
 							// Ensures lock is released whether the upstream completes successfully or errors out
@@ -98,7 +99,7 @@ public class ConversationSettingsFacade {
 				.then();
 	}
 
-	public Mono<Void> executeUpdateMessageRetention(UUID userKey, UUID peerKey, Integer messageRetentionDays) {
+	public Mono<Void> executeUpdateMessageRetention(UUID userKey, UUID peerKey, Integer messageRetentionDays, String sessionId) {
 	    return Mono.defer(() -> {
 	        Integer retentionDays = (messageRetentionDays != -1) ? messageRetentionDays : null;                     
 	        String messageId = UuidCreator.getTimeOrderedEpoch().toString();
@@ -112,6 +113,9 @@ public class ConversationSettingsFacade {
 	                .type(XmppMessageType.HEADLINE.getXmlValue())
 	                .build();
 
+	        XmppPrincipal principal = XmppPrincipal.builder()
+	        		.sessionId(sessionId)
+	        		.build();
 	        // 2. Execute the sequential pipeline
 	        return conversationSettingsService.saveOrUpdateRetentionDays(userKey, peerKey, messageRetentionDays)
 	                .flatMap(savedSetting -> conversationSettingsCacheService.evictSettings(userKey, peerKey))
@@ -119,7 +123,7 @@ public class ConversationSettingsFacade {
 	                // 3. Publish to Redis Stream (reactive subscription)
 	                .then(reactiveMessageBackupRetentionUpdateEventPublisher.publish(userKey, peerKey, messageRetentionDays))
 	                // 4. Broadcast cluster sync message to other nodes (reactive subscription)
-	                .then(reactiveClusterMessagePublisher.convertAndSendToUserReactive(
+	                .then(reactiveClusterMessagePublisher.convertAndSendToUser(
 	                        messageId,
 	                        peerKey.toString(),
 	                        userKey.toString(),
@@ -128,7 +132,7 @@ public class ConversationSettingsFacade {
 	                        true,         // shouldCarbon
 	                        false,        // isAckStanza
 	                        syncStanza.toXml(),
-	                        null          // XmppPrincipal principal
+	                        principal
 	                ));
 	    });
 	}
