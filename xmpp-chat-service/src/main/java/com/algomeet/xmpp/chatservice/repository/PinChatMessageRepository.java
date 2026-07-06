@@ -19,7 +19,7 @@ public interface PinChatMessageRepository extends ReactiveMongoRepository<PinCha
      * Matches: conversationId AND (pinnedBy OR pinnedForEveryone == true)
      * Sorts: { 'seq': 1 } (1 = Ascending, -1 = Descending)
      */
-    @Query(value = "{ '_id.conversationId': ?0, '$or': [ { 'pinnedBy': ?1 }, { 'pinnedForEveryone': true } ] }", 
+    @Query(value = "{ '_id.conversationId': ?0, '$or': [ { '_id.pinnedBy': ?1 }, { 'pinnedForEveryone': true } ] }", 
            sort = "{ 'seq': 1 }")
     Flux<PinChatMessage> findPinnedMessages(
             String conversationId, 

@@ -20,7 +20,7 @@ public interface PinMucMessageRepository extends ReactiveMongoRepository<PinMucM
      * Matches: conversationId AND (pinnedBy OR pinnedForEveryone == true)
      * Sorts: { 'seq': 1 } (1 = Ascending, -1 = Descending)
      */
-    @Query(value = "{ '_id.groupId': ?0, '$or': [ { 'pinnedBy': ?1 }, { 'pinnedForEveryone': true } ] }", 
+    @Query(value = "{ '_id.groupId': ?0, '$or': [ { '_id.pinnedBy': ?1 }, { 'pinnedForEveryone': true } ] }", 
            sort = "{ 'seq': 1 }")
     Flux<PinMucMessage> findPinnedMessages(
     		UUID groupId,
