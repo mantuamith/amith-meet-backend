@@ -188,36 +188,43 @@ public class MucMessageController implements MucMessageControllerDoc{
 	 * @return a response wrapper containing {@code true} if the database cutoff record was updated successfully
 	 */
 	@PostMapping("/{groupId}/timeline-cutoff")
-	public ResponseEntity<CommonResponse<Boolean>> clearMemberHistoryTimeline(
-			@PathVariable UUID groupId) {
+	public Mono<ResponseEntity<CommonResponse<Boolean>>> clearMemberHistoryTimeline(
+	        @PathVariable UUID groupId) {
 
-		UUID userKey = UUID.fromString(SecurityUtil.getUserKey());        
+	    UUID userKey = UUID.fromString(SecurityUtil.getUserKey());        
+	    log.info("Triggering timeline cutoff history clearance for user {} in group {}", userKey, groupId);
 
-		boolean cleared = mucRoomService.clearMemberHistoryTimeline(
-				groupId,
-				userKey,
-				Instant.now()).block();
-				
-		return ResponseEntity.ok(
-				CommonResponse.from(ResponseCode.SUCCESS, cleared));
+	    // Call the service layer reactively and map the boolean outcome
+	    return mucRoomService.clearMemberHistoryTimeline(groupId, userKey, Instant.now())
+	            .map(cleared -> ResponseEntity.ok(
+	                    CommonResponse.from(ResponseCode.SUCCESS, cleared)))
+	            // Safe fallback trap for unexpected runtime errors (HTTP 500)
+	            .onErrorReturn(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+	                    .body(CommonResponse.from(ResponseCode.ERROR, false)));
 	}
 	
 	@DeleteMapping("/{groupId}/messages")
-    public ResponseEntity<CommonResponse<Boolean>> purgeGroupMessages(
-            @PathVariable UUID groupId) {
-		UUID userKey = UUID.fromString(SecurityUtil.getUserKey());  
-		
-        log.warn("Administrative trigger: Hard purging all message records for group {}", groupId);
-        try {
-        boolean purged = mucRoomService.purgeGroupConversation(groupId, userKey);
-                
-        return ResponseEntity.ok(
-                CommonResponse.from(ResponseCode.SUCCESS, purged));
-        } catch (AccessDeniedException ex) {
-        	return ResponseEntity.status(HttpStatus.FORBIDDEN)     
-        			.body(CommonResponse.from(ResponseCode.ERROR, false));
-        }
-    }
+	public Mono<ResponseEntity<CommonResponse<Boolean>>> purgeGroupMessages(
+	        @PathVariable UUID groupId) {
+	    
+	    UUID userKey = UUID.fromString(SecurityUtil.getUserKey());  
+	    log.warn("Administrative trigger: Hard purging all message records for group {}", groupId);
+	    
+	    return mucRoomService.purgeGroupConversation(groupId, userKey)
+	            // Map the boolean result into an HTTP 200 OK success response wrapping
+	            .map(purged -> ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, purged)))
+	            
+	            // Asynchronously trap AccessDeniedException and convert to HTTP 403 Forbidden
+	            .onErrorResume(AccessDeniedException.class, ex -> {
+	                log.warn("Unauthorized administrative purge bypass attempt by user {} on group {}", userKey, groupId);
+	                return Mono.just(ResponseEntity.status(HttpStatus.FORBIDDEN)
+	                        .body(CommonResponse.from(ResponseCode.ERROR, false)));
+	            })
+	            
+	            // Safe fallback trap for unexpected runtime errors (HTTP 500)
+	            .onErrorReturn(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+	                    .body(CommonResponse.from(ResponseCode.ERROR, false)));
+	}
 	
 	@PostMapping("/{groupId}/message-retention")
 	public Mono<ResponseEntity<CommonResponse<Object>>> updateMessageRetention(
