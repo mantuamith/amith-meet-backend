@@ -173,7 +173,7 @@ public class MucRoomService {
         	// 3. Broadcast to your cluster messaging bridge. 
         	// Since this is a global room history drop, route the event to the room's channel space 
         	// so all active online occupants process the viewport clearance concurrently.    
-        	mucMessageRouter.broadcastToOccupants(clusterMessageId, userKey.toString(), group, payload, true);
+        	mucMessageRouter.broadcastToOccupants(clusterMessageId, userKey.toString(), group, payload);
         }
 
         log.info("Successfully completed global purge operations and synchronized timeline resets for group: {}", groupId);

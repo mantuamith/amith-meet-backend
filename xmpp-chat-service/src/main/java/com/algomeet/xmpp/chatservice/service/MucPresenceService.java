@@ -20,6 +20,7 @@ import com.algomeet.xmpp.chatservice.enums.UserState;
 import com.algomeet.xmpp.chatservice.routing.dispacher.LocalStanzaDispatcher;
 import com.algomeet.xmpp.chatservice.routing.muc.MucMessageRouter;
 import com.algomeet.xmpp.chatservice.session.UserSessionRegistry;
+import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
 import com.algomeet.xmpp.chatservice.session.model.UserSession;
 import com.algomeet.xmpp.chatservice.stanza.presence.MucUserPresenceBuilder;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
@@ -99,7 +100,9 @@ public class MucPresenceService {
 						.build();
 
 				// 4. Distribute via router to all active occupants in the room
-				mucMessageRouter.broadcastToOccupants(UuidCreator.getTimeOrderedEpoch().toString(), senderMucMember.get().getUserKey(), group, presenceXml, false);
+				XmppPrincipal principal = ctx.channel().attr(XmppSessionAttributes.PRINCIPAL).get();  
+				mucMessageRouter.broadcastToOccupants(UuidCreator.getTimeOrderedEpoch().toString(), senderMucMember.get().getUserKey(), group, presenceXml, 
+						principal.getSessionId());
 			}
 		} catch (Exception ex) {
 			log.error("Error broadcasting MUC presence in group {} for user key: {}", group.getId(), userkey, ex);

@@ -7,6 +7,7 @@ import org.springframework.stereotype.Component;
 
 import com.algomeet.common.dto.GroupMember;
 import com.algomeet.common.dto.Group;
+import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.constant.XmppErrorConditions;
 import com.algomeet.xmpp.chatservice.enums.MucEventType;
 import com.algomeet.xmpp.chatservice.enums.PresenceStatusCode;
@@ -17,6 +18,7 @@ import com.algomeet.xmpp.chatservice.publisher.ExitGroupMemberMediaCleanupEventP
 import com.algomeet.xmpp.chatservice.routing.dispacher.LocalStanzaDispatcher;
 import com.algomeet.xmpp.chatservice.routing.muc.MucMessageRouter;
 import com.algomeet.xmpp.chatservice.service.XmppArchiveService;
+import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
 import com.algomeet.xmpp.chatservice.stanza.events.MucSystemEventLogMessageStanza;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.algomeet.xmpp.chatservice.util.SearchUtil;
@@ -77,8 +79,8 @@ public class MucKickEventHandler {
 
 		String roomBareJid = XmppUtil.getRoomBareJid(roomJid);
 		String kickPresence = buildKickPresence(roomBareJid, victimUserKey, victimJid, senderJid, reason);
-
-		mucMessageRouter.broadcastToOccupants(id, sender.getUserKey(), group, kickPresence, true);
+		XmppPrincipal principal = ctx.channel().attr(XmppSessionAttributes.PRINCIPAL).get();  
+		mucMessageRouter.broadcastToOccupants(id, sender.getUserKey(), group, kickPresence, principal.getSessionId());
 		sendSuccessResponse(ctx, senderJid, roomJid, id);
 		
 		 /**

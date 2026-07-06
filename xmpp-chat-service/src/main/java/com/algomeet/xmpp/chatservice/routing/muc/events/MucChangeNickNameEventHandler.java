@@ -68,7 +68,7 @@ public class MucChangeNickNameEventHandler {
                 MucRoleUtil.getMucRole(sender.getRole()).getValue()); 
 
         // 5. Broadcast "New Nick" entry to the Room
-        mucMessageRouter.broadcastToOccupants(UuidCreator.getTimeOrderedEpoch().toString(), sender.getUserKey(), group, availablePresence, true);
+        mucMessageRouter.broadcastToOccupants(UuidCreator.getTimeOrderedEpoch().toString(), sender.getUserKey(), group, availablePresence, principal.getSessionId());
 
         log.info("User successful: Changed nickname to {}", newNickname);
     }

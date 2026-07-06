@@ -6,12 +6,14 @@ import org.springframework.stereotype.Component;
 
 import com.algomeet.common.dto.GroupMember;
 import com.algomeet.common.dto.Group;
+import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.constant.XmppErrorConditions;
 import com.algomeet.xmpp.chatservice.enums.MucAffiliation;
 import com.algomeet.xmpp.chatservice.enums.XmppErrorType;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.routing.dispacher.LocalStanzaDispatcher;
 import com.algomeet.xmpp.chatservice.routing.muc.MucMessageRouter;
+import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.algomeet.xmpp.chatservice.util.MucCommandUtil;
 import com.algomeet.xmpp.chatservice.util.SearchUtil;
@@ -77,7 +79,8 @@ public class MucMuteEventHandler {
 		// Status 104 specifically informs the client that their voice has been revoked.
 		String mutePresence = buildMutePresence(roomBareJid, victimUserKey, affiliation, targetJid, senderJid, reason);
 
-		mucMessageRouter.broadcastToOccupants(id, sender.getUserKey(), group, mutePresence, true);
+		XmppPrincipal principal = ctx.channel().attr(XmppSessionAttributes.PRINCIPAL).get(); 
+		mucMessageRouter.broadcastToOccupants(id, sender.getUserKey(), group, mutePresence, principal.getSessionId());
 		
 		// 6. Acknowledge the success of the command to the moderator
 		sendSuccessResponse(ctx, senderJid, roomJid, id);
