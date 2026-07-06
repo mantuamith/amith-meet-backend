@@ -11,6 +11,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import reactor.core.publisher.Mono;
 
 import java.util.List;
 import java.util.UUID;
@@ -27,41 +28,38 @@ public class MucUnreadCountController implements MucUnreadCountControllerDoc{
      * Gets a list of all rooms with unread messages for the authenticated user.
      */
     @GetMapping
-    public ResponseEntity<CommonResponse<List<MucUnreadCount>>> getUnreadRooms() {
+    public Mono<ResponseEntity<CommonResponse<List<MucUnreadCount>>>> getUnreadRooms() {
         String userKey = SecurityUtil.getUserKey();
-        return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, 
-        		mucUnreadCountService.getUnreadCountsByUser(UUID.fromString(userKey))));
+        return mucUnreadCountService.getUnreadCountsByUser(UUID.fromString(userKey))
+                .map(unreadCounts -> ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, unreadCounts)));
     }
 
     /**
      * Aggregates and returns the global unread message badge count across all rooms for the authenticated user.
-     * 
-     * @return A {@link CommonResponse} wrapping the total summation integer.
+     * * @return A {@link CommonResponse} wrapping the total summation integer.
      */
     @GetMapping("/total")
-    public ResponseEntity<CommonResponse<Integer>> getTotalUnread() {
+    public Mono<ResponseEntity<CommonResponse<Integer>>> getTotalUnread() {
         // Step 1: Securely extract the unique identifier of the requesting user
         String userKey = SecurityUtil.getUserKey();
         
         // Step 2: Fetch the active room unread metrics block from the service layer
-        List<MucUnreadCount> unreadCounts = mucUnreadCountService.getUnreadCountsByUser(UUID.fromString(userKey));
-        
         // Step 3: Stream and sum up the counts using an inline integer reduction accumulator
-        int totalUnreadBadge = unreadCounts.stream()
-                .mapToInt(MucUnreadCount::getUnreadCount)
-                .sum();
-        
-        // Step 4: Map directly to your corporate envelope schema payload
-        return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, totalUnreadBadge));
+        return mucUnreadCountService.getUnreadCountsByUser(UUID.fromString(userKey))
+                .flatMapIterable(list -> list)
+                .map(MucUnreadCount::getUnreadCount)
+                .reduce(0, Integer::sum)
+                // Step 4: Map directly to your corporate envelope schema payload
+                .map(totalUnreadBadge -> ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, totalUnreadBadge)));
     }
 
     /**
      * Gets the unread count for a specific room.
      */
     @GetMapping("/room/{roomId}")
-    public ResponseEntity<CommonResponse<Integer>> getRoomUnread(@PathVariable String roomId) {
+    public Mono<ResponseEntity<CommonResponse<Integer>>> getRoomUnread(@PathVariable String roomId) {
         String userKey = SecurityUtil.getUserKey();
-        return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, 
-        		mucUnreadCountService.getUnreadCount(UUID.fromString(userKey), UUID.fromString(roomId))));
+        return mucUnreadCountService.getUnreadCount(UUID.fromString(userKey), UUID.fromString(roomId))
+                .map(count -> ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, count)));
     }
 }
