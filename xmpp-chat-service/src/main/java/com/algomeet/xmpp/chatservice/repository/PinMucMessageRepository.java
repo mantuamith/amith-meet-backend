@@ -17,7 +17,7 @@ public interface PinMucMessageRepository extends ReactiveMongoRepository<PinMucM
 
 	/**
      * Finds pinned messages matching your exact compound index structure, ordered by seq ascending.
-     * Matches: conversationId AND (pinnedBy OR pinnedForEveryone == true)
+     * Matches: _id.groupId AND (_id.pinnedBy OR pinnedForEveryone == true)
      * Sorts: { 'seq': 1 } (1 = Ascending, -1 = Descending)
      */
     @Query(value = "{ '_id.groupId': ?0, '$or': [ { '_id.pinnedBy': ?1 }, { 'pinnedForEveryone': true } ] }", 
