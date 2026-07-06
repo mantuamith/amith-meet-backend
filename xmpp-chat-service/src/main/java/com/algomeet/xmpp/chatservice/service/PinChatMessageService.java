@@ -103,12 +103,12 @@ public class PinChatMessageService {
      * Matches: conversationId AND (pinnedBy OR pinnedForEveryone == true)
      * Sorts: { 'seq': 1 } (1 = Ascending, -1 = Descending)
      */
-    public Flux<PinChatMessage> findPinnedMessages(UUID userKey, UUID peerKey, UUID pinnedBy) {    	
+    public Flux<PinChatMessage> findPinnedMessages(UUID userKey, UUID peerKey) {    	
     	String conversationId = DeterministicConversationIdUtil.getConversationId(userKey, peerKey);
     	
-        return pinChatMessageRepository.findPinnedMessages(conversationId, pinnedBy)
+        return pinChatMessageRepository.findPinnedMessages(conversationId, userKey)
                 .doOnError(err -> log.error("Error matching indexed pin search framework for user {} in room {}", 
-                        pinnedBy, conversationId, err));
+                		userKey, conversationId, err));
     }   
     
 	/**

@@ -91,11 +91,10 @@ public class PinChatMessageController {
      */
     @GetMapping("/{peerKey}/pins")
     public Mono<ResponseEntity<CommonResponse<List<PinChatMessageResponse>>>> findPinnedMessages(
-            @PathVariable UUID peerKey,
-            @RequestParam UUID pinnedBy) {
+            @PathVariable UUID peerKey) {
     	
     	UUID userKey = UUID.fromString(SecurityUtil.getUserKey()); 
-        return pinChatMessageService.findPinnedMessages(userKey, peerKey, pinnedBy)
+        return pinChatMessageService.findPinnedMessages(userKey, peerKey)
                 .map(m -> mapToResponse(m, peerKey))
                 .collectList()
                 .map(list -> ResponseEntity
