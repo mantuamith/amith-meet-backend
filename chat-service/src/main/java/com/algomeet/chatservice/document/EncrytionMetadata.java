@@ -20,10 +20,14 @@ public class EncrytionMetadata {
     // Distribution ID for group messages
     @Field("distributionId")
     private String distributionId; 
+    
+    // Sender deviceId
+    @Field("senderDeviceId")
+    private String senderDeviceId;
 
     // Receiver deviceId
-    @Field("deviceId")
-    private String deviceId; 
+    @Field("receiverDeviceId")
+    private String receiverDeviceId; 
     
     // Optional: store actual ciphertext separately if you want plaintext 'content' to remain empty
     @Field("ciphertext")
