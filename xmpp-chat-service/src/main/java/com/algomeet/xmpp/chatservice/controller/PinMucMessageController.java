@@ -42,7 +42,6 @@ public class PinMucMessageController {
     @PostMapping("{groupId}/pins")
     public Mono<ResponseEntity<CommonResponse<PinMucMessageResponse>>> pinMessage(
     		@PathVariable UUID groupId, 
-            @RequestParam(value = "sessionId") String sessionId,
     		@Valid @RequestBody PinMucMessageRequest request) {        
         // Calculate the absolute expiration instant if hours are provided
     	
@@ -59,7 +58,7 @@ public class PinMucMessageController {
                 .expiration(expirationInstant)
                 .build();
 
-        return pinMucMessageService.pinMessage(userKey, groupId, sessionId, document)
+        return pinMucMessageService.pinMessage(userKey, groupId, request.getSessionId(), document)
                 .map(m -> mapToResponse(m))
                 .map(responseDto -> ResponseEntity
                         .status(HttpStatus.CREATED)

@@ -42,8 +42,7 @@ public class PinChatMessageController {
      */
     @PostMapping("/{peerKey}/pins")
     public Mono<ResponseEntity<CommonResponse<PinChatMessageResponse>>> pinMessage(
-    		@PathVariable UUID peerKey, 
-    		@RequestParam(value = "sessionId") String sessionId,
+    		@PathVariable UUID peerKey,     		
     		@Valid @RequestBody PinChatMessageRequest request) {   
     	
         // Calculate the absolute expiration instant if hours are provided
@@ -62,7 +61,7 @@ public class PinChatMessageController {
                 .expiration(expirationInstant)
                 .build();
 
-        return pinChatMessageService.pinMessage(userKey, sessionId, peerKey, document)
+        return pinChatMessageService.pinMessage(userKey, request.getSessionId(), peerKey, document)
         		.map(m -> mapToResponse(m, peerKey))
                 .map(responseDto -> ResponseEntity
                         .status(HttpStatus.CREATED)
