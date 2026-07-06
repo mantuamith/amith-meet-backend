@@ -39,7 +39,7 @@ public class PinMucMessageController {
     /**
      * Create a new pinned message entry inside a MUC room.
      */
-    @PostMapping("{groupId}/pins")
+    @PostMapping("/{groupId}/pins")
     public Mono<ResponseEntity<CommonResponse<PinMucMessageResponse>>> pinMessage(
     		@PathVariable UUID groupId, 
     		@Valid @RequestBody PinMucMessageRequest request) {        
