@@ -26,8 +26,8 @@ public class EncrytionMetadata {
     private String senderDeviceId;
 
     // Receiver deviceId
-    @Field("deviceId")
-    private String deviceId; 
+    @Field("receiverDeviceId")
+    private String receiverDeviceId; 
     
     // Optional: store actual ciphertext separately if you want plaintext 'content' to remain empty
     @Field("ciphertext")
