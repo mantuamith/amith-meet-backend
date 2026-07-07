@@ -13,17 +13,19 @@ public class XmppServerAckSender {
 	public static String toXml(
 			String messageId,
 			String fromJid,
-			String stanzaId
+			String stanzaId,
+			Integer retentionDays
 			) {
 		
 		return String.format(
 				"<message from='%s'>" +
-						"<server-ack xmlns='%s' id='%s' stanza-id='%s' status='success'/>" +
+						"<server-ack xmlns='%s' id='%s' stanza-id='%s' retention-days='%d' status='success'/>" +
 						"</message>",
 						fromJid,
 						NS,
 						messageId,
-						stanzaId
+						stanzaId,
+						retentionDays
 				);			
 	}
 }

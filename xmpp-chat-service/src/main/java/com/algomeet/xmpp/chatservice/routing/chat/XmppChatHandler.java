@@ -143,7 +143,7 @@ public class XmppChatHandler {
 			
 			final String archivedXml = forArchiveXml;			
 			offlineMessageService.save(messageId, stanzaId, toUserKey, fromUserKey, type, isAckStanza, 
-					isCountable, forArchiveXml, mediaIds)
+					isCountable, forArchiveXml, mediaIds, principal.getSessionId())
 			.flatMap(saved -> {
 				// Return server acknowledgment execution context
 				// Send an immediate server-level acknowledgment to the sender.
@@ -155,7 +155,7 @@ public class XmppChatHandler {
             	//
             	// This is a custom acknowledgment (not client XEP-0198 ack),
             	// used to provide early delivery assurance back to the sender.
-				XmppServerAckUtil.send(ctx, id, domainProperties.getDomain(), stanzaId.toString()); 
+				XmppServerAckUtil.send(ctx, id, domainProperties.getDomain(), stanzaId.toString(), saved.retentionDays()); 
 
 				if (isAckStanza) {
 					/*
@@ -170,62 +170,74 @@ public class XmppChatHandler {
 	                 */
 					clusterMessagePublisher.convertAndSendToUser(id, toUserKey, fromUserKey, ChatType.CHAT, false, true, isAckStanza, archivedXml, principal);
 				}
+				
+				// Replace the old sequential "postSaveTasks = Mono.empty()" pattern with a structured list
+	            List<Mono<Void>> tasks = new java.util.ArrayList<>();
 
-				// Create a list of dependent reactive tasks that run sequentially or in parallel safely
-				Mono<Void> postSaveTasks = Mono.empty();
+	            // 1. Process Retractions
+	            // Check if the message contains the XMPP Message Retraction namespace (XEP-0424 / urn:xmpp:message-retract:1)
+	            if (XmppStanzaUtil.isRetractStanza(originalXml)) {
+	                String retractMessageId = xmppRetractUtil.getRetractMessageId(originalXml);
+	                if (StringUtils.hasText(retractMessageId)) {
+	                    tasks.add(processRetraction(retractMessageId, toUserKey, fromUserKey, principal));
+	                }
+	            }
 
-				// 1. Process Retractions safely
-				// Check if the message contains the XMPP Message Retraction namespace (XEP-0424 / urn:xmpp:message-retract:1)
-				if (XmppStanzaUtil.isRetractStanza(originalXml)) {
-					String retractMessageId = xmppRetractUtil.getRetractMessageId(originalXml);
-					if (StringUtils.hasText(retractMessageId)) {
-						postSaveTasks = postSaveTasks.then(processRetraction(retractMessageId, toUserKey, fromUserKey, principal));
-					}
-				}
-
-				// 2. Handle Message Delivery Receipts safely
+	            // 2. Handle Message Delivery Receipts
 				// --- XEP-0184: Message Delivery Receipts ---
 			    // If the stanza contains the 'urn:xmpp:receipts' namespace, the recipient's 
 			    // device has successfully received the message.
-				if (originalXml.contains(XmppReceiptUtil.NS_RECEIPTS)) {
-					String ackMessageId = xmppReceiptUtil.getAckMessageId(originalXml);
-					if (StringUtils.hasText(ackMessageId)) {
-						postSaveTasks = postSaveTasks.then(
-								offlineMessageService.clearOfflineStanza(UUID.fromString(principal.getUserKey()), UUID.fromString(ackMessageId))
-								.doOnError(ex -> log.error("Failed to clear offline message buffer for user: {}", principal.getUserKey(), ex))
-								.onErrorResume(ex -> Mono.empty()) // Prevent sub-errors from breaking the chain
-								);
-					}
-				}
+	            if (originalXml.contains(XmppReceiptUtil.NS_RECEIPTS)) {
+	                String ackMessageId = xmppReceiptUtil.getAckMessageId(originalXml);
+	                if (StringUtils.hasText(ackMessageId)) {
+	                    tasks.add(offlineMessageService.clearOfflineStanza(UUID.fromString(principal.getUserKey()), UUID.fromString(ackMessageId))
+	                            .doOnError(ex -> log.error("Failed to clear offline message buffer for user: {}", principal.getUserKey(), ex))
+	                            .onErrorResume(ex -> Mono.empty()));
+	                }
+	            }
 
-				// 3. Handle Chat Markers (Read Receipts) cleanly via sequential flattening
+
+	            // 3. Handle Chat Markers (Read Receipts) cleanly via sequential flattening
 				// --- XEP-0333: Chat Markers (Read Receipts) ---
 			    // If the stanza contains the 'urn:xmpp:chat-markers:0' namespace (displayed), 
 			    // the user has actively viewed the conversation.
-				if (originalXml.contains(XmppReadUtil.NS_DISPLAYS)) {
-					String ackMessageId = xmppReadUtil.getAckMessageId(originalXml);
-					if (StringUtils.hasText(ackMessageId)) {
-						postSaveTasks = postSaveTasks.then(
-								unreadCountService.syncUnreadCount(UUID.fromString(toUserKey), UUID.fromString(fromUserKey), UUID.fromString(ackMessageId))
-								.flatMap(success -> offlineMessageService.purgeDeletedMessagesUpToCheckpoint(UUID.fromString(fromUserKey), UUID.fromString(toUserKey), success.getLastReadSid()))
-								.onErrorResume(ex -> Mono.empty())
-								);
-					}
-				}
+	            if (originalXml.contains(XmppReadUtil.NS_DISPLAYS)) {
+	                String ackMessageId = xmppReadUtil.getAckMessageId(originalXml);
+	                
+	                // Used to trace the count bug                
+	                if (StringUtils.hasText(ackMessageId)) {
+	                    Mono<Void> readReceiptTask = unreadCountService.syncUnreadCount(UUID.fromString(toUserKey), UUID.fromString(fromUserKey), UUID.fromString(ackMessageId))
+	                            // Safely switch to purge logic ONLY if sync returns a valid data model
+	                            .flatMap(success -> {
+	                            	 // Used to trace the count bug
+	                            	log.debug("success.getLastReadSid() {}", success.getLastReadSid());
+	                                if (success == null || success.getLastReadSid() == null) {
+	                                    return Mono.empty();
+	                                }
+	                                return offlineMessageService.purgeDeletedMessagesUpToCheckpoint(UUID.fromString(toUserKey), UUID.fromString(fromUserKey), success.getLastReadSid());
+	                            })
+	                            .doOnError(ex -> log.error("Error updating read markers or purging messages", ex))
+	                            .onErrorResume(ex -> Mono.empty()); // Isolates the error so it doesn't break other tasks
+	                    
+	                    tasks.add(readReceiptTask);
+	                }
+	            }
 
-				// 4. Handle Countable Increment cleanly
-				if (isCountable) {
-					// Asynchronous Unread Tracking
+	            // 4. Handle Countable Increment
+	            if (isCountable) {
+	            	// Asynchronous Unread Tracking
 			    	// Increment the unread counter for the recipient (toUserKey) relative to the sender (fromUserKey).
 			    	// This is handled reactively to avoid blocking the Netty event loop during DB writes.
-					postSaveTasks = postSaveTasks.then(
-							unreadCountService.incrementUnreadCount(fromUserKey, toUserKey)
-							.doOnError(e -> log.error("Storage failure for incrementing unread count for message {}: {}", id, e.getMessage()))
-							.onErrorResume(ex -> Mono.empty())
-							).then();
-				}
+	                Mono<Void> incrementTask = unreadCountService.incrementUnreadCount(fromUserKey, toUserKey)
+	                        .doOnError(e -> log.error("Storage failure for incrementing unread count: {}", e.getMessage()))
+	                        .onErrorResume(ex -> Mono.empty())
+	                        .then();
+	                tasks.add(incrementTask);
+	            }
 
-				return postSaveTasks;
+	            // Execute ALL gathered tasks asynchronously and concurrently
+	            return Mono.when(tasks);
+	            
 			})
 			.subscribeOn(DB_SCHEDULER) // Shifting execution away from Netty Event Loop
 			.doOnError(e -> {                  
@@ -287,21 +299,18 @@ public class XmppChatHandler {
 	}
 	
 	public Mono<Void> processRetraction(String retractId, String toUserKey, String fromUserKey, XmppPrincipal principal) {
-		return offlineMessageService.findByMessageIdAndSender(UUID.fromString(retractId), UUID.fromString(fromUserKey))
-				.flatMap(message -> {
-
-					// Decrement the unread counter for this specific sender-recipient pair.
-					// Note: fromUserKey is the person who read it, toUserKey is the original sender.
-					unreadCountService.decrementUnreadCount(toUserKey, fromUserKey, UUID.fromString(retractId), principal).subscribe();
-
-					// Scenario: Record found, proceed to soft delete
-					log.info("Message found, soft deleting offline record by emptying the body of the message: {}", retractId);
-					String newString = "<body>This message was deleted</body>";
-					message.setStanzaXml(XmppStanzaUtil.markAsRetractedStanza(message.getStanzaXml(), newString));
-					message.setCountable(false);
-					return offlineMessageService.save(message)
-							.then();
-				});
+	    return offlineMessageService.findByMessageIdAndSender(UUID.fromString(retractId), UUID.fromString(fromUserKey))
+	            .flatMap(message -> {
+	                log.info("Message found, soft deleting offline record: {}", retractId);
+	                String newString = "<body>This message was deleted</body>";
+	                message.setStanzaXml(XmppStanzaUtil.markAsRetractedStanza(message.getStanzaXml(), newString));
+	                message.setCountable(false);
+	                
+	                // Chain the decrement smoothly into the save flow instead of calling .subscribe()
+	                return unreadCountService.decrementUnreadCount(toUserKey, fromUserKey, UUID.fromString(retractId), principal)
+	                        .then(offlineMessageService.save(message))
+	                        .then();
+	            });
 	}
 
 	private void pushNotification(ChannelHandlerContext ctx,

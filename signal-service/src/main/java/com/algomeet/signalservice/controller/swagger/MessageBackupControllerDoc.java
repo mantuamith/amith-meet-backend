@@ -14,6 +14,7 @@ import com.algomeet.signalservice.dto.MessageBackupRequest;
 import com.algomeet.signalservice.dto.MessageBackupResponse;
 import com.algomeet.signalservice.dto.MessageBackupUpdateRequest;
 import com.algomeet.signalservice.dto.MessageStatusUpdateRequest;
+import com.algomeet.signalservice.dto.GetMessagesByIdsRequest;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -227,4 +228,52 @@ public interface MessageBackupControllerDoc {
     public ResponseEntity<CommonResponse<MessageBackupResponse>> getConversationLastReceived(
     		@Parameter(description = "The unique UUID identifier of the chat participant who authored the message", required = true, example = "e2b349d4-1a73-45bb-b302-123456789abc")
     		@PathVariable UUID peerKey);
+    
+    @Operation(
+    		summary = "Batch fetch direct messages by IDs",
+    		description = "Retrieves an explicit collection of historical backup messages from a chat thread using an array of message UUIDs."
+    		)
+    @ApiResponses(value = {
+    		@ApiResponse(
+    				responseCode = "200", 
+    				description = "Successfully compiled historical message payloads.",
+    				content = @Content(mediaType = "application/json", schema = @Schema(implementation = MessageBackupResponse.class))
+    				),
+    		@ApiResponse(
+    				responseCode = "400", 
+    				description = "Invalid validation rules or payload formatting constraints violated.", 
+    				content = @Content(schema = @Schema(hidden = true))
+    				)
+    })
+    public ResponseEntity<CommonResponse<List<MessageBackupResponse>>> findMessagesByIds(
+    		@Parameter(description = "The unique UUID of the peer user in the 1-on-1 chat thread", required = true, example = "4a1b2c3d-4e5f-6a7b-8c9d-0e1f2a3b4c5d")
+    		@PathVariable UUID peerKey, // Changed placeholder name logic to match URI safely
+    		@RequestBody @Validated GetMessagesByIdsRequest request);
+    
+        @Operation(
+            summary = "Get conversation history synchronization boundaries",
+            description = "Retrieves the earliest surviving/retained message metadata anchors for all of the authenticated user's conversations. " +
+                          "Used by client synchronization engines to determine the local message history clipping bounds " +
+                          "after database retention or compaction routines have run."
+        )
+        @ApiResponses(value = {
+            @ApiResponse(
+                responseCode = "200",
+                description = "Successfully retrieved active conversation boundaries.",
+                content = @Content(
+                    mediaType = "application/json"
+                )
+            ),
+            @ApiResponse(
+                responseCode = "401",
+                description = "Unauthorized - Missing or invalid security token.",
+                content = @Content(schema = @Schema(implementation = CommonResponse.class))
+            ),
+            @ApiResponse(
+                responseCode = "500",
+                description = "Internal Server Error - Database connection or data streaming failure.",
+                content = @Content(schema = @Schema(implementation = CommonResponse.class))
+            )
+        })
+        public ResponseEntity<CommonResponse<List<MessageBackupResponse>>> getConversationSyncBoundaries();
 }

@@ -18,5 +18,5 @@ public class GroupResponse {
     private Set<MemberResponse> members = new HashSet<>();
     private Long createdAt;
     private Map<GroupRole, RolePermissionsResponse> rolePermissions = new EnumMap<>(GroupRole.class);
-
+    private Integer messageRetentionDays;
 }

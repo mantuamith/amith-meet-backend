@@ -1,4 +1,4 @@
-package com.algomeet.signalservice.publisher;
+package com.algomeet.xmpp.chatservice.publisher;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -11,20 +11,20 @@ import org.springframework.data.redis.connection.stream.RecordId;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
-import com.algomeet.signalservice.constant.MessageBackupRetentionFields;
-import com.algomeet.signalservice.properties.RedisStreamProperties;
+import com.algomeet.common.constant.MessageBackupRetentionFields;
+import com.algomeet.common.properties.CommonRedisStreamProperties;
 
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Service
-public class ApplyMessageBackupRetentionStreamPublisher {
+public class MessageBackupRetentionUpdateEventPublisher {
 	@Autowired
 	@Qualifier("streamStringRedisTemplate")
 	private RedisTemplate<String, String> redisTemplate;
 
 	@Autowired
-	private RedisStreamProperties redisStreamProperties;
+	private CommonRedisStreamProperties redisStreamProperties;
 
 	public RecordId publish(UUID userKey, UUID peerKey, Integer messageRetentionDays) {
 		// 1. Prepare the payload
@@ -39,13 +39,13 @@ public class ApplyMessageBackupRetentionStreamPublisher {
 		// 2. Publish to Redis Stream using standard blocking operations
 		try {
 			MapRecord<String, String, String> record = MapRecord.create(
-					redisStreamProperties.getApplyMessageBackupRetention(), 
+					redisStreamProperties.getMessageBackupRetentionUpdateEvents(), 
 					body
 					);
 
 			RecordId recordId = redisTemplate.opsForStream().add(record);
 
-			log.info("Produced message apply message backup retention ID: {}", recordId);
+			log.info("Produced message update message backup retention ID: {}", recordId);
 			return recordId;
 
 		} catch (Exception e) {

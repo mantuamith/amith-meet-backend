@@ -18,6 +18,7 @@ import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.publisher.ExitGroupMemberMediaCleanupEventPublisher;
 import com.algomeet.xmpp.chatservice.routing.muc.MucMessageRouter;
 import com.algomeet.xmpp.chatservice.service.XmppArchiveService;
+import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
 import com.algomeet.xmpp.chatservice.stanza.events.MucSystemEventLogMessageStanza;
 import com.algomeet.xmpp.chatservice.stanza.presence.MucUserPresenceBuilder;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
@@ -82,7 +83,7 @@ public class MucMemberLeftEventHandler {
 				.role(MucRole.NONE.getValue())
 				.build();
         
-        mucMessageRouter.broadcastToOccupants(UuidCreator.getTimeOrderedEpoch().toString(), principal.getUserKey(), group, presenceXml, false);
+        mucMessageRouter.broadcastToOccupants(UuidCreator.getTimeOrderedEpoch().toString(), principal.getUserKey(), group, presenceXml, principal.getSessionId());
         
         /**
 		 * ----------------------------------------------------------

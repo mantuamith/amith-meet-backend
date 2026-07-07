@@ -21,7 +21,6 @@ public class MucMessageResponse {
 	private Long readAt;
 
 	private Boolean isHidden = false;
-	private Boolean startOfRoomConversation = false;
 
 	private List<UUID> readByIds;
 	private Long createdAt;

@@ -1,13 +1,20 @@
 package com.algomeet.signalservice.mapper;
 
+import java.time.Instant;
 import java.util.UUID;
+
+import org.springframework.util.StringUtils;
 
 import com.algomeet.signalservice.dto.MessageBackupRequest;
 import com.algomeet.signalservice.dto.MessageBackupResponse;
 import com.algomeet.signalservice.repository.projection.MessageBackupView;
+
+import lombok.extern.slf4j.Slf4j;
+
 import com.algomeet.signalservice.document.MessageBackupDocument;
 import com.algomeet.signalservice.document.MessageBackupKey;
 
+@Slf4j
 public class MessageBackupMapper {
 
     public static MessageBackupDocument toEntity(UUID userKey, MessageBackupRequest request) {
@@ -35,6 +42,16 @@ public class MessageBackupMapper {
         entity.setVersion(request.getVersion());
         entity.setSalt(request.getSalt());
         entity.setMediaIds(request.getMediaIds());
+        
+        if (StringUtils.hasText(request.getCreatedAt())) {
+        	//Convert from ISO-8601 representation to Instant
+        	try {
+        		Instant createdAtInstant = Instant.parse(request.getCreatedAt());
+        		entity.setTimestamp(createdAtInstant);
+        	} catch(Exception ex) {
+        		log.error("Error parsint createdAt {}", request.getCreatedAt(), ex);
+        	}
+        }
 
         return entity;
     }
@@ -61,7 +78,6 @@ public class MessageBackupMapper {
                 .targetMessageId(doc.getTargetMessageId() != null ? doc.getTargetMessageId().toString() : null)
                 .replyToMessageId(doc.getReplyToMessageId() != null ? doc.getReplyToMessageId().toString() : null)
                 .editCount(doc.getEditCount())
-                .isStartOfConversation(doc.getStartOfConversation())
                 // Meta info
                 .algorithm(doc.getAlgorithm())
                 .version(doc.getVersion())

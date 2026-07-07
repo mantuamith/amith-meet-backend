@@ -5,7 +5,6 @@ import java.util.List;
 import java.util.UUID;
 
 import org.springframework.data.annotation.Id;
-import org.springframework.data.annotation.Transient;
 import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.index.Indexed;
@@ -135,6 +134,7 @@ public class MessageBackupDocument {
     public static final String FIELD_TIMESTAMP = "timestamp";
     public static final String FIELD_SIZE = "size";
     public static final String FIELD_TARGET_MESSAGE_ID = "targetMessageId";
+    public static final String FIELD_PURGE_AT = "purgeAt";
     
 	/**
 	 * Globally unique and lexicographically sortable server-generated message identifier.
@@ -193,10 +193,7 @@ public class MessageBackupDocument {
     private UUID replyToMessageId;  
   
     private Integer editCount;
-    
-    @Transient
-    private Boolean startOfConversation = false; // Initialize to avoid null-omission
-    
+        
     private Long hiddenAt;
     
     @Indexed(unique = false, sparse = true)

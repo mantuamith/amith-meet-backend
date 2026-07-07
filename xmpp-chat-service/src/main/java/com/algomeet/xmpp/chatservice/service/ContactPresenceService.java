@@ -77,8 +77,7 @@ public class ContactPresenceService {
 
 			// 2. Batch fetch all Redis session/presence records to minimize round-trips
 			Map<String, Set<UserSession>> allSessionsMap = userSessionRegistry.getAllSessions(contactKeys);
-
-			// 3. Construct presence stanzas based on current distributed state
+            // 3. Construct presence stanzas based on current distributed state
 			for (UUID contactUserKey : acceptedContacts) {
 				Set<UserSession> sessions = allSessionsMap.getOrDefault(contactUserKey.toString(), Collections.emptySet());
 
@@ -98,8 +97,7 @@ public class ContactPresenceService {
 
 				// Build directed presence stanza (from contact -> to receiving user)
 				String presenceXml = new DirectedPresenceBuilder()
-						.from(jidUtil.getBareJid(contactUserKey.toString())) 
-						.to(principal.getBareJid())                         
+						.from(jidUtil.getBareJid(contactUserKey.toString()))                     
 						.state(newState)
 						.updatedAt(updatedAt)
 						.domain(domainProperties.getDomain())
@@ -137,8 +135,7 @@ public class ContactPresenceService {
 				for (UUID contactUserKey : acceptedContacts) {
 					// Construct the broadcast presence stanza
 					String directPresence = new DirectedPresenceBuilder()
-							.from(principal.getBareJid()) // Removed redundant "BROADCAST" string for standard JID compliance
-							.to(jidUtil.getBareJid(contactUserKey.toString()))
+							.from(principal.getBareJid()) 
 							.state(newState)
 							.build();					
 

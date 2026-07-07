@@ -38,7 +38,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 
 @RestController
-@RequestMapping("/v1/documents/sessions/{sessionId}/files")
+@RequestMapping("/media/v1/documents/sessions/{sessionId}/files")
 @RequiredArgsConstructor
 public class SessionDocumentController implements SessionDocumentControllerDoc {
 
@@ -54,6 +54,7 @@ public class SessionDocumentController implements SessionDocumentControllerDoc {
             @PathVariable String sessionId,
             @RequestParam(defaultValue = "0") Integer offset,
             @RequestParam(name = "page-size", defaultValue = "20") Integer pageSize) {
+        requireMatchingMeeting(sessionId);
         int safeOffset = Math.max(offset, 0);
         int safePageSize = Math.max(pageSize, 1);
 
@@ -79,6 +80,7 @@ public class SessionDocumentController implements SessionDocumentControllerDoc {
             @PathVariable String sessionId,
             @RequestPart("metadata") String metadata,
             @RequestPart("file") MultipartFile file) {
+        requireMatchingMeetingWithFileUploadFeature(sessionId);
         SessionDocumentMetadataRequest metadataRequest = parseAndValidateMetadata(metadata);
         SessionDocument document = sessionDocumentService.saveDocument(
                 sessionId,
@@ -95,6 +97,7 @@ public class SessionDocumentController implements SessionDocumentControllerDoc {
     public ResponseEntity<SessionDocumentDetailResponse> getDocumentInfo(
             @PathVariable String sessionId,
             @PathVariable String fileId) {
+        requireMatchingMeeting(sessionId);
         SessionDocument document = sessionDocumentService.getDocument(sessionId, fileId);
         return ResponseEntity.ok(SessionDocumentDetailResponse.builder()
                 .fileId(document.getFileId())
@@ -114,6 +117,7 @@ public class SessionDocumentController implements SessionDocumentControllerDoc {
             @PathVariable String sessionId,
             @PathVariable String fileId,
             @RequestParam(required = false) String token) throws IOException {
+        requireMatchingMeeting(sessionId);
         if (!StringUtils.hasText(requestUserContext.getUserKey())) {
             accessTokenService.validateAccessToken(token, sessionId, fileId);
         }
@@ -137,8 +141,28 @@ public class SessionDocumentController implements SessionDocumentControllerDoc {
     public ResponseEntity<Void> deleteDocument(
             @PathVariable String sessionId,
             @PathVariable String fileId) {
+        requireMatchingMeetingWithFileUploadFeature(sessionId);
         sessionDocumentService.deleteDocument(sessionId, fileId, requestUserContext.getUserKey());
         return ResponseEntity.ok().build();
+    }
+
+    private void requireMatchingMeeting(String sessionId) {
+        String meetingId = requestUserContext.getMeetingId();
+        if (StringUtils.hasText(meetingId) && !meetingId.equals(sessionId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Token is not authorized for this session");
+        }
+    }
+
+    private void requireMatchingMeetingWithFileUploadFeature(String sessionId) {
+        String meetingId = requestUserContext.getMeetingId();
+        if (StringUtils.hasText(meetingId)) {
+            if (!meetingId.equals(sessionId)) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Token is not authorized for this session");
+            }
+            if (!requestUserContext.isFileUploadFeatureEnabled()) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "file-upload feature is not enabled for this token");
+            }
+        }
     }
 
     private SessionDocumentMetadataRequest parseAndValidateMetadata(String metadata) {
@@ -166,7 +190,7 @@ public class SessionDocumentController implements SessionDocumentControllerDoc {
     private String buildDownloadUrl(SessionDocument document) {
         String token = accessTokenService.createAccessToken(document.getSessionId(), document.getFileId());
         return ServletUriComponentsBuilder.fromCurrentContextPath()
-                .path("/v1/documents/sessions/{sessionId}/files/{fileId}/content")
+                .path("/media/v1/documents/sessions/{sessionId}/files/{fileId}/content")
                 .queryParam("token", token)
                 .buildAndExpand(document.getSessionId(), document.getFileId())
                 .toUriString();

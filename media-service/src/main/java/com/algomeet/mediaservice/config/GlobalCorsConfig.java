@@ -14,9 +14,7 @@ public class GlobalCorsConfig {
             @Override
             public void addCorsMappings(CorsRegistry registry) {
                 registry.addMapping("/**")
-                        .allowedOrigins("http://localhost:5173") // ✅ allow your Vue UI
-                        .allowedOrigins("https://localhost:8080")
-                        .allowedOrigins("https://*.algomeet.app")
+                        .allowedOrigins("http://localhost:5173","https://localhost:8080","https://*.algomeet.app")
                         .allowedMethods("*")
                         .allowedHeaders("*")
                         .allowCredentials(false); // only true if you’re using cookies or auth headers

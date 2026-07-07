@@ -11,17 +11,19 @@ import javax.xml.stream.XMLStreamReader;
 import org.springframework.stereotype.Component;
 
 @Component
-public class ViewManagementStaxParser {
+public class ViewManageStaxParser {
 
     public static class ViewItem {
         public String action;
         public String room;
         public String id;
+        public String peer;
 
-        public ViewItem(String action, String room, String id) {
+        public ViewItem(String action, String room, String id, String peer) {
             this.action = action;
             this.room = room;
             this.id = id;
+            this.peer = peer;
         }
 
         @Override
@@ -30,6 +32,7 @@ public class ViewManagementStaxParser {
                     "action='" + action + '\'' +
                     ", room='" + room + '\'' +
                     ", id='" + id + '\'' +
+                    ", peer='" + peer + '\'' +
                     '}';
         }
     }
@@ -77,8 +80,9 @@ public class ViewManagementStaxParser {
                         String action = reader.getAttributeValue(null, "action");
                         String room = reader.getAttributeValue(null, "room");
                         String id = reader.getAttributeValue(null, "id");
+                        String peer = reader.getAttributeValue(null, "peer");
 
-                        result.items.add(new ViewItem(action, room, id));
+                        result.items.add(new ViewItem(action, room, id, peer));
                     }
 
                     break;

@@ -29,8 +29,13 @@ public class XmppStanzaUtil {
 	private static final String CHATSTATE = "chatstates";
 	private static final String BODY_TAG = "<body";
 	private static final String NS_DISPLAYED_MARKER = "urn:xmpp:chat-markers:0";
+	private static final String DISPLAYED_MARKER_START_TAG = "<displayed";	
 	private static final String NS_RECEIPTS = "urn:xmpp:receipts";
+	private static final String RECEIPTS_START_TAG  = "<received";
+	
 	private static final String RETRACTED_TAG = "<retracted xmlns='urn:xmpp:message-retract:1'/>";
+	
+	private static final String NS_PIN_OR_UNPIN_MESSAGE = "urn:xmpp:algomeet:pin:0";
 
 	// Matches <body>...</body> across multiple lines (?s mode)
 	private static final Pattern BODY_PATTERN = Pattern.compile("(?s)<body>.*?</body>");
@@ -212,12 +217,23 @@ public class XmppStanzaUtil {
 	}
 
 	public static boolean isMessageAckStanza(String xml) {
-		if (isMessageStanza(xml)) {			
-			return xml.indexOf(BODY_TAG) == -1 
-					&& (xml.indexOf(NS_DISPLAYED_MARKER) != -1 || xml.indexOf(NS_RECEIPTS) != -1);
-		}
+	    // 1. Structural check first
+	    if (!isMessageStanza(xml)) {
+	        return false;
+	    }
+	    
+	    // 2. Scan for BODY first. If found, early exit immediately.
+	    if (xml.contains(BODY_TAG)) { 
+	        return false;
+	    }
 
-		return false;
+	    // 3. Instead of repeated top-to-bottom scans, look for namespace markers first
+	    // because receipts and display markers usually appear near the top or bottom tags.
+	    if (xml.contains(DISPLAYED_MARKER_START_TAG) && xml.contains(NS_DISPLAYED_MARKER)) {
+	        return true;
+	    }
+
+	    return xml.contains(RECEIPTS_START_TAG) && xml.contains(NS_RECEIPTS);
 	}
 
 	/**

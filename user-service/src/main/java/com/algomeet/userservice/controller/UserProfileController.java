@@ -86,6 +86,7 @@ public class UserProfileController {
         if (request.getRegistrationDeviceType() != null) entity.setRegistrationDeviceType(request.getRegistrationDeviceType());
         if (request.getPasscode() != null) entity.setPasscode(request.getPasscode());
         if (request.getSecurityQuestionsEnabled() != null) entity.setSecurityQuestionsEnabled(request.getSecurityQuestionsEnabled());
+        if (request.getMessageRetentionDays() != null) entity.setMessageRetentionDays(request.getMessageRetentionDays());
     }
 
     private UserProfileResponse toResponse(UserProfile entity, User user) {       	
@@ -101,7 +102,8 @@ public class UserProfileController {
                 .registrationDeviceType(entity.getRegistrationDeviceType())
                 .registrationDate(entity.getRegistrationDate())
                 .passcode(entity.getPasscode())
-                .securityQuestionsEnabled(entity.getSecurityQuestionsEnabled())     
+                .securityQuestionsEnabled(entity.getSecurityQuestionsEnabled())   
+                .messageRetentionDays(entity.getMessageRetentionDays())
                 
                 .username(user.getUsername())
                 .email(user.getEmail())

@@ -28,7 +28,7 @@ public class SessionDocumentAccessTokenServiceImpl implements SessionDocumentAcc
     private final Duration tokenLifetime;
 
     public SessionDocumentAccessTokenServiceImpl(
-            @Value("${jwt.secret}") String secret,
+            @Value("${storage.document-access-url-secret}") String secret,
             @Value("${storage.document-access-url-expiration-minutes:180}") long tokenLifetimeMinutes) {
         this.signingKey = Keys.hmacShaKeyFor(Decoders.BASE64.decode(secret));
         this.tokenLifetime = Duration.ofMinutes(Math.max(tokenLifetimeMinutes, 1));

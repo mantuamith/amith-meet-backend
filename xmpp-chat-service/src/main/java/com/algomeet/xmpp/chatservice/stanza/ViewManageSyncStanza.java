@@ -2,29 +2,34 @@ package com.algomeet.xmpp.chatservice.stanza;
 
 import java.util.Objects;
 
+import com.algomeet.xmpp.chatservice.enums.ViewManageEnum;
+
 /**
  * Represents a synchronization stanza used to update message visibility 
  * across a user's multiple devices (e.g., hiding a message on mobile and web).
  * * Uses the 'headline' message type to ensure background processing without 
  * affecting unread message counts or triggering notifications.
  */
-public class ViewManagementSyncStanza {
+public class ViewManageSyncStanza {
 	private final String from;
 	private final String to;
 	private final String id;
 	private final String type;
 	private final String action;
 	private final String room;
+	private final String peer;
 	private final String targetId;
 
-	private ViewManagementSyncStanza(Builder builder) {
+	private ViewManageSyncStanza(Builder builder) {
 		this.from = builder.from;
 		this.to = builder.to;
 		this.id = builder.id;
 		this.type = "headline"; // Standard for background sync
 		this.action = builder.action;
 		this.room = builder.room;
+		this.peer = builder.peer;
 		this.targetId = builder.targetId;
+		
 	}
 
 	public static Builder builder() {
@@ -53,6 +58,11 @@ public class ViewManagementSyncStanza {
 		if (room != null && !room.isBlank()) {
 			sb.append("room='").append(room).append("' ");
 		}
+		
+		// Only append the peer attribute if peer is provided
+		if (peer != null && !peer.isBlank()) {
+			sb.append("peer='").append(peer).append("' ");
+		}
 
 		sb.append("id='").append(targetId).append("'/>")
 		.append("</query>")
@@ -66,8 +76,9 @@ public class ViewManagementSyncStanza {
 		private String from;
 		private String to;
 		private String id;
-		private String action = "hide"; // Default action
+		private String action = ViewManageEnum.HIDE.getValue(); // Default action
 		private String room;
+		private String peer;
 		private String targetId;
 
 		public Builder from(String from) {
@@ -94,6 +105,11 @@ public class ViewManagementSyncStanza {
 			this.room = room;
 			return this;
 		}
+		
+		public Builder peer(String peer) {
+			this.peer = peer;
+			return this;
+		}
 
 		/**
 		 * The ID of the message being hidden/unhidden.
@@ -103,11 +119,11 @@ public class ViewManagementSyncStanza {
 			return this;
 		}
 
-		public ViewManagementSyncStanza build() {
+		public ViewManageSyncStanza build() {
 			Objects.requireNonNull(from, "From JID is required");
 			Objects.requireNonNull(id, "Stanza ID is required");
 			Objects.requireNonNull(targetId, "Target message ID is required");
-			return new ViewManagementSyncStanza(this);
+			return new ViewManageSyncStanza(this);
 		}
 	}
 }

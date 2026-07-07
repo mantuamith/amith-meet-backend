@@ -375,14 +375,12 @@ public class XmppArchiveService {
 	                MucMessage emptyAnchorMsg = new MucMessage();
 	                emptyAnchorMsg.setRoomId(roomId);
 	                emptyAnchorMsg.setId(Constants.NIL_UUID); 
-	                emptyAnchorMsg.setStartOfRoomConversation(true);
 	                
 	                // FIX: Execute the dispatch, then return the anchor object to satisfy the Mono<MucMessage> type restriction
 	                return dispatchRecentUpdatesResult(emptyAnchorMsg, principal)
 	                        .thenReturn(emptyAnchorMsg); 
 	            }))
 	            .flatMap(msg -> { 
-	                msg.setStartOfRoomConversation(true);
 	                return dispatchRecentUpdatesResult(msg, principal);
 	            })
 	            .then(); // Safely squashes the final stream back into Mono<Void> for the method signature
@@ -435,12 +433,7 @@ public class XmppArchiveService {
 	 *         or completing empty if no payload matches the state evaluation.
 	 */
 	private Mono<Optional<String>> buildUpdateXml(MucMessage msg, XmppPrincipal principal) {
-	    
-	    // Priority 1: Clear tracking boundary adjustments (Conversational resets across devices)
-	    if (Boolean.TRUE.equals(msg.getStartOfRoomConversation())) {
-	        return Mono.just(Optional.of(mamUtil.buildSyncConversationXml(msg, principal)));
-	    }
-	    
+	    	    
 	    // Priority 2: Global Message Retractions (XEP-0424 structural execution)
 	    if (msg.getDeletedAt() != null) {
 	        return Mono.just(Optional.of(mamUtil.buildRetractionXml(msg, principal)));

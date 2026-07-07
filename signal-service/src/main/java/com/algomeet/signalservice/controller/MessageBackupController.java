@@ -32,6 +32,7 @@ import com.algomeet.signalservice.constant.Constants;
 import com.algomeet.signalservice.controller.swagger.MessageBackupControllerDoc;
 import com.algomeet.signalservice.document.MessageBackupDocument;
 import com.algomeet.signalservice.dto.CommonResponse;
+import com.algomeet.signalservice.dto.GetMessagesByIdsRequest;
 import com.algomeet.signalservice.dto.MessageBackupRequest;
 import com.algomeet.signalservice.dto.MessageBackupResponse;
 import com.algomeet.signalservice.dto.MessageBackupUpdateRequest;
@@ -138,7 +139,7 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 
 	    return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, responseList));
 	}
-	
+		
 	@GetMapping("/{peerKey}/conversation/updates")
 	public ResponseEntity<CommonResponse<List<MessageBackupResponse>>> getMessageUpdates(
 			@PathVariable UUID peerKey,
@@ -229,7 +230,7 @@ public class MessageBackupController implements MessageBackupControllerDoc{
      * @return A standard API wrapper containing a list of the latest {@link MessageBackupDocument}s
      */
     @GetMapping("/conversations")
-    public ResponseEntity<CommonResponse<List<MessageBackupDocument>>> getConversations() {
+    public ResponseEntity<CommonResponse<List<MessageBackupResponse>>> getConversations() {
 
         // 1. Resolve the principal identity of the currently authenticated session
         String currentUserKey = SecurityUtil.getUserKey();
@@ -241,9 +242,36 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 
         // 3. Encapsulate the result matrix within a uniform response structure and return an HTTP 200 OK
         return ResponseEntity.ok(
-                CommonResponse.from(ResponseCode.SUCCESS, messages)
+                CommonResponse.from(ResponseCode.SUCCESS, messages
+                		.stream()
+                		.map(m -> MessageBackupMapper.from(m))
+                		.toList())
         );
     }
+    
+	/**
+	 * Retrieves the synchronization boundary for each group conversation.
+	 * <p>
+	 * For every group that the authenticated user belongs to, this endpoint returns
+	 * the earliest retained message after message retention policies have been applied.
+	 * Clients can use these boundaries to determine whether locally stored messages
+	 * that precede the returned message ID should be discarded during synchronization.
+	 *
+	 * @return a list containing the earliest retained message for each accessible group conversation
+	 */
+	@GetMapping("/conversations/sync-boundaries")
+	public ResponseEntity<CommonResponse<List<MessageBackupResponse>>> getConversationSyncBoundaries() {
+	    UUID userKey = UUID.fromString(SecurityUtil.getUserKey());
+
+	    List<MessageBackupDocument> messages = messageBackupService.getEarliestRetainedMessages(userKey);
+	   
+	    return ResponseEntity.ok(
+                CommonResponse.from(ResponseCode.SUCCESS, messages
+                		.stream()
+                		.map(m -> MessageBackupMapper.from(m))
+                		.toList())
+        );
+	}
 
 	/**
 	 * Retrieves a single message backup by its message ID.
@@ -441,22 +469,18 @@ public class MessageBackupController implements MessageBackupControllerDoc{
 
         return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, responseBody));
     }
-    
-    @PostMapping("/{peerKey}/apply-message-retention-policy")
-    public ResponseEntity<CommonResponse<?>> applyMessageRetentionPolicy(
-    		@PathVariable UUID peerKey,
-    		@RequestParam Integer messageRetentionDays) {
+           
+    @PostMapping("/{peerKey}/messages/by-ids")
+	public ResponseEntity<CommonResponse<List<MessageBackupResponse>>> findMessagesByIds(
+	        @PathVariable UUID groupId,
+	        @RequestBody @Validated GetMessagesByIdsRequest request) {
 
-    	try {
-    		UUID currentUserKey = UUID.fromString(SecurityUtil.getUserKey());  
-    		messageBackupService.applyMessageRetentionPolicy(currentUserKey, peerKey, messageRetentionDays);
-
-    		return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
-    	} catch(IllegalStateException ex) {
-    		log.error("Error {}", ex.getMessage(), ex);
-    		
-    		return ResponseEntity.status(HttpStatus.CONFLICT).body(
-    				CommonResponse.from(ResponseCode.MESSAGE_RETENTION_UPDATE_IN_PROGRESS));
-    	}    	
-    }    
+	    UUID currentUserKey = UUID.fromString(SecurityUtil.getUserKey());
+	    List<MessageBackupDocument> messages = messageBackupService.fetchMessagesByIds(request.getMessageIds(), currentUserKey);
+	    
+	    return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, messages
+        		.stream()
+        		.map(m -> MessageBackupMapper.from(m))
+        		.toList()));
+	}
 }

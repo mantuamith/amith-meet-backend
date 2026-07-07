@@ -6,6 +6,7 @@ import org.springframework.stereotype.Component;
 
 import com.algomeet.common.dto.GroupMember;
 import com.algomeet.common.dto.Group;
+import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.enums.MucEventType;
@@ -15,6 +16,7 @@ import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.routing.muc.MucMessageRouter;
 import com.algomeet.xmpp.chatservice.service.MucPresenceService;
 import com.algomeet.xmpp.chatservice.service.XmppArchiveService;
+import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
 import com.algomeet.xmpp.chatservice.stanza.events.MucSystemEventLogMessageStanza;
 import com.algomeet.xmpp.chatservice.stanza.presence.MucUserPresenceBuilder;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
@@ -74,7 +76,8 @@ public class MucAcceptInviteEventHandler {
 				.role(MucRole.fromString(sender.getRole()).getValue())
 				.build();
         
-        mucMessageRouter.broadcastToOccupants(UuidCreator.getTimeOrderedEpoch().toString(), sender.getUserKey(), group, presenceXml, false);
+        XmppPrincipal principal = ctx.channel().attr(XmppSessionAttributes.PRINCIPAL).get();        
+        mucMessageRouter.broadcastToOccupants(UuidCreator.getTimeOrderedEpoch().toString(), sender.getUserKey(), group, presenceXml, principal.getSessionId());
                       
         // 3. Prepare a system message to log the join event in the chat stream.
         String messageId = UuidCreator.getTimeOrderedEpoch().toString();

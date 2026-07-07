@@ -1,4 +1,4 @@
-package com.algomeet.xmpp.chatservice.routing.vm;
+package com.algomeet.xmpp.chatservice.routing.view;
 
 import java.util.Set;
 import java.util.UUID;
@@ -10,120 +10,96 @@ import org.springframework.util.StringUtils;
 
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
-import com.algomeet.xmpp.chatservice.constant.XmppErrorConditions;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
-import com.algomeet.xmpp.chatservice.enums.XmppErrorType;
-import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.publisher.DeleteMessageMediaEventPublisher;
 import com.algomeet.xmpp.chatservice.routing.dispacher.LocalStanzaDispatcher;
 import com.algomeet.xmpp.chatservice.service.XmppArchiveService;
-import com.algomeet.xmpp.chatservice.stanza.ViewManagementSyncStanza;
-import com.algomeet.xmpp.chatservice.stanza.parser.ViewManagementStaxParser;
+import com.algomeet.xmpp.chatservice.stanza.ViewManageSyncStanza;
+import com.algomeet.xmpp.chatservice.stanza.parser.ViewManageStaxParser;
 import com.algomeet.xmpp.chatservice.util.HidetUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
-import com.algomeet.xmpp.chatservice.util.XmppUtil;
 import com.github.f4b6a3.uuid.UuidCreator;
 
 import io.netty.channel.ChannelHandlerContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Scheduler;
+import reactor.core.scheduler.Schedulers;
 
-/**
- * Handler responsible for managing "View Management" stanzas.
- * Currently handles the 'hide' action which allows users to remove messages
- * from their own view (Delete for Me) across all their devices.
- */
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class XmppViewManagementHandler {
-	private final ViewManagementStaxParser viewManagementStaxParser;
-	private final XmppUtil xmppUtil;
-	private final DomainProperties domainProperties;
+@Deprecated
+public class HideMessageHandler {
+	
+	// Dedicated thread pool for database work to prevent Netty thread starvation
+	private static final Scheduler DB_SCHEDULER = Schedulers.newBoundedElastic(200, 10000, "xmpp-chat-hide-db-workers");
+
 	private final XmppArchiveService xmppArchiveService;
 	private final ClusterMessagePublisher clusterMessagePublisher;
 	private final LocalStanzaDispatcher localStanzaDispatcher;
 	private final HidetUtil hidetUtil;
 	private final DeleteMessageMediaEventPublisher messageMediaDeleteEventPublisher;
-	
-	/**
-	 * Main entry point for processing incoming View Management XML.
-	 */
-	public void process(ChannelHandlerContext ctx, String xml, XmppPrincipal principal) throws Exception {	
-		ViewManagementStaxParser.ParsedIq vmIq = viewManagementStaxParser.parse(xml);
-
-		if (vmIq != null && vmIq.items != null && !vmIq.items.isEmpty()) {
-			vmIq.items.forEach(item -> {
-				switch (item.action) {
-				case "hide":
-					handleHide(ctx, vmIq.iqId, principal, item);
-					break;
-				default:
-					// Reject unsupported actions with a standard XMPP error
-					xmppUtil.sendError(ctx, vmIq.iqId, principal.getBareJid(), domainProperties.getDomain(), 
-							XmppErrorType.CANCEL, XmppErrorConditions.BAD_REQUEST, "Invalid action " + item);
-					break;
-				}
-			});
-		}
-	}
-
-	/**
-	 * Quick check to see if an incoming string belongs to this namespace.
-	 */
-	public boolean isMessageViewManagementStanza(String xml) {
-		return xml.contains("https://algomeet.app/protocol/view-management");	        
-	}
 
 	/**
 	 * Logic to hide a message. Differentiates between MUC rooms and 1-on-1 chats.
 	 */
-	private void handleHide(ChannelHandlerContext ctx, String id, XmppPrincipal principal, ViewManagementStaxParser.ViewItem item){
+	public void handleHide(ChannelHandlerContext ctx, String id, XmppPrincipal principal, ViewManageStaxParser.ViewItem item){
 		if (StringUtils.hasText(item.room)) {
 			// GROUP CHAT FLOW
 			xmppArchiveService.findByMessageId(UUID.fromString(item.id))
-			.<Void>flatMap(message -> {             	
+			.subscribeOn(DB_SCHEDULER) // Offloads the initial DB fetch assembly/execution off Netty
+			.publishOn(DB_SCHEDULER)   // Ensures subsequent processing runs on the DB thread pool
+			.flatMap(message -> {             	
 
 				log.info("Executing hide: Message {} in room {} by user {}", 
 						item.id, item.room, principal.getUserKey());
 
 				// Atomic update in MongoDB: add current user key to 'hiddenFromUserKeys'
 				return xmppArchiveService.hideMessageForUser(message.getMessageId(), UUID.fromString(principal.getUserKey()))
-						.doOnSuccess(success -> {
+						.flatMap(success -> {
 							// Response to client
-							// Send response
 							sendIqResult(id, principal);				
-							
+
 							// Disseminate the change to user's other devices
 							composeAndSendGroupSync(item.id.trim(), item.room, principal);      
-							
-							// Hide related messages
-							hidetUtil.hideRelatedMessages(UUID.fromString(principal.getUserKey()), message.getRoomId(), message.getMessageId())
-							.subscribe();
-							
-							// Check if message has media files, if true then revoke user access to media file(s)
-							if (!CollectionUtils.isEmpty(message.getMediaIds())) {
-		                    	messageMediaDeleteEventPublisher.publish(principal.getUserKey(), 
-		                    			message.getMediaIds().stream().map(mId -> mId.toString()).collect(Collectors.toSet()), 
-		                    			Set.of(principal.getUserKey()),
-		                    			null, 
-		                    			message.getMessageId().toString())
-		                    	.subscribe();
-		                    }
-						})
-						.then();
 
+							// Build the reactive pipeline for hiding related messages
+							Mono<Void> hideRelatedMono = hidetUtil.hideRelatedMessages(
+									UUID.fromString(principal.getUserKey()), 
+									message.getRoomId(), 
+									message.getMessageId()
+							).then();
+
+							// Build the reactive pipeline for media deletion if applicable
+							Mono<Void> mediaDeleteMono = Mono.empty();
+							if (!CollectionUtils.isEmpty(message.getMediaIds())) {
+								mediaDeleteMono = messageMediaDeleteEventPublisher.publish(
+										principal.getUserKey(), 
+										message.getMediaIds().stream().map(UUID::toString).collect(Collectors.toSet()), 
+										Set.of(principal.getUserKey()),
+										null, 
+										message.getMessageId().toString()
+								).then();
+							}
+
+							// Combine asynchronous operations concurrently on the DB pool
+							return Mono.when(hideRelatedMono, mediaDeleteMono);
+						});
 			})
-			.subscribe(); // Subscription triggers the reactive pipeline execution
+			.doOnError(err -> log.error("Error processing group chat hide context", err))
+			.subscribe(); // Single root subscription triggers the reactive pipeline execution safely
 
 		} else {			
 			// DIRECT CHAT FLOW
 			composeAndSendDirectSync(item.id.trim(), principal);
-			
+
 			// Send response
 			sendIqResult(id, principal);
 		}
 	}
+
 
 	/**
 	 * Syncs the 'hide' state for 1-on-1 messages to other resources of the user.
@@ -131,7 +107,7 @@ public class XmppViewManagementHandler {
 	private void composeAndSendDirectSync(String targetId, XmppPrincipal principal) {
 		String id = UuidCreator.getTimeOrderedEpoch().toString();
 
-		ViewManagementSyncStanza vmSync = ViewManagementSyncStanza.builder()
+		ViewManageSyncStanza vmSync = ViewManageSyncStanza.builder()
 				.id(id)
 				.targetId(targetId)
 				.from(principal.getBareJid())
@@ -152,7 +128,7 @@ public class XmppViewManagementHandler {
 	private void composeAndSendGroupSync(String targetId, String roomJid, XmppPrincipal principal) {
 		String id = UuidCreator.getTimeOrderedEpoch().toString();
 
-		ViewManagementSyncStanza vmSync = ViewManagementSyncStanza.builder()
+		ViewManageSyncStanza vmSync = ViewManageSyncStanza.builder()
 				.id(id)
 				.targetId(targetId)
 				.room(roomJid)
@@ -167,9 +143,9 @@ public class XmppViewManagementHandler {
 		// Publish to other active sessions
 		clusterMessagePublisher.convertAndSendToUser(id, principal.getUserKey(), principal.getUserKey(), 
 				ChatType.GROUPCHAT, false, xml, principal);
-		
+
 	}
-	
+
 	/**
 	 * Sends a standard XMPP IQ 'result' stanza back to the user's local session.
 	 * Used to acknowledge successful receipt and processing of a request.
@@ -178,21 +154,23 @@ public class XmppViewManagementHandler {
 	 * @param principal The session context of the requesting user.
 	 */
 	public void sendIqResult(String id, XmppPrincipal principal) {
-	    if (id == null || id.isBlank()) {
-	        log.warn("Attempted to send IQ result with null/empty ID for user {}", principal.getUserKey());
-	        return;
-	    }
+		if (id == null || id.isBlank()) {
+			log.warn("Attempted to send IQ result with null/empty ID for user {}", principal.getUserKey());
+			return;
+		}
 
-	    // Using a template or builder is safer than raw concatenation
-	    String iqResult = String.format("<iq type='result' id='%s'/>", id);
+		String iqResult = String.format("<iq type='result' id='%s'/>", id);
 
-	    log.debug("Dispatching IQ result: id={}, user={}", id, principal.getUserKey());
+		log.debug("Dispatching IQ result: id={}, user={}", id, principal.getUserKey());
 
-	    // Dispatching to the user's own key as both sender and receiver for local session acknowledgement
-	    localStanzaDispatcher.dispatchLocally(
-	        principal.getUserKey(), 
-	        principal.getUserKey(), 
-	        iqResult
-	    ).subscribe();
+		// Dispatching to the user's own key as both sender and receiver for local session acknowledgement
+		localStanzaDispatcher.dispatchLocally(
+				principal.getUserKey(), 
+				principal.getUserKey(), 
+				iqResult
+				)
+				.subscribeOn(DB_SCHEDULER) // Ensure dispatch subscription doesn't block calling threads
+				.doOnError(err -> log.error("Failed to locally dispatch IQ result for user {}", principal.getUserKey(), err))
+				.subscribe();
 	}
 }

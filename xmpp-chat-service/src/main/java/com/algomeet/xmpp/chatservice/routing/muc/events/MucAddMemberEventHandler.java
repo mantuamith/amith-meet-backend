@@ -212,8 +212,7 @@ public class MucAddMemberEventHandler {
 				id,
 				sender.getUserKey(),
 				group,
-				presenceXml,
-				true);
+				presenceXml);
 
 		/**
 		 * ----------------------------------------------------------

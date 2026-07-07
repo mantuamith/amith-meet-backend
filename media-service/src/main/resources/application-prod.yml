@@ -32,7 +32,7 @@ spring:
       auto-index-creation: true
 
     redis:
-      host: redis-svc
+      host: ${REDIS_HOST:redis-svc}
       port: 6379
       password: ${REDIS_PASSWORD}
 
@@ -43,6 +43,7 @@ spring:
 storage:
   active-upload-storage: ${STORAGE_ACTIVE_UPLOAD_STORAGE:local}
   unshared-file-expiration-hours: 1
+  document-access-url-secret: ${PRESIGNED_URL_SECRET}
 
   local:
     dir: ${STORAGE_LOCAL_DIR:/tmp/media/}
@@ -83,6 +84,7 @@ jwt:
 
 server:
   port: 8095
+  forward-headers-strategy: framework
 
 feign:
   client:

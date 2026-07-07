@@ -1,6 +1,7 @@
 package com.algomeet.xmpp.chatservice.repository;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.data.domain.Pageable;
@@ -216,33 +217,6 @@ public interface MucMessageRepository extends ReactiveMongoRepository<MucMessage
 	@Query("{ 'roomId': ?0, 'purgeAt': null }")
 	@Update("{ '$set': { 'purgeAt': ?1 } }")
 	Mono<Long> updatePurgeAtByRoomId(UUID roomId, Instant purgeTime);
-
-	/**
-	 * Applies a message retention policy to all non-purged messages in the specified room.
-	 *
-	 * <p>For each message, the {@code purgeAt} timestamp is calculated as:</p>
-	 *
-	 * <pre>
-	 * purgeAt = createdAt + messageRetentionDays
-	 * </pre>
-	 *
-	 * @param roomId the room identifier
-	 * @param messageRetentionDays the number of days a message should be retained
-	 *                             from its creation time before becoming eligible
-	 *                             for automatic deletion
-	 * @return the number of documents updated
-	 */
-	@Query("{ 'roomId': ?0}")
-	@Update("[ { " +
-	        "  '$set': { " +
-	        "    'purgeAt': { " +
-	        "      '$cond': [ " +
-	        "        { '$eq': [ ?2, null ] }, " + // Condition: if messageRetentionDays is null
-	        "        null, " +                    // Then: set purgeAt to null
-	        "        { '$add': [ { '$ifNull': [ '$createdAt', '$$NOW' ] }, { '$multiply': [ ?2, 86400000 ] } ] } " + // Else: run calculation
-	        "      ] " +
-	        "    } " +
-	        "  } " +
-	        "} ]")
-	Mono<Long> updatePurgeAtByRoomId(UUID roomId, Integer messageRetentionDays);
+		
+	Flux<MucMessage> findByMessageIdIn(List<UUID> messageIds);
 }

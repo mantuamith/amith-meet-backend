@@ -10,6 +10,7 @@ import java.util.concurrent.TimeUnit;
 import org.redisson.api.RStreamReactive;
 import org.redisson.api.RedissonReactiveClient;
 import org.redisson.api.StreamMessageId;
+import org.springframework.data.redis.connection.RedisConnection;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.connection.stream.Consumer;
 import org.springframework.data.redis.connection.stream.MapRecord;
@@ -61,18 +62,19 @@ public class MissedCallConsumer {
     public void init() {
         String streamKey = redisStreamProperties.getMissedCall();
         
-        try {
-            connectionFactory.getConnection().xGroupCreate(
-                    streamKey.getBytes(),
-                    GROUP_NAME,
-                    ReadOffset.from("0"),
-                    true 
+        // 1. Setup group safely using try-with-resources to guarantee the connection closes
+        try (RedisConnection conn = connectionFactory.getConnection()) {
+            conn.streamCommands().xGroupCreate(
+                streamKey.getBytes(), 
+                GROUP_NAME, 
+                ReadOffset.from("0"), 
+                true
             );
         } catch (Exception ex) {
-            log.debug("Consumer group already exists or stream not initialized: {}", ex.getMessage());
+            log.debug("Consumer group already exists: {}", ex.getMessage());
         }
 
-        // Initialize the reactive non-blocking loop
+        // 2. Start the non-blocking pull consumer loop
         startConsumerLoop(streamKey);
     }
 
@@ -165,28 +167,20 @@ public class MissedCallConsumer {
 
         // STAGE 1: Evict dead consumers using xInfoConsumers
         Mono<Void> consumerReaperStage =
-        		reactiveRedisTemplate.execute(conn ->
-        		conn.streamCommands()
-        		.xInfoConsumers(keyBuffer, GROUP_NAME)
-        				)
-        		.flatMap(consumerInfo -> {
-        			if (consumerInfo.pendingCount() == 0
-        					&& consumerInfo.idleTime().compareTo(CONSUMER_EVICTION_IDLE_TIME) > 0) {
+                reactiveRedisTemplate.execute(conn -> conn.streamCommands().xInfoConsumers(keyBuffer, GROUP_NAME))
+                // Ensure every consumerInfo is completely processed sequentially to prevent race conditions or connection hanging
+                .concatMap(consumerInfo -> { 
+                    if (consumerInfo.pendingCount() == 0 && consumerInfo.idleTime().compareTo(CONSUMER_EVICTION_IDLE_TIME) > 0) {
+                        log.info("Evicting dead consumer {}", consumerInfo.consumerName());
 
-        				log.info("Evicting dead consumer {}", consumerInfo.consumerName());
-
-        				return reactiveRedisTemplate.execute(conn ->
-        				conn.streamCommands()
-        				.xGroupDelConsumer(
-        						keyBuffer,
-        						GROUP_NAME,
-        						consumerInfo.consumerName()))
-        						.then();
-        			}
-
-        			return Mono.empty();
-        		})
-        		.then();
+                        return reactiveRedisTemplate.execute(conn -> 
+                            conn.streamCommands().xGroupDelConsumer(keyBuffer, GROUP_NAME, consumerInfo.consumerName())
+                        ).then();
+                    }
+                    return Mono.empty();
+                })
+                // Ensure the upstream Flux finishes emitting completely before discarding elements
+                .then();
         
         // STAGE 2: Redisson AutoClaim logic
         RStreamReactive<String, String> stream = redisson.getStream(streamKey);

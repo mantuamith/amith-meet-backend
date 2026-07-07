@@ -12,6 +12,8 @@ import com.algomeet.xmpp.chatservice.properties.RedisTopicProperties;
 import com.algomeet.xmpp.chatservice.util.ClusterSyncProtocolUtil;
 import com.github.f4b6a3.uuid.UuidCreator;
 
+import lombok.Data;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -38,7 +40,8 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 @Component
-public class ClusterMessagePublisher {
+@Getter
+public class ClusterMessagePublisher extends AbstractClusterMessagePublisher{
 	/**
 	 * Redis client used to publish {@link ClusterSyncMessage} objects
 	 * to subscribed cluster nodes.
@@ -157,47 +160,7 @@ public class ClusterMessagePublisher {
 
 	    convertAndSendToUser(id, to, from, chatType, isAllowEcho, sessionId, shouldCarbon, isAckStanza, payload);
 	}
-	
-	/**
-	 * Thread-local reusable buffer to avoid allocating StringBuilder per message.
-	 *
-	 * <p>This is safe because each thread (Netty worker / request thread)
-	 * has its own isolated buffer instance.</p>
-	 */
-	private static final ThreadLocal<StringBuilder> BUFFER =
-			ThreadLocal.withInitial(() -> new StringBuilder(512));
-
-	private String buildClusterMessage(
-			String version,
-			String id,
-			String to,
-			String from,
-			ChatType chatType,
-			Boolean isAllowEcho,
-			String sessionId,
-			Boolean shouldCarbon,
-			Boolean isAckStanza,
-			String payload) {
-
-		StringBuilder sb = BUFFER.get();
-		sb.setLength(0);
-
-		char sep = ClusterSyncProtocolUtil.SEP;
-
-		sb.append(version).append(sep)
-		.append(id).append(sep)
-		.append(to).append(sep)
-		.append(from).append(sep)
-		.append(chatType.name()).append(sep)
-		.append(isAllowEcho ? "1" : "0").append(sep)
-		.append(sessionId == null ? "" : sessionId).append(sep)
-		.append(shouldCarbon ? "1" : "0").append(sep)
-		.append(isAckStanza ? "1" : "0").append(sep)
-		.append(payload);
-
-		return sb.toString();
-	}
-
+		
 	/**
 	 * Publishes a cluster synchronization message to Redis.
 	 *
@@ -294,15 +257,8 @@ public class ClusterMessagePublisher {
 
 			/**
 			 * Publish to shared Redis topic.
-			 *
-			 * All cluster nodes listening on this topic will receive the event.
-			 * Only the node that owns the recipient session typically performs
-			 * the final socket delivery.
 			 */
-			redisTemplate.convertAndSend(
-					redisTopicProperties.getClusterSync(),
-					msg
-					);
+			publish(msg);
 
 		} catch (Exception ex) {
 
@@ -327,5 +283,19 @@ public class ClusterMessagePublisher {
 					ex
 					);
 		}
+	}
+	
+	private void publish(String msg) {
+		/**
+		 * Publish to shared Redis topic.
+		 *
+		 * All cluster nodes listening on this topic will receive the event.
+		 * Only the node that owns the recipient session typically performs
+		 * the final socket delivery.
+		 */
+		redisTemplate.convertAndSend(
+				redisTopicProperties.getClusterSync(),
+				msg
+				);
 	}
 }

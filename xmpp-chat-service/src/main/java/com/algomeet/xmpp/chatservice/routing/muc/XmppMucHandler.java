@@ -10,9 +10,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
+import com.algomeet.common.dto.Group;
 import com.algomeet.common.dto.GroupMember;
 import com.algomeet.common.service.AbstractGroupCache;
-import com.algomeet.common.dto.Group;
 import com.algomeet.multitenancy.context.TenantContext;
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.client.MediaClient;
@@ -220,7 +220,7 @@ public class XmppMucHandler {
 					//
 					// This is a custom acknowledgment (not client XEP-0198 ack),
 					// used to provide early delivery assurance back to the sender.
-					XmppServerAckUtil.send(ctx, id, domainProperties.getDomain(), stanzaId.toString());
+					XmppServerAckUtil.send(ctx, id, domainProperties.getDomain(), stanzaId.toString(), group.getMessageRetentionDays());
 					
 					Mono<Void> postSaveTasks = Mono.empty();
 					

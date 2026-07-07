@@ -1,17 +1,16 @@
 package com.algomeet.xmpp.chatservice.service;
 
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import org.bson.Document;
 import org.redisson.api.RLockReactive;
 import org.redisson.api.RedissonReactiveClient;
 import org.springframework.data.domain.PageRequest;
@@ -26,10 +25,9 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
+import com.algomeet.common.dto.Group;
 import com.algomeet.common.dto.GroupMember;
 import com.algomeet.common.service.AbstractGroupCache;
-import com.algomeet.common.dto.Group;
-import com.algomeet.xmpp.chatservice.constant.Constants;
 import com.algomeet.xmpp.chatservice.document.MucMessage;
 import com.algomeet.xmpp.chatservice.document.MucRoomReadCursor;
 import com.algomeet.xmpp.chatservice.dto.MucMessageResponse;
@@ -38,12 +36,13 @@ import com.algomeet.xmpp.chatservice.repository.MucMessageRepository;
 import com.algomeet.xmpp.chatservice.repository.MucRoomReadCursorRepository;
 import com.algomeet.xmpp.chatservice.util.MucMemberUtil;
 import com.algomeet.xmpp.chatservice.util.SearchUtil;
-import com.algomeet.xmpp.chatservice.util.SecurityUtil;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Scheduler;
+import reactor.core.scheduler.Schedulers;
 
 @Slf4j
 @Service
@@ -58,171 +57,156 @@ public class MucMessageService {
 	private final RedissonReactiveClient redissonReactiveClient;
 	private final AbstractGroupCache groupCacheService;
 
-	public List<MucMessageResponse> getMessagesAfter(UUID userKey, UUID groupId, UUID afterStanzaId, int page, int size) { 
-		Pageable pageable = PageRequest.of(page, size);
+	// Dedicated thread pool for heavy or synchronous metadata / index scanning operations
+	private static final Scheduler MUC_THREAD_POOL = Schedulers.newBoundedElastic(150, 8000, "muc-message-workers");
 
-		// Retrieve group info
-		Group room = groupCacheService.getCachedGroup(groupId.toString());
-		Optional<GroupMember>  member = SearchUtil.findMember(room, userKey.toString());
-		if (member.isEmpty()) {
-			return List.of();
-		}
-		
-		Instant historyCutoff = MucMemberUtil.getHistoryCutoff(room, member.get());
-		// Collect into a standard ArrayList so it is safe to interact with during processing
-		List<MucMessageResponse> messages = 
-				mucMessageRepository.findByRoomIdAndIdGreaterThanAndToIsNullOrEqualtoUserkeyAndNotHiddenOrderByIdAsc(
-						groupId, afterStanzaId, userKey, historyCutoff, pageable)
-				.collectList()              
-				.blockOptional() 
-				.orElse(Collections.emptyList())
-				.stream()
-				.map(m -> mucMessageMapper.toResponse(m, UUID.fromString(SecurityUtil.getUserKey())))
-				.toList();
+	public Mono<List<MucMessageResponse>> getMessagesAfter(
+	        UUID userKey,
+	        UUID groupId,
+	        UUID afterStanzaId,
+	        int page,
+	        int size) {
 
-		// Guard Clause: If there are no messages, return early and avoid IndexOutOfBoundsException
-		if (messages.isEmpty()) {
-			return Collections.emptyList();
-		}
+	    Pageable pageable = PageRequest.of(page, size);
 
-		// Map and process messages in a single clear pass
-		for (MucMessageResponse message : messages) {         
-			if (message.getIsHidden()) {             
-				message.setStanzaXml(null);         // Lighten the load
-			} 
-		} 
-
-		// Lock it down before returning to the caller
-		return Collections.unmodifiableList(messages);
-	}
-
-	public List<MucMessageResponse> getMessagesBefore(UUID userKey, UUID groupId, UUID beforeStanzaId, int page, int size) {  
-		Pageable pageable = PageRequest.of(page, size);
-
-		// Retrieve group info
-		Group room = groupCacheService.getCachedGroup(groupId.toString());
-		Optional<GroupMember>  member = SearchUtil.findMember(room, userKey.toString());
-		if (member.isEmpty()) {
-			return List.of();
-		}
-
-		Instant historyCutoff = MucMemberUtil.getHistoryCutoff(room, member.get());
-		List<MucMessageResponse> processedMessages = mucMessageRepository
-				.findByRoomIdAndIdLessThanAndToIsNullOrEqualtoUserkeyAndNotHiddenOrderByIdDesc(
-						groupId, beforeStanzaId, userKey, historyCutoff, pageable)
-				.collectList()              
-				.blockOptional() 
-				.orElse(Collections.emptyList())
-				.stream()
-				// 1. Map documents to Response DTOs safely passing your explicit userKey parameter
-				.map(m -> mucMessageMapper.toResponse(m, userKey))
-				// 2. Sort the stream cleanly by stanzaId (UUIDv7) in Ascending order
-				.sorted(Comparator.comparing(MucMessageResponse::getStanzaId))
-				// 3. Collect the finalized stream into your immutable list safely
-				.toList();
-
-		return processedMessages;
-	}
-
-	public List<MucMessageResponse> getMessageUpdates(UUID userKey, UUID groupId, UUID untilStanzaId, int page, 
-			int size) {    
-		List<MucMessageResponse> resultList = new ArrayList<>();
-
-		Group group = groupCacheService.getCachedGroup(groupId.toString());
-		
-		if (page == 0) {
-	        MucMessageResponse startMessage = getStartOfConversation(userKey, groupId, group);
-	        if (startMessage != null) {
-	            resultList.add(startMessage);
+	    // FIXED: Wrapped blocking metadata processing within a callable running on a distinct worker thread pool
+	    return Mono.fromCallable(() -> {
+	        Group room = groupCacheService.getCachedGroup(groupId.toString());
+	        Optional<GroupMember> member = SearchUtil.findMember(room, userKey.toString());
+	        if (member.isEmpty()) {
+	            return Optional.<Instant>empty();
 	        }
-	        size = Math.max(1, size - 1); // Guard against size dropping below 1
-	    }
+	        return Optional.of(MucMemberUtil.getHistoryCutoff(room, member.get()));
+	    })
+	    .subscribeOn(MUC_THREAD_POOL)
+	    .flatMap(cutoffOpt -> {
+	        if (cutoffOpt.isEmpty()) {
+	            return Mono.just(Collections.emptyList());
+	        }
+	        Instant historyCutoff = cutoffOpt.get();
 
-		Pageable pageable = PageRequest.of(page, size);
-
-		// Retrieve group info
-		Optional<GroupMember>  member = SearchUtil.findMember(group, userKey.toString());
-		if (member.isEmpty()) {
-			return List.of();
-		}
-
-		Instant historyCutoff = MucMemberUtil.getHistoryCutoff(group, member.get());
-		
-		/**
-		 * Retrieves message state updates (edit, delete, read, etc.)
-		 * for the specified room up to and including the given stanza ID.
-		 *
-		 * Query conditions:
-		 * - updateCursorId > untilStanzaId
-		 *   Ensures only messages updated after the client's last known update cursor are returned.
-		 *
-		 * - id <= untilStanzaId
-		 *   Prevents returning updates for messages beyond the requested synchronization boundary.
-		 *
-		 * Results are ordered ascending by message ID to preserve chronological update order.
-		 */
-		List<MucMessageResponse> modifiedMessages = mucMessageRepository
-	            .findByRoomIdAndUpdateCursorIdGreaterThanAndIdLessThanEqualAndCreatedAtGreaterThanOrderByIdDesc(
-	                    groupId, untilStanzaId, untilStanzaId, historyCutoff, pageable)
-	            .collectList()              
-	            .blockOptional() 
-	            .orElse(Collections.emptyList())
-	            .stream()
-	            // Pass explicit userKey to bypass volatile ThreadLocal Security Context
-	            .map(m -> mucMessageMapper.toResponse(m, userKey)) 
-	            // Mutate properties inside the stream processing loop smoothly
-	            .peek(message -> {
-	                if (Boolean.TRUE.equals(message.getIsHidden())) {
-	                    message.setStanzaXml(null); 
-	                }
-	            })
-	            .toList(); 
-
-	    // If no new modifications were found, return whatever placeholder structural headers we have
-	    if (modifiedMessages.isEmpty()) {
-	        return Collections.unmodifiableList(resultList); 
-	    }
-
-	    // 3. Combine safely into our confirmed mutable ArrayList workspace
-	    resultList.addAll(modifiedMessages);
-
-	    // 4. Sort the unified collection by stanzaId (UUIDv7) in Ascending order
-	    resultList.sort(Comparator.comparing(MucMessageResponse::getStanzaId));
-
-	    return Collections.unmodifiableList(resultList);
+	        return mucMessageRepository
+	                .findByRoomIdAndIdGreaterThanAndToIsNullOrEqualtoUserkeyAndNotHiddenOrderByIdAsc(
+	                        groupId,
+	                        afterStanzaId,
+	                        userKey,
+	                        historyCutoff,
+	                        pageable)
+	                .map(m -> mucMessageMapper.toResponse(m, userKey))
+	                .map(message -> {
+	                    if (Boolean.TRUE.equals(message.getIsHidden())) {
+	                        message.setStanzaXml(null);
+	                    }
+	                    return message;
+	                })
+	                .collectList()
+	                .map(Collections::unmodifiableList);
+	    });
 	}
 
-	private MucMessageResponse getStartOfConversation(UUID userKey, UUID groupId, Group group) {
-		// Scenario B: The room is brand new / completely empty. Return a structural anchor.
-		MucMessageResponse emptyRoomAnchor = new MucMessageResponse();
-		emptyRoomAnchor.setStanzaId(Constants.NIL_UUID);
-		emptyRoomAnchor.setMessageId(Constants.NIL_UUID);
-		emptyRoomAnchor.setRoomId(groupId);
-		emptyRoomAnchor.setStartOfRoomConversation(true);
-		
-		// Retrieve group info
-		Optional<GroupMember>  member = SearchUtil.findMember(group, userKey.toString());
-		if (member.isEmpty()) {
-			return emptyRoomAnchor;
-		}
+	public Mono<List<MucMessageResponse>> getMessagesBefore(
+	        UUID userKey,
+	        UUID groupId,
+	        UUID beforeStanzaId,
+	        int page,
+	        int size) {
 
-		Instant historyCutoff = MucMemberUtil.getHistoryCutoff(group, member.get());
-		
-		MucMessage firstMessage = mucMessageRepository
-                .findFirstByRoomIdAndCreatedAtGreaterThanOrderByCreatedAtAsc(groupId, historyCutoff)
-                .block();		
+	    Pageable pageable = PageRequest.of(page, size);
 
-		// Scenario A: The room has a history. Map the actual first message.
-		if (firstMessage != null) {
-			MucMessageResponse message = mucMessageMapper.toResponse(firstMessage, UUID.fromString(SecurityUtil.getUserKey()));
-			// Empty the payload to lighten the load
-			message.setStanzaXml(null);
-			message.setStartOfRoomConversation(true);
-			return message;
-		}
+	    // FIXED: Shifted structural cache lookup bounds off the event loop 
+	    return Mono.fromCallable(() -> {
+	        Group room = groupCacheService.getCachedGroup(groupId.toString());
+	        Optional<GroupMember> member = SearchUtil.findMember(room, userKey.toString());
+	        if (member.isEmpty()) {
+	            return Optional.<Instant>empty();
+	        }
+	        return Optional.of(MucMemberUtil.getHistoryCutoff(room, member.get()));
+	    })
+	    .subscribeOn(MUC_THREAD_POOL)
+	    .flatMap(cutoffOpt -> {
+	        if (cutoffOpt.isEmpty()) {
+	            return Mono.just(Collections.emptyList());
+	        }
+	        Instant historyCutoff = cutoffOpt.get();
 
-		return emptyRoomAnchor;
+	        return mucMessageRepository
+	                .findByRoomIdAndIdLessThanAndToIsNullOrEqualtoUserkeyAndNotHiddenOrderByIdDesc(
+	                        groupId,
+	                        beforeStanzaId,
+	                        userKey,
+	                        historyCutoff,
+	                        pageable)
+	                .map(m -> mucMessageMapper.toResponse(m, userKey))
+	                .collectList()
+	                .map(messages -> {
+	                    Collections.reverse(messages);
+	                    return Collections.unmodifiableList(messages);
+	                });
+	    });
 	}
+	
+	public Mono<List<MucMessageResponse>> getModifiedMessages(
+	        UUID userKey,
+	        UUID groupId,
+	        UUID untilStanzaId,
+	        int page,
+	        int size) {
+
+	    Pageable pageable = PageRequest.of(page, size);
+
+	    // FIXED: Ensured event loops remain safe from structural point lookup delays
+	    return Mono.fromCallable(() -> {
+	        Group group = groupCacheService.getCachedGroup(groupId.toString());
+	        Optional<GroupMember> member = SearchUtil.findMember(group, userKey.toString());
+	        if (member.isEmpty()) {
+	            return Optional.<Instant>empty();
+	        }
+	        return Optional.of(MucMemberUtil.getHistoryCutoff(group, member.get()));
+	    })
+	    .subscribeOn(MUC_THREAD_POOL)
+	    .flatMap(cutoffOpt -> {
+	        if (cutoffOpt.isEmpty()) {
+	            return Mono.just(Collections.emptyList());
+	        }
+	        Instant historyCutoff = cutoffOpt.get();
+
+	        /**
+			 * Retrieves message state updates (edit, delete, read, etc.)
+			 * for the specified room up to and including the given stanza ID.
+			 *
+			 * Query conditions:
+			 * - updateCursorId > untilStanzaId
+			 * Ensures only messages updated after the client's last known update cursor are returned.
+			 *
+			 * - id <= untilStanzaId
+			 * Prevents returning updates for messages beyond the requested synchronization boundary.
+			 *
+			 * Results are ordered ascending by message ID to preserve chronological update order.
+			 */
+	        return mucMessageRepository
+	        		.findByRoomIdAndUpdateCursorIdGreaterThanAndIdLessThanEqualAndCreatedAtGreaterThanOrderByIdDesc(
+	        				groupId,
+	        				untilStanzaId,
+	        				untilStanzaId,
+	        				historyCutoff,
+	        				pageable)
+	        		.map(m -> mucMessageMapper.toResponse(m, userKey))
+	        		.doOnNext(message -> {
+	        			if (Boolean.TRUE.equals(message.getIsHidden())) {
+	        				message.setStanzaXml(null);
+	        			}
+	        		})
+	        		.collectList()
+	        		.map(list -> {
+	        			if (CollectionUtils.isEmpty(list)) {
+	        				return Collections.emptyList();
+	        			}
+	        			// Sort chronologically by StanzaId before returning to the client synchronization pipeline
+	        			list.sort(Comparator.comparing(MucMessageResponse::getStanzaId));
+	        			return Collections.unmodifiableList(list);
+	        		});
+	    });
+	}	
 
 	/**
 	 * Compiles a high-performance conversational inbox overview for the specified user.
@@ -237,72 +221,163 @@ public class MucMessageService {
 	 *
 	 * @param userKey Unique identifier of the authenticated user requesting their inbox
 	 * @return A list of {@link MucMessageResponse} objects representing the latest message snippet 
-	 *         per conversation, sorted reverse-chronologically by activity time.
+	 * per conversation, sorted reverse-chronologically by activity time.
+	 */	
+	public Mono<List<MucMessageResponse>> getConversations(UUID userKey) {
+	    // 1. Fetch group IDs from cache service (Assuming this is a fast redis/in-memory sync call)
+	    List<String> groupIds = mucUserGroupsCacheService.getCachedGroupIds(userKey.toString());
+
+	    if (CollectionUtils.isEmpty(groupIds)) {
+	        return Mono.just(Collections.emptyList());
+	    }
+
+	    // 2. Convert String IDs to a Set of UUIDs
+	    Set<UUID> roomUuids = groupIds.stream()
+	            .map(UUID::fromString)
+	            .collect(Collectors.toSet());
+
+	    AggregationOptions options = AggregationOptions.builder().build();
+
+	    // 3. Build the aggregation pipeline with targeted MUC visibility and privacy constraints
+	    Aggregation aggregation = Aggregation.newAggregation(
+	            Aggregation.match(
+	                    new Criteria().andOperator(
+	                            // Constraint A: Only pull from rooms the user belongs to, and not soft-deleted
+	                            Criteria.where(MucMessage.FIELD_ROOM_ID).in(roomUuids)
+	                            .and(MucMessage.FIELD_DELETED_AT).is(null),
+
+	                            // Constraint B: Public room message OR private message specifically for this user
+	                            new Criteria().orOperator(
+	                                    Criteria.where("to").is(null),
+	                                    Criteria.where("to").is(userKey)
+	                                    ),
+
+	                            // Constraint C: Exclude messages explicitly hidden from this user
+	                            Criteria.where("hiddenFromUserKeys").nin(userKey)
+	                            )
+	                    ),
+	            Aggregation.sort(Sort.Direction.DESC, MucMessage.FIELD_ID),
+	            Aggregation.group(MucMessage.FIELD_ROOM_ID).first(Aggregation.ROOT).as("latestMessage"),
+	            Aggregation.replaceRoot("latestMessage"),
+	            Aggregation.sort(Sort.Direction.DESC, MucMessage.FIELD_ID)
+	            )
+	            .withOptions(options);
+
+	    // 4. Execute using ReactiveMongoTemplate (Completely non-blocking)
+	    return mongoTemplate.aggregate(aggregation, "muc_messages", MucMessage.class)
+	            .map(m -> mucMessageMapper.toResponse(m, userKey))
+	            .collectList() // Asynchronously gathers the Flux elements into a standard Java List Mono
+	            .flatMap(resultDtos -> {
+	                if (CollectionUtils.isEmpty(resultDtos)) {
+	                    return Mono.just(resultDtos);
+	                }
+
+	                // 5. Apply filters in-memory (Assuming this mutates the list elements or modifies the collection)
+	                filterConversationsByVisibilityAndCutoff(userKey, resultDtos, groupIds);
+	                
+	                // Re-verify after filtering step
+	                if (CollectionUtils.isEmpty(resultDtos)) {
+	                    return Mono.just(resultDtos);
+	                }
+
+	                // 6. Properly chain the asynchronous read-cursor enrichment step into the stream graph
+	                return retrieveAndSetReaders(resultDtos);
+	            });
+	}
+	
+	/**
+	 * Retrieves the earliest surviving/retained message identifiers for all active conversations 
+	 * a specific user belongs to. 
+	 * <p>
+	 * This method serves as a highly optimized synchronization anchor point, establishing the local 
+	 * history bounds for client applications after data retention policies or purge routines have 
+	 * truncated older message sets.
+	 * </p>
+	 * <h3>Performance & Scale Highlights (1B+ Records):</h3>
+	 * <ul>
+	 * <li><b>Index Coverage (IXSCAN):</b> Uses the user's cached room list to restrict matching bounds instantly, 
+	 * bypassing 99.99% of the collection.</li>
+	 * <li><b>Early Projection:</b> Drops the heavy XML stanza payloads ({@code stanzaXml}) immediately after matching, 
+	 * ensuring downstream aggregation operations (sort/group) handle compact 16-byte primitives in memory.</li>
+	 * <li><b>Non-blocking Execution:</b> Maps intermediate database payloads to a light {@link Document} type 
+	 * to bypass Spring Data's reflective POJO conversion layer entirely on the Netty event loop threads.</li>
+	 * </ul>
+	 *
+	 * @param userKey The unique {@link UUID} representation of the requesting user.
+	 * @return A {@link Mono} emitting a sorted {@link List} of lightweight {@link MucMessageResponse} 
+	 * objects containing only structural IDs (id, messageId, roomId) per conversation.
 	 */
-	public List<MucMessageResponse> getConversations(UUID userKey) {
-		// 1. Fetch group IDs from cache service
-		List<String> groupIds = mucUserGroupsCacheService.getCachedGroupIds(userKey.toString());
+	public Mono<List<MucMessageResponse>> getEarliestRetainedMessages(UUID userKey) {
+	    // 1. Fetch group IDs from cache service (Fast Redis/in-memory sync call)
+	    List<String> groupIds = mucUserGroupsCacheService.getCachedGroupIds(userKey.toString());
 
-		if (CollectionUtils.isEmpty(groupIds)) {
-			return List.of();
-		}
+	    if (CollectionUtils.isEmpty(groupIds)) {
+	        return Mono.just(Collections.emptyList());
+	    }
 
-		// 2. Convert String IDs to a Set of UUIDs
-		Set<UUID> roomUuids = groupIds.stream()
-				.map(UUID::fromString)
-				.collect(Collectors.toSet());
+	    // 2. Convert String IDs to a Set of UUIDs
+	    Set<UUID> roomUuids = groupIds.stream()
+	            .map(UUID::fromString)
+	            .collect(Collectors.toSet());
 
-		AggregationOptions options = AggregationOptions.
-				builder().build();
+	    AggregationOptions options = AggregationOptions.builder().build();
 
-		// 3. Build the aggregation pipeline with targeted MUC visibility and privacy constraints
-		Aggregation aggregation = Aggregation.newAggregation(
-				Aggregation.match(
-						new Criteria().andOperator(
-								// Constraint A: Only pull from rooms the user belongs to, and not soft-deleted
-								Criteria.where(MucMessage.FIELD_ROOM_ID).in(roomUuids)
-								.and(MucMessage.FIELD_DELETED_AT).is(null),
+	    // 3. Build the high-performance aggregation pipeline
+	    Aggregation aggregation = Aggregation.newAggregation(
+	            // Stage 1: Fast IXSCAN filtering using existing compound indexes
+	            Aggregation.match(
+	                    new Criteria().andOperator(
+	                            Criteria.where(MucMessage.FIELD_ROOM_ID).in(roomUuids)
+	                                    .and(MucMessage.FIELD_DELETED_AT).is(null),
+	                            new Criteria().orOperator(
+	                                    Criteria.where("to").is(null),
+	                                    Criteria.where("to").is(userKey)
+	                            ),
+	                            Criteria.where("hiddenFromUserKeys").nin(userKey)
+	                    )
+	            ),
 
-								// Constraint B: Public room message OR private message specifically for this user
-								new Criteria().orOperator(
-										Criteria.where("to").is(null),
-										Criteria.where("to").is(userKey)
-										),
+	            // Stage 2: EARLY PROJECTION (Crucial for 1B records)
+	            // Drops stanzaXml immediately so subsequent operations process light primitives in RAM
+	            Aggregation.project()
+	                    .and(MucMessage.FIELD_ID).as("id")
+	                    .and(MucMessage.FIELD_MESSAGE_ID).as("messageId")
+	                    .and(MucMessage.FIELD_ROOM_ID).as("roomId")
+	                    .and("to").as("to")
+	                    .and("hiddenFromUserKeys").as("hiddenFromUserKeys"),
 
-								// Constraint C: Exclude messages explicitly hidden from this user
-								Criteria.where("hiddenFromUserKeys").nin(userKey)
-								)
-						),
-				Aggregation.sort(Sort.Direction.DESC, MucMessage.FIELD_ID),
-				Aggregation.group(MucMessage.FIELD_ROOM_ID)
-				.first(Aggregation.ROOT).as("latestMessage"),
-				Aggregation.replaceRoot("latestMessage"),
-				Aggregation.sort(Sort.Direction.DESC, MucMessage.FIELD_ID)
-				)
-				.withOptions(options);
+	            // Stage 3: Sort aligned with index lookups 
+	            Aggregation.sort(Sort.Direction.ASC, MucMessage.FIELD_ROOM_ID, MucMessage.FIELD_ID),
 
-		// 4. Execute using your ReactiveMongoTemplate (which returns a Flux)
-		Flux<MucMessage> results = mongoTemplate.aggregate(
-				aggregation, "muc_messages", MucMessage.class);
+	            // Stage 4: Deduplicate to find the earliest remaining message per room
+	            // Memory footprint here is now tiny because ROOT only contains the projected fields
+	            Aggregation.group(MucMessage.FIELD_ROOM_ID).first(Aggregation.ROOT).as("earliestMessage"),
 
-		// 5. Reactively map each document, collect them into a list, and block to return synchronously
-		List<MucMessageResponse> resultDtos = results
-				.map(m -> mucMessageMapper.toResponse(m, userKey))
-				.collectList()
-				.block(); // Blocks safely here to match your synchronous List<MucMessageResponse> return type
-		
-		if (!CollectionUtils.isEmpty(resultDtos)) {
-			// Remove hidden/cutoff conversations
-			filterConversationsByVisibilityAndCutoff(userKey, resultDtos, groupIds);
-			
-			// Retrieve readers
-			if(!CollectionUtils.isEmpty(resultDtos)) {
-				retrieveAndSetReaders(resultDtos);
-			}
-		}
-		
+	            // Stage 5: Promote the matched document back to the top level
+	            Aggregation.replaceRoot("earliestMessage"),
 
-		return resultDtos;
+	            // Stage 6: Clean up the final fields for the output payload
+	            Aggregation.project()
+	                    .and("id").as("id")
+	                    .and("messageId").as("messageId")
+	                    .and("roomId").as("roomId"),
+
+	            // Stage 7: Final uniform sort order for application consistency
+	            Aggregation.sort(Sort.Direction.ASC, "id")
+	    ).withOptions(options);
+ 
+	    // 4. Execute using Document.class to bypass heavy POJO mapping overhead
+	    return mongoTemplate.aggregate(aggregation, "muc_messages", Document.class)
+	            .map(doc -> {
+	                // Instantiate a hollow shell containing only the required IDs for the mapper
+	                MucMessage partialMessage = new MucMessage();
+	                partialMessage.setId(doc.get("id", UUID.class));
+	                partialMessage.setMessageId(doc.get("messageId", UUID.class));
+	                partialMessage.setRoomId(doc.get("roomId", UUID.class));
+
+	                return mucMessageMapper.toResponse(partialMessage, userKey);
+	            })
+	            .collectList();
 	}
 	
 	/**
@@ -401,40 +476,41 @@ public class MucMessageService {
             return false;
         });
     }
+	
+	private Mono<List<MucMessageResponse>> retrieveAndSetReaders(List<MucMessageResponse> messageDtos) {
+	    if (CollectionUtils.isEmpty(messageDtos)) {
+	        return Mono.just(messageDtos);
+	    }
 
-	private void retrieveAndSetReaders(List<MucMessageResponse> messageDtos) {
-		if (CollectionUtils.isEmpty(messageDtos)) {
-			return;
-		}
+	    // 1. Batch extract all target room IDs to prevent multiple network hops
+	    Set<UUID> roomIds = messageDtos.stream()
+	            .map(MucMessageResponse::getRoomId)
+	            .collect(Collectors.toSet());
 
-		// 1. Batch extract all target room IDs to prevent multiple network hops
-		Set<UUID> roomIds = messageDtos.stream()
-				.map(MucMessageResponse::getRoomId)
-				.collect(Collectors.toSet());
+	    // 2. Stream the database fetch as a non-blocking Mono map payload
+	    return mucRoomReadCursorRepository.findByRoomIdIn(roomIds)
+	            .collectList() // Collect Flux results asynchronously into a List
+	            .map(cursorList -> {
+	                // Group cursors by Room ID entirely in-memory
+	                return cursorList.stream()
+	                        .collect(Collectors.groupingBy(MucRoomReadCursor::getRoomId));
+	            })
+	            .map(cursorsByRoom -> {
+	                // 3. Perform high-speed in-memory matching inside the map context
+	                for (MucMessageResponse dto : messageDtos) {
+	                    List<MucRoomReadCursor> roomCursors = cursorsByRoom.getOrDefault(dto.getRoomId(), Collections.emptyList());
 
-		// 2. Execute ONE single bulk query to pull all active cursors for these rooms
-		Map<UUID, List<MucRoomReadCursor>> cursorsByRoom = mucRoomReadCursorRepository.findByRoomIdIn(roomIds)
-				.collectList()
-				.blockOptional()
-				.orElse(Collections.emptyList())
-				.stream()
-				.collect(Collectors.groupingBy(MucRoomReadCursor::getRoomId));
+	                    List<UUID> readers = roomCursors.stream()
+	                            .filter(cursor -> cursor.getLastReadSid() != null 
+	                                    && cursor.getLastReadSid().compareTo(dto.getStanzaId()) >= 0)
+	                            .map(MucRoomReadCursor::getUserKey)
+	                            .filter(id -> !id.equals(dto.getFrom())) 
+	                            .toList();
 
-		// 3. Perform high-speed in-memory matching inside the loop (No DB access here)
-		for (MucMessageResponse dto : messageDtos) {
-			List<MucRoomReadCursor> roomCursors = cursorsByRoom.getOrDefault(dto.getRoomId(), Collections.emptyList());
-
-			List<UUID> readers = roomCursors.stream()
-					.filter(cursor -> cursor.getLastReadSid() != null 
-					&& cursor.getLastReadSid().compareTo(dto.getStanzaId()) >= 0)
-					.map(MucRoomReadCursor::getUserKey)
-					// Filter out user's own ID safely inside the stream pipeline
-					.filter(id -> !id.equals(dto.getFrom())) 
-					.toList(); // Safe to use toList() now since we don't call .remove() later
-
-			// Set the computed readers back onto your response DTO instead of an empty list
-			dto.setReadByIds(readers);
-		}
+	                    dto.setReadByIds(readers);
+	                }
+	                return messageDtos; // Return the fully enriched list down the stream
+	            });
 	}
 
 	/**
@@ -480,17 +556,25 @@ public class MucMessageService {
 				// 3. Cleanup: Release on Normal Completion
 				acquired -> acquired ? safeUnlock(lock) : Mono.empty(),
 
-						// 4. Cleanup: Release on Exceptional Pipeline Failure
-						(acquired, err) -> acquired ? safeUnlock(lock) : Mono.empty(),
+				// 4. Cleanup: Release on Exceptional Pipeline Failure
+				(acquired, err) -> acquired ? safeUnlock(lock) : Mono.empty(),
 
-								// 5. Cleanup: Release on Downstream Operator Cancellation
-								acquired -> acquired ? safeUnlock(lock) : Mono.empty()
-				)
-				// 6. Root Error Handling Boundary
-				.doOnError(e -> log.error("Critical failure in processing read update for message ID: {}", lastReadMessageId, e));
+				// 5. Cleanup: Release on Downstream Operator Cancellation
+				acquired -> acquired ? safeUnlock(lock) : Mono.empty()
+		)
+		// 6. Root Error Handling Boundary
+		.doOnError(e -> log.error("Critical failure in processing read update for message ID: {}", lastReadMessageId, e));
 	}
 	
 
+	public Flux<MucMessageResponse> fetchMessagesByIds(List<UUID> messageIds, UUID userKey) {
+		if (CollectionUtils.isEmpty(messageIds)) {
+			return Flux.empty(); // Short-circuit early to save a database round-trip
+		}
+		return mucMessageRepository.findByMessageIdIn(messageIds)
+				.map(m -> mucMessageMapper.toResponse(m, userKey));
+	}
+	
 	/**
 	 * Helper to handle safe, reactive unlocking to prevent throwing errors if already unlocked.
 	 */

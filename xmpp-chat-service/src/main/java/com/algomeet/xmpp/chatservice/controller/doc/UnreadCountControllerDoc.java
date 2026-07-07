@@ -77,20 +77,20 @@ public interface UnreadCountControllerDoc {
                 )
             }
         )
-        public Mono<ResponseEntity<CommonResponse<?>>> timelineCutoff(
-                @Parameter(
-                    name = "senderKey",
-                    description = "The unique user key (UUID) of the chat peer/sender",
-                    required = true,
-                    example = "3fa85f64-5717-4562-b3fc-2c963f66afa6"
-                )
-        		@PathVariable String senderKey,
-                
-                @Parameter(
-                    name = "cutoffMessageId",
-                    description = "The message ID acting as the moving threshold. All messages up to this point are treated as cleared or read.",
-                    required = true,
-                    example = "289c5f4d-58a0-4def-bf5b-0fd15c045575"
-                )
-        		@RequestParam("cutoffMessageId") UUID cutoffMessageId);
+    public Mono<ResponseEntity<CommonResponse<?>>> timelineCutoff(
+    		@Parameter(
+    				name = "senderKey",
+    				description = "The unique user key (UUID) of the chat peer/sender",
+    				required = true,
+    				example = "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+    				)
+    		@PathVariable String senderKey,
+
+    		@Parameter(
+    				name = "cutoffMessageId",
+    				description = "The message ID acting as the moving threshold. All messages up to this point are treated as cleared or read.",
+    				required = true,
+    				example = "289c5f4d-58a0-4def-bf5b-0fd15c045575"
+    				)
+    		@RequestParam("cutoffMessageId") UUID cutoffMessageId);
 }

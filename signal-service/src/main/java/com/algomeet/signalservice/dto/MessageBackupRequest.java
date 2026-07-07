@@ -65,5 +65,8 @@ public class MessageBackupRequest {
 	private String salt;
 	
 	private List<UUID> mediaIds;
+	
+	// A string representation of this instant using ISO-8601 representation.
+	private String createdAt;
 }
 
