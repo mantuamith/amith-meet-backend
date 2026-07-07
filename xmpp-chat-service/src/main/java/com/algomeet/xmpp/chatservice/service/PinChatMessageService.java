@@ -111,14 +111,13 @@ public class PinChatMessageService {
                 .id(id)
                 .targetId(targetId)
                 .from(jidUtil.getBareJid(userKey))
-                .to(jidUtil.getBareJid(userKey)) 
                 .peer(peerKey)
                 .action(viewManageEnum.getValue())
                 .build();
 
         String stanzaId = UuidCreator.getTimeOrderedEpoch().toString();		
         String xml = XmppStanzaUtil.insertStanzaId(vmSync.toXml(), stanzaId, domainProperties.getDomain());
-
+        // Sync user's other devices by sending this message to itself
         return reactiveClusterMessagePublisher.convertAndSendToUser(
                 id, userKey, userKey, ChatType.CHAT, false, false, xml, sessionId);
     }
@@ -133,21 +132,15 @@ public class PinChatMessageService {
                 .id(id)
                 .targetId(targetId)
                 .from(jidUtil.getBareJid(userKey))
-                .to(jidUtil.getBareJid(peerKey)) 
                 .action(viewManageEnum.getValue())
                 .build();
 
         String stanzaId = UuidCreator.getTimeOrderedEpoch().toString();		
         String xml = XmppStanzaUtil.insertStanzaId(pinStanza.toXml(), stanzaId, domainProperties.getDomain());
-
-        // Notify the calling user's multi-resource client sessions
-        Mono<Void> syncSender = reactiveClusterMessagePublisher.convertAndSendToUser(
-                id, userKey, userKey, ChatType.CHAT, false, true, xml, sessionId);
                 
         // Notify the target recipient peer about the pin action event change
-        Mono<Void> syncPeer = reactiveClusterMessagePublisher.convertAndSendToUser(
-                id, peerKey, userKey, ChatType.CHAT, false, false, xml, sessionId);
+        return reactiveClusterMessagePublisher.convertAndSendToUser(
+                id, peerKey, userKey, ChatType.CHAT, false, true, xml, sessionId);
 
-        return Mono.when(syncSender, syncPeer);
     }
 }

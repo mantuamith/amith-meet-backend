@@ -5,7 +5,9 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 
 import com.algomeet.common.service.AbstractGroupCache;
+import com.algomeet.xmpp.chatservice.cluster.publisher.ReactiveClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.document.PinMucMessage;
+import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.enums.ViewManageEnum;
 import com.algomeet.xmpp.chatservice.exceptions.PinMessageNotFoundException;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
@@ -33,6 +35,7 @@ public class PinMucMessageService {
     private final DomainProperties domainProperties;
     private final ReactiveMucMessageRouter reactiveMucMessageRouter;
     private final AbstractGroupCache groupCacheService;
+    private final ReactiveClusterMessagePublisher reactiveClusterMessagePublisher;
 
     // Dedicated pool to cleanly offload blocking repository or cache actions away from Netty
     private static final Scheduler MUC_WORKER_SCHEDULER = Schedulers.newBoundedElastic(200, 10000, "xmpp-pin-muc-message-workers");
@@ -113,13 +116,14 @@ public class PinMucMessageService {
 
                     String stanzaId = UuidCreator.getTimeOrderedEpoch().toString();
                     String xml = XmppStanzaUtil.insertStanzaId(vmSync.toXml(), stanzaId, domainProperties.getDomain());
-                    
-                    return reactiveMucMessageRouter.broadcastToOccupants(id, userKey, group, xml, sessionId);
+                    // Sync user's other devices by sending this message to itself
+                    return reactiveClusterMessagePublisher.convertAndSendToUser(
+                            id, userKey, userKey, ChatType.CHAT, false, false, xml, sessionId);
                 });
 	}
 	
 	/**
-	 * Generates a sync stanza to push the updated pin state out to other active multi-resource client sessions.
+	 * Generates a sync stanza to push the updated pin state out to other active multi-resource client sessions and group members.
 	 */
 	private Mono<Void> composeAndSendPinForEveryone(String targetId, String roomId, String userKey, String sessionId, ViewManageEnum viewManageEnum) {
         // FIXED: Wrap the blocking groupCacheService call into a deferred callable pipeline
@@ -136,7 +140,8 @@ public class PinMucMessageService {
 
                     String stanzaId = UuidCreator.getTimeOrderedEpoch().toString();		
                     String xml = XmppStanzaUtil.insertStanzaId(pinStanza.toXml(), stanzaId, domainProperties.getDomain());
-
+                    
+                    // Sent to all group members
                     return reactiveMucMessageRouter.broadcastToOccupants(id, userKey, group, xml, sessionId);
                 });
 	}

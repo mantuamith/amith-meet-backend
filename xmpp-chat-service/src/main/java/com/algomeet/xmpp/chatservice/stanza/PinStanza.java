@@ -18,7 +18,7 @@ public class PinStanza {
 		this.from = builder.from;
 		this.to = builder.to;
 		this.id = builder.id;
-		this.type = "chat"; // Fixed standard for direct messaging/pin notifications
+		this.type = "headline";
 		this.action = builder.action;
 		this.targetId = builder.targetId;
 	}
