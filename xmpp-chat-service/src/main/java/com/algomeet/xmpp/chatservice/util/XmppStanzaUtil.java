@@ -34,8 +34,6 @@ public class XmppStanzaUtil {
 	private static final String RECEIPTS_START_TAG  = "<received";
 	
 	private static final String RETRACTED_TAG = "<retracted xmlns='urn:xmpp:message-retract:1'/>";
-	
-	private static final String NS_PIN_OR_UNPIN_MESSAGE = "urn:xmpp:algomeet:pin:0";
 
 	// Matches <body>...</body> across multiple lines (?s mode)
 	private static final Pattern BODY_PATTERN = Pattern.compile("(?s)<body>.*?</body>");

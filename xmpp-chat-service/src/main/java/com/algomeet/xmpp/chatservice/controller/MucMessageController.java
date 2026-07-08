@@ -20,9 +20,11 @@ import org.springframework.web.bind.annotation.RestController;
 import com.algomeet.xmpp.chatservice.controller.doc.MucMessageControllerDoc;
 import com.algomeet.xmpp.chatservice.dto.CommonResponse;
 import com.algomeet.xmpp.chatservice.dto.GetMessagesByIdsRequest;
+import com.algomeet.xmpp.chatservice.dto.HideMessageRequest;
 import com.algomeet.xmpp.chatservice.dto.MucMessageResponse;
 import com.algomeet.xmpp.chatservice.enums.ResponseCode;
 import com.algomeet.xmpp.chatservice.exceptions.GroupNotFoundException;
+import com.algomeet.xmpp.chatservice.service.HideMucMessageService;
 import com.algomeet.xmpp.chatservice.service.MucMessageService;
 import com.algomeet.xmpp.chatservice.service.MucRoomService;
 import com.algomeet.xmpp.chatservice.util.SecurityUtil;
@@ -30,6 +32,7 @@ import com.github.f4b6a3.uuid.UuidCreator;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 @Slf4j
@@ -39,6 +42,7 @@ import reactor.core.publisher.Mono;
 public class MucMessageController implements MucMessageControllerDoc{
 	private final MucMessageService mucMessageService;
 	private final MucRoomService mucRoomService;
+	private final HideMucMessageService hideMucMessageService;
 
 	/**
 	 * Retrieves paginated messages for a specific MUC (group chat) conversation.
@@ -264,4 +268,27 @@ public class MucMessageController implements MucMessageControllerDoc{
 	            .collectList()
 	            .map(messages -> ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS, messages)));
 	}	
+	
+	@PostMapping("/{groupId}/messages/hide")
+	public Mono<ResponseEntity<CommonResponse<?>>> hideMessages(
+	        @PathVariable UUID groupId,
+	        @RequestBody @Validated HideMessageRequest request) {
+
+	    UUID currentUserKey = UUID.fromString(SecurityUtil.getUserKey());
+	    
+	    // Convert the list of IDs into a reactive stream
+	    return Flux.fromIterable(request.getMessageIds())
+	            // Execute the hide operation for each message ID concurrently (or sequentially with flatMapSequential)
+	            .flatMap(targetMessageId -> hideMucMessageService.hideMessageForUser(
+	                    currentUserKey, 
+	                    groupId, 
+	                    targetMessageId, 
+	                    request.getSessionId(), 
+	                    null
+	            ))
+	            // Wait for all operations to complete
+	            .then(Mono.fromCallable(() -> 
+	                    ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS))
+	            ));
+	}
 }

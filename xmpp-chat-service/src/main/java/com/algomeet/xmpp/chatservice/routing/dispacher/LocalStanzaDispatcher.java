@@ -1,5 +1,7 @@
 package com.algomeet.xmpp.chatservice.routing.dispacher;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.stereotype.Component;
@@ -15,6 +17,7 @@ import io.netty.channel.ChannelFuture;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Sinks;
 import reactor.core.publisher.Sinks.EmitFailureHandler;
@@ -75,38 +78,42 @@ public class LocalStanzaDispatcher {
 	 * @param payload      raw XML stanza
 	 */
 	public Mono<Boolean> dispatchLocally(
-			UUID id,
-			String to,
-			Boolean isAllowEcho,
-			String sessionId,
-			String payload) {
+	        UUID id,
+	        String to,
+	        Boolean isAllowEcho,
+	        String sessionId,
+	        String payload) {
 
-		// Resolve recipient's active Netty channel
-		Channel targetChannel = localChannelRegistry.getChannel(to);
+	    // 1. Fetch ALL active channels for this user on this node
+	    Collection<Channel> targetChannels = localChannelRegistry.getAllChannels(to);
 
-		
-		// Fail fast if user is not currently connected on this node
-		if (targetChannel == null) {
-			// Persist stanza into SM buffer for reliability (XEP-0198)
-			xmppSmBufferService.saveStanzaSynchronized(id, to, payload).subscribe();
-			
-			log.debug("No active local channel found for JID: {}", to);
-			return Mono.empty();
-		}
+	    // 2. Fallback to Stream Management buffer if the user has no sessions here
+	    if (targetChannels == null || targetChannels.isEmpty()) {
+	        log.debug("No active local channels found for JID: {}. Routing to SM buffer.", to);
+	        return xmppSmBufferService.saveStanzaSynchronized(id, to, payload)
+	                .thenReturn(Boolean.FALSE);
+	    }
 
-		XmppPrincipal principal =
-				targetChannel.attr(XmppSessionAttributes.PRINCIPAL).get();
+	    // 3. Fan out to all active channels concurrently using Flux
+	    return Flux.fromIterable(targetChannels)
+	            .flatMap(channel -> {
+	                XmppPrincipal principal = channel.attr(XmppSessionAttributes.PRINCIPAL).get();
 
-		// Prevent message loop back to originating session
-		if (Boolean.FALSE.equals(isAllowEcho)
-				&& principal != null
-				&& principal.getSessionId().equals(sessionId)) {
+	                // Evaluate the echo suppression rules individually per session channel
+	                if (Boolean.FALSE.equals(isAllowEcho)
+	                        && principal != null
+	                        && principal.getSessionId().equals(sessionId)) {
+	                    
+	                    log.trace("Message suppressed for originating session channel: {}", sessionId);
+	                    return Mono.just(Boolean.FALSE); // Skip this specific channel, but keep others alive
+	                }
 
-			log.trace("Message suppressed for originating session: {}", sessionId);
-			return Mono.empty();
-		}
-
-		return writeAndFlush(targetChannel, id, to, payload);
+	                // Write to this specific socket pipe
+	                return writeAndFlush(channel, id, to, payload)
+	                        .onErrorReturn(Boolean.FALSE); // Protect the stream if one socket drops out
+	            })
+	            // 4. Reduce results: Return true if at least one delivery succeeded
+	            .reduce(Boolean.FALSE, (accumulator, currentResult) -> accumulator || currentResult);
 	}
 
 	/**
@@ -115,15 +122,25 @@ public class LocalStanzaDispatcher {
 	 * Used for internal or simplified routing paths.
 	 */
 	public Mono<Boolean> dispatchLocally(String to, String from, String payload) {
+	    // 1. Fetch ALL active channels for the user on this node
+	    Collection<Channel> targetChannels = localChannelRegistry.getAllChannels(to);
 
-		Channel targetChannel = localChannelRegistry.getChannel(to);
+	    // 2. Fail fast if the user is completely disconnected from this server instance
+	    if (targetChannels == null || targetChannels.isEmpty()) {
+	        log.debug("No active local channels found for JID: {}", to);
+	        return Mono.just(Boolean.FALSE);
+	    }
 
-		if (targetChannel == null) {
-			log.debug("No active local channel found for JID: {}", to);
-			return Mono.empty();
-		}
+	    // 3. Generate a distinct transaction ID for this delivery attempt
+	    UUID transmissionId = UuidCreator.getTimeOrderedEpoch();
 
-		return writeAndFlush(targetChannel, UuidCreator.getTimeOrderedEpoch(), to, payload);
+	    // 4. Parallel fan-out across all active sockets
+	    return Flux.fromIterable(targetChannels)
+	            .flatMap(channel -> writeAndFlush(channel, transmissionId, to, payload)
+	                    .onErrorReturn(Boolean.FALSE) // Guard the pipeline if an isolated socket breaks mid-write
+	            )
+	            // 5. Aggregate metrics: Return true if delivery succeeded on at least one device
+	            .reduce(Boolean.FALSE, (accumulator, writeResult) -> accumulator || writeResult);
 	}
 
 	/**

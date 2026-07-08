@@ -70,7 +70,7 @@ public class ConnectionLifecycleHandler {
 			ctx.channel().attr(XmppSessionAttributes.IS_INITIAL_PRESENCE_SENT).set(false);
 
 			// 2. Register in Local Channel Registry (Stateful registration)
-			localChannelRegistry.register(userKey, ctx.channel());
+			localChannelRegistry.register(userKey, sessionId, ctx.channel());
 			userSessionRegistry.addSession(userKey, new UserSession(sessionId, UserState.ACTIVE, Instant.now().toEpochMilli()));
 
 			// 3. Send Bind Result (Confirmation of session establishment)
@@ -129,7 +129,7 @@ public class ConnectionLifecycleHandler {
 				// Wrapped in safeExecute so cleanup continues even if
 				// one task throws an exception.
 				safeExecute(
-						() -> localChannelRegistry.unregister(userKey),
+						() -> localChannelRegistry.unregister(userKey, sessionId),
 						"Local Channel Registry",
 						userKey
 						);

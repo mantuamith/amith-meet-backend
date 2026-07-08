@@ -35,6 +35,7 @@ import com.algomeet.xmpp.chatservice.util.XmppCustomStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
 import com.github.f4b6a3.uuid.UuidCreator;
+import com.mongodb.client.result.UpdateResult;
 
 import io.netty.channel.ChannelHandlerContext;
 import lombok.RequiredArgsConstructor;
@@ -348,7 +349,7 @@ public class XmppArchiveService {
 		return repository.save(message);
 	}
 
-	public Mono<Void> hideMessageForUser(UUID messageId, UUID userKey) {
+	public Mono<UpdateResult> hideMessageForUser(UUID messageId, UUID userKey) {
 		// 1. Locate the document by ID
 		Query query = new Query(Criteria.where("messageId").is(messageId));
 
@@ -358,8 +359,7 @@ public class XmppArchiveService {
 				.set("updateCursorId", UuidCreator.getTimeOrderedEpoch());
 
 		// 3. Execute 'updateFirst' to modify ONLY that field
-		return reactiveMongoTemplate.updateFirst(query, update, MucMessage.class)
-				.then();
+		return reactiveMongoTemplate.updateFirst(query, update, MucMessage.class);
 	}
 		
 	private Mono<Void> syncRoomDeletedMessages(UUID roomId, XmppPrincipal principal) {

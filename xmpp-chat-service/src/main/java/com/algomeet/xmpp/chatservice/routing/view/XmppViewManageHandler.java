@@ -12,6 +12,7 @@ import com.algomeet.xmpp.chatservice.util.XmppUtil;
 import io.netty.channel.ChannelHandlerContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.scheduler.Schedulers;
 
 /**
  * Handler responsible for managing "View Management" stanzas.
@@ -21,7 +22,6 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-@Deprecated
 public class XmppViewManageHandler {
 	private final ViewManageStaxParser viewManagementStaxParser;
 	private final XmppUtil xmppUtil;
@@ -38,7 +38,16 @@ public class XmppViewManageHandler {
 			vmIq.items.forEach(item -> {
 				switch (item.action) {
 				case "hide":
-					hideMessageHandler.handleHide(ctx, vmIq.iqId, principal, item);
+					// FIX: Safely execute off the Netty loop and manage errors
+					hideMessageHandler.handleHide(ctx, vmIq.iqId, principal, item)
+						.subscribeOn(Schedulers.boundedElastic()) // Safely decouples the subscription from Netty thread
+						.doOnError(err -> {
+							log.error("Failed to process message hide for user {}", principal.getUserKey(), err);
+							// Send a failure stanza back to client so they aren't hung waiting
+							xmppUtil.sendError(ctx, vmIq.iqId, principal.getBareJid(), domainProperties.getDomain(), 
+									XmppErrorType.WAIT, XmppErrorConditions.INTERNAL_SERVER_ERROR, "Processing failed");
+						})
+						.subscribe();
 					break;				
 				default:
 					// Reject unsupported actions with a standard XMPP error
@@ -54,6 +63,8 @@ public class XmppViewManageHandler {
 	 * Quick check to see if an incoming string belongs to this namespace.
 	 */
 	public boolean isMessageViewManagementStanza(String xml) {
-		return xml.contains("https://algomeet.app/protocol/view-management");	        
+		// Small adjustment to avoid false matches on casual chat text
+		return xml.contains("xmlns=\"https://algomeet.app/protocol/view-management\"") 
+				|| xml.contains("xmlns='https://algomeet.app/protocol/view-management'");	        
 	}
 }
