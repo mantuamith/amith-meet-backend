@@ -215,5 +215,11 @@ public class GroupSenderKeyService {
 		
 		repository.deleteByIdGroupId(groupId);
 	}	
+	
+	@Transactional
+	public void deleteByGroupId(UUID groupId) {			
+		repository.deleteByIdGroupId(groupId);
+	}	
+	
 }
 

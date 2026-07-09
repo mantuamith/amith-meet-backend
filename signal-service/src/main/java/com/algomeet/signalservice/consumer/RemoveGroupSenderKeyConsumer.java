@@ -115,8 +115,12 @@ public class RemoveGroupSenderKeyConsumer implements StreamListener<String, MapR
 			String userKey = message.getValue().get(RemoveGroupSenderKeyFields.USER_KEY);
 			String groupId = message.getValue().get(RemoveGroupSenderKeyFields.GROUP_ID);
 
-			if (!(StringUtils.isEmpty(userKey) || StringUtils.isEmpty(groupId))) {
-				groupSenderKeyService.deleteByReceiverUserKeyAndGroupId(UUID.fromString(userKey), UUID.fromString(groupId));
+			if (!(StringUtils.isEmpty(groupId))) {
+				if (!(StringUtils.isEmpty(groupId) || StringUtils.isEmpty(userKey))) {
+					groupSenderKeyService.deleteByReceiverUserKeyAndGroupId(UUID.fromString(userKey), UUID.fromString(groupId));
+				} else {
+					groupSenderKeyService.deleteByGroupId(UUID.fromString(groupId));
+				}
 			} else {
 				log.error("Invalid payload values userKey {}, groupId {}", userKey, groupId);
 			}
