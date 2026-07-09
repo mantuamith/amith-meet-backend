@@ -29,6 +29,7 @@ import org.springframework.stereotype.Service;
 
 import com.algomeet.common.constant.RemoveGroupSenderKeyFields;
 import com.algomeet.common.properties.CommonRedisStreamProperties;
+import com.algomeet.signalservice.service.GroupSenderKeyBackupService;
 import com.algomeet.signalservice.service.GroupSenderKeyService;
 
 import jakarta.annotation.PostConstruct;
@@ -47,6 +48,8 @@ public class RemoveGroupSenderKeyConsumer implements StreamListener<String, MapR
 	
 	@Autowired
 	private GroupSenderKeyService groupSenderKeyService;
+	
+	private GroupSenderKeyBackupService groupSenderKeyBackupService;
 
 	@Autowired
 	@Qualifier("streamStringRedisTemplate")
@@ -119,7 +122,11 @@ public class RemoveGroupSenderKeyConsumer implements StreamListener<String, MapR
 				if (!(StringUtils.isEmpty(groupId) || StringUtils.isEmpty(userKey))) {
 					groupSenderKeyService.deleteByReceiverUserKeyAndGroupId(UUID.fromString(userKey), UUID.fromString(groupId));
 				} else {
+					// Remove sender key
 					groupSenderKeyService.deleteByGroupId(UUID.fromString(groupId));
+					
+					// Remove from backup
+					groupSenderKeyBackupService.deleteByIdGroupId(UUID.fromString(groupId));
 				}
 			} else {
 				log.error("Invalid payload values userKey {}, groupId {}", userKey, groupId);

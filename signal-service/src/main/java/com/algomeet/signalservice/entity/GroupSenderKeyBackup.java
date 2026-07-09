@@ -5,6 +5,7 @@ import java.time.Instant;
 import jakarta.persistence.Column;
 import jakarta.persistence.EmbeddedId;
 import jakarta.persistence.Entity;
+import jakarta.persistence.Index;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
@@ -12,7 +13,12 @@ import lombok.Data;
 
 @Data
 @Entity
-@Table(name = "signal_group_sender_key_backups")
+@Table(
+	    name = "signal_group_sender_key_backups",
+	    indexes = {
+	        @Index(name = "idx_sk_backup_group", columnList = "groupId")
+	    }
+	)
 public class GroupSenderKeyBackup {
 	@EmbeddedId
 	private GroupSenderKeyBackupId id;
