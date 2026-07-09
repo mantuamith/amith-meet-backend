@@ -30,6 +30,7 @@ import com.github.f4b6a3.uuid.UuidCreator;
 import io.netty.channel.ChannelHandlerContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.scheduler.Schedulers;
 
 @Slf4j
 @Component
@@ -134,11 +135,13 @@ public class MucKickEventHandler {
 		// Cleanup member group messages media files		
 		exitGroupMemberMediaCleanupEventPublisher.publish(
 		        UUID.fromString(XmppUtil.getRoomId(roomJid)), UUID.fromString(victimUserKey))
+		    .subscribeOn(Schedulers.boundedElastic())
 		    .doOnError(e -> log.error("Failed to clean up media files for kicked user {}", victimUserKey, e))
 		    .subscribe();
 
 		// Remove group sender key for E2EE
 		removeGroupSenderKeyPublisher.publish(XmppUtil.getRoomId(roomJid), victimUserKey)
+		    .subscribeOn(Schedulers.boundedElastic())
 		    .doOnError(e -> log.error("Failed to remove sender key for kicked user {}", victimUserKey, e))
 		    .subscribe();
 
@@ -150,7 +153,10 @@ public class MucKickEventHandler {
 	 */
 	private void sendSuccessResponse(ChannelHandlerContext ctx, String to, String from, String id) {
 		String resp = String.format("<iq from='%s' to='%s' id='%s' type='result'/>", from, to, id);
-		localStanzaDispatcher.dispatchLocally(to, from, resp).subscribe();
+		localStanzaDispatcher.dispatchLocally(to, from, resp)
+		.subscribeOn(Schedulers.boundedElastic())
+	    .doOnError(e -> log.error("Failed to dispatch local IQ kick confirmation to {}", to, e))
+	    .subscribe();
 	}
 	
 	/**
@@ -214,7 +220,10 @@ public class MucKickEventHandler {
 					null,
 					sender.getUserKey(),
 					stanzaId,
-					messageRetentionDays);
+					messageRetentionDays)
+			.subscribeOn(Schedulers.boundedElastic())
+		    .doOnError(e -> log.error("Failed to database archive kick tracking log for room {}", roomBareJid, e))
+		    .subscribe();
 		}
 	
 }

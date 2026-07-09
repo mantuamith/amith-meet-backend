@@ -36,6 +36,7 @@ import com.github.f4b6a3.uuid.UuidCreator;
 import io.netty.channel.ChannelHandlerContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.scheduler.Schedulers;
 
 /**
  * MUC Admin Event Handler: Add Member to Room
@@ -306,7 +307,10 @@ public class MucAddMemberEventHandler {
 				null,
 				sender.getUserKey(),
 				stanzaId, 
-				messageRetentionDays);
+				messageRetentionDays)
+		.subscribeOn(Schedulers.boundedElastic()) // <-- REQUIRED to offload DB I/O
+        .doOnError(e -> log.error("Failed to archive event", e)) // <-- Always catch errors
+        .subscribe();
 	}
 
 	/**
@@ -350,10 +354,11 @@ public class MucAddMemberEventHandler {
 	 * Extracts <reason> field safely from raw XML.
 	 */
 	private String extractReason(String xml) {
-		if (!xml.contains("<reason>"))
-			return "No reason provided";
-
-		return xml.substring(xml.indexOf("<reason>") + 8,
-				xml.indexOf("</reason>"));
+	    int start = xml.indexOf("<reason>");
+	    int end = xml.indexOf("</reason>");
+	    if (start == -1 || end == -1 || end <= start) {
+	        return "No reason provided";
+	    }
+	    return xml.substring(start + 8, end);
 	}
 }

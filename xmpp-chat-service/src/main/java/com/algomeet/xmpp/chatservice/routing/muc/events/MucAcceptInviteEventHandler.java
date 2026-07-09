@@ -27,6 +27,7 @@ import com.github.f4b6a3.uuid.UuidCreator;
 import io.netty.channel.ChannelHandlerContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.scheduler.Schedulers;
 
 /**
  * Handler for processing accepted group invitations.
@@ -105,13 +106,14 @@ public class MucAcceptInviteEventHandler {
      * Injects a unique Stanza-ID (XEP-0359) using a monotonic UUIDv7 for stable ordering.
      */
     private void saveToDatabase(String id, String roomBareJid, GroupMember sender, UUID stanzaId, String xml, Integer messageRetentionDays) {      
-
         xmppArchiveService.archiveEvent(xml, id, XmppUtil.getRoomId(roomBareJid), null, 
-        		sender.getUserKey(), stanzaId, messageRetentionDays)
-        .doOnError(error -> {
-            log.error("Failed to archive join event for {} in room {}", sender.getUserKey(), roomBareJid, error);
-        })
-        .subscribe();
+                sender.getUserKey(), stanzaId, messageRetentionDays)
+            // Offload the subscription context to a background worker pool
+            .subscribeOn(Schedulers.boundedElastic()) 
+            .doOnError(error -> {
+                log.error("Failed to archive join event for {} in room {}", sender.getUserKey(), roomBareJid, error);
+            })
+            .subscribe();
     }
     
     /**

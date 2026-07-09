@@ -29,6 +29,7 @@ import com.github.f4b6a3.uuid.UuidCreator;
 import io.netty.channel.ChannelHandlerContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.scheduler.Schedulers;
 
 
 @Slf4j
@@ -137,11 +138,13 @@ public class MucMemberLeftEventHandler {
 		        UUID.fromString(XmppUtil.getRoomId(roomJid)), 
 		        UUID.fromString(principal.getUserKey())
 		    )
-		    .doOnError(e -> log.error("Failed to clean up group member media files for user {} in room {}", principal.getUserKey(), roomJid, e))
-		    .subscribe();
+		.subscribeOn(Schedulers.boundedElastic())
+	    .doOnError(e -> log.error("Failed to clean up group member media files for user {} in room {}", principal.getUserKey(), roomJid, e))
+	    .subscribe();
 
 		// Remove sender key for E2EE
 		removeGroupSenderKeyPublisher.publish(XmppUtil.getRoomId(roomJid), principal.getUserKey())
+		    .subscribeOn(Schedulers.boundedElastic())
 		    .doOnError(e -> log.error("Failed to remove group sender key for user {} in room {}", principal.getUserKey(), roomJid, e))
 		    .subscribe();
         
@@ -183,6 +186,9 @@ public class MucMemberLeftEventHandler {
 				null,
 				principal.getUserKey(),
 				stanzaId,
-				messageRetentionDays);
+				messageRetentionDays)
+		.subscribeOn(Schedulers.boundedElastic())
+	    .doOnError(e -> log.error("Failed to archive departure event log for user {} inside room {}", principal.getUserKey(), roomBareJid, e))
+	    .subscribe();
 	}
 }
