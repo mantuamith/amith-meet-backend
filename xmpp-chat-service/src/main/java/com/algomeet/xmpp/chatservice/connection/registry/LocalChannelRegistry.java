@@ -48,22 +48,37 @@ public class LocalChannelRegistry {
     }
 
     /**
-     * Removes an isolated individual session for a user.
+     * Removes an isolated individual session for a user and physically closes the channel.
      */
     public void unregister(String userKey, String sessionId) {
+        // We use a mutable container to extract the channel safely out of the lambda
+        final Channel[] channelToClose = new Channel[1];
+
         userSessions.computeIfPresent(userKey, (key, sessions) -> {
-            sessions.remove(sessionId);
-            return sessions.isEmpty() ? null : sessions; // Cleans up the outer map if no sessions remain
+            channelToClose[0] = sessions.remove(sessionId);
+            return sessions.isEmpty() ? null : sessions; 
         });
-        log.trace("Local session unregistered for userKey: {}, sessionId: {}", userKey, sessionId);
+
+        // Physically close the channel if it existed
+        if (channelToClose[0] != null) {
+            channelToClose[0].close(); // Netty close is asynchronous and non-blocking
+            log.debug("Physically closed and unregistered session for userKey: {}, sessionId: {}", userKey, sessionId);
+        } else {
+            log.trace("No local session found to unregister for userKey: {}, sessionId: {}", userKey, sessionId);
+        }
     }
 
     /**
-     * Removes all sessions completely for a user.
+     * Removes all sessions completely for a user and physically closes all associated channels.
      */
     public void unregisterAll(String userKey) {
-        userSessions.remove(userKey);
-        log.trace("All local sessions unregistered for userKey: {}", userKey);
+        Map<String, Channel> removedSessions = userSessions.remove(userKey);
+        
+        if (removedSessions != null) {
+            // Close all channels for this user in parallel/async
+            removedSessions.values().forEach(Channel::close);
+            log.debug("Physically closed all local sessions ({}) for userKey: {}", removedSessions.size(), userKey);
+        }
     }
 
     /**
