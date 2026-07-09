@@ -15,6 +15,7 @@ import com.algomeet.xmpp.chatservice.enums.XmppErrorType;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.publisher.ExitGroupMemberMediaCleanupEventPublisher;
+import com.algomeet.xmpp.chatservice.publisher.RemoveGroupSenderKeyPublisher;
 import com.algomeet.xmpp.chatservice.routing.dispacher.LocalStanzaDispatcher;
 import com.algomeet.xmpp.chatservice.routing.muc.MucMessageRouter;
 import com.algomeet.xmpp.chatservice.service.XmppArchiveService;
@@ -42,6 +43,7 @@ public class MucKickEventHandler {
 	private final MucMessageRouter xmppBroadCastHandler;
 	private final XmppArchiveService xmppArchiveService;
 	private final ExitGroupMemberMediaCleanupEventPublisher exitGroupMemberMediaCleanupEventPublisher;
+	private final RemoveGroupSenderKeyPublisher removeGroupSenderKeyPublisher;
 	
 	/**
 	 * Processes a request to forcibly remove (kick) an occupant from the room.
@@ -129,9 +131,16 @@ public class MucKickEventHandler {
 				null,
 				forArchiveXmlLog);
 		
-		// Cleanup up member group messages media files		
+		// Cleanup member group messages media files		
 		exitGroupMemberMediaCleanupEventPublisher.publish(
-				UUID.fromString(XmppUtil.getRoomId(roomJid)), UUID.fromString(victimUserKey));
+		        UUID.fromString(XmppUtil.getRoomId(roomJid)), UUID.fromString(victimUserKey))
+		    .doOnError(e -> log.error("Failed to clean up media files for kicked user {}", victimUserKey, e))
+		    .subscribe();
+
+		// Remove group sender key for E2EE
+		removeGroupSenderKeyPublisher.publish(XmppUtil.getRoomId(roomJid), victimUserKey)
+		    .doOnError(e -> log.error("Failed to remove sender key for kicked user {}", victimUserKey, e))
+		    .subscribe();
 
 		log.info("Kick successful: {} removed from {}", victimJid, roomJid);
 	}

@@ -190,7 +190,12 @@ public class GroupSenderKeyService {
 
 		repository.deleteByIdSenderUserKeyAndIdReceiverUserKeyAndIdGroupId(senderUserKey, receiverUserKey, groupId);
 	}
-			
+	
+	@Transactional
+	public void deleteByReceiverUserKeyAndGroupId(UUID receiverUserKey, UUID groupId) {	
+		repository.deleteByIdReceiverUserKeyAndIdGroupId(receiverUserKey, groupId);
+	}
+				
 	@Transactional
 	public void delete(String currentUserKey, UUID groupId) {		
 	    Group group = groupCacheService.getCachedGroup(groupId.toString());

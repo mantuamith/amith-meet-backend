@@ -16,9 +16,9 @@ import com.algomeet.xmpp.chatservice.enums.PresenceType;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.publisher.ExitGroupMemberMediaCleanupEventPublisher;
+import com.algomeet.xmpp.chatservice.publisher.RemoveGroupSenderKeyPublisher;
 import com.algomeet.xmpp.chatservice.routing.muc.MucMessageRouter;
 import com.algomeet.xmpp.chatservice.service.XmppArchiveService;
-import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
 import com.algomeet.xmpp.chatservice.stanza.events.MucSystemEventLogMessageStanza;
 import com.algomeet.xmpp.chatservice.stanza.presence.MucUserPresenceBuilder;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
@@ -42,6 +42,7 @@ public class MucMemberLeftEventHandler {
 	private final MucMessageRouter xmppBroadCastHandler;
 	private final XmppArchiveService xmppArchiveService;
 	private final ExitGroupMemberMediaCleanupEventPublisher exitGroupMemberMediaCleanupEventPublisher;
+	private final RemoveGroupSenderKeyPublisher removeGroupSenderKeyPublisher;
     
     /**
      * Handles the left event of a member from a room by broadcasting presence and generate logs.
@@ -133,7 +134,16 @@ public class MucMemberLeftEventHandler {
 		
 		// Cleanup up member group messages media files		
 		exitGroupMemberMediaCleanupEventPublisher.publish(
-				UUID.fromString(XmppUtil.getRoomId(roomJid)), UUID.fromString(principal.getUserKey()));
+		        UUID.fromString(XmppUtil.getRoomId(roomJid)), 
+		        UUID.fromString(principal.getUserKey())
+		    )
+		    .doOnError(e -> log.error("Failed to clean up group member media files for user {} in room {}", principal.getUserKey(), roomJid, e))
+		    .subscribe();
+
+		// Remove sender key for E2EE
+		removeGroupSenderKeyPublisher.publish(XmppUtil.getRoomId(roomJid), principal.getUserKey())
+		    .doOnError(e -> log.error("Failed to remove group sender key for user {} in room {}", principal.getUserKey(), roomJid, e))
+		    .subscribe();
         
         log.debug("User left the room presence synchronization is completed for user {} in room {}", principal.getUserKey(), roomBareJid);
     }

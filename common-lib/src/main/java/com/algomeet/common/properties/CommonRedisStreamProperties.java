@@ -20,4 +20,9 @@ public class CommonRedisStreamProperties {
      * Redis stream key for asynchronously updating message backup retention.
      */
     private String messageBackupRetentionUpdateEvents = "message-backup-retention-update-events";
+    
+    /**
+     * Redis stream key for asynchronously remove group sender key events.
+     */
+    private String removeGroupSenderKeyEvents = "remove-group-sender-key-events";
 }
