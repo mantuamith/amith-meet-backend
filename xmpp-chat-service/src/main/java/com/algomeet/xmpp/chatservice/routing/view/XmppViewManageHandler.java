@@ -3,6 +3,7 @@ package com.algomeet.xmpp.chatservice.routing.view;
 import org.springframework.stereotype.Component;
 
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
+import com.algomeet.xmpp.chatservice.constant.Constants;
 import com.algomeet.xmpp.chatservice.constant.XmppErrorConditions;
 import com.algomeet.xmpp.chatservice.enums.XmppErrorType;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
@@ -64,7 +65,7 @@ public class XmppViewManageHandler {
 	 */
 	public boolean isMessageViewManagementStanza(String xml) {
 		// Small adjustment to avoid false matches on casual chat text
-		return xml.contains("xmlns=\"https://algomeet.app/protocol/view-management\"") 
-				|| xml.contains("xmlns='https://algomeet.app/protocol/view-management'");	        
+		return xml.contains("xmlns=\"" + Constants.NS_VIEW_MANAGEMENT + "\"") 
+				|| xml.contains("xmlns='" + Constants.NS_VIEW_MANAGEMENT + "'");	        
 	}
 }

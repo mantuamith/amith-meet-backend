@@ -10,13 +10,11 @@ import org.springframework.util.CollectionUtils;
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.cluster.publisher.ReactiveClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
-import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.publisher.DeleteMessageMediaEventPublisher;
 import com.algomeet.xmpp.chatservice.routing.dispacher.LocalStanzaDispatcher;
 import com.algomeet.xmpp.chatservice.stanza.ViewManageSyncStanza;
 import com.algomeet.xmpp.chatservice.util.HidetUtil;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
-import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.github.f4b6a3.uuid.UuidCreator;
 
 import lombok.RequiredArgsConstructor;
@@ -35,7 +33,6 @@ public class HideMucMessageService {
 	private final HidetUtil hidetUtil;
 	private final JidUtil jidUtil;
 	private final DeleteMessageMediaEventPublisher messageMediaDeleteEventPublisher;
-	private final DomainProperties domainProperties;
 
 	private static final Scheduler DB_SCHEDULER = Schedulers.boundedElastic();
 
@@ -93,11 +90,8 @@ public class HideMucMessageService {
 				.from(principal.getBareJid())
 				.build();
 
-		String stanzaId = UuidCreator.getTimeOrderedEpoch().toString();		
-		String xml = XmppStanzaUtil.insertStanzaId(vmSync.toXml(), stanzaId, principal.getDomain());
-
 		return reactiveClusterMessagePublisher.convertAndSendToUser(id, principal.getUserKey(), principal.getUserKey(), 
-				ChatType.CHAT, false, xml, principal);
+				ChatType.CHAT, false, vmSync.toXml(), principal);
 	}
 
 	private Mono<Void> composeAndSendGroupSync(String targetId, String roomId, String userKey, String sessionId) {
@@ -110,15 +104,12 @@ public class HideMucMessageService {
 				.from(jidUtil.getBareJid(userKey))
 				.build();
 
-		String stanzaId = UuidCreator.getTimeOrderedEpoch().toString();
-		String xml = XmppStanzaUtil.insertStanzaId(vmSync.toXml(), stanzaId, domainProperties.getDomain());
-
 		XmppPrincipal principal = XmppPrincipal.builder()
 				.sessionId(sessionId)
 				.build();
 		
 		return reactiveClusterMessagePublisher.convertAndSendToUser(id, userKey, userKey, 
-				ChatType.CHAT, false, xml, principal);
+				ChatType.CHAT, false, vmSync.toXml(), principal);
 	}
 
 	/**

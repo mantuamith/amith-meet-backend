@@ -2,6 +2,7 @@ package com.algomeet.xmpp.chatservice.stanza;
 
 import java.util.Objects;
 
+import com.algomeet.xmpp.chatservice.constant.Constants;
 import com.algomeet.xmpp.chatservice.enums.ViewManageEnum;
 
 /**
@@ -50,7 +51,7 @@ public class ViewManageSyncStanza {
 		}
 		sb.append("id='").append(id).append("' ")
 		.append("type='").append(type).append("'>")
-		.append("<query xmlns='https://algomeet.app/protocol/view-management'>")
+		.append("<query xmlns='" + Constants.NS_VIEW_MANAGEMENT +  "'>")
 		.append("<item ")
 		.append("action='").append(action).append("' ");
 
