@@ -139,6 +139,7 @@ public class MucRoomService {
         .subscribeOn(MUC_THREAD_POOL)
         // 1. Execute DB/Stream purge
         .flatMap(groupOpt -> 
+        	// Remove group conversation messages
             purgeGroupConversationStreamPublisher.publish(groupId)
                 // 2. Remove E2EE sender keys right after DB purge completes
                 .then(Mono.defer(() -> removeGroupSenderKeyPublisher.publish(groupId.toString(), null)
