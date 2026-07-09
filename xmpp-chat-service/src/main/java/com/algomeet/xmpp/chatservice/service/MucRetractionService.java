@@ -19,6 +19,7 @@ import com.algomeet.xmpp.chatservice.enums.XmppErrorType;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.publisher.DeleteMessageMediaEventPublisher;
+import com.algomeet.xmpp.chatservice.routing.muc.MucMessageRouter;
 import com.algomeet.xmpp.chatservice.stanza.MessageRetractStanza;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.algomeet.xmpp.chatservice.util.RetractUtil;
@@ -50,7 +51,7 @@ public class MucRetractionService {
     private final XmppArchiveService xmppArchiveService;
     private final XmppRetractUtil xmppRetractUtil;
     private final JidUtil jidUtil;
-    private final ClusterMessagePublisher clusterMessagePublisher;
+    private final MucMessageRouter mucMessageRouter;
     private final DomainProperties domainProperties;
     private final XmppUtil xmppUtil;
     private final RetractUtil retractUtil;
@@ -155,12 +156,10 @@ public class MucRetractionService {
         String stamp = Instant.now().toString();
 
         group.getMembers().forEach(m -> {
-            // Build the retraction stanza targeting each member's bare JID
+            // Build the retraction stanza to be published for each member
             MessageRetractStanza retractStanza = MessageRetractStanza.builder()
                     .id(id)
-                    .to(jidUtil.getBareJid(m.getUserKey()))
                     .from(roomJid + "/" + principal.getUserKey())				
-                    .by(roomJid + "/" + principal.getUserKey())
                     .retractedId(retractMessageId)
                     .type(XmppMessageType.GROUPCHAT.getXmlValue())
                     .stamp(stamp)
@@ -169,9 +168,8 @@ public class MucRetractionService {
             // Inject the server-generated stanza ID for auditing/tracking
             String xml = XmppStanzaUtil.insertStanzaId(retractStanza.toXml(), stanzaId, principal.getDomain());
 
-            // Dispatch through the cluster layer
-            clusterMessagePublisher.convertAndSendToUser(id, m.getUserKey(), principal.getUserKey(), 
-                    ChatType.GROUPCHAT, false, xml, principal);
+            // Publish to group member
+            mucMessageRouter.broadcastToOccupants(id, m.getUserKey(), group, xml, principal.getSessionId());
         });				
     }	
 }

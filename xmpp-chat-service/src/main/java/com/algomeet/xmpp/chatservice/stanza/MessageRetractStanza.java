@@ -11,7 +11,6 @@ public class MessageRetractStanza {
 	private final String type;
 	private final String id;
 	private final String retractedId;
-	private final String by;
 	private final String stamp;
 	private final String reasonText;
 
@@ -21,7 +20,6 @@ public class MessageRetractStanza {
 		this.type = builder.type;
 		this.id = builder.id;
 		this.retractedId = builder.retractedId;
-		this.by = builder.by;
 		this.stamp = builder.stamp;
 		this.reasonText = builder.reasonText;
 	}
@@ -46,7 +44,6 @@ public class MessageRetractStanza {
 		.append("id='").append(id).append("'>")
 		.append("<retracted xmlns='urn:xmpp:message-retract:1' ")
 		.append("id='").append(retractedId).append("' ")
-		.append("by='").append(by).append("' ")
 		.append("stamp='").append(stamp).append("'>");
 
 		if (reasonText != null) {
@@ -66,7 +63,6 @@ public class MessageRetractStanza {
 		private String type = "groupchat"; // Default for MUC
 		private String id;
 		private String retractedId;
-		private String by;
 		private String stamp;
 		private String reasonText; // Default text
 
@@ -95,11 +91,6 @@ public class MessageRetractStanza {
 			return this;
 		}
 
-		public Builder by(String by) {
-			this.by = by;
-			return this;
-		}
-
 		public Builder stamp(String stamp) {
 			this.stamp = stamp;
 			return this;
@@ -114,7 +105,6 @@ public class MessageRetractStanza {
 			Objects.requireNonNull(from, "From JID cannot be null");
 			Objects.requireNonNull(id, "Message ID cannot be null");
 			Objects.requireNonNull(retractedId, "Retracted ID (target) cannot be null");
-			Objects.requireNonNull(by, "Retracted 'by' JID cannot be null");
 			Objects.requireNonNull(stamp, "Timestamp cannot be null");
 
 			return new MessageRetractStanza(this);

@@ -169,7 +169,6 @@ public class MamUtil {
 		MessageRetractStanza retractStanza = MessageRetractStanza.builder()
 				.id(UuidCreator.getTimeOrderedEpoch().toString()) // Unique ID for this specific retraction stanza
 				.from(groupJid)                  // Originating from the room occupant address
-				.by(groupJid)                    // The entity that performed the retraction
 				.retractedId(msg.getMessageId().toString()) // The original 'id' of the message to be removed
 				.type(XmppMessageType.GROUPCHAT.getXmlValue())
 				.stamp(timestamp)
