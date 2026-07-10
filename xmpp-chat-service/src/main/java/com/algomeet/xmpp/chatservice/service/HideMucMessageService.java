@@ -37,48 +37,46 @@ public class HideMucMessageService {
 	private static final Scheduler DB_SCHEDULER = Schedulers.boundedElastic();
 
 	public Mono<Void> hideMessageForUser(UUID userKey, UUID roomId, UUID targetMessageId, String sessionId, String requestMessageId) {
-		return xmppArchiveService.findByMessageId(targetMessageId)
-			// subscribeOn handles the subscription context for finding the message
-			.subscribeOn(DB_SCHEDULER) 
-			.flatMap(message -> {             	
-				log.debug("Executing hide: Message {} in room {} by user {}", targetMessageId, roomId, userKey);
-				
-				// Ensure the actual update occurs on the DB scheduler
-				return xmppArchiveService.hideMessageForUser(targetMessageId, userKey)
-						.publishOn(DB_SCHEDULER) 
-						.flatMap(updateResult -> {
-							if (updateResult.getMatchedCount() == 0) {
-				                log.warn("No message found to hide for ID: {}", targetMessageId);
-				            }
-							// FIX: Capturing the Mono return so it executes
-							Mono<Void> groupSyncMono = composeAndSendGroupSync(
-									targetMessageId.toString().trim(), 
-									roomId.toString(), 
-									userKey.toString(), 
-									sessionId
-							);
+	    return xmppArchiveService.findByMessageId(targetMessageId)
+	        .subscribeOn(DB_SCHEDULER) // Sets the thread pool context for the database operations
+	        .flatMap(message -> {             	
+	            log.debug("Executing hide: Message {} in room {} by user {}", targetMessageId, roomId, userKey);
+	            
+	            return xmppArchiveService.hideMessageForUser(targetMessageId, userKey)
+	                // Note: Removed redundant publishOn(DB_SCHEDULER) here
+	                .flatMap(updateResult -> {
+	                    if (updateResult.getMatchedCount() == 0) {
+	                        log.warn("No message found to hide for ID: {}", targetMessageId);
+	                    }
 
-							Mono<Void> hideRelatedMono = hidetUtil.hideRelatedMessages(userKey, roomId, targetMessageId).then();
+	                    Mono<Void> groupSyncMono = composeAndSendGroupSync(
+	                            targetMessageId.toString().trim(), 
+	                            roomId.toString(), 
+	                            userKey.toString(), 
+	                            sessionId
+	                    );
 
-							Mono<Void> mediaDeleteMono = Mono.empty();
-							if (!CollectionUtils.isEmpty(message.getMediaIds())) {
-								mediaDeleteMono = messageMediaDeleteEventPublisher.publish(
-										userKey.toString(), 
-										message.getMediaIds().stream().map(UUID::toString).collect(Collectors.toSet()), 
-										Set.of(userKey.toString()),
-										null, 
-										message.getMessageId().toString()
-								).then();
-							}
+	                    Mono<Void> hideRelatedMono = hidetUtil.hideRelatedMessages(userKey, roomId, targetMessageId).then();
 
-							// Combine group synchronization concurrently alongside deletion tasks
-							return Mono.when(hideRelatedMono, mediaDeleteMono)
-									.then(groupSyncMono)
-									.then(sendIqResult(requestMessageId, userKey.toString()));
-						});
-			})
-			.doOnError(err -> log.error("Error processing group chat hide context", err))
-			.then(); 
+	                    Mono<Void> mediaDeleteMono = Mono.empty();
+	                    if (!CollectionUtils.isEmpty(message.getMediaIds())) {
+	                        mediaDeleteMono = messageMediaDeleteEventPublisher.publish(
+	                                userKey.toString(), 
+	                                message.getMediaIds().stream().map(UUID::toString).collect(Collectors.toSet()), 
+	                                Set.of(userKey.toString()),
+	                                null, 
+	                                message.getMessageId().toString()
+	                        ).then();
+	                    }
+
+	                    // FIX: Execute ALL side-effects concurrently and wait until ALL of them complete 
+	                    // before firing the final 'result' confirmation packet back to the client.
+	                    return Mono.when(hideRelatedMono, mediaDeleteMono, groupSyncMono)
+	                            .then(Mono.defer(() -> sendIqResult(requestMessageId, userKey.toString())));
+	                });
+	        })
+	        .doOnError(err -> log.error("Error processing group chat hide context", err))
+	        .then(); 
 	}
 
 	public Mono<Void> composeAndSendDirectSync(String targetId, XmppPrincipal principal) {
