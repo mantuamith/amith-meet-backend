@@ -1,6 +1,5 @@
 package com.algomeet.xmpp.chatservice.routing.state;
 
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
@@ -34,7 +33,6 @@ public class XmppPresencePushHandler {
      * resulting XML stanzas to the socket.
      * @param principal The authenticated identity of the user receiving the updates.
      */
-    @Async("pushPresenceExecutor")
     public void pushUsersPresenceAsync(ChannelHandlerContext ctx, XmppPrincipal principal) { 
         log.info("Initiating full presence sync for user: {}", principal.getUserKey());
 
