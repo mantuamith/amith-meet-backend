@@ -21,4 +21,6 @@ public class Constants {
 	
 	
 	public static final String NS_VIEW_MANAGEMENT = "urn:algomeet:view-management:0";
+	
+	public static final String NS_JINGLE = "urn:xmpp:jingle:1";
 }

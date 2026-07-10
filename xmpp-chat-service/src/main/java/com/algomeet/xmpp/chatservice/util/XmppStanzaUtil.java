@@ -16,6 +16,7 @@ import javax.xml.stream.XMLStreamReader;
 
 import org.springframework.util.StringUtils;
 
+import com.algomeet.xmpp.chatservice.constant.Constants;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
 
 import lombok.extern.slf4j.Slf4j;
@@ -211,7 +212,7 @@ public class XmppStanzaUtil {
 	}
 
 	public static boolean isJingleStanza(XmppMessageType msgType, String xml) {
-		return XmppMessageType.SET == msgType && xml.contains("urn:xmpp:jingle:1");
+		return XmppMessageType.SET == msgType && xml.contains(Constants.NS_JINGLE);
 	}
 
 	public static boolean isMessageAckStanza(String xml) {

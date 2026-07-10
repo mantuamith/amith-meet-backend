@@ -16,6 +16,7 @@ import com.algomeet.notificationservice.service.NotificationService;
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.client.MediaClient;
 import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
+import com.algomeet.xmpp.chatservice.constant.Constants;
 import com.algomeet.xmpp.chatservice.constant.XmppErrorConditions;
 import com.algomeet.xmpp.chatservice.dto.BatchMediaShareRequest;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
@@ -74,8 +75,9 @@ public class XmppChatHandler {
 	/**
 	 * Handles 1-to-1 message routing, persistence for offline storage, 
 	 * and cluster-wide synchronization, and push notifications for offline users.
+	 * * @return A Mono<Void> that completes when storage, routing, and out-of-band notifications are finished.
 	 */
-	public void handleDirectChatRouting(ChannelHandlerContext ctx, String id, String toJid, String fromJid, String type, String originalXml) {
+	public Mono<Void> handleDirectChatRouting(ChannelHandlerContext ctx, String id, String toJid, String fromJid, String type, String originalXml) {
 		XmppMessageType msgType = XmppMessageType.fromString(type);
 		XmppPrincipal principal = ctx.channel().attr(XmppSessionAttributes.PRINCIPAL).get();               
 
@@ -92,6 +94,8 @@ public class XmppChatHandler {
 		// Determine if message is ACK stanza
 		boolean isAckStanza = XmppStanzaUtil.isMessageAckStanza(originalXml);
 		
+		Mono<Void> processingPipeline = Mono.empty();
+		
 		if (msgType.supportsOfflineStorage() && isArchivable) {	
 			// Check for message file attachments
 			List<UUID> mediaIds = null;
@@ -107,18 +111,24 @@ public class XmppChatHandler {
 					request.setShareWithUserKeys(List.of(fromUserKey, toUserKey));
 					request.setMessageId(UUID.fromString(id));			
 					
-					if(!shareMedias(fromUserKey, request)) {
-						xmppUtil.sendError(ctx, id, fromJid, domainProperties.getDomain(), XmppErrorType.CANCEL, 
-								XmppErrorConditions.INTERNAL_SERVER_ERROR, "Error sharing media file(s)");
-						return;
-					}
+					// FIX: Defer the blocking media client call securely onto the DB worker pool
+					processingPipeline = Mono.fromCallable(() -> shareMedias(fromUserKey, request))
+							.subscribeOn(DB_SCHEDULER)
+							.flatMap(shared -> {
+								if (!shared) {
+									xmppUtil.sendError(ctx, id, fromJid, domainProperties.getDomain(), XmppErrorType.CANCEL, 
+											XmppErrorConditions.INTERNAL_SERVER_ERROR, "Error sharing media file(s)");
+									return Mono.error(new RuntimeException("Media sharing failed"));
+								}
+								return Mono.empty();
+							});
 				}				
 			} catch(Exception ex) {
 				log.error("Error parsing media references {}", originalXml, ex);
 				xmppUtil.sendError(ctx, id, fromJid, domainProperties.getDomain(), XmppErrorType.CANCEL, 
 						XmppErrorConditions.INTERNAL_SERVER_ERROR, "Error parsing media file(s)");
 				
-				return;
+				return Mono.empty();
 			}			
 			
 			 /**
@@ -142,132 +152,137 @@ public class XmppChatHandler {
 			boolean isCountable = XmppCustomStanzaUtil.isCountableMessage(originalXml);
 			
 			final String archivedXml = forArchiveXml;			
-			offlineMessageService.save(messageId, stanzaId, toUserKey, fromUserKey, type, isAckStanza, 
-					isCountable, forArchiveXml, mediaIds, principal.getSessionId())
-			.flatMap(saved -> {
-				// Return server acknowledgment execution context
-				// Send an immediate server-level acknowledgment to the sender.
-            	//
-            	// This acknowledgment confirms that:
-            	// 1. The server has successfully received the stanza.
-            	// 2. The stanza has been persisted to the database.
-            	// 3. The server has taken full responsibility for further routing/delivery.
-            	//
-            	// This is a custom acknowledgment (not client XEP-0198 ack),
-            	// used to provide early delivery assurance back to the sender.
-				XmppServerAckUtil.send(ctx, id, domainProperties.getDomain(), stanzaId.toString(), saved.retentionDays()); 
+			
+			processingPipeline = processingPipeline.then(
+				offlineMessageService.save(messageId, stanzaId, toUserKey, fromUserKey, type, isAckStanza, 
+						isCountable, archivedXml, mediaIds, principal.getSessionId())
+				.flatMap(saved -> {
+					// Return server acknowledgment execution context
+					// Send an immediate server-level acknowledgment to the sender.
+	            	//
+	            	// This acknowledgment confirms that:
+	            	// 1. The server has successfully received the stanza.
+	            	// 2. The stanza has been persisted to the database.
+	            	// 3. The server has taken full responsibility for further routing/delivery.
+	            	//
+	            	// This is a custom acknowledgment (not client XEP-0198 ack),
+	            	// used to provide early delivery assurance back to the sender.
+					XmppServerAckUtil.send(ctx, id, domainProperties.getDomain(), stanzaId.toString(), saved.retentionDays()); 
 
-				if (isAckStanza) {
-					/*
-	                 * CRITICAL TIMING SEQUENCE:
-	                 * This event must execute strictly AFTER the underlying database write has fully 
-	                 * completed to prevent "ghost data" or race conditions. 
-	                 * Sending this cluster broadcast notifies downstream microservices or websocket 
-	                 * connections to trigger cleanups (like messages sent to client acknowledgments). 
-	                 * If sent before a guaranteed DB commit, cleanup actions might execute too early 
-	                 * and target data that hasn't physically settled in the collection yet.
-	                 * ACKs cleanup logic under ClusterMessageListener.onMessage().
-	                 */
-					clusterMessagePublisher.convertAndSendToUser(id, toUserKey, fromUserKey, ChatType.CHAT, false, true, isAckStanza, archivedXml, principal);
-				}
-				
-				// Replace the old sequential "postSaveTasks = Mono.empty()" pattern with a structured list
-	            List<Mono<Void>> tasks = new java.util.ArrayList<>();
+					if (isAckStanza) {
+						/*
+		                 * CRITICAL TIMING SEQUENCE:
+		                 * This event must execute strictly AFTER the underlying database write has fully 
+		                 * completed to prevent "ghost data" or race conditions. 
+		                 * Sending this cluster broadcast notifies downstream microservices or websocket 
+		                 * connections to trigger cleanups (like messages sent to client acknowledgments). 
+		                 * If sent before a guaranteed DB commit, cleanup actions might execute too early 
+		                 * and target data that hasn't physically settled in the collection yet.
+		                 * ACKs cleanup logic under ClusterMessageListener.onMessage().
+		                 */
+						clusterMessagePublisher.convertAndSendToUser(id, toUserKey, fromUserKey, ChatType.CHAT, false, true, isAckStanza, archivedXml, principal);
+					}
+					
+					// Replace the old sequential "postSaveTasks = Mono.empty()" pattern with a structured list
+		            List<Mono<Void>> tasks = new java.util.ArrayList<>();
 
-	            // 1. Process Retractions
-	            // Check if the message contains the XMPP Message Retraction namespace (XEP-0424 / urn:xmpp:message-retract:1)
-	            if (XmppStanzaUtil.isRetractStanza(originalXml)) {
-	                String retractMessageId = xmppRetractUtil.getRetractMessageId(originalXml);
-	                if (StringUtils.hasText(retractMessageId)) {
-	                    tasks.add(processRetraction(retractMessageId, toUserKey, fromUserKey, principal));
-	                }
-	            }
+		            // 1. Process Retractions
+		            // Check if the message contains the XMPP Message Retraction namespace (XEP-0424 / urn:xmpp:message-retract:1)
+		            if (XmppStanzaUtil.isRetractStanza(originalXml)) {
+		                String retractMessageId = xmppRetractUtil.getRetractMessageId(originalXml);
+		                if (StringUtils.hasText(retractMessageId)) {
+		                    tasks.add(processRetraction(retractMessageId, toUserKey, fromUserKey, principal));
+		                }
+		            }
 
-	            // 2. Handle Message Delivery Receipts
-				// --- XEP-0184: Message Delivery Receipts ---
-			    // If the stanza contains the 'urn:xmpp:receipts' namespace, the recipient's 
-			    // device has successfully received the message.
-	            if (originalXml.contains(XmppReceiptUtil.NS_RECEIPTS)) {
-	                String ackMessageId = xmppReceiptUtil.getAckMessageId(originalXml);
-	                if (StringUtils.hasText(ackMessageId)) {
-	                    tasks.add(offlineMessageService.clearOfflineStanza(UUID.fromString(principal.getUserKey()), UUID.fromString(ackMessageId))
-	                            .doOnError(ex -> log.error("Failed to clear offline message buffer for user: {}", principal.getUserKey(), ex))
-	                            .onErrorResume(ex -> Mono.empty()));
-	                }
-	            }
+		            // 2. Handle Message Delivery Receipts
+					// --- XEP-0184: Message Delivery Receipts ---
+				    // If the stanza contains the 'urn:xmpp:receipts' namespace, the recipient's 
+				    // device has successfully received the message.
+		            if (originalXml.contains(XmppReceiptUtil.NS_RECEIPTS)) {
+		                String ackMessageId = xmppReceiptUtil.getAckMessageId(originalXml);
+		                if (StringUtils.hasText(ackMessageId)) {
+		                    tasks.add(offlineMessageService.clearOfflineStanza(UUID.fromString(principal.getUserKey()), UUID.fromString(ackMessageId))
+		                            .doOnError(ex -> log.error("Failed to clear offline message buffer for user: {}", principal.getUserKey(), ex))
+		                            .onErrorResume(ex -> Mono.empty()));
+		                }
+		            }
 
 
-	            // 3. Handle Chat Markers (Read Receipts) cleanly via sequential flattening
-				// --- XEP-0333: Chat Markers (Read Receipts) ---
-			    // If the stanza contains the 'urn:xmpp:chat-markers:0' namespace (displayed), 
-			    // the user has actively viewed the conversation.
-	            if (originalXml.contains(XmppReadUtil.NS_DISPLAYS)) {
-	                String ackMessageId = xmppReadUtil.getAckMessageId(originalXml);
-	                
-	                // Used to trace the count bug                
-	                if (StringUtils.hasText(ackMessageId)) {
-	                    Mono<Void> readReceiptTask = unreadCountService.syncUnreadCount(UUID.fromString(toUserKey), UUID.fromString(fromUserKey), UUID.fromString(ackMessageId))
-	                            // Safely switch to purge logic ONLY if sync returns a valid data model
-	                            .flatMap(success -> {
-	                            	 // Used to trace the count bug
-	                            	log.debug("success.getLastReadSid() {}", success.getLastReadSid());
-	                                if (success == null || success.getLastReadSid() == null) {
-	                                    return Mono.empty();
-	                                }
-	                                return offlineMessageService.purgeDeletedMessagesUpToCheckpoint(UUID.fromString(toUserKey), UUID.fromString(fromUserKey), success.getLastReadSid());
-	                            })
-	                            .doOnError(ex -> log.error("Error updating read markers or purging messages", ex))
-	                            .onErrorResume(ex -> Mono.empty()); // Isolates the error so it doesn't break other tasks
-	                    
-	                    tasks.add(readReceiptTask);
-	                }
-	            }
+		            // 3. Handle Chat Markers (Read Receipts) cleanly via sequential flattening
+					// --- XEP-0333: Chat Markers (Read Receipts) ---
+				    // If the stanza contains the 'urn:xmpp:chat-markers:0' namespace (displayed), 
+				    // the user has actively viewed the conversation.
+		            if (originalXml.contains(XmppReadUtil.NS_DISPLAYS)) {
+		                String ackMessageId = xmppReadUtil.getAckMessageId(originalXml);
+		                
+		                // Used to trace the count bug                
+		                if (StringUtils.hasText(ackMessageId)) {
+		                    Mono<Void> readReceiptTask = unreadCountService.syncUnreadCount(UUID.fromString(toUserKey), UUID.fromString(fromUserKey), UUID.fromString(ackMessageId))
+		                            // Safely switch to purge logic ONLY if sync returns a valid data model
+		                            .flatMap(success -> {
+		                            	 // Used to trace the count bug
+		                            	log.debug("success.getLastReadSid() {}", success.getLastReadSid());
+		                                if (success == null || success.getLastReadSid() == null) {
+		                                    return Mono.empty();
+		                                }
+		                                return offlineMessageService.purgeDeletedMessagesUpToCheckpoint(UUID.fromString(toUserKey), UUID.fromString(fromUserKey), success.getLastReadSid());
+		                            })
+		                            .doOnError(ex -> log.error("Error updating read markers or purging messages", ex))
+		                            .onErrorResume(ex -> Mono.empty()); // Isolates the error so it doesn't break other tasks
+		                    
+		                    tasks.add(readReceiptTask);
+		                }
+		            }
 
-	            // 4. Handle Countable Increment
-	            if (isCountable) {
-	            	// Asynchronous Unread Tracking
-			    	// Increment the unread counter for the recipient (toUserKey) relative to the sender (fromUserKey).
-			    	// This is handled reactively to avoid blocking the Netty event loop during DB writes.
-	                Mono<Void> incrementTask = unreadCountService.incrementUnreadCount(fromUserKey, toUserKey)
-	                        .doOnError(e -> log.error("Storage failure for incrementing unread count: {}", e.getMessage()))
-	                        .onErrorResume(ex -> Mono.empty())
-	                        .then();
-	                tasks.add(incrementTask);
-	            }
+		            // 4. Handle Countable Increment
+		            if (isCountable) {
+		            	// Asynchronous Unread Tracking
+				    	// Increment the unread counter for the recipient (toUserKey) relative to the sender (fromUserKey).
+				    	// This is handled reactively to avoid blocking the Netty event loop during DB writes.
+		                Mono<Void> incrementTask = unreadCountService.incrementUnreadCount(fromUserKey, toUserKey)
+		                        .doOnError(e -> log.error("Storage failure for incrementing unread count: {}", e.getMessage()))
+		                        .onErrorResume(ex -> Mono.empty())
+		                        .then();
+		                tasks.add(incrementTask);
+		            }
 
-	            // Execute ALL gathered tasks asynchronously and concurrently
-	            return Mono.when(tasks);
-	            
-			})
-			.subscribeOn(DB_SCHEDULER) // Shifting execution away from Netty Event Loop
-			.doOnError(e -> {                  
-				log.error("Storage failure for message {}: {}", id, e.getMessage(), e);
-				if (e instanceof DuplicateKeyException) {
-					xmppUtil.sendError(ctx, id, fromJid, domainProperties.getDomain(), XmppErrorType.CANCEL, XmppErrorConditions.DUPLICATE_KEY_ERROR, "Stanza has duplicate key");
-				} else {
-					xmppUtil.sendError(ctx, id, fromJid, domainProperties.getDomain(), XmppErrorType.WAIT, XmppErrorConditions.INTERNAL_SERVER_ERROR, "Storage failure");
-				}
-			})
-			.subscribe(); // Single, managed entry point subscription
+		            // Execute ALL gathered tasks asynchronously and concurrently
+		            return Mono.when(tasks);
+				})
+				.subscribeOn(DB_SCHEDULER) // Shifting execution away from Netty Event Loop
+				.doOnError(e -> {                  
+					log.error("Storage failure for message {}: {}", id, e.getMessage(), e);
+					if (e instanceof DuplicateKeyException) {
+						xmppUtil.sendError(ctx, id, fromJid, domainProperties.getDomain(), XmppErrorType.CANCEL, XmppErrorConditions.DUPLICATE_KEY_ERROR, "Stanza has duplicate key");
+					} else {
+						xmppUtil.sendError(ctx, id, fromJid, domainProperties.getDomain(), XmppErrorType.WAIT, XmppErrorConditions.INTERNAL_SERVER_ERROR, "Storage failure");
+					}
+				})
+			);
 		}
 
 		// Handle call life cycle 
 		if (XmppMessageType.SET == XmppMessageType.fromString(type) 
-				&& originalXml.contains("urn:xmpp:jingle:1")) {
+				&& originalXml.contains(Constants.NS_JINGLE)) {
 			callTracker.track(ctx, toJid, fromJid, originalXml, principal);
 		}   				
 
 		// Check if carbon copy is required, if archivable the Carbon Copy is required
 		Boolean shouldCarbon = isArchivable;
+		final String finalArchiveXml = forArchiveXml;
 		
 		// Broadast to Redis: Even if they are AWAY/DND, we attempt delivery 
 		// to their active WebSocket channels across the cluster.
-		if(!isAckStanza) {
-			clusterMessagePublisher.convertAndSendToUser(id, toUserKey, fromUserKey, ChatType.CHAT, false, shouldCarbon, isAckStanza,
-					(isArchivable ? forArchiveXml : originalXml), principal);
+		return processingPipeline.then(Mono.fromRunnable(() -> {
+			if(!isAckStanza) {
+				clusterMessagePublisher.convertAndSendToUser(id, toUserKey, fromUserKey, ChatType.CHAT, false, shouldCarbon, isAckStanza,
+						(isArchivable ? finalArchiveXml : originalXml), principal);
 
-			pushNotification(ctx, id, toUserKey, fromUserKey, type, originalXml, sessions, principal);
-		}
+				pushNotification(ctx, id, toUserKey, fromUserKey, type, originalXml, sessions, principal);
+			}
+		})).onErrorResume(err -> Mono.empty())
+				.then(); 
 	}
 	
 	private boolean shareMedias(String fromUserKey, BatchMediaShareRequest request) {
@@ -336,7 +351,7 @@ public class XmppChatHandler {
 			 * - 'urn:xmpp:jingle:1': Ensures the stanza belongs to the Jingle namespace.
 			 */
 			if (XmppMessageType.SET == XmppMessageType.fromString(type)
-					&& xml.contains("urn:xmpp:jingle:1")) {   
+					&& xml.contains(Constants.NS_JINGLE)) {   
 
 				// Handle Jingle Signaling notification
 				jingleNotificationHandler.handlePush(ctx, id, toUserKey, fromUserKey, xml, principal);

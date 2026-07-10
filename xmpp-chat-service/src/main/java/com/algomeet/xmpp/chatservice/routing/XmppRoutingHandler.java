@@ -32,6 +32,7 @@ import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.publisher.Mono;
 
 /**
  * <p>The primary entry point for processing and routing all incoming XMPP stanzas 
@@ -71,6 +72,39 @@ public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocke
 	private final XmppUtil xmppUtil;
 	private final XmppViewManageHandler xmppViewManagementHandler;
 
+	/**
+	 * Unique Netty {@link io.netty.util.AttributeKey} used to attach a thread-safe, 
+	 * reactive serialization queue directly to an active socket channel's context.
+	 * * <p><b>Architectural Purpose:</b></p>
+	 * This key binds a {@link reactor.core.publisher.Sinks.Many} buffer containing lazy 
+	 * {@link reactor.core.publisher.Mono} routing tasks to individual connection sessions. 
+	 * It acts as a localized FIFO queue that forces all inbound stanzas from a single user 
+	 * connection to be processed in strict, chronological order via non-blocking serialization.
+	 * * <p><b>Concurrency & Backpressure Control:</b></p>
+	 * By isolating this queue per connection, the application guarantees that Message N+1 
+	 * will never begin its database execution path until Message N has completely finished. 
+	 * This design prevents out-of-order race conditions introduced by the multi-threaded 
+	 * database thread pool without locking or blocking Netty's underlying EventLoop selector.
+	 */
+	private static final io.netty.util.AttributeKey<reactor.core.publisher.Sinks.Many<reactor.core.publisher.Mono<Void>>> CHANNEL_QUEUE_KEY = 
+			io.netty.util.AttributeKey.valueOf("xmpp.channel.pipeline.queue");
+
+	@Override
+	public void channelActive(ChannelHandlerContext ctx) throws Exception {
+		// Initialize a serialized, thread-safe queue for this channel when it connects
+		reactor.core.publisher.Sinks.Many<reactor.core.publisher.Mono<Void>> queue = 
+				reactor.core.publisher.Sinks.many().unicast().onBackpressureBuffer();
+
+		ctx.channel().attr(CHANNEL_QUEUE_KEY).set(queue);
+
+		// Drain the queue sequentially (concatMap guarantees message N+1 never starts until message N completes)
+		queue.asFlux()
+		.concatMap(taskMono -> taskMono.onErrorResume(e -> reactor.core.publisher.Mono.empty()))
+		.subscribe();
+
+		super.channelActive(ctx);
+	}
+		
 	/**
 	 * Entry point for incoming WebSocket text frames.
 	 * 
@@ -133,8 +167,30 @@ public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocke
 				xmppMucHandler.handleGroupChatRouting(ctx, id, toJid, fromJid, type, xml);
 
 			} else if (!mam && StringUtils.hasText(toJid)) {
-				xmppDirectChatHandler.handleDirectChatRouting(ctx, id, toJid, fromJid, type, xml);
+				// --- ORDERED BACKPRESSURE IMPLEMENTATION ---
+				final String finalXml = xml;
+				final String finalFromJid = fromJid;
+				final String finalId = id;
+				
+				Mono<Void> routingTask = Mono.defer(() -> {
+					// Toggle read suspension *only* when this message reaches the front of the queue
+					ctx.channel().config().setAutoRead(false);
+					return xmppDirectChatHandler.handleDirectChatRouting(ctx, finalId, toJid, finalFromJid, type, finalXml);
+				})
+				.doFinally(signal -> {
+					// Restore channel availability immediately on termination metrics
+					ctx.channel().config().setAutoRead(true);
+					ctx.read(); 
+				});
 
+				// Feed it into this specific connection's queue for serialized execution
+				reactor.core.publisher.Sinks.Many<Mono<Void>> queue = ctx.channel().attr(CHANNEL_QUEUE_KEY).get();
+				if (queue != null) {
+					queue.tryEmitNext(routingTask);
+				} else {
+					// Fallback if channel initialization was skipped
+					routingTask.subscribe();
+				}
 			} else {
 				
 				// This block catches MAM, Service Discovery, and Stream Management
