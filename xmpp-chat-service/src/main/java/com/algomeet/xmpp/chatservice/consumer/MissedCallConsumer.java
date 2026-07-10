@@ -19,6 +19,7 @@ import org.springframework.data.redis.connection.stream.RecordId;
 import org.springframework.data.redis.connection.stream.StreamOffset;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
+import org.springframework.data.redis.stream.StreamReceiver;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -43,6 +44,7 @@ public class MissedCallConsumer {
     private final MissedCallService missedCallService;
     private final ReactiveRedisTemplate<String, String> reactiveRedisTemplate;
     private final RedissonReactiveClient redisson;
+    private final StreamReceiver<String, MapRecord<String, String, String>> streamReceiver;
 
     private static final String GROUP_NAME = "missed-call-group"; 
     private final String consumerName = "consumer-" + UUID.randomUUID();
@@ -82,24 +84,27 @@ public class MissedCallConsumer {
      * Continuous reactive consumer loop pulling from Redis Stream.
      * Enforces backpressure and protects system memory under spikes of thousands of messages.
      */
-    @SuppressWarnings("unchecked")
     private void startConsumerLoop(String streamKey) {
-        Consumer consumer = Consumer.from(GROUP_NAME, consumerName);
+    	Consumer consumer = Consumer.from(GROUP_NAME, consumerName);
 
-        reactiveRedisTemplate.opsForStream()
-            .read(consumer, StreamOffset.create(streamKey, ReadOffset.lastConsumed()))
-            .flatMap(message -> {
-                // Safely cast standard stream record to targeted MapRecord
-                MapRecord<String, String, String> record = (MapRecord<String, String, String>) (Object) message;
-                
-                // Concurrency throttling limit: Process up to 64 missed calls concurrently.
-                // Anything higher remains safely queued inside Redis memory instead of filling up your JVM heap.
-                return processMessagePayload(record);
-            }, 64) 
-            .doOnError(err -> log.error("Critical error in Missed Call Consumer subscription loop", err))
-            // Keeps the listener loop resilient if your Redis cluster suffers an instantaneous failover
-            .retryWhen(Retry.backoff(Long.MAX_VALUE, Duration.ofSeconds(2))) 
-            .subscribe(); 
+        log.info("Starting Redis Stream consumer. stream={}, group={}, consumer={}",
+                streamKey, GROUP_NAME, consumerName);
+
+        streamReceiver.receive(
+                consumer,
+                StreamOffset.create(streamKey, ReadOffset.lastConsumed()))
+            .doOnSubscribe(subscription ->
+                    log.info("Missed Call Stream consumer subscribed."))
+            .doOnNext(record ->
+                    log.debug("Received stream message {}", record.getId()))
+            .flatMap(this::processMessagePayload, 64)
+            .doOnError(error ->
+                    log.error("Critical error in Missed Call consumer loop.", error))
+            .retryWhen(
+                    Retry.backoff(Long.MAX_VALUE, Duration.ofSeconds(2))
+                         .maxBackoff(Duration.ofMinutes(1))
+            )
+            .subscribe();    
     }
 
     /**

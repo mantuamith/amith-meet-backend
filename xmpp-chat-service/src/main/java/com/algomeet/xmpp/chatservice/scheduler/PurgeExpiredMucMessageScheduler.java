@@ -6,6 +6,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
@@ -21,6 +22,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 @Slf4j
 @Component
@@ -48,10 +50,14 @@ public class PurgeExpiredMucMessageScheduler {
 	public void purgeExpiredMessages() {
 		String lockValue = UUID.randomUUID().toString();
 		long ttlMinutes = 30; // 30-minute lease window for safety
+		
+		// Track lock state locally to ensure doFinally knows exactly when a release attempt is required
+		AtomicBoolean lockAcquired = new AtomicBoolean(false);
 
 		log.info("Attempting to acquire distributed lock for MUC message purge...");
 
-		redisTemplate.opsForValue()
+		// FIX: Wrap the pipeline generation with Mono.defer to capture synchronous Redis client exceptions safely
+		Mono.defer(() -> redisTemplate.opsForValue()
 			.setIfAbsent(LOCK_KEY, lockValue, Duration.ofMinutes(ttlMinutes))
 			.flatMap(acquired -> {
 				if (!Boolean.TRUE.equals(acquired)) {
@@ -59,13 +65,18 @@ public class PurgeExpiredMucMessageScheduler {
 					return Mono.empty();
 				}
 
+				lockAcquired.set(true);
 				log.info("Distributed lock acquired successfully [Token: {}]. Starting MUC message purge job...", lockValue);
-				return executePurgePipeline()
-					// Guarantee lock release happens after processing completes
-					.flatMap(totalDeleted -> releaseLock(lockValue).thenReturn(totalDeleted))
-					// Ensure lock is safely released if pipeline fails mid-stream
-					.onErrorResume(ex -> releaseLock(lockValue).then(Mono.error(ex)));
+				return executePurgePipeline();
 			})
+			// FIX: Replaced risky manual flatMap/onErrorResume chains with doFinally to guarantee a leak-proof release cycle
+			.doFinally(signalType -> {
+				if (lockAcquired.get()) {
+					releaseLock(lockValue)
+						.subscribeOn(Schedulers.boundedElastic())
+						.subscribe(null, err -> log.error("Background unlock task encountered a failure for token: {}", lockValue, err));
+				}
+			}))
 			.subscribe(
 				totalDeleted -> log.info("Successfully completed MUC purge cycle. Total documents purged: {}", totalDeleted),
 				error -> log.error("Critical failure encountered during MUC message purge orchestration pipeline", error)

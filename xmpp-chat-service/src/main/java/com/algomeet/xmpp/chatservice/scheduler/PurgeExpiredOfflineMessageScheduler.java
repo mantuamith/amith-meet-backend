@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -27,6 +28,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 @Slf4j
 @Component
@@ -55,10 +57,14 @@ public class PurgeExpiredOfflineMessageScheduler {
 	public void purgeExpiredMessages() {
 		String lockValue = UUID.randomUUID().toString();
 		long ttlMinutes = 30; // 30-minute safety window for a heavy DB purge
+		
+		// Track lock acquisition safely across reactive operators
+		AtomicBoolean lockAcquired = new AtomicBoolean(false);
 
 		log.info("Attempting to acquire distributed lock for message purge...");
 
-		redisTemplate.opsForValue()
+		// FIX: Wrap initialization inside Mono.defer to capture synchronous connection exceptions
+		Mono.defer(() -> redisTemplate.opsForValue()
 			.setIfAbsent(LOCK_KEY, lockValue, Duration.ofMinutes(ttlMinutes))
 			.flatMap(acquired -> {
 				if (!Boolean.TRUE.equals(acquired)) {
@@ -66,13 +72,18 @@ public class PurgeExpiredOfflineMessageScheduler {
 					return Mono.empty();
 				}
 
+				lockAcquired.set(true);
 				log.info("Distributed lock acquired successfully [Token: {}]. Starting message purge job...", lockValue);
-				return executePurgePipeline()
-					// Guarantee that lock release executes after processing completes
-					.flatMap(totalDeleted -> releaseLock(lockValue).thenReturn(totalDeleted))
-					// Ensure lock is safely released even if the pipeline terminates with an error
-					.onErrorResume(ex -> releaseLock(lockValue).then(Mono.error(ex)));
+				return executePurgePipeline();
 			})
+			// FIX: Extracted lock release to doFinally to completely eliminate lock leak exposures
+			.doFinally(signalType -> {
+				if (lockAcquired.get()) {
+					releaseLock(lockValue)
+						.subscribeOn(Schedulers.boundedElastic())
+						.subscribe(null, err -> log.error("Background unlock task encountered a failure for token: {}", lockValue, err));
+				}
+			}))
 			.subscribe(
 				totalDeleted -> log.info("Successfully completed purge cycle. Total documents purged: {}", totalDeleted),
 				error -> log.error("Critical failure encountered during message purge orchestration pipeline", error)
@@ -91,46 +102,44 @@ public class PurgeExpiredOfflineMessageScheduler {
 				List<UUID> idsToDelete = new ArrayList<>();
 				Set<MessageSenderAndReceiver> senderAndReceiverKeys = new HashSet<>();
 				
-				batch.stream()
-						.forEach(m -> {
-							idsToDelete.add(m.getStanzaId());
-							if(m.getCountable() != null && m.getCountable()) {
-								senderAndReceiverKeys.add(new MessageSenderAndReceiver(m.getFrom(), m.getTo()));
-							}
-						});
+				batch.forEach(m -> {
+					idsToDelete.add(m.getStanzaId());
+					if (m.getCountable() != null && m.getCountable()) {
+						senderAndReceiverKeys.add(new MessageSenderAndReceiver(m.getFrom(), m.getTo()));
+					}
+				});
 
 				log.debug("Purging a batch of {} expired messages", idsToDelete.size());
 
-				// Handle attachments cleanup			
-				batch.stream()
+				// FIX: Removed dangerous detached loops (.subscribe inside forEach).
+				// Structured media deletion stream into a bounded, backpressure-controlled execution chain.
+				Flux<Object> mediaPublishEvents = Flux.fromIterable(batch)
 					.filter(view -> view.getMediaIds() != null && !view.getMediaIds().isEmpty())
-					.forEach(view -> {
-						messageMediaDeleteEventStreamPublisher.publish(
-							null, 
-							view.getMediaIds().stream().map(UUID::toString).collect(Collectors.toSet()), 
-							Stream.of(view.getFrom(), view.getTo())
+					.flatMap(view -> {
+						Set<String> mediaIds = view.getMediaIds().stream().map(UUID::toString).collect(Collectors.toSet());
+						Set<String> participantIds = Stream.of(view.getFrom(), view.getTo())
 								.filter(Objects::nonNull)
 								.map(UUID::toString)
-								.collect(Collectors.toSet()),
-							null, 
-							view.getMessageId().toString()
-						).subscribe();
-					});
-				
-				return messageRepository.deleteAllById(idsToDelete)
-				        .then(Mono.defer(() -> {
-				            if (CollectionUtils.isEmpty(senderAndReceiverKeys)) {
-				                // Explicitly provide the type argument to prevent type inference from falling back to Object
-				                return Mono.<Void>empty();
-				            }
-				            
-				            // Explicitly use flatMapSequential or type-hint the Flux flatMap
-				            return Flux.fromIterable(senderAndReceiverKeys)
-				                    .flatMap(pair -> unreadCountService.syncUnreadCount(pair.sender(), pair.receiver()))
-				                    // then() safely drops downstream evaluation expectations and transitions cleanly to Mono<Void>
-				                    .then(); 
-				        }))
-				        .thenReturn(idsToDelete.size());
+								.collect(Collectors.toSet());
+
+						return messageMediaDeleteEventStreamPublisher.publish(
+							null, mediaIds, participantIds, null, view.getMessageId().toString()
+						);
+					}, 16); // Bounded execution concurrency threshold
+
+				// FIX: Chain sequentially using .then() to guarantee events are sent to broker BEFORE records leave the DB
+				return mediaPublishEvents
+					.then(messageRepository.deleteAllById(idsToDelete))
+					.then(Mono.defer(() -> {
+						if (CollectionUtils.isEmpty(senderAndReceiverKeys)) {
+							return Mono.<Void>empty();
+						}
+						
+						return Flux.fromIterable(senderAndReceiverKeys)
+								.flatMap(pair -> unreadCountService.syncUnreadCount(pair.sender(), pair.receiver()), 16)
+								.then(); 
+					}))
+					.thenReturn(idsToDelete.size());
 			})
 			.reduce(0, Integer::sum);
 	}

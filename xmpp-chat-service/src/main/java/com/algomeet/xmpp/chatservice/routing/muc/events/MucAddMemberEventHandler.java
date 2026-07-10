@@ -191,7 +191,7 @@ public class MucAddMemberEventHandler {
 		 */
 		String presenceXml =
 				MucUserPresenceBuilder.create()
-				.from(roomJid, newMemberUserKey)
+				.from(roomBareJid, newMemberUserKey)
 				.show(newMemberState.name().toLowerCase())
 				.affiliation(newMemberMucAffiliation)
 				.role(

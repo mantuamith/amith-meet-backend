@@ -57,7 +57,7 @@ public class MucMemberJoinEventHandler {
         // XMPP clients require status code 110 to recognize their own nickname in the room.        
         String selfPresenceXml = MucUserPresenceBuilder
         		.create()
-        		.from(roomJid, sender.getUserKey()) // Resource-part is the member's room identity
+        		.from(roomBareJid, sender.getUserKey()) // Resource-part is the member's room identity
 				.show(newState.name().toString().toLowerCase())
 				.affiliation(sender.getRole())
 				.role(MucRole.fromString(sender.getRole()).getValue())
@@ -77,7 +77,7 @@ public class MucMemberJoinEventHandler {
         // This includes updating the joiner's view of existing members (Synchronizing State).       
         String presenceXml = MucUserPresenceBuilder
 				.create()
-				.from(roomJid, sender.getUserKey()) // Resource-part is the member's room identity
+				.from(roomBareJid, sender.getUserKey()) // Resource-part is the member's room identity
 				.show(newState.name().toString().toLowerCase())
 				.affiliation(sender.getRole())
 				.role(MucRole.fromString(sender.getRole()).getValue())

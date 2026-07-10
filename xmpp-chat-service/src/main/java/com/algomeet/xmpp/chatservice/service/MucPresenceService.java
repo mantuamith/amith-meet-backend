@@ -144,7 +144,7 @@ public class MucPresenceService {
 				return;
 			}
 
-			String roomJid = jidUtil.getGroupBareJid(group.getId().toString());
+			String roomBareJid = jidUtil.getGroupBareJid(group.getId().toString());
 
 			// 2. Collect all keys for batch fetching from Redis (Performance Optimization)
 			List<String> memberKeys = group.getMembers().stream()
@@ -180,7 +180,7 @@ public class MucPresenceService {
 				// 5. Build a Group-Specific Presence Stanza (XEP-0045) with Delay support (XEP-0203)
 				String presenceXml = MucUserPresenceBuilder
 						.create()
-						.from(roomJid, member.getUserKey()) 
+						.from(roomBareJid, member.getUserKey()) 
 						.to(toJid)      
 						.status(newState.name().toString().toLowerCase())
 						.updatedAt(updatedAt != 0 ? Instant.ofEpochMilli(updatedAt).toString() : null)

@@ -60,7 +60,7 @@ public class MucMemberLeftEventHandler {
         // XMPP clients require status code 110 to recognize their own nickname in the room.        
         String selfPresenceXml = MucUserPresenceBuilder
         		.create()
-        		.from(roomJid, principal.getUserKey()) // Resource-part is the member's room identity
+        		.from(roomBareJid, principal.getUserKey()) // Resource-part is the member's room identity
         		.type(PresenceType.UNAVAILABLE.getValue())
 				.affiliation(MucAffiliation.NONE.getValue())
 				.statusCode(PresenceStatusCode.OWN_PRESENCE.getCode())
@@ -80,7 +80,7 @@ public class MucMemberLeftEventHandler {
         String presenceXml = MucUserPresenceBuilder
 				.create()
 				.type(PresenceType.UNAVAILABLE.getValue())
-				.from(roomJid, principal.getUserKey()) // Resource-part is the member's room identity
+				.from(roomBareJid, principal.getUserKey()) // Resource-part is the member's room identity
 				.affiliation(MucAffiliation.NONE.getValue())
 				.role(MucRole.NONE.getValue())
 				.build();

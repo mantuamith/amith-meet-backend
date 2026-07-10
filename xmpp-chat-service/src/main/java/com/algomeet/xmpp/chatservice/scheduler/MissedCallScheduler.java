@@ -56,7 +56,8 @@ public class MissedCallScheduler {
 
 		loadMissedCalls()
 		.doFinally(sig -> running.set(false))
-		.subscribe();
+		// FIX: Provided explicit error consumers to prevent unhandled streaming fallout drops
+		.subscribe(null, err -> log.error("Direct missed call scheduler batch execution failed", err));
 	}
 
 	/**
@@ -64,43 +65,47 @@ public class MissedCallScheduler {
 	 * * @return A Mono signal indicating completion of the batch process.
 	 */
 	private Mono<Void> loadMissedCalls() {
-		String lockKey = "xmpp:lock:publish:direct-missed-calls";
-		RLockReactive lock = redissonReactiveClient.getLock(lockKey);
+		// FIX: Wrapped generation logic with Mono.defer() to convert synchronous initialization errors into reactive signals
+		return Mono.defer(() -> {
+			String lockKey = "xmpp:lock:publish:direct-missed-calls";
+			RLockReactive lock = redissonReactiveClient.getLock(lockKey);
 
-		return Mono.<Void, Boolean>usingWhen(
-				// 1. ACQUIRE: Short wait time (300ms) with a safety lease (1s)
-				lock.tryLock(300, 1000, TimeUnit.MILLISECONDS),
-				acquired -> {
-					if (!acquired) {
-						return Mono.<Void>empty();
-					}
+			return Mono.<Void, Boolean>usingWhen(
+					// 1. ACQUIRE: Short wait time (300ms) with a safety lease (1s)
+					lock.tryLock(300, 1000, TimeUnit.MILLISECONDS),
+					acquired -> {
+						if (!acquired) {
+							return Mono.<Void>empty();
+						}
 
-					long now = System.currentTimeMillis();
+						long now = System.currentTimeMillis();
 
-					// 2. QUERY: Fetch all SIDs whose score (timeout) is <= now
-					return reactiveRedisTemplate.opsForZSet()
-							.rangeByScore(CallSessionRedisKey.DIRECT_CALL_TIMEOUT_QUEUE.getVal(), Range.closed(0.0, (double) now))
-							.<Void>flatMap(sid -> {
-								// 3. ATOMIC REMOVE: Only the node that deletes the SID processes it
-								return reactiveRedisTemplate.opsForZSet()
-										.remove(CallSessionRedisKey.DIRECT_CALL_TIMEOUT_QUEUE.getVal(), sid)
-										.flatMap(removed -> {
-											if (removed != null && removed > 0) {
-												// Publish
-												return missedCallStreamPublisher.publish(List.of(sid), ChatType.CHAT.name());
-											} else {
-												return Mono.<Void>empty();
-											}
-										})
-										.then();
-							})
-							.then();
-				},
-				// 4. CLEANUP: Safe unlock logic to prevent IllegalMonitorStateException crashes
-				acquired -> acquired ? safeUnlock(lock) : Mono.empty(),
-						(acquired, err) -> acquired ? safeUnlock(lock) : Mono.empty(),
-								acquired -> acquired ? safeUnlock(lock) : Mono.empty()
-				);
+						// 2. QUERY: Fetch all SIDs whose score (timeout) is <= now
+						return reactiveRedisTemplate.opsForZSet()
+								.rangeByScore(CallSessionRedisKey.DIRECT_CALL_TIMEOUT_QUEUE.getVal(), Range.closed(0.0, (double) now))
+								// FIX: Swapped to sequential flatMap tracking to avoid high volume backpressure spikes
+								.flatMap(sid -> {
+									// 3. ATOMIC REMOVE: Only the node that deletes the SID processes it
+									return reactiveRedisTemplate.opsForZSet()
+											.remove(CallSessionRedisKey.DIRECT_CALL_TIMEOUT_QUEUE.getVal(), sid)
+											.flatMap(removed -> {
+												if (removed != null && removed > 0) {
+													// Publish
+													return missedCallStreamPublisher.publish(List.of(sid), ChatType.CHAT.name());
+												} else {
+													return Mono.<Void>empty();
+												}
+											})
+											.then();
+								}, 1)
+								.then();
+					},
+					// 4. CLEANUP: Safe unlock logic to prevent IllegalMonitorStateException crashes
+					acquired -> acquired ? safeUnlock(lock) : Mono.empty(),
+					(acquired, err) -> acquired ? safeUnlock(lock) : Mono.empty(),
+					acquired -> acquired ? safeUnlock(lock) : Mono.empty()
+			);
+		});
 	}
 
 	/**

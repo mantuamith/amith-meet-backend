@@ -19,6 +19,7 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.util.Attribute;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.scheduler.Schedulers;
 
 /**
  * <p>Maintains global reachability and coordinates session activation.</p>
@@ -41,6 +42,7 @@ public class XmppUserGlobalPresenceHandler {
 	private final XmppPresencePushHandler xmppPresencePushHandler;
 	private final SmBufferMessageService smBufferMessageService;
 	private final LocalStanzaDispatcher localStanzaDispatcher;
+	
 	/**
 	 * Processes inbound presence stanzas to update user session state and trigger
 	 * required synchronization workflows.
@@ -101,8 +103,11 @@ public class XmppUserGlobalPresenceHandler {
 				}
 
 				// B. Deliver offline messages accumulated while user was disconnected
+				// FIX: Safe-route the pipeline onto elastic processing pools to guarantee Netty loop non-blocking behavior
 				offlineMessageHandler.deliverOfflineMessages(principal.getUserKey())
-				.subscribe();
+						.subscribeOn(Schedulers.boundedElastic())
+						.doOnError(e -> log.error("Offline message delivery failed for user userKey={}", principal.getUserKey(), e))
+						.subscribe();
 
 				// C. Deliver buffered SM stanzas if session was successfully resumed
 				if (smResumptionSuccess != null && smResumptionSuccess.get()) {
@@ -156,7 +161,6 @@ public class XmppUserGlobalPresenceHandler {
 		return null;
 	}
 
-
 	/**
 	 * Delivers buffered XMPP stanzas to a client after session resumption.
 	 *
@@ -184,36 +188,37 @@ public class XmppUserGlobalPresenceHandler {
 		String smSessionId =
 				ctx.channel().attr(XmppSessionAttributes.SM_ID_KEY).get();
 
+		if (smSessionId == null) {
+			log.warn("Skipping stanza buffer delivery: SM_ID_KEY missing from session context attributes");
+			return;
+		}
+
 		// Retrieve all buffered stanzas for this SM session
+		// FIX: Replaced unordered, racing nested .subscribe loops inside doOnNext with clean flatMapSequential configurations
 		smBufferMessageService.getStanzasForResumption(UUID.fromString(smSessionId))
-		// For each buffered stanza, immediately dispatch it to the client
-		.doOnNext(msg -> {
-
-			// Replay stanza through local routing layer
-			// This ensures consistent delivery semantics (same path as live messages)
-			localStanzaDispatcher.dispatchLocally(
-					userKey,
-					userKey,
-					msg.getStanzaXml()
-					).subscribe();
-		})
-		// Called when all buffered stanzas have been successfully replayed
-		.doOnComplete(() -> {
-			
-			// Clean up buffer
-			smBufferMessageService.clearBuffer(UUID.fromString(smSessionId));
-			log.info("Completed offline/SM buffer delivery for user: {}", userKey);
-
-		})
-		// Handles unexpected errors during replay (DB, routing, serialization, etc.)
-		.doOnError(e ->
-		log.error("Failed to deliver buffered stanzas for user {}: {}",
-				userKey,
-				e.getMessage(),
-				e)
-				)
-
-		// Triggers reactive stream execution (non-blocking)
-		.subscribe();
+				// For each buffered stanza, immediately dispatch it to the client
+				// Replay stanza through local routing layer
+				// This ensures consistent delivery semantics (same path as live messages)
+				.flatMapSequential(msg -> localStanzaDispatcher.dispatchLocally(
+						userKey,
+						userKey,
+						msg.getStanzaXml()
+						))
+				.subscribeOn(Schedulers.boundedElastic())
+				// Collect items to ensure the buffer is cleared ONLY after all messages fully pass the delivery routing architecture
+				.collectList()
+				// Called when all buffered stanzas have been successfully replayed
+				// Clean up buffer
+				.flatMap(completedList -> smBufferMessageService.clearBuffer(UUID.fromString(smSessionId)))
+				.doOnSuccess(v -> log.info("Completed offline/SM buffer delivery for user: {}", userKey))
+				// Handles unexpected errors during replay (DB, routing, serialization, etc.)
+				.doOnError(e ->
+						log.error("Failed to deliver buffered stanzas for user {}: {}",
+								userKey,
+								e.getMessage(),
+								e)
+						)
+				// Triggers reactive stream execution (non-blocking)
+				.subscribe();
 	}
 }

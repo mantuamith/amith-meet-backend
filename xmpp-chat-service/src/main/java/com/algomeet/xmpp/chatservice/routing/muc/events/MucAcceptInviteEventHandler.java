@@ -61,7 +61,7 @@ public class MucAcceptInviteEventHandler {
         // The Status 110 code is mandatory for the client to confirm its own session join.
         String selfPresenceXml = MucUserPresenceBuilder
         		.create()
-        		.from(roomJid, sender.getUserKey()) // Resource-part is the member's room identity
+        		.from(roomBareJid, sender.getUserKey()) // Resource-part is the member's room identity
 				.affiliation(sender.getRole())
 				.role(MucRole.fromString(sender.getRole()).getValue())
 				.statusCode(110)
@@ -72,7 +72,7 @@ public class MucAcceptInviteEventHandler {
         // 2. Notify all existing members of the new occupant and sync occupant list for the joiner.        
         String presenceXml = MucUserPresenceBuilder
 				.create()
-				.from(roomJid, sender.getUserKey()) // Resource-part is the member's room identity
+				.from(roomBareJid, sender.getUserKey()) // Resource-part is the member's room identity
 				.affiliation(sender.getRole())
 				.role(MucRole.fromString(sender.getRole()).getValue())
 				.build();

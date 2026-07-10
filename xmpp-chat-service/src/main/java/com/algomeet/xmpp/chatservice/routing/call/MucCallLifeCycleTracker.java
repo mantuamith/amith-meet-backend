@@ -31,6 +31,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 /**
  * ============================================================================
@@ -256,7 +257,7 @@ public class MucCallLifeCycleTracker {
 				UUID.fromString(XmppUtil.getUserKey(toJid)),
 				callType,
 				roomId
-				).subscribe();
+				).subscribeOn(Schedulers.boundedElastic()).subscribe();
 	}
 
 	/**
@@ -291,7 +292,7 @@ public class MucCallLifeCycleTracker {
 				sid,
 				calleeUserKey,
 				calleeSid
-				).subscribe();
+				).subscribeOn(Schedulers.boundedElastic()).subscribe();
 	}
 
 	/**
@@ -329,7 +330,7 @@ public class MucCallLifeCycleTracker {
 		 */
 		if (xml.contains("<success/>")) {
 			mucCallTrackerService.finalizeAndNotify(sid, principal.getSessionId(), "success", messageRetentionDays)
-			.subscribe();
+			.subscribeOn(Schedulers.boundedElastic()).subscribe();
 		}
 
 		/**
@@ -356,7 +357,7 @@ public class MucCallLifeCycleTracker {
 						"Call Declined", callType);
 
 				// Delete MUC call session 
-				mucCallTrackerService.remove(sid, UUID.fromString(principal.getUserKey())).subscribe();	
+				mucCallTrackerService.remove(sid, UUID.fromString(principal.getUserKey())).subscribeOn(Schedulers.boundedElastic()).subscribe();	
 			}	
 		}
 
@@ -373,24 +374,16 @@ public class MucCallLifeCycleTracker {
 			// tryAcquire(permits, waitTime, unit)
 			// permits: 1 (only one process can enter)
 			// waitTime: 0 (immediate fail-fast; if the permit is taken, we discard the redundant trigger)
-			semaphore.tryAcquire(1, 0, TimeUnit.SECONDS) // Try to get 1 permit immediately
+			semaphore.tryAcquire(1, 0, TimeUnit.SECONDS) 
 			.flatMap(acquired -> {
 				if (!acquired) {
-					// If lock is held, another process is already finalizing this SID.
 					return Mono.empty();
 				}
-
-				return handleCancelCall(ctx,
-						fromJid,
-						sid,
-						fromRoomFullJid,
-						callType)
-						.then();
+				return handleCancelCall(ctx, fromJid, sid, fromRoomFullJid, callType).then();
 			})
-			// Use finalize to ensure unlock happens regardless of success/error/empty
-			// Use doFinally to ensure the permit is ALWAYS released
-			.doFinally(sig -> semaphore.release(1).subscribe()) 
-			.then();
+			.doFinally(sig -> semaphore.release(1).subscribeOn(Schedulers.boundedElastic()).subscribe())
+			.subscribeOn(Schedulers.boundedElastic())
+			.subscribe();
 		}
 
 		/**
@@ -406,7 +399,7 @@ public class MucCallLifeCycleTracker {
 			handleResolution(mucSid);
 
 			// remove from db
-			mucCallTrackerService.remove(sid, UUID.fromString(principal.getUserKey())).subscribe();
+			mucCallTrackerService.remove(sid, UUID.fromString(principal.getUserKey())).subscribeOn(Schedulers.boundedElastic()).subscribe();
 		}
 
 		/**
@@ -425,7 +418,7 @@ public class MucCallLifeCycleTracker {
 			handleResolution(redisMucSid);
 
 			// Remove call session from database
-			mucCallTrackerService.remove(sid, UUID.fromString(principal.getUserKey())).subscribe();
+			mucCallTrackerService.remove(sid, UUID.fromString(principal.getUserKey())).subscribeOn(Schedulers.boundedElastic()).subscribe();
 		}
 
 		/**
@@ -445,8 +438,8 @@ public class MucCallLifeCycleTracker {
 
 		// Send logs to responders
 		return mucCallTrackerService.findBySid(sid)
-				.doOnEach(callSession -> {
-					UUID calleeUserKey = callSession.get().getCallee();
+				.doOnNext(callSession -> {
+					UUID calleeUserKey = callSession.getCallee();
 
 					// Generate Redis MUC SID using sid and callee user key
 					String mucSid = CallSessionRedisKey.getMucSid(sid, calleeUserKey.toString());	
@@ -472,7 +465,7 @@ public class MucCallLifeCycleTracker {
 
 					try {
 						// Delete muc call session records
-						mucCallTrackerService.deleteBySid(sid).subscribe();
+						mucCallTrackerService.deleteBySid(sid).subscribeOn(Schedulers.boundedElastic()).subscribe();
 					} catch(Exception ex) {
 						// silent
 					}
@@ -557,7 +550,7 @@ public class MucCallLifeCycleTracker {
 				)
 		.doOnSuccess(success -> {
 		})
-		.subscribe();
+		.subscribeOn(Schedulers.boundedElastic()).subscribe();
 
 		/**
 		 * Push to cluster for all online devices.

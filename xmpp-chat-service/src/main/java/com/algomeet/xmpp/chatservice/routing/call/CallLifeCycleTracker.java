@@ -26,6 +26,7 @@ import com.github.f4b6a3.uuid.UuidCreator;
 import io.netty.channel.ChannelHandlerContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.scheduler.Schedulers;
 
 /**
  * <p><strong>Call Lifecycle Tracker & Redis Orchestrator</strong></p>
@@ -101,7 +102,8 @@ public class CallLifeCycleTracker {
 		
 		// Track call initiation for duration calculation
 		callTrackerService.trackInitiation(sid, UUID.fromString(principal.getUserKey()), principal.getSessionId(), 
-				UUID.fromString(XmppUtil.getUserKey(toJid)), callType).subscribe();
+				UUID.fromString(XmppUtil.getUserKey(toJid)), callType)
+		.subscribeOn(Schedulers.boundedElastic()).subscribe();
 	}
 
 	/**
@@ -124,7 +126,8 @@ public class CallLifeCycleTracker {
 		handleResolution(sid);
 		
 		// Track call acceptance for duration calculation
-		callTrackerService.trackAcceptance(sid, calleeUserKey, calleeSid).subscribe();
+		callTrackerService.trackAcceptance(sid, calleeUserKey, calleeSid)
+		.subscribeOn(Schedulers.boundedElastic()).subscribe();
 	}
 
 	/**
@@ -151,7 +154,8 @@ public class CallLifeCycleTracker {
 		if (xml.contains("<success/>")) {			
 			
 			// Calculate and send call logs
-			callTrackerService.finalizeAndNotify(sid, principal.getSessionId(), "success").subscribe();
+			callTrackerService.finalizeAndNotify(sid, principal.getSessionId(), "success")
+			.subscribeOn(Schedulers.boundedElastic()).subscribe();
 		}
 		else if (xml.contains("<decline/>")) {
 			// 1. To Initiator: "The other person rejected your call"
@@ -161,7 +165,7 @@ public class CallLifeCycleTracker {
 		    sendCallLog(ctx, toJid, fromJid, sid, "declined", "Call Declined", callType);		
 		    
 		    // Remove call session for declined call
-			callTrackerService.remove(sid).subscribe();
+			callTrackerService.remove(sid).subscribeOn(Schedulers.boundedElastic()).subscribe();
 		} 		
 		// Case: Caller hung up before the recipient answered
 		else if (xml.contains("<cancel/>")) {
@@ -172,22 +176,22 @@ public class CallLifeCycleTracker {
 			sendCallLog(ctx, fromJid, toJid, sid, "missed", "Missed Call", callType);
 
 			// Remove call session for canceled call
-			callTrackerService.remove(sid);			
+			callTrackerService.remove(sid).subscribeOn(Schedulers.boundedElastic()).subscribe();			
 		}	
 		else if (xml.contains("<busy/>")) {
 			// 1. To Initiator: "Busy"
 			sendCallLog(ctx, toJid, fromJid, sid, "busy", "Line Busy", callType);
 
 			// Remove call session for busy call
-			callTrackerService.remove(sid);
+			callTrackerService.remove(sid).subscribeOn(Schedulers.boundedElastic()).subscribe();	
 		} else if (xml.contains("<alternative-session>")) {
 			// No logs
 			// Remove call session for busy call
-			callTrackerService.remove(sid);
+			callTrackerService.remove(sid).subscribeOn(Schedulers.boundedElastic()).subscribe();	
 		} else if (xml.contains("<unsupported-transports/>")) {
 			// No logs
 			// Remove call session for busy call
-			callTrackerService.remove(sid).subscribe();
+			callTrackerService.remove(sid).subscribeOn(Schedulers.boundedElastic()).subscribe();
 			
 			log.error("unsupported-transports error during call initiation payload");
 		} else {
@@ -200,13 +204,14 @@ public class CallLifeCycleTracker {
 				sendCallLog(ctx, fromJid, toJid, sid, "missed", "Unknown Error", callType);
 
 				// Remove call session for busy call
-				callTrackerService.remove(sid).subscribe();
+				callTrackerService.remove(sid).subscribeOn(Schedulers.boundedElastic()).subscribe();
 				
 				log.error("Unknown error during call initiation payload {} ", xml);
 			} else {
 				
 				// Calculate and send call logs
-				callTrackerService.finalizeAndNotify(sid, principal.getSessionId(), "success").subscribe();
+				callTrackerService.finalizeAndNotify(sid, principal.getSessionId(), "success")
+				.subscribeOn(Schedulers.boundedElastic()).subscribe();
 				
 				log.error("Unknown error terminates the call {} ", xml);
 			}
@@ -272,7 +277,7 @@ public class CallLifeCycleTracker {
 			unreadCountService.incrementUnreadCount(fromUserKey, toUserKey);
 		})
 		.doOnError(e -> log.error("Storage failure during saving of call logs {}: {}", xml.toString(), e.getMessage()))
-		.subscribe();
+		.subscribeOn(Schedulers.boundedElastic()).subscribe();
 
 		// Broadcast to cluster to ensure all logged-in devices of the user receive the log
 		clusterMessagePublisher.convertAndSendToUser(messageId.toString(), toUserKey, fromUserKey, ChatType.CHAT, forArchiveXml);

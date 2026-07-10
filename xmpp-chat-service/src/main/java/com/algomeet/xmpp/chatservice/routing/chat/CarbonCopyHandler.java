@@ -8,6 +8,7 @@ import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.github.f4b6a3.uuid.UuidCreator;
 
 import lombok.RequiredArgsConstructor;
+import reactor.core.scheduler.Schedulers;
 
 /**
  * Handles Message Carbon synchronization for multi-device users.
@@ -119,6 +120,6 @@ public class CarbonCopyHandler {
                 false,
                 userSessionId,
                 carbonPayload
-        ).subscribe();
+        ).subscribeOn(Schedulers.boundedElastic()).subscribe();
     }
 }

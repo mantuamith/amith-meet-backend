@@ -27,6 +27,9 @@ import com.github.f4b6a3.uuid.UuidCreator;
 import io.netty.channel.ChannelHandlerContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 /**
  * Service responsible for synchronizing and distributing contact presence information.
@@ -63,55 +66,41 @@ public class ContactPresenceService {
 	 * @param principal The principal of the user receiving the presence update.
 	 */
 	public void pushContactsPresenceToUser(ChannelHandlerContext ctx, XmppPrincipal principal) {
-		try {
-			// Set tenant Id for multi-tenant data isolation
-			TenantContext.setCurrentTenant(principal.getTenantId());
+	    // 1. Wrap the blocking HTTP call safely onto the elastic scheduler
+	    Mono.fromCallable(() -> contactClient.getAcceptedContacts(UUID.fromString(principal.getUserKey())))
+	        .subscribeOn(Schedulers.boundedElastic())
+	        .filter(contacts -> !CollectionUtils.isEmpty(contacts))
+	        .flatMap(acceptedContacts -> {
+	            
+	            // 2. Batch fetch records from Redis (Non-blocking)
+	            List<String> contactKeys = acceptedContacts.stream().map(UUID::toString).toList();
+	            Map<String, Set<UserSession>> allSessionsMap = userSessionRegistry.getAllSessions(contactKeys);
 
-			// 1. Retrieve the roster from the external Relationship Service
-			List<UUID> acceptedContacts = contactClient.getAcceptedContacts(UUID.fromString(principal.getUserKey()));
-			if (CollectionUtils.isEmpty(acceptedContacts)) return;
+	            // 3. Process dispatches concurrently
+	            return Flux.fromIterable(acceptedContacts)
+	                .flatMap(contactUserKey -> {
+	                    Set<UserSession> sessions = allSessionsMap.getOrDefault(contactUserKey.toString(), Collections.emptySet());
+	                    UserState newState = sessions.isEmpty() ? UserState.GONE : UserStateUtil.determineOverallState(sessions);
+	                    long updatedAt = sessions.stream().mapToLong(UserSession::getUpdatedAt).max().orElse(0L);
 
-			List<String> contactKeys = acceptedContacts.stream()
-					.map(UUID::toString)
-					.toList();
+	                    String presenceXml = new DirectedPresenceBuilder()
+	                            .from(jidUtil.getBareJid(contactUserKey.toString()))                     
+	                            .state(newState)
+	                            .updatedAt(updatedAt)
+	                            .domain(domainProperties.getDomain())
+	                            .build();
 
-			// 2. Batch fetch all Redis session/presence records to minimize round-trips
-			Map<String, Set<UserSession>> allSessionsMap = userSessionRegistry.getAllSessions(contactKeys);
-            // 3. Construct presence stanzas based on current distributed state
-			for (UUID contactUserKey : acceptedContacts) {
-				Set<UserSession> sessions = allSessionsMap.getOrDefault(contactUserKey.toString(), Collections.emptySet());
-
-				// Default to GONE if no valid sessions or only orphan records exist
-				UserState newState = UserState.GONE;
-				long updatedAt = 0L;
-
-				if (!sessions.isEmpty()) {
-					// Arbitrate state to ensure zombie records don't override live "Active" sessions
-					newState = UserStateUtil.determineOverallState(sessions);
-					// Use latest activity for XEP-0203 delay stamp synchronization
-					updatedAt = sessions.stream()
-							.mapToLong(UserSession::getUpdatedAt)
-							.max()
-							.orElse(0L);
-				}
-
-				// Build directed presence stanza (from contact -> to receiving user)
-				String presenceXml = new DirectedPresenceBuilder()
-						.from(jidUtil.getBareJid(contactUserKey.toString()))                     
-						.state(newState)
-						.updatedAt(updatedAt)
-						.domain(domainProperties.getDomain())
-						.build();
-
-				// Direct write to the local Netty pipeline
-				localStanzaDispatcher.dispatchLocally(principal.getUserKey(), principal.getUserKey(), presenceXml)
-				.subscribe();
-			}
-			log.debug("Successfully pushed presence roster for user {}", principal.getUserKey());
-
-		} catch (Exception ex) {
-			log.error("Presence push failed for user {}: {}", principal.getUserKey(), ex.getMessage());
-		}
+	                    return localStanzaDispatcher.dispatchLocally(principal.getUserKey(), principal.getUserKey(), presenceXml);
+	                }, 16)
+	                .then(); // Emits Mono<Void> when all dispatches complete
+	        })
+	        // 4. Use context-aware operators to cleanly manage ThreadLocals if still required
+	        .doFirst(() -> TenantContext.setCurrentTenant(principal.getTenantId()))
+	        .doFinally(signalType -> TenantContext.clear())
+	        .subscribe(
+	            null, 
+	            err -> log.error("Presence push failed for user {}: {}", principal.getUserKey(), err.getMessage())
+	        );
 	}
 
 	/**
@@ -126,32 +115,38 @@ public class ContactPresenceService {
 	 * @param newState  The new presence state to broadcast.
 	 */
 	public void broadcastPresenceToContacts(ChannelHandlerContext ctx, XmppPrincipal principal, UserState newState) {
-		try {
-			TenantContext.setCurrentTenant(principal.getTenantId());
+		// FIX: Completely eliminate ThreadLocal context leaks by treating the relationship lookup as a safe, isolated reactive step
+		Mono.fromCallable(() -> contactClient.getAcceptedContacts(UUID.fromString(principal.getUserKey())))
+			.subscribeOn(Schedulers.boundedElastic()) // Offloads the blocking contactClient network handshake safely
+			.filter(contacts -> !CollectionUtils.isEmpty(contacts))
+			.flatMap(acceptedContacts -> {
+				
+				// Construct the broadcast presence stanza once rather than repetitively inside a heavy loop
+				String directPresence = new DirectedPresenceBuilder()
+						.from(principal.getBareJid()) 
+						.state(newState)
+						.build();
 
-			List<UUID> acceptedContacts = contactClient.getAcceptedContacts(UUID.fromString(principal.getUserKey()));
-
-			if (!CollectionUtils.isEmpty(acceptedContacts)) {
-				for (UUID contactUserKey : acceptedContacts) {
-					// Construct the broadcast presence stanza
-					String directPresence = new DirectedPresenceBuilder()
-							.from(principal.getBareJid()) 
-							.state(newState)
-							.build();					
-
-					// Distribute via Cluster Message Publisher to handle users on different server nodes
-					clusterMessagePublisher.convertAndSendToUser(
-							UuidCreator.getTimeOrderedEpoch().toString(), 
-							contactUserKey.toString(), 
-							principal.getUserKey(), 
-							ChatType.CHAT, 
-							directPresence
-							);
-				}				
-			}
-
-		} catch (Exception ex) {
-			log.error("Failed to broadcast presence update for user {}: {}", principal.getUserKey(), ex.getMessage());
-		}
+				// FIX: Convert the iterative dispatch into a backpressure-aware reactive stream
+				return Flux.fromIterable(acceptedContacts)
+						.flatMap(contactUserKey -> Mono.fromRunnable(() -> {
+							clusterMessagePublisher.convertAndSendToUser(
+									UuidCreator.getTimeOrderedEpoch().toString(), 
+									contactUserKey.toString(), 
+									principal.getUserKey(), 
+									ChatType.CHAT, 
+									directPresence
+									);
+						}).subscribeOn(Schedulers.boundedElastic()), 32) // Maintain strict concurrency boundaries on the cluster publisher
+						.then();
+			})
+			// FIX: Use Reactor's built-in hooks to manage ThreadLocals deterministically for the blocking parts of the chain
+			.doFirst(() -> TenantContext.setCurrentTenant(principal.getTenantId()))
+			.doFinally(signalType -> TenantContext.clear())
+			// Monitor pipeline outcomes cleanly
+			.subscribe(
+				null, 
+				err -> log.error("Presence broadcast operation failed for user: {}", principal.getUserKey(), err)
+			);
 	}
 }
