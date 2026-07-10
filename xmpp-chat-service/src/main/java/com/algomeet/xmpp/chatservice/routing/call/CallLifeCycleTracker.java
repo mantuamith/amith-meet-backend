@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
+import com.algomeet.xmpp.chatservice.document.CallSession;
 import com.algomeet.xmpp.chatservice.enums.CallSessionMetadata;
 import com.algomeet.xmpp.chatservice.enums.CallSessionRedisKey;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
@@ -26,6 +27,7 @@ import com.github.f4b6a3.uuid.UuidCreator;
 import io.netty.channel.ChannelHandlerContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
 /**
@@ -59,19 +61,26 @@ public class CallLifeCycleTracker {
 		if (sid == null) return;
 
 		if (isInitiate) {
-			handleInitiate(toJid, fromJid, xml, sid, principal);
+			handleInitiate(toJid, fromJid, xml, sid, principal)
+			.subscribeOn(Schedulers.boundedElastic())
+			.subscribe();
 		} else if (isAccept) {
-			handleAccept(sid, UUID.fromString(principal.getUserKey()), principal.getSessionId());
+			handleAccept(sid, UUID.fromString(principal.getUserKey()), principal.getSessionId())
+			.subscribeOn(Schedulers.boundedElastic())
+			.subscribe();
 		} else if (isTerminate) {
-			handleTerminate(ctx, toJid, fromJid, xml, sid, principal);
+			handleTerminate(ctx, toJid, fromJid, xml, sid, principal)
+			.subscribeOn(Schedulers.boundedElastic())
+			.subscribe();
 		}
 	}
 
 	/**
 	 * Handles 'session-initiate'. Registers the call metadata and starts the 
 	 * countdown timer in Redis for the "Missed Call" worker.
+	 * @return 
 	 */
-	private void handleInitiate(String toJid, String fromJid, String xml, String sid, XmppPrincipal principal) {
+	private Mono<CallSession> handleInitiate(String toJid, String fromJid, String xml, String sid, XmppPrincipal principal) {
 		// Calculate the exact epoch millisecond when the call should be considered "Missed"
 		long executeAt = System.currentTimeMillis() + (callProperties.getRingingTimeout().getSeconds() * 1000);
 
@@ -101,9 +110,8 @@ public class CallLifeCycleTracker {
 				callProperties.getRingingTimeout().getSeconds());
 		
 		// Track call initiation for duration calculation
-		callTrackerService.trackInitiation(sid, UUID.fromString(principal.getUserKey()), principal.getSessionId(), 
-				UUID.fromString(XmppUtil.getUserKey(toJid)), callType)
-		.subscribeOn(Schedulers.boundedElastic()).subscribe();
+		return callTrackerService.trackInitiation(sid, UUID.fromString(principal.getUserKey()), principal.getSessionId(), 
+				UUID.fromString(XmppUtil.getUserKey(toJid)), callType);
 	}
 
 	/**
@@ -120,25 +128,27 @@ public class CallLifeCycleTracker {
 	 * Handles 'session-accept'. 
 	 * Crucial: We must remove the SID from Redis immediately so the MissedCallScheduler 
 	 * doesn't send a "Missed Call" notification for an active conversation.
+	 * @return 
 	 */
-	private void handleAccept(String sid, UUID calleeUserKey, String calleeSid) {
+	private Mono<CallSession> handleAccept(String sid, UUID calleeUserKey, String calleeSid) {
 		log.info("Call accepted for SID: {}. Killing timeout timer.", sid);
 		handleResolution(sid);
 		
 		// Track call acceptance for duration calculation
-		callTrackerService.trackAcceptance(sid, calleeUserKey, calleeSid)
-		.subscribeOn(Schedulers.boundedElastic()).subscribe();
+		return callTrackerService.trackAcceptance(sid, calleeUserKey, calleeSid);
+		
 	}
 
 	/**
 	 * Handles 'session-terminate'. 
 	 * Identifies why the call ended (Rejected vs Canceled) and generates appropriate logs.
+	 * @return 
 	 */
-	private void handleTerminate(ChannelHandlerContext ctx, String toJid, String fromJid, String xml, String sid, XmppPrincipal principal) {
+	private Mono<Void> handleTerminate(ChannelHandlerContext ctx, String toJid, String fromJid, String xml, String sid, XmppPrincipal principal) {
 		// 1. Single round-trip to get all data
 	    Map<Object, Object> metadata = getSessionMetadata(sid);
 	    if (metadata == null) {
-	    	return;
+	    	return Mono.empty();
 	    }
 	    	    
 		String callType = (String) metadata.get(CallSessionMetadata.CALL_TYPE.getKey());
@@ -154,8 +164,7 @@ public class CallLifeCycleTracker {
 		if (xml.contains("<success/>")) {			
 			
 			// Calculate and send call logs
-			callTrackerService.finalizeAndNotify(sid, principal.getSessionId(), "success")
-			.subscribeOn(Schedulers.boundedElastic()).subscribe();
+			return callTrackerService.finalizeAndNotify(sid, principal.getSessionId(), "success");
 		}
 		else if (xml.contains("<decline/>")) {
 			// 1. To Initiator: "The other person rejected your call"
@@ -165,7 +174,7 @@ public class CallLifeCycleTracker {
 		    sendCallLog(ctx, toJid, fromJid, sid, "declined", "Call Declined", callType);		
 		    
 		    // Remove call session for declined call
-			callTrackerService.remove(sid).subscribeOn(Schedulers.boundedElastic()).subscribe();
+			return callTrackerService.remove(sid);
 		} 		
 		// Case: Caller hung up before the recipient answered
 		else if (xml.contains("<cancel/>")) {
@@ -176,24 +185,23 @@ public class CallLifeCycleTracker {
 			sendCallLog(ctx, fromJid, toJid, sid, "missed", "Missed Call", callType);
 
 			// Remove call session for canceled call
-			callTrackerService.remove(sid).subscribeOn(Schedulers.boundedElastic()).subscribe();			
+			return callTrackerService.remove(sid);			
 		}	
 		else if (xml.contains("<busy/>")) {
 			// 1. To Initiator: "Busy"
 			sendCallLog(ctx, toJid, fromJid, sid, "busy", "Line Busy", callType);
 
 			// Remove call session for busy call
-			callTrackerService.remove(sid).subscribeOn(Schedulers.boundedElastic()).subscribe();	
+			return callTrackerService.remove(sid);	
 		} else if (xml.contains("<alternative-session>")) {
 			// No logs
 			// Remove call session for busy call
-			callTrackerService.remove(sid).subscribeOn(Schedulers.boundedElastic()).subscribe();	
+			return callTrackerService.remove(sid);	
 		} else if (xml.contains("<unsupported-transports/>")) {
 			// No logs
-			// Remove call session for busy call
-			callTrackerService.remove(sid).subscribeOn(Schedulers.boundedElastic()).subscribe();
-			
 			log.error("unsupported-transports error during call initiation payload");
+			// Remove call session for busy call
+			return callTrackerService.remove(sid);			
 		} else {
 			
 			if (isCallInDelayQueue) {
@@ -203,19 +211,14 @@ public class CallLifeCycleTracker {
 				// 2. To Responder: "You missed an incoming call"
 				sendCallLog(ctx, fromJid, toJid, sid, "missed", "Unknown Error", callType);
 
-				// Remove call session for busy call
-				callTrackerService.remove(sid).subscribeOn(Schedulers.boundedElastic()).subscribe();
-				
 				log.error("Unknown error during call initiation payload {} ", xml);
+				// Remove call session for busy call
+				return callTrackerService.remove(sid);				
 			} else {
-				
-				// Calculate and send call logs
-				callTrackerService.finalizeAndNotify(sid, principal.getSessionId(), "success")
-				.subscribeOn(Schedulers.boundedElastic()).subscribe();
-				
 				log.error("Unknown error terminates the call {} ", xml);
-			}
-			
+				// Calculate and send call logs
+				return callTrackerService.finalizeAndNotify(sid, principal.getSessionId(), "success");			
+			}			
 		}
 	}
 

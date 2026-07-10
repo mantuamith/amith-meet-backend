@@ -148,12 +148,16 @@ public class MucCallLifeCycleTracker {
 		 * Route to proper lifecycle handler.
 		 */
 		if (isInitiate) {
-			handleInitiate(toJid, fromJid, xml, sid, groupId, principal);
+			handleInitiate(toJid, fromJid, xml, sid, groupId, principal)
+			.subscribeOn(Schedulers.boundedElastic())
+			.subscribe();
 
 		} else if (isAccept) {
 			handleAccept(sid,
 					UUID.fromString(principal.getUserKey()),
-					principal.getSessionId());
+					principal.getSessionId())
+			.subscribeOn(Schedulers.boundedElastic())
+			.subscribe();
 
 		} else if (isTerminate) {
 			handleTerminate(ctx,
@@ -163,7 +167,9 @@ public class MucCallLifeCycleTracker {
 					sid,
 					groupId.toString(),
 					principal,
-					messageRetentionDays);
+					messageRetentionDays)
+			.subscribeOn(Schedulers.boundedElastic())
+			.subscribe();
 		}
 	}
 
@@ -179,8 +185,9 @@ public class MucCallLifeCycleTracker {
 	 * 1. Store temporary metadata in Redis HASH
 	 * 2. Add SID to delayed timeout queue
 	 * 3. Persist tracker row for analytics/duration
+	 * @return 
 	 */
-	private void handleInitiate(String toJid,
+	private Mono<CallSession> handleInitiate(String toJid,
 			String fromJid,
 			String xml,
 			String sid,
@@ -250,14 +257,14 @@ public class MucCallLifeCycleTracker {
 		/**
 		 * Save persistent tracker row.
 		 */
-		mucCallTrackerService.trackInitiation(
+		return mucCallTrackerService.trackInitiation(
 				sid,
 				UUID.fromString(principal.getUserKey()),
 				principal.getSessionId(),
 				UUID.fromString(XmppUtil.getUserKey(toJid)),
 				callType,
 				roomId
-				).subscribeOn(Schedulers.boundedElastic()).subscribe();
+				);
 	}
 
 	/**
@@ -276,8 +283,9 @@ public class MucCallLifeCycleTracker {
 	 * Important:
 	 * Remove timeout queue immediately so background worker
 	 * does NOT produce false missed-call log.
+	 * @return 
 	 */
-	private void handleAccept(String sid,
+	private Mono<CallSession> handleAccept(String sid,
 			UUID calleeUserKey,
 			String calleeSid) {
 
@@ -288,11 +296,11 @@ public class MucCallLifeCycleTracker {
 
 		handleResolution(mucId);
 
-		mucCallTrackerService.trackAcceptance(
+		return mucCallTrackerService.trackAcceptance(
 				sid,
 				calleeUserKey,
 				calleeSid
-				).subscribeOn(Schedulers.boundedElastic()).subscribe();
+				);
 	}
 
 	/**
@@ -307,12 +315,13 @@ public class MucCallLifeCycleTracker {
 	 * cancel       -> caller canceled before answer
 	 * busy         -> already in another call
 	 * unknown      -> unexpected failure
+	 * @return 
 	 */
-	private void handleTerminate(ChannelHandlerContext ctx,
+	private Mono<Void> handleTerminate(ChannelHandlerContext ctx,
 			String toJid,
 			String fromJid,
 			String xml,
-			String sid,
+			String sid, 
 			String groupId,
 			XmppPrincipal principal,
 			Integer messageRetentionDays) {
@@ -320,7 +329,7 @@ public class MucCallLifeCycleTracker {
 		Map<Object, Object> metadata = getSessionMetadata(sid);
 
 		if (metadata == null) {
-			return;
+			return Mono.empty();
 		}
 
 		String callType = (String) metadata.get(CallSessionMetadata.CALL_TYPE.getKey());
@@ -329,8 +338,7 @@ public class MucCallLifeCycleTracker {
 		 * NORMAL CALL END
 		 */
 		if (xml.contains("<success/>")) {
-			mucCallTrackerService.finalizeAndNotify(sid, principal.getSessionId(), "success", messageRetentionDays)
-			.subscribeOn(Schedulers.boundedElastic()).subscribe();
+			return mucCallTrackerService.finalizeAndNotify(sid, principal.getSessionId(), "success", messageRetentionDays);
 		}
 
 		/**
@@ -357,7 +365,7 @@ public class MucCallLifeCycleTracker {
 						"Call Declined", callType);
 
 				// Delete MUC call session 
-				mucCallTrackerService.remove(sid, UUID.fromString(principal.getUserKey())).subscribeOn(Schedulers.boundedElastic()).subscribe();	
+				return mucCallTrackerService.remove(sid, UUID.fromString(principal.getUserKey()));	
 			}	
 		}
 
@@ -374,16 +382,18 @@ public class MucCallLifeCycleTracker {
 			// tryAcquire(permits, waitTime, unit)
 			// permits: 1 (only one process can enter)
 			// waitTime: 0 (immediate fail-fast; if the permit is taken, we discard the redundant trigger)
-			semaphore.tryAcquire(1, 0, TimeUnit.SECONDS) 
-			.flatMap(acquired -> {
-				if (!acquired) {
-					return Mono.empty();
-				}
-				return handleCancelCall(ctx, fromJid, sid, fromRoomFullJid, callType).then();
-			})
-			.doFinally(sig -> semaphore.release(1).subscribeOn(Schedulers.boundedElastic()).subscribe())
-			.subscribeOn(Schedulers.boundedElastic())
-			.subscribe();
+			return semaphore.tryAcquire(1, 0, TimeUnit.SECONDS)
+					.flatMap(acquired -> {
+						if (!acquired) {
+							// No permit taken, return early without releasing anything
+							return Mono.empty();
+						}
+
+						// Permit taken -> chain the logic and defer the release until AFTER handleCancelCall finishes
+						return handleCancelCall(ctx, fromJid, sid, fromRoomFullJid, callType)
+								.then() 
+								.doFinally(sig -> semaphore.release(1)); 
+					});
 		}
 
 		/**
@@ -399,7 +409,7 @@ public class MucCallLifeCycleTracker {
 			handleResolution(mucSid);
 
 			// remove from db
-			mucCallTrackerService.remove(sid, UUID.fromString(principal.getUserKey())).subscribeOn(Schedulers.boundedElastic()).subscribe();
+			return mucCallTrackerService.remove(sid, UUID.fromString(principal.getUserKey()));
 		}
 
 		/**
@@ -418,7 +428,7 @@ public class MucCallLifeCycleTracker {
 			handleResolution(redisMucSid);
 
 			// Remove call session from database
-			mucCallTrackerService.remove(sid, UUID.fromString(principal.getUserKey())).subscribeOn(Schedulers.boundedElastic()).subscribe();
+			return mucCallTrackerService.remove(sid, UUID.fromString(principal.getUserKey()));
 		}
 
 		/**
@@ -427,7 +437,9 @@ public class MucCallLifeCycleTracker {
 		else {
 
 			log.error("Unknown error terminated the MUC call {}", xml);
+			return Mono.empty();
 		}
+		return Mono.empty();
 	}
 
 	private Flux<CallSession> handleCancelCall(ChannelHandlerContext ctx,
