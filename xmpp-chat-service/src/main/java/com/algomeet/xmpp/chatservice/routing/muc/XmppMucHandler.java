@@ -79,24 +79,24 @@ public class XmppMucHandler {
 
 	// Define a dedicated thread pool for your database work so Netty doesn't starve
 	private static final Scheduler DB_SCHEDULER = Schedulers.newBoundedElastic(200, 10000, "xmpp-muc-db-workers");
+	
 	/**
 	 * Main entry point for MUC stanza processing.
 	 * Decides whether a stanza is a moderation command, a user command, or a standard message.
-	 *
-	 * @param ctx         The Netty channel context for the current TCP connection.
+	 * * @param ctx         The Netty channel context for the current TCP connection.
 	 * @param id          The 'id' attribute of the XMPP stanza.
 	 * @param toRoomJid   The destination JID (e.g., room@conference.domain/<nickname|userkey>).
 	 * @param fromJid     The real JID of the sender.
 	 * @param type        The message type (e.g., groupchat, error, presence).
 	 * @param originalXml The full raw XML payload.
+	 * @return A unified reactive stream targeting full execution resolution.
 	 */
-	public void handleGroupChatRouting(ChannelHandlerContext ctx, String id, String toRoomJid, String fromJid, String type, String originalXml) {
+	public Mono<Void> handleGroupChatRouting(ChannelHandlerContext ctx, String id, String toRoomJid, String fromJid, String type, String originalXml) {
 		XmppPrincipal principal = ctx.channel().attr(XmppSessionAttributes.PRINCIPAL).get();
 		XmppMessageType msgType = XmppMessageType.fromString(type);
 
 		String toRoomId = XmppUtil.getRoomId(toRoomJid);
-		String forArchiveXml = originalXml;
-
+		
 		// 1. AUTHORIZATION & ROOM LOOKUP
 		// Fetch room metadata and membership from the cache
 		// Set tenant Id to support multi-tenancy 
@@ -116,110 +116,94 @@ public class XmppMucHandler {
 
 			log.error("Access Denied: User {} in room {}. (Member: {}, Muted: {})", 
 					principal.getUserKey(), toRoomId, senderMucMember.isPresent(), senderMucMember.map(GroupMember::isMuted).orElse(false));
-			return;
+			return Mono.empty();
 		}
 
 		if (isModerationCommand(type, originalXml)) {
 			// MUC Admin actions (kick, ban, mute)
 			mucAdminCommandRouter.handleCommandStanza(ctx, toRoomJid, originalXml, senderMucMember.get(), principal);
+			return Mono.empty();
 		} else if(isUserCommandStanza(originalXml, toRoomJid)) {
 			// MUC User actions (nickname changes, room entry, member-leave broadcasts)
 			mucUserCommandRouter.handleCommandStanza(ctx, type, toRoomJid,  originalXml, principal);	
-
+			return Mono.empty();
 		} else if(XmppStanzaUtil.isRetractStanza(originalXml)) {
 			mucRetractionService.retract(ctx, id, toRoomJid, originalXml, principal);								
+			return Mono.empty();
+		} 
 
-		} else {
+		// 2. DIRECT PRIVATE MESSAGE (PM) WITHIN MUC CHECK
+		GroupMember pmToMucMember = resolveDirectPmRecipient(ctx, id, fromJid, toRoomJid, group);
 
-			// 2. DIRECT PRIVATE MESSAGE (PM) WITHIN MUC CHECK
-			GroupMember pmToMucMember = resolveDirectPmRecipient(ctx, id, fromJid, toRoomJid, group);
+		// 3. ARCHIVING (MAM - XEP-0313)
+		// Only archive messages that are storage-eligible (e.g., contain a <body>)
+		// Check if it's archivable
+		boolean isArchivable = XmppStanzaUtil.isArchivable(originalXml);
+		boolean isAckStanza = XmppStanzaUtil.isMessageAckStanza(originalXml);
 
-			// 3. ARCHIVING (MAM - XEP-0313)
-			// Only archive messages that are storage-eligible (e.g., contain a <body>)
-			// Check if it's archivable
-			boolean isArchivable = XmppStanzaUtil.isArchivable(originalXml);
+		/**
+		 * Generate a monotonic UUIDv7 used as the stable stanza-id value.
+		 * ... (UUIDv7 documentation) ...
+		 */
+		UUID stanzaId = UuidCreator.getTimeOrderedEpoch();
+		
+		Mono<Void> processingPipeline = Mono.empty();
 
-			boolean isAckStanza = XmppStanzaUtil.isMessageAckStanza(originalXml);
-
-			/**
-			 * Generate a monotonic UUIDv7 used as the stable stanza-id value.
-			 *
-			 * Why UUIDv7:
-			 * - Time-ordered and sortable based on a 48-bit Unix epoch timestamp.
-			 * - Highly performant for database primary indexing and chronological message ordering.
-			 * - Standard 128-bit structure that stores natively as an optimized 16-byte binary 
-			 *   payload (BinData Subtype 4) in MongoDB.
-			 * - Acts as an unforgeable server-side sequence identifier for reliable MAM 
-			 *   (XEP-0313) history retrieval and RSM pagination cursors.
-			 *
-			 * Note: Standard UUID text representations are inherently lowercase, ensuring string
-			 * consistency if serialized outside of native binary storage layers.
-			 */
-			UUID stanzaId = UuidCreator.getTimeOrderedEpoch();
-
-			if (isAckStanza) {
-				// --- XEP-0333: Chat Markers (Read Receipts) ---
-				// If the stanza contains the 'urn:xmpp:chat-markers:0' namespace (displayed), 
-				// the user has actively viewed the conversation.
-				if (originalXml.contains(XmppReadUtil.NS_DISPLAYS)) {
-					String ackMessageId = xmppReadUtil.getAckMessageId(originalXml);
-					if (StringUtils.hasText(ackMessageId)) {	
-						UUID messageId = UUID.fromString(ackMessageId);
-						// Save read MUC message ACK
-						mucMessageReadService.advanceReadCursor(UUID.fromString(principal.getUserKey()), group.getId(), messageId)
-						.subscribe();
-						
-						// Read status batch update
-						mucMessageService.bulkMarkRoomMessagesAsRead(messageId).subscribe();
-					}					
-				}
-			} else if ((msgType.supportsOfflineStorage() && isArchivable)) {
-				// Check for message file attachments
-				List<UUID> mediaIds = null;
-				try {
-					mediaIds = MediaReferenceParser.extractMediaIds(originalXml);
-
-					if (!CollectionUtils.isEmpty(mediaIds)) {
-						BatchMediaShareRequest request = new BatchMediaShareRequest();
-						request.setMediaIds(mediaIds.stream()
-								.map(mid -> mid.toString())
-								.collect(Collectors.toSet()));
-
-						request.setGroupId(group.getId());
-						request.setMessageId(UUID.fromString(id));			
-						
-						if(!shareMedias(senderMucMember.get().getUserKey(), request)) {
-							xmppUtil.sendError(ctx, id, fromJid, domainProperties.getDomain(), XmppErrorType.CANCEL, 
-									XmppErrorConditions.INTERNAL_SERVER_ERROR, "Error sharing media file(s)");
-							return;
-						}
-					}				
-				} catch(Exception ex) {
-					log.error("Error parsing media references {}", originalXml, ex);
-					xmppUtil.sendError(ctx, id, fromJid, domainProperties.getDomain(), XmppErrorType.CANCEL, 
-							XmppErrorConditions.INTERNAL_SERVER_ERROR, "Error parsing media file(s)");
+		if (isAckStanza) {
+			// --- XEP-0333: Chat Markers (Read Receipts) ---
+			if (originalXml.contains(XmppReadUtil.NS_DISPLAYS)) {
+				String ackMessageId = xmppReadUtil.getAckMessageId(originalXml);
+				if (StringUtils.hasText(ackMessageId)) {	
+					UUID messageId = UUID.fromString(ackMessageId);
 					
-					return;
-				}			
-				
-								
-				// Insert stanza ID
-				forArchiveXml = XmppStanzaUtil.insertStanzaId(originalXml, stanzaId.toString(), principal.getDomain());		
-				Boolean isCountable = XmppCustomStanzaUtil.isCountableMessage(originalXml);
-				
-				xmppArchiveService.archiveEvent(forArchiveXml, id, XmppUtil.getRoomId(toRoomJid), (pmToMucMember != null ? pmToMucMember.getUserKey() : null), 
+					// Chain read updates concurrently safely off the EventLoop
+					processingPipeline = Mono.when(
+						mucMessageReadService.advanceReadCursor(UUID.fromString(principal.getUserKey()), group.getId(), messageId),
+						mucMessageService.bulkMarkRoomMessagesAsRead(messageId)
+					).subscribeOn(DB_SCHEDULER);
+				}					
+			}
+		} else if ((msgType.supportsOfflineStorage() && isArchivable)) {
+			// Check for message file attachments
+			List<UUID> mediaIds = null;
+			try {
+				mediaIds = MediaReferenceParser.extractMediaIds(originalXml);
+
+				if (!CollectionUtils.isEmpty(mediaIds)) {
+					BatchMediaShareRequest request = new BatchMediaShareRequest();
+					request.setMediaIds(mediaIds.stream().map(UUID::toString).collect(Collectors.toSet()));
+					request.setGroupId(group.getId());
+					request.setMessageId(UUID.fromString(id));			
+					
+					// FIX: Turn synchronous blocking Feign Client call into a lazy deferred reactive wrapper
+					processingPipeline = Mono.fromCallable(() -> shareMedias(senderMucMember.get().getUserKey(), request))
+							.subscribeOn(DB_SCHEDULER)
+							.flatMap(shared -> {
+								if(!shared) {
+									xmppUtil.sendError(ctx, id, fromJid, domainProperties.getDomain(), XmppErrorType.CANCEL, 
+											XmppErrorConditions.INTERNAL_SERVER_ERROR, "Error sharing media file(s)");
+									return Mono.error(new RuntimeException("Media sharing failed"));
+								}
+								return Mono.empty();
+							});
+				}				
+			} catch(Exception ex) {
+				log.error("Error parsing media references {}", originalXml, ex);
+				xmppUtil.sendError(ctx, id, fromJid, domainProperties.getDomain(), XmppErrorType.CANCEL, 
+						XmppErrorConditions.INTERNAL_SERVER_ERROR, "Error parsing media file(s)");
+				return Mono.empty();
+			}			
+			
+			// Insert stanza ID
+			String stampedXml = XmppStanzaUtil.insertStanzaId(originalXml, stanzaId.toString(), principal.getDomain());		
+			Boolean isCountable = XmppCustomStanzaUtil.isCountableMessage(originalXml);
+			
+			// Chain persistence execution flow sequentially
+			processingPipeline = processingPipeline.then(
+				xmppArchiveService.archiveEvent(stampedXml, id, XmppUtil.getRoomId(toRoomJid), (pmToMucMember != null ? pmToMucMember.getUserKey() : null), 
 						XmppUtil.getUserKey(fromJid), stanzaId, isCountable, mediaIds, group.getMessageRetentionDays())
 				.flatMap(saved -> {
-
 					// Send an immediate server-level acknowledgment to the sender.
-					//
-					// This acknowledgment confirms that:
-					// 1. The server has successfully received the stanza.
-					// 2. The stanza has been persisted to the database.
-					// 3. The server has taken full responsibility for further routing/delivery.
-					//
-					// This is a custom acknowledgment (not client XEP-0198 ack),
-					// used to provide early delivery assurance back to the sender.
 					XmppServerAckUtil.send(ctx, id, domainProperties.getDomain(), stanzaId.toString(), group.getMessageRetentionDays());
 					
 					Mono<Void> postSaveTasks = Mono.empty();
@@ -232,27 +216,28 @@ public class XmppMucHandler {
 					}
 
 					log.debug("MAM Archive Success: ID={} Room={}", stanzaId, toRoomId);
-					
 					return postSaveTasks;
 				})
-				.subscribeOn(DB_SCHEDULER) // Shifting execution away from Netty Event Loop
+				.subscribeOn(DB_SCHEDULER) // Shifting storage execution completely away from Netty Event Loop
 				.doOnError(e -> {
 					log.error("MAM Archive Failure: {}", e.getMessage(), e);
 					handleArchiveError(ctx, id, principal, e);
 				})
-				.subscribe();
-			}
+			);
+		}
 
-			// 4. DISPATCHING
+		// 4. DISPATCHING (Executed safely AFTER database work has settled cleanly)
+		final String finalXml = isArchivable ? XmppStanzaUtil.insertStanzaId(originalXml, stanzaId.toString(), principal.getDomain()) : originalXml;
+		
+		return processingPipeline.then(Mono.fromRunnable(() -> {
 			try {	
 				// Standard message propagation to members
 				mucMessageRouter.broadcastToOccupants(ctx, id, toRoomJid, fromJid, msgType, group, 
-						pmToMucMember, (isArchivable ? forArchiveXml : originalXml));
-
+						pmToMucMember, finalXml);
 			} catch (NumberFormatException e) {
 				log.error("Critical: Invalid roomId format in routing: {}", toRoomId);
 			}
-		}
+		})).onErrorResume(err -> Mono.empty()).then();
 	}
 	
 	private boolean shareMedias(String fromUserKey, BatchMediaShareRequest request) {

@@ -163,15 +163,31 @@ public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocke
 			// 7. Branch based on logic: MAM and Server-directed queries go to InfoQueryHandler
 			// Direct/Group messages go to respective handlers
 
+			final String finalXml = xml;
+		    final String finalFromJid = fromJid;
+		    final String finalId = id;
+		    
 			if (!mam && (XmppMessageType.GROUPCHAT == XmppMessageType.fromString(type) || isGroupChat(toJid))) {
 				xmppMucHandler.handleGroupChatRouting(ctx, id, toJid, fromJid, type, xml);
+				
+				// Apply sequential backpressure for room chats			    
+			    Mono<Void> mucTask = Mono.defer(() -> {
+			        ctx.channel().config().setAutoRead(false);
+			        return xmppMucHandler.handleGroupChatRouting(ctx, finalId, toJid, finalFromJid, type, finalXml);
+			    }).doFinally(signal -> {
+			        ctx.channel().config().setAutoRead(true);
+			        ctx.read();
+			    });
+
+			    reactor.core.publisher.Sinks.Many<Mono<Void>> queue = ctx.channel().attr(CHANNEL_QUEUE_KEY).get();
+			    if (queue != null) {
+			        queue.tryEmitNext(mucTask);
+			    } else {
+			        mucTask.subscribe();
+			    }
 
 			} else if (!mam && StringUtils.hasText(toJid)) {
-				// --- ORDERED BACKPRESSURE IMPLEMENTATION ---
-				final String finalXml = xml;
-				final String finalFromJid = fromJid;
-				final String finalId = id;
-				
+				// Apply sequential backpressure for direct 1:1 chats					
 				Mono<Void> routingTask = Mono.defer(() -> {
 					// Toggle read suspension *only* when this message reaches the front of the queue
 					ctx.channel().config().setAutoRead(false);
