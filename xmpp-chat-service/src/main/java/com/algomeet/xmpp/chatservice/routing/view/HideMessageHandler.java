@@ -32,9 +32,8 @@ public class HideMessageHandler {
 					UUID.fromString(principal.getUserKey()), 
 					UUID.fromString(XmppUtil.getRoomId(item.room)), 
 					UUID.fromString(item.id), 
-					principal.getSessionId(), 
-					id
-			);
+					principal.getSessionId())
+					.then(hideMucMessageService.sendIqResult(id, principal.getUserKey()));
 		} else {			
 			// DIRECT CHAT FLOW
 			// Chain direct sync and IQ response sequentially

@@ -283,8 +283,7 @@ public class MucMessageController implements MucMessageControllerDoc{
 	                    currentUserKey, 
 	                    groupId, 
 	                    targetMessageId, 
-	                    request.getSessionId(), 
-	                    null
+	                    request.getSessionId()
 	            ))
 	            // Wait for all operations to complete
 	            .then(Mono.fromCallable(() -> 

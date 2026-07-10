@@ -36,7 +36,7 @@ public class HideMucMessageService {
 
 	private static final Scheduler DB_SCHEDULER = Schedulers.boundedElastic();
 
-	public Mono<Void> hideMessageForUser(UUID userKey, UUID roomId, UUID targetMessageId, String sessionId, String requestMessageId) {
+	public Mono<Void> hideMessageForUser(UUID userKey, UUID roomId, UUID targetMessageId, String sessionId) {
 	    return xmppArchiveService.findByMessageId(targetMessageId)
 	        .subscribeOn(DB_SCHEDULER) // Sets the thread pool context for the database operations
 	        .flatMap(message -> {             	
@@ -72,7 +72,7 @@ public class HideMucMessageService {
 	                    // FIX: Execute ALL side-effects concurrently and wait until ALL of them complete 
 	                    // before firing the final 'result' confirmation packet back to the client.
 	                    return Mono.when(hideRelatedMono, mediaDeleteMono, groupSyncMono)
-	                            .then(Mono.defer(() -> sendIqResult(requestMessageId, userKey.toString())));
+	                            .then();
 	                });
 	        })
 	        .doOnError(err -> log.error("Error processing group chat hide context", err))

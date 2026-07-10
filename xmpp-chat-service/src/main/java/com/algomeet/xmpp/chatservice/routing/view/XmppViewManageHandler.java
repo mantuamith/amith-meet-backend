@@ -13,6 +13,8 @@ import com.algomeet.xmpp.chatservice.util.XmppUtil;
 import io.netty.channel.ChannelHandlerContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
 /**
@@ -36,30 +38,40 @@ public class XmppViewManageHandler {
 		ViewManageStaxParser.ParsedIq vmIq = viewManagementStaxParser.parse(xml);
 
 		if (vmIq != null && vmIq.items != null && !vmIq.items.isEmpty()) {
-			vmIq.items.forEach(item -> {
-				switch (item.action) {
-				case "hide":
-					// FIX: Safely execute off the Netty loop and manage errors
-					hideMessageHandler.handleHide(ctx, vmIq.iqId, principal, item)
-						.subscribeOn(Schedulers.boundedElastic()) // Safely decouples the subscription from Netty thread
-						.doOnError(err -> {
-							log.error("Failed to process message hide for user {}", principal.getUserKey(), err);
-							// Send a failure stanza back to client so they aren't hung waiting
+
+			switch (vmIq.items.get(0).action) {
+			case "hide":
+				// 1. Convert collection to a single managed Reactive Pipeline
+				Flux.fromIterable(vmIq.items)
+				.flatMap(item -> {
+					if ("hide".equals(item.action)) {
+						// Return the mono to process items concurrently (up to 16 at a time)
+						return hideMessageHandler.handleHide(ctx, vmIq.iqId, principal, item);
+					} else {
+						return Mono.error(new IllegalArgumentException("Invalid action " + item.action));
+					}
+				}, 16) 
+				// 2. Threading isolated safely to one root configuration boundary
+				.subscribeOn(Schedulers.boundedElastic())
+				.subscribe(
+						null, // Success is handled safely within handleHide's sendIqResult
+						err -> {
+							log.error("Failed to process message hide actions for user {}", principal.getUserKey(), err);
 							xmppUtil.sendError(ctx, vmIq.iqId, principal.getBareJid(), domainProperties.getDomain(), 
 									XmppErrorType.WAIT, XmppErrorConditions.INTERNAL_SERVER_ERROR, "Processing failed");
-						})
-						.subscribe();
-					break;				
-				default:
-					// Reject unsupported actions with a standard XMPP error
-					xmppUtil.sendError(ctx, vmIq.iqId, principal.getBareJid(), domainProperties.getDomain(), 
-							XmppErrorType.CANCEL, XmppErrorConditions.BAD_REQUEST, "Invalid action " + item);
-					break;
-				}
-			});
+						}
+						);			
+
+				break;				
+			default:
+				// Reject unsupported actions with a standard XMPP error
+				xmppUtil.sendError(ctx, vmIq.iqId, principal.getBareJid(), domainProperties.getDomain(), 
+						XmppErrorType.CANCEL, XmppErrorConditions.BAD_REQUEST, "Invalid action " + vmIq.items.get(0).action);
+				break;
+			}
 		}
 	}
-
+	
 	/**
 	 * Quick check to see if an incoming string belongs to this namespace.
 	 */
