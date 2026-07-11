@@ -34,42 +34,47 @@ public class XmppViewManageHandler {
 	/**
 	 * Main entry point for processing incoming View Management XML.
 	 */
-	public void process(ChannelHandlerContext ctx, String xml, XmppPrincipal principal) throws Exception {	
-		ViewManageStaxParser.ParsedIq vmIq = viewManagementStaxParser.parse(xml);
+	public Mono<Void> process(ChannelHandlerContext ctx, String xml, XmppPrincipal principal) {	
+		return Mono.defer(() -> {
+			try {
+				ViewManageStaxParser.ParsedIq vmIq = viewManagementStaxParser.parse(xml);
 
-		if (vmIq != null && vmIq.items != null && !vmIq.items.isEmpty()) {
+				if (vmIq == null || vmIq.items == null || vmIq.items.isEmpty()) {
+					return Mono.empty();
+				}
 
-			switch (vmIq.items.get(0).action) {
-			case "hide":
-				// 1. Convert collection to a single managed Reactive Pipeline
-				Flux.fromIterable(vmIq.items)
-				.flatMap(item -> {
-					if ("hide".equals(item.action)) {
-						// Return the mono to process items concurrently (up to 16 at a time)
-						return hideMessageHandler.handleHide(ctx, vmIq.iqId, principal, item);
-					} else {
-						return Mono.error(new IllegalArgumentException("Invalid action " + item.action));
-					}
-				}, 16) 
-				// 2. Threading isolated safely to one root configuration boundary
-				.subscribeOn(Schedulers.boundedElastic())
-				.subscribe(
-						null, // Success is handled safely within handleHide's sendIqResult
-						err -> {
-							log.error("Failed to process message hide actions for user {}", principal.getUserKey(), err);
-							xmppUtil.sendError(ctx, vmIq.iqId, principal.getBareJid(), domainProperties.getDomain(), 
-									XmppErrorType.WAIT, XmppErrorConditions.INTERNAL_SERVER_ERROR, "Processing failed");
-						}
-						);			
-
-				break;				
-			default:
-				// Reject unsupported actions with a standard XMPP error
-				xmppUtil.sendError(ctx, vmIq.iqId, principal.getBareJid(), domainProperties.getDomain(), 
-						XmppErrorType.CANCEL, XmppErrorConditions.BAD_REQUEST, "Invalid action " + vmIq.items.get(0).action);
-				break;
+				switch (vmIq.items.get(0).action) {
+				case "hide":
+					// 1. Convert collection to a single managed Reactive Pipeline
+					return Flux.fromIterable(vmIq.items)
+							.flatMap(item -> {
+								if ("hide".equals(item.action)) {
+									// Return the mono to process items concurrently (up to 16 at a time)
+									return hideMessageHandler.handleHide(ctx, vmIq.iqId, principal, item);
+								} else {
+									return Mono.error(new IllegalArgumentException("Invalid action " + item.action));
+								}
+							}, 16) 
+							// 2. Threading isolated safely to one root configuration boundary
+							.subscribeOn(Schedulers.boundedElastic())
+							.doOnError(err -> {
+								log.error("Failed to process message hide actions for user {}", principal.getUserKey(), err);
+								xmppUtil.sendError(ctx, vmIq.iqId, principal.getBareJid(), domainProperties.getDomain(), 
+										XmppErrorType.WAIT, XmppErrorConditions.INTERNAL_SERVER_ERROR, "Processing failed");
+							})
+							.then();			
+									
+				default:
+					// Reject unsupported actions with a standard XMPP error
+					xmppUtil.sendError(ctx, vmIq.iqId, principal.getBareJid(), domainProperties.getDomain(), 
+							XmppErrorType.CANCEL, XmppErrorConditions.BAD_REQUEST, "Invalid action " + vmIq.items.get(0).action);
+					return Mono.empty();
+				}
+			} catch (Exception e) {
+				log.error("Stanza parsing error in ViewManageHandler for user {}", principal.getUserKey(), e);
+				return Mono.error(e);
 			}
-		}
+		});
 	}
 	
 	/**

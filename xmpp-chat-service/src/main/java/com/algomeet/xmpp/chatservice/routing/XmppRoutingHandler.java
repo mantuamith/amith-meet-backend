@@ -185,7 +185,7 @@ public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocke
 
 			} else if (!mam && StringUtils.hasText(toJid)) {
 				// Apply sequential backpressure for direct 1:1 chats					
-				Mono<Void> routingTask = Mono.defer(() -> {
+				Mono<Void> directChatTask = Mono.defer(() -> {
 					// Toggle read suspension *only* when this message reaches the front of the queue
 					ctx.channel().config().setAutoRead(false);
 					return xmppDirectChatHandler.handleDirectChatRouting(ctx, finalId, toJid, finalFromJid, type, finalXml);
@@ -199,16 +199,30 @@ public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocke
 				// Feed it into this specific connection's queue for serialized execution
 				reactor.core.publisher.Sinks.Many<Mono<Void>> queue = ctx.channel().attr(CHANNEL_QUEUE_KEY).get();
 				if (queue != null) {
-					queue.tryEmitNext(routingTask);
+					queue.tryEmitNext(directChatTask);
 				} else {
 					// Fallback if channel initialization was skipped
-					routingTask.subscribe();
+					directChatTask.subscribe();
 				}
 			} else {
 				
 				// This block catches MAM, Service Discovery, and Stream Management
-				if (xmppStreamManagementHandler.isStreamManagementStanza(xml)) {
-					xmppStreamManagementHandler.process(ctx, xml, principal);
+				if (xmppStreamManagementHandler.isStreamManagementStanza(xml)) {					
+					// Handle resume connection and etc. 
+					Mono<Void> smTask = Mono.defer(() -> {
+				        ctx.channel().config().setAutoRead(false);
+				        return xmppStreamManagementHandler.process(ctx, finalXml, principal);
+				    }).doFinally(signal -> {
+				        ctx.channel().config().setAutoRead(true);
+				        ctx.read();
+				    });
+
+				    reactor.core.publisher.Sinks.Many<Mono<Void>> queue = ctx.channel().attr(CHANNEL_QUEUE_KEY).get();
+				    if (queue != null) {
+				        queue.tryEmitNext(smTask);
+				    } else {
+				    	smTask.subscribe();
+				    }
 					
 				} else if (mam) {
 					// XEP-0313: Message Archive Management
@@ -216,7 +230,20 @@ public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocke
 					
 				} else if (xmppViewManagementHandler.isMessageViewManagementStanza(xml)) {
 					// Handle hiding of messages and etc. 
-					xmppViewManagementHandler.process(ctx, xml, principal);
+					Mono<Void> vmTask = Mono.defer(() -> {
+				        ctx.channel().config().setAutoRead(false);
+				        return xmppViewManagementHandler.process(ctx, finalXml, principal);
+				    }).doFinally(signal -> {
+				        ctx.channel().config().setAutoRead(true);
+				        ctx.read();
+				    });
+
+				    reactor.core.publisher.Sinks.Many<Mono<Void>> queue = ctx.channel().attr(CHANNEL_QUEUE_KEY).get();
+				    if (queue != null) {
+				        queue.tryEmitNext(vmTask);
+				    } else {
+				    	vmTask.subscribe();
+				    }
 					
 				} else {
 					xmppDiscoveryHandler.handleQuery(ctx, xml);
