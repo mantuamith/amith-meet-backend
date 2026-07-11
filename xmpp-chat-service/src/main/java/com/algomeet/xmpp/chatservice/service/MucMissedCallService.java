@@ -304,49 +304,53 @@ public class MucMissedCallService {
 		String fromUserKey = XmppUtil.getUserKey(fromJid);
 		String toUserKey = XmppUtil.getUserKey(toJid);	
 
-		Group group = groupCacheService.getCachedGroup(groupId);
-		Optional<GroupMember> callerMucMember = group.getMembers().stream()
-				.filter(m -> m.getUserKey().equals(fromUserKey)).findFirst();
+		// Offload the blocking or synchronous cache lookup safely to the elastic scheduler
+		return Mono.fromCallable(() -> groupCacheService.getCachedGroup(groupId))
+				.subscribeOn(Schedulers.boundedElastic())
+				.flatMap(group -> {
+					Optional<GroupMember> callerMucMember = group.getMembers().stream()
+							.filter(m -> m.getUserKey().equals(fromUserKey)).findFirst();
 
-		String fromRoomJid = jidUtil.getGroupBareJid(groupId) + "/" + 
-				(callerMucMember.isPresent() ? callerMucMember.get().getUserKey() : "");
+					String fromRoomJid = jidUtil.getGroupBareJid(groupId) + "/" + 
+							(callerMucMember.isPresent() ? callerMucMember.get().getUserKey() : "");
 
-		String xml = String.format(
-				"<message from='%s' to='%s' type='groupchat' id='%s'>" +
-						"<subject>Missed %s Call</subject>" +
-						"<body>Missed %s call</body>" +
-						"<call-log xmlns='urn:xmpp:algomeet:calls' type='%s' status='missed' timestamp='%s' sid='%s'/>" +
-						"<countable xmlns='urn:algomeet:meta:0'/>" +
-						"</message>",
-						fromRoomJid, toJid, id, type, type, type, Instant.now().toString(), sid
-				);	
+					String xml = String.format(
+							"<message from='%s' to='%s' type='groupchat' id='%s'>" +
+									"<subject>Missed %s Call</subject>" +
+									"<body>Missed %s call</body>" +
+									"<call-log xmlns='urn:xmpp:algomeet:calls' type='%s' status='missed' timestamp='%s' sid='%s'/>" +
+									"<countable xmlns='urn:algomeet:meta:0'/>" +
+									"</message>",
+									fromRoomJid, toJid, id, type, type, type, Instant.now().toString(), sid
+							);	
 
-		String stanzaId = UuidCreator.getTimeOrderedEpoch().toString();
-		// Insert stanza ID
-		String forArchiveXml = XmppStanzaUtil.insertStanzaId(xml, stanzaId, domainProperties.getDomain());
-		
-		// Send timeout message
-		String timeoutId = UuidCreator.getTimeOrderedEpoch().toString();
-		JingleTerminationIq timeoutStanza = JingleTerminationIq.builder()
-				.id(timeoutId)
-				.from(fromRoomJid)
-				.to(toJid)
-				.sid(sid)
-				.reason(JingleTerminationIq.REASON_TIMEOUT)
-				.build();
+					String stanzaId = UuidCreator.getTimeOrderedEpoch().toString();
+					// Insert stanza ID
+					String forArchiveXml = XmppStanzaUtil.insertStanzaId(xml, stanzaId, domainProperties.getDomain());
+					
+					// Send timeout message
+					String timeoutId = UuidCreator.getTimeOrderedEpoch().toString();
+					JingleTerminationIq timeoutStanza = JingleTerminationIq.builder()
+							.id(timeoutId)
+							.from(fromRoomJid)
+							.to(toJid)
+							.sid(sid)
+							.reason(JingleTerminationIq.REASON_TIMEOUT)
+							.build();
 
-		return xmppArchiveService.archiveEvent(forArchiveXml, UuidCreator.getTimeOrderedEpoch().toString(), groupId, toUserKey, 
-				fromUserKey, UuidCreator.getTimeOrderedEpoch(), group.getMessageRetentionDays())
-		.flatMap(success -> {
-			// Publish 
-			// Broadcast both the archived stanza and the session timeout notification concurrently
-			return Mono.when(
-				clusterMessagePublisher.convertAndSendToUser(id, toUserKey, fromUserKey, ChatType.GROUPCHAT, forArchiveXml),
-				clusterMessagePublisher.convertAndSendToUser(timeoutId, toUserKey, fromUserKey, ChatType.GROUPCHAT, timeoutStanza.toXml())
-			);
-		})
-		.doOnError(e -> log.error("MUC Archive failed: {}", e.getMessage()))
-		.then();
+					return xmppArchiveService.archiveEvent(forArchiveXml, UuidCreator.getTimeOrderedEpoch().toString(), groupId, toUserKey, 
+							fromUserKey, UuidCreator.getTimeOrderedEpoch(), group.getMessageRetentionDays())
+					.flatMap(success -> {
+						// Publish 
+						// Broadcast both the archived stanza and the session timeout notification concurrently
+						return Mono.when(
+							clusterMessagePublisher.convertAndSendToUser(id, toUserKey, fromUserKey, ChatType.GROUPCHAT, forArchiveXml),
+							clusterMessagePublisher.convertAndSendToUser(timeoutId, toUserKey, fromUserKey, ChatType.GROUPCHAT, timeoutStanza.toXml())
+						);
+					});
+				})
+				.doOnError(e -> log.error("MUC Archive failed: {}", e.getMessage()))
+				.then();
 	}
 
 	/**
