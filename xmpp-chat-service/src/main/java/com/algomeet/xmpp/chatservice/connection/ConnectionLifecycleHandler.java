@@ -71,7 +71,8 @@ public class ConnectionLifecycleHandler {
 
 			// 2. Register in Local Channel Registry (Stateful registration)
 			localChannelRegistry.register(userKey, sessionId, ctx.channel());
-			userSessionRegistry.addSession(userKey, new UserSession(sessionId, UserState.ACTIVE, Instant.now().toEpochMilli()));
+			userSessionRegistry.addSession(userKey, new UserSession(sessionId, UserState.ACTIVE, Instant.now().toEpochMilli()))
+			.subscribe();
 
 			// 3. Send Bind Result (Confirmation of session establishment)
 			// This informs the client of their full JID and the assigned Session ID
@@ -139,13 +140,15 @@ public class ConnectionLifecycleHandler {
 
 			log.info("Starting cleanup for session {} (User: {})", sessionId, userKey);
 			// Execute each cleanup task safely to ensure one failure doesn't block the entire teardown
-			safeExecute(() -> userSessionRegistry.removeSession(userKey, sessionId), "User Session Registry", userKey);
+			safeExecute(() -> userSessionRegistry.removeSession(userKey, sessionId)
+					.subscribe(), "User Session Registry", userKey);
 
 			// Handle ongoing dropped calls.
 			callSessionRecoveryService.handleTransportDrop(sessionId).subscribe();
 
 			// Broadcast user presence GONE
-			xmppBroadcastUserPresenceHandler.broadcastUserPresenceAsync(ctx, principal, UserState.GONE);
+			xmppBroadcastUserPresenceHandler.broadcastUserPresence(ctx, principal, UserState.GONE)
+			.subscribe();
 
 			log.info("Cleanup completed for session {}", sessionId);
 		}

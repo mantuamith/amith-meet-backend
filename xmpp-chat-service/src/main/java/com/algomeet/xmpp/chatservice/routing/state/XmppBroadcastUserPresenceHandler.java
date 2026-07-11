@@ -1,8 +1,5 @@
 package com.algomeet.xmpp.chatservice.routing.state;
 
-import java.util.Set;
-
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
@@ -10,11 +7,12 @@ import com.algomeet.xmpp.chatservice.enums.UserState;
 import com.algomeet.xmpp.chatservice.service.ContactPresenceService;
 import com.algomeet.xmpp.chatservice.service.MucPresenceService;
 import com.algomeet.xmpp.chatservice.session.UserSessionRegistry;
-import com.algomeet.xmpp.chatservice.session.model.UserSession;
 
 import io.netty.channel.ChannelHandlerContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 /**
  * XmppBroadcastUserPresenceHandler orchestrates the propagation of a user's availability state
@@ -40,38 +38,52 @@ public class XmppBroadcastUserPresenceHandler {
 	 * @param principal The security principal representing the authenticated user.
 	 * @param newState  The target UserState (ACTIVE, AWAY, DND, etc.).
 	 */
-	@Async("presenceExecutor")
-	public void broadcastUserPresenceAsync(ChannelHandlerContext ctx, XmppPrincipal principal, UserState newState) { 
-		// 1. Multi-Session Arbitration:
-		// We check if the user has other active connections to prevent "Presence Flickering".
-		Set<UserSession> sessions = userSessionRegistry.getSessions(principal.getUserKey());
+	public Mono<Void> broadcastUserPresence(ChannelHandlerContext ctx, XmppPrincipal principal, UserState newState) { 
+	    String userKey = principal.getUserKey();
 
-		if (sessions != null) {
+	    // 1. Fetch user sessions asynchronously from Redis
+	    return userSessionRegistry.getSessions(userKey)
+	        .flatMap(sessions -> {
+	            // Safe fallback if the collection is somehow null or empty
+	            if (sessions == null || sessions.isEmpty()) {
+	                return Mono.just(true); // Allow broadcasting to continue
+	            }
 
-			// 1. If the user is GONE on this session, but has other live sessions, 
-			// do NOT broadcast 'unavailable' yet.
-			if (newState == UserState.GONE && sessions.stream().anyMatch(s -> s.getState() != UserState.GONE)) {
-				log.debug("User {} is GONE on one session but remains online elsewhere.", principal.getUserKey());
-				return; 
-			}
+	            // 1. Multi-Session Arbitration: Prevent "Presence Flickering"
+	            // If the user is GONE on this session, but has other live sessions, do NOT broadcast 'unavailable' yet.
+	            if (newState == UserState.GONE && sessions.stream().anyMatch(s -> s.getState() != UserState.GONE)) {
+	                log.debug("User {} is GONE on one session but remains online elsewhere.", userKey);
+	                return Mono.just(false); // Suppress broadcast
+	            }
 
-			// 2. If the update is an idle state (AWAY/INACTIVE), ignore it if 
-			// any other session is currently ACTIVE.
-			if (newState == UserState.AWAY || newState == UserState.INACTIVE) {
-				if (sessions.stream().anyMatch(s -> s.getState() == UserState.ACTIVE)) {
-					log.debug("Ignoring {} update; user {} is still ACTIVE on another device.", newState, principal.getUserKey());
-					return; 
-				}
-			}
+	            // 2. If the update is an idle state (AWAY/INACTIVE), ignore it if any other session is currently ACTIVE.
+	            if (newState == UserState.AWAY || newState == UserState.INACTIVE) {
+	                if (sessions.stream().anyMatch(s -> s.getState() == UserState.ACTIVE)) {
+	                    log.debug("Ignoring {} update; user {} is still ACTIVE on another device.", newState, userKey);
+	                    return Mono.just(false); // Suppress broadcast
+	                }
+	            }
 
-			// Note: DND is NOT suppressed here. If newState == DND, we allow it 
-			// to propagate because it is a deliberate "Do Not Disturb" intent.
-		}
-		
-		// Publish presence to groups
-		contactPresenceService.broadcastPresenceToContacts(ctx, principal, newState);
+	            // Note: DND is NOT suppressed here. If newState == DND, we allow it to propagate.
+	            return Mono.just(true); // Allow broadcasting to continue
+	        })
+	        .flatMap(shouldBroadcast -> {
+	            // If arbitration determined we should skip publishing, stop here cleanly
+	            if (!shouldBroadcast) {
+	                return Mono.empty();
+	            }
 
-		// Publish presence to contacts
-		mucPresenceService.broadcastPresenceToAllJoinedGroups(ctx, principal.getUserKey(), newState);
-	}	
+	            // 2. Execute presence distributions concurrently using Mono.when
+	            return Mono.when(
+	                // Publish presence to contacts
+	                contactPresenceService.broadcastPresenceToContacts(ctx, principal, newState),
+	                
+	                // Publish presence to groups
+	                mucPresenceService.broadcastPresenceToAllJoinedGroups(ctx, userKey, newState)
+	            );
+	        })
+	        // Move processing away from Netty event loop for these operations if they hit database/IO
+	        .subscribeOn(Schedulers.boundedElastic())
+	        .doOnError(e -> log.error("Failed to broadcast presence for user {}: {}", userKey, e.getMessage()));
+	}
 }

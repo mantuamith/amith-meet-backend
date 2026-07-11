@@ -1,12 +1,9 @@
 package com.algomeet.xmpp.chatservice.routing.muc.events;
 
-import java.util.UUID;
-
 import org.springframework.stereotype.Component;
 
-import com.algomeet.common.dto.GroupMember;
 import com.algomeet.common.dto.Group;
-import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
+import com.algomeet.common.dto.GroupMember;
 import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.enums.MucRole;
@@ -15,7 +12,6 @@ import com.algomeet.xmpp.chatservice.enums.UserState;
 import com.algomeet.xmpp.chatservice.parser.StateStanzaParser;
 import com.algomeet.xmpp.chatservice.routing.muc.MucMessageRouter;
 import com.algomeet.xmpp.chatservice.service.MucPresenceService;
-import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
 import com.algomeet.xmpp.chatservice.stanza.presence.MucUserPresenceBuilder;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
@@ -24,6 +20,7 @@ import com.github.f4b6a3.uuid.UuidCreator;
 import io.netty.channel.ChannelHandlerContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.publisher.Mono;
 
 /**
  * Orchestrates the broadcast of presence updates when a member interacts with a MUC room.
@@ -46,51 +43,46 @@ public class MucMemberJoinEventHandler {
      * @param group     The Data Transfer Object representing the current room state.
      * @param sender    The MUC member profile of the person joining.
      */
-    public void handleMemberJoinRequest(ChannelHandlerContext ctx, String roomJid, String xml, Group group, GroupMember sender) { 	 
-     	UserState newState = determineState(xml);    	
-        if (newState == null) {return;}
-         
-        String roomBareJid = XmppUtil.getRoomBareJid(roomJid);
-        String status = parseStatus(xml);
-        
-        // 1. Send "Self-Presence" back to the joiner.
-        // XMPP clients require status code 110 to recognize their own nickname in the room.        
-        String selfPresenceXml = MucUserPresenceBuilder
-        		.create()
-        		.from(roomBareJid, sender.getUserKey()) // Resource-part is the member's room identity
-				.show(newState.name().toString().toLowerCase())
-				.affiliation(sender.getRole())
-				.role(MucRole.fromString(sender.getRole()).getValue())
-				.status(status)
-				.statusCode(PresenceStatusCode.OWN_PRESENCE.getCode())
-        		.build();
-        
-        clusterMessagePublisher.convertAndSendToUser(
-        	UuidCreator.getTimeOrderedEpoch().toString(), 
-            sender.getUserKey(), 
-            sender.getUserKey(), 
-            ChatType.GROUPCHAT, 
-            selfPresenceXml
-        );
-        
-        // 2. Broadcast the joiner's availability to all members in the room.
-        // This includes updating the joiner's view of existing members (Synchronizing State).       
-        String presenceXml = MucUserPresenceBuilder
-				.create()
-				.from(roomBareJid, sender.getUserKey()) // Resource-part is the member's room identity
-				.show(newState.name().toString().toLowerCase())
-				.affiliation(sender.getRole())
-				.role(MucRole.fromString(sender.getRole()).getValue())
-				.status(status)
-				.build();
-        
-        XmppPrincipal principal = ctx.channel().attr(XmppSessionAttributes.PRINCIPAL).get();   
-        mucMessageRouter.broadcastToOccupants(UuidCreator.getTimeOrderedEpoch().toString(), sender.getUserKey(), group, presenceXml, principal.getSessionId());
-        
-        // Push group members presence to user
-        mucPresenceService.pushGroupParticipantsPresenceToUser(ctx, group, sender.getUserKey());
-        
-        log.debug("Presence synchronization complete for user {} in room {}", sender.getUserKey(), roomBareJid);
+    public Mono<Void> handleMemberJoinRequest(ChannelHandlerContext ctx, String roomJid, String xml, Group group, GroupMember sender) { 	 
+        return Mono.fromCallable(() -> determineState(xml))
+            .flatMap(newState -> {
+                if (newState == null) {
+                    return Mono.empty();
+                }
+                 
+                String roomBareJid = XmppUtil.getRoomBareJid(roomJid);
+                String status = parseStatus(xml);
+                
+                // 1. Send "Self-Presence" back to the joiner.
+                // XMPP clients require status code 110 to recognize their own nickname in the room.        
+                String selfPresenceXml = MucUserPresenceBuilder
+                        .create()
+                        .from(roomBareJid, sender.getUserKey()) // Resource-part is the member's room identity
+                        .show(newState.name().toString().toLowerCase())
+                        .affiliation(sender.getRole())
+                        .role(MucRole.fromString(sender.getRole()).getValue())
+                        .status(status)
+                        .statusCode(PresenceStatusCode.OWN_PRESENCE.getCode())
+                        .build();
+                
+                Mono<Void> sendSelfPresenceMono = clusterMessagePublisher.convertAndSendToUser(
+                    UuidCreator.getTimeOrderedEpoch().toString(), 
+                    sender.getUserKey(), 
+                    sender.getUserKey(), 
+                    ChatType.GROUPCHAT, 
+                    selfPresenceXml
+                ).then();
+                                
+                // Push group members presence to user
+                Mono<Void> pushParticipantsPresenceMono = mucPresenceService.pushGroupParticipantsPresenceToUser(
+                    ctx, 
+                    group, 
+                    sender.getUserKey()
+                );
+                
+                return Mono.when(sendSelfPresenceMono, pushParticipantsPresenceMono)
+                    .doOnSuccess(v -> log.debug("Presence synchronization complete for user {} in room {}", sender.getUserKey(), roomBareJid));
+            });
     }
         
     private UserState determineState(String xml) {

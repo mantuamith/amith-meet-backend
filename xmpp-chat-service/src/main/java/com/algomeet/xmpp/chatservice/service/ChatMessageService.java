@@ -10,7 +10,7 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
-import com.algomeet.xmpp.chatservice.cluster.publisher.ReactiveClusterMessagePublisher;
+import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.document.OfflineMessage;
 import com.algomeet.xmpp.chatservice.document.UnreadCount;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
@@ -34,7 +34,7 @@ public class ChatMessageService {
 	private final UnreadCountService unreadCountService;
 	
 	// FIXED: Ensure we use the Reactive cluster publisher definition
-	private final ReactiveClusterMessagePublisher reactiveClusterMessagePublisher;
+	private final ClusterMessagePublisher reactiveClusterMessagePublisher;
 	private final DomainProperties domainProperties;
 	private final ReactiveMongoTemplate reactiveMongoTemplate; 
 

@@ -8,7 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
-import com.algomeet.xmpp.chatservice.cluster.publisher.ReactiveClusterMessagePublisher;
+import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.publisher.DeleteMessageMediaEventPublisher;
 import com.algomeet.xmpp.chatservice.routing.dispacher.LocalStanzaDispatcher;
@@ -28,7 +28,7 @@ import reactor.core.scheduler.Schedulers;
 @RequiredArgsConstructor
 public class HideMucMessageService {
 	private final XmppArchiveService xmppArchiveService;
-	private final ReactiveClusterMessagePublisher reactiveClusterMessagePublisher;
+	private final ClusterMessagePublisher reactiveClusterMessagePublisher;
 	private final LocalStanzaDispatcher localStanzaDispatcher;
 	private final HidetUtil hidetUtil;
 	private final JidUtil jidUtil;

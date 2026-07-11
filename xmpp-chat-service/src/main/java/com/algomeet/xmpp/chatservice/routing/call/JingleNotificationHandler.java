@@ -12,6 +12,8 @@ import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import io.netty.channel.ChannelHandlerContext;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 /**
  * <p><strong>Jingle Offline Notification Handler</strong></p>
@@ -49,8 +51,9 @@ public class JingleNotificationHandler {
 	 * @param from        The JID of the initiator.
 	 * @param xml         The raw Jingle XML payload.
 	 * @param principal   The authenticated sender's security context.
+	 * @return A {@link Mono<Void>} signaling completion of the push lifecycle.
 	 */
-	public void handlePush(ChannelHandlerContext ctx, String id, String to, 
+	public Mono<Void> handlePush(ChannelHandlerContext ctx, String id, String to, 
 			String from, String xml, XmppPrincipal principal) {
 
 		// 1. Detect media type using quote-agnostic regex per XEP-0167
@@ -60,17 +63,19 @@ public class JingleNotificationHandler {
 		// for subsequent signaling (transport-info, accept, etc.)
 		boolean isInitiate = xml.contains("session-initiate");
 
-		if(isInitiate) {
+		if (isInitiate) {
 			String callType = isVideo ? "video" : "audio";
-			handleCallLogic(ctx, id, to, from, principal, callType);
+			return handleCallLogic(ctx, id, to, from, principal, callType);
 		}
+		
+		return Mono.empty();
 	}
 
 	/**
 	 * Orchestrates the push notification metadata based on the call type.
 	 * * @param callType The media type: "video" or "audio".
 	 */
-	private void handleCallLogic(ChannelHandlerContext ctx, String id, String to, String from, 
+	private Mono<Void> handleCallLogic(ChannelHandlerContext ctx, String id, String to, String from, 
 			XmppPrincipal principal, String callType) {
 
 		// Map call type to specialized notification types to trigger 
@@ -78,21 +83,24 @@ public class JingleNotificationHandler {
 		NotificationType type = "video".equals(callType) ? NotificationType.VIDEO_CALL : NotificationType.AUDIO_CALL;
 		String title = "video".equals(callType) ? "Incoming Video Call..." : "Incoming Call...";
 
-		sendPush(to, type, title, principal.getTenantId());      
-
-		log.info("Dispatched {} push notification for recipient: {}", callType, to);
+		return sendPush(to, type, title, principal.getTenantId())
+				.doOnSuccess(unused -> log.info("Dispatched {} push notification for recipient: {}", callType, to));
 	}
 
 	/**
 	 * Forwards the notification request to the notification microservice.
 	 */
-	private void sendPush(String to, NotificationType type, String title, Integer tenantId) {        
+	private Mono<Void> sendPush(String to, NotificationType type, String title, Integer tenantId) {        
 		Notification notif = Notification.builder()
 				.receiverIds(Set.of(to))
 				.type(type)
 				.title(title)
 				.tenantId(tenantId)
 				.build();
-		notificationService.sendPush(notif);
+		
+		// Offload the synchronous notification event distribution away from the calling Netty thread pool
+		return Mono.fromRunnable(() -> notificationService.sendPush(notif))
+				.subscribeOn(Schedulers.boundedElastic())
+				.then();
 	}
 }

@@ -4,8 +4,8 @@ import java.util.Optional;
 
 import org.springframework.stereotype.Component;
 
-import com.algomeet.common.dto.GroupMember;
 import com.algomeet.common.dto.Group;
+import com.algomeet.common.dto.GroupMember;
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.constant.XmppErrorConditions;
 import com.algomeet.xmpp.chatservice.enums.MucAffiliation;
@@ -23,6 +23,7 @@ import com.algomeet.xmpp.chatservice.util.XmppUtil;
 import io.netty.channel.ChannelHandlerContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
 /**
@@ -44,12 +45,12 @@ public class MucMuteEventHandler {
 	 * Processes a request to revoke an occupant's voice.
 	 * * @param ctx       The Netty context for the moderator's session.
 	 * @param roomJid   The JID of the room (room@conference.domain).
-	 * @param senderJid The real JID of the moderator performing the mute.
 	 * @param xml       The original IQ request XML.
 	 * @param group     The MUC room data object.
 	 * @param sender    The MUC profile of the moderator.
+	 * @return A Mono<Void> signaling execution chain completion.
 	 */
-	public void handleMuteRequest(ChannelHandlerContext ctx, String roomJid, String xml, Group group, GroupMember sender) {
+	public Mono<Void> handleMuteRequest(ChannelHandlerContext ctx, String roomJid, String xml, Group group, GroupMember sender) {
 		String senderJid = jidUtil.getBareJid(sender.getUserKey());
 		// 1. Parse request attributes
 		String id = XmppStanzaUtil.getAttribute(xml, "id");
@@ -67,7 +68,7 @@ public class MucMuteEventHandler {
 		if (victimOpt.isPresent() && !(MucCommandUtil.isAuthorized(sender, victimOpt.get()))) {        	
 			xmppUtil.sendError(ctx, id, senderJid, domainProperties.getGroupChatDomain(), 
 					XmppErrorType.AUTH, XmppErrorConditions.FORBIDDEN, "Error code 403");
-			return;
+			return Mono.empty();
 		}
 
 		// 4. State Preparation
@@ -81,23 +82,21 @@ public class MucMuteEventHandler {
 		String mutePresence = buildMutePresence(roomBareJid, victimUserKey, affiliation, targetJid, senderJid, reason);
 
 		XmppPrincipal principal = ctx.channel().attr(XmppSessionAttributes.PRINCIPAL).get(); 
-		mucMessageRouter.broadcastToOccupants(id, sender.getUserKey(), group, mutePresence, principal.getSessionId());
 		
-		// 6. Acknowledge the success of the command to the moderator
-		sendSuccessResponse(ctx, senderJid, roomJid, id);
-
-		log.info("Mute successful: {} role changed to visitor in {}", victimUserKey, roomJid);
+		return mucMessageRouter.broadcastToOccupants(id, sender.getUserKey(), group, mutePresence, principal.getSessionId())
+				.then(Mono.defer(() -> sendSuccessResponseReactive(ctx, senderJid, roomJid, id)))
+				.doOnSuccess(unused -> log.info("Mute successful: {} role changed to visitor in {}", victimUserKey, roomJid));
 	}
 	
 	/**
 	 * Transmits a standard IQ 'result' stanza to acknowledge successful processing.
 	 */
-	private void sendSuccessResponse(ChannelHandlerContext ctx, String to, String from, String id) {
+	private Mono<Void> sendSuccessResponseReactive(ChannelHandlerContext ctx, String to, String from, String id) {
 		String resp = String.format("<iq from='%s' to='%s' id='%s' type='result'/>", from, to, id);
-		localStanzaDispatcher.dispatchLocally(to, from, resp)
-		.subscribeOn(Schedulers.boundedElastic())
-	    .doOnError(e -> log.error("Failed to dispatch localized IQ mute response confirmation to {}", to, e))
-	    .subscribe();
+		return localStanzaDispatcher.dispatchLocally(to, from, resp)
+				.subscribeOn(Schedulers.boundedElastic())
+				.doOnError(e -> log.error("Failed to dispatch localized IQ mute response confirmation to {}", to, e))
+				.then();
 	}
 	
 	/**

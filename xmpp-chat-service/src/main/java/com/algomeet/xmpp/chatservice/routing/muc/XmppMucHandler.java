@@ -97,147 +97,157 @@ public class XmppMucHandler {
 
 		String toRoomId = XmppUtil.getRoomId(toRoomJid);
 		
-		// 1. AUTHORIZATION & ROOM LOOKUP
-		// Fetch room metadata and membership from the cache
-		// Set tenant Id to support multi-tenancy 
-		TenantContext.setCurrentTenant(principal.getTenantId());
-
-		Group group = groupCacheService.getCachedGroup(toRoomId);
-
-		// Verify if the sender is an authorized member and is not muted
-		Optional<GroupMember> senderMucMember = SearchUtil.findMember(group, principal.getUserKey());
-
-		if((senderMucMember.isEmpty() || senderMucMember.get().isMuted())
-				// Ignore unavailable presence stanzas used for member-leave broadcasts
-				&& !(XmppStanzaUtil.isPresenceStanza(originalXml) && PresenceType.UNAVAILABLE.getValue().equals(type))) {
-
-			xmppUtil.sendError(ctx, id, fromJid, domainProperties.getGroupChatDomain(), XmppErrorType.CANCEL, 
-					XmppErrorConditions.FORBIDDEN, "You are not allowed to send messages to this room");
-
-			log.error("Access Denied: User {} in room {}. (Member: {}, Muted: {})", 
-					principal.getUserKey(), toRoomId, senderMucMember.isPresent(), senderMucMember.map(GroupMember::isMuted).orElse(false));
-			return Mono.empty();
-		}
-
-		if (isModerationCommand(type, originalXml)) {
-			// MUC Admin actions (kick, ban, mute)
-			mucAdminCommandRouter.handleCommandStanza(ctx, toRoomJid, originalXml, senderMucMember.get(), principal);
-			return Mono.empty();
-		} else if(isUserCommandStanza(originalXml, toRoomJid)) {
-			// MUC User actions (nickname changes, room entry, member-leave broadcasts)
-			mucUserCommandRouter.handleCommandStanza(ctx, type, toRoomJid,  originalXml, principal);	
-			return Mono.empty();
-		} else if(XmppStanzaUtil.isRetractStanza(originalXml)) {
-			mucRetractionService.retract(ctx, id, toRoomJid, originalXml, principal);								
-			return Mono.empty();
-		} 
-
-		// 2. DIRECT PRIVATE MESSAGE (PM) WITHIN MUC CHECK
-		GroupMember pmToMucMember = resolveDirectPmRecipient(ctx, id, fromJid, toRoomJid, group);
-
-		// 3. ARCHIVING (MAM - XEP-0313)
-		// Only archive messages that are storage-eligible (e.g., contain a <body>)
-		// Check if it's archivable
-		boolean isArchivable = XmppStanzaUtil.isArchivable(originalXml);
-		boolean isAckStanza = XmppStanzaUtil.isMessageAckStanza(originalXml);
-
-		/**
-		 * Generate a monotonic UUIDv7 used as the stable stanza-id value.
-		 * ... (UUIDv7 documentation) ...
-		 */
-		UUID stanzaId = UuidCreator.getTimeOrderedEpoch();
-		
-		Mono<Void> processingPipeline = Mono.empty();
-
-		if (isAckStanza) {
-			// --- XEP-0333: Chat Markers (Read Receipts) ---
-			if (originalXml.contains(XmppReadUtil.NS_DISPLAYS)) {
-				String ackMessageId = xmppReadUtil.getAckMessageId(originalXml);
-				if (StringUtils.hasText(ackMessageId)) {	
-					UUID messageId = UUID.fromString(ackMessageId);
-					
-					// Chain read updates concurrently safely off the EventLoop
-					processingPipeline = Mono.when(
-						mucMessageReadService.advanceReadCursor(UUID.fromString(principal.getUserKey()), group.getId(), messageId),
-						mucMessageService.bulkMarkRoomMessagesAsRead(messageId)
-					).subscribeOn(DB_SCHEDULER);
-				}					
-			}
-		} else if ((msgType.supportsOfflineStorage() && isArchivable)) {
-			// Check for message file attachments
-			List<UUID> mediaIds = null;
+		// Move all blocking lookup and authorization steps into a deferred reactive container
+		return Mono.fromCallable(() -> {
+			// Set tenant context safely on the offloaded scheduler thread
+			TenantContext.setCurrentTenant(principal.getTenantId());
 			try {
-				mediaIds = MediaReferenceParser.extractMediaIds(originalXml);
-
-				if (!CollectionUtils.isEmpty(mediaIds)) {
-					BatchMediaShareRequest request = new BatchMediaShareRequest();
-					request.setMediaIds(mediaIds.stream().map(UUID::toString).collect(Collectors.toSet()));
-					request.setGroupId(group.getId());
-					request.setMessageId(UUID.fromString(id));			
-					
-					// FIX: Turn synchronous blocking Feign Client call into a lazy deferred reactive wrapper
-					processingPipeline = Mono.fromCallable(() -> shareMedias(senderMucMember.get().getUserKey(), request))
-							.subscribeOn(DB_SCHEDULER)
-							.flatMap(shared -> {
-								if(!shared) {
-									xmppUtil.sendError(ctx, id, fromJid, domainProperties.getDomain(), XmppErrorType.CANCEL, 
-											XmppErrorConditions.INTERNAL_SERVER_ERROR, "Error sharing media file(s)");
-									return Mono.error(new RuntimeException("Media sharing failed"));
-								}
-								return Mono.empty();
-							});
-				}				
-			} catch(Exception ex) {
-				log.error("Error parsing media references {}", originalXml, ex);
-				xmppUtil.sendError(ctx, id, fromJid, domainProperties.getDomain(), XmppErrorType.CANCEL, 
-						XmppErrorConditions.INTERNAL_SERVER_ERROR, "Error parsing media file(s)");
-				return Mono.empty();
-			}			
-			
-			// Insert stanza ID
-			String stampedXml = XmppStanzaUtil.insertStanzaId(originalXml, stanzaId.toString(), principal.getDomain());		
-			Boolean isCountable = XmppCustomStanzaUtil.isCountableMessage(originalXml);
-			
-			// Chain persistence execution flow sequentially
-			processingPipeline = processingPipeline.then(
-				xmppArchiveService.archiveEvent(stampedXml, id, XmppUtil.getRoomId(toRoomJid), (pmToMucMember != null ? pmToMucMember.getUserKey() : null), 
-						XmppUtil.getUserKey(fromJid), stanzaId, isCountable, mediaIds, group.getMessageRetentionDays())
-				.flatMap(saved -> {
-					// Send an immediate server-level acknowledgment to the sender.
-					XmppServerAckUtil.send(ctx, id, domainProperties.getDomain(), stanzaId.toString(), group.getMessageRetentionDays());
-					
-					Mono<Void> postSaveTasks = Mono.empty();
-					
-					// Move cursor for the message sender
-					if (isCountable) {
-						postSaveTasks = postSaveTasks.then(mucMessageReadService.advanceReadCursor(
-								UUID.fromString(principal.getUserKey()), group.getId(), UUID.fromString(id)))
-								.then();
-					}
-
-					log.debug("MAM Archive Success: ID={} Room={}", stanzaId, toRoomId);
-					return postSaveTasks;
-				})
-				.subscribeOn(DB_SCHEDULER) // Shifting storage execution completely away from Netty Event Loop
-				.doOnError(e -> {
-					log.error("MAM Archive Failure: {}", e.getMessage(), e);
-					handleArchiveError(ctx, id, principal, e);
-				})
-			);
-		}
-
-		// 4. DISPATCHING (Executed safely AFTER database work has settled cleanly)
-		final String finalXml = isArchivable ? XmppStanzaUtil.insertStanzaId(originalXml, stanzaId.toString(), principal.getDomain()) : originalXml;
-		
-		return processingPipeline.then(Mono.fromRunnable(() -> {
-			try {	
-				// Standard message propagation to members
-				mucMessageRouter.broadcastToOccupants(ctx, id, toRoomJid, fromJid, msgType, group, 
-						pmToMucMember, finalXml);
-			} catch (NumberFormatException e) {
-				log.error("Critical: Invalid roomId format in routing: {}", toRoomId);
+				Group group = groupCacheService.getCachedGroup(toRoomId);
+				Optional<GroupMember> senderMucMember = SearchUtil.findMember(group, principal.getUserKey());
+				return new AuthorizationResult(group, senderMucMember);
+			} finally {
+				TenantContext.clear(); // Clean up immediately after blocking work finishes
 			}
-		})).onErrorResume(err -> Mono.empty()).then();
+		})
+		.subscribeOn(DB_SCHEDULER) // Shifting the lookup away from Netty Event Loop
+		.flatMap((AuthorizationResult auth) -> { // Explicit parameter type hint
+			Group group = auth.group;
+			Optional<GroupMember> senderMucMember = auth.senderMucMember;
+
+			// Verify if the sender is an authorized member and is not muted
+			if((senderMucMember.isEmpty() || senderMucMember.get().isMuted())
+					// Ignore unavailable presence stanzas used for member-leave broadcasts
+					&& !(XmppStanzaUtil.isPresenceStanza(originalXml) && PresenceType.UNAVAILABLE.getValue().equals(type))) {
+
+				xmppUtil.sendError(ctx, id, fromJid, domainProperties.getGroupChatDomain(), XmppErrorType.CANCEL, 
+						XmppErrorConditions.FORBIDDEN, "You are not allowed to send messages to this room");
+
+				log.error("Access Denied: User {} in room {}. (Member: {}, Muted: {})", 
+						principal.getUserKey(), toRoomId, senderMucMember.isPresent(), senderMucMember.map(GroupMember::isMuted).orElse(false));
+				return Mono.empty(); // Typed hint to align signatures
+			}
+
+			if (isModerationCommand(type, originalXml)) {
+				// MUC Admin actions (kick, ban, mute)
+				return mucAdminCommandRouter.handleCommandStanza(ctx, toRoomJid, originalXml, senderMucMember.get(), principal);
+			} else if(isUserCommandStanza(originalXml, toRoomJid)) {
+				// MUC User actions (nickname changes, room entry, member-leave broadcasts)
+				return mucUserCommandRouter.handleCommandStanza(ctx, type, toRoomJid, originalXml, principal);	
+			} else if(XmppStanzaUtil.isRetractStanza(originalXml)) {
+				return mucRetractionService.retract(ctx, id, toRoomJid, originalXml, principal);								
+			} 
+
+			// 2. DIRECT PRIVATE MESSAGE (PM) WITHIN MUC CHECK
+			GroupMember pmToMucMember = resolveDirectPmRecipient(ctx, id, fromJid, toRoomJid, group);
+
+			// 3. ARCHIVING (MAM - XEP-0313)
+			// Only archive messages that are storage-eligible (e.g., contain a <body>)
+			// Check if it's archivable
+			boolean isArchivable = XmppStanzaUtil.isArchivable(originalXml);
+			boolean isAckStanza = XmppStanzaUtil.isMessageAckStanza(originalXml);
+
+			/**
+			 * Generate a monotonic UUIDv7 used as the stable stanza-id value.
+			 * ... (UUIDv7 documentation) ...
+			 */
+			UUID stanzaId = UuidCreator.getTimeOrderedEpoch();
+			
+			Mono<Void> processingPipeline = Mono.empty();
+
+			if (isAckStanza) {
+				// --- XEP-0333: Chat Markers (Read Receipts) ---
+				if (originalXml.contains(XmppReadUtil.NS_DISPLAYS)) {
+					String ackMessageId = xmppReadUtil.getAckMessageId(originalXml);
+					if (StringUtils.hasText(ackMessageId)) {	
+						UUID messageId = UUID.fromString(ackMessageId);
+						
+						// Chain read updates concurrently safely off the EventLoop
+						processingPipeline = Mono.when(
+							mucMessageReadService.advanceReadCursor(UUID.fromString(principal.getUserKey()), group.getId(), messageId),
+							mucMessageService.bulkMarkRoomMessagesAsRead(messageId)
+						).subscribeOn(DB_SCHEDULER);
+					}					
+				}
+			} else if ((msgType.supportsOfflineStorage() && isArchivable)) {
+				// Check for message file attachments
+				List<UUID> mediaIds = null;
+				try {
+					mediaIds = MediaReferenceParser.extractMediaIds(originalXml);
+
+					if (!CollectionUtils.isEmpty(mediaIds)) {
+						BatchMediaShareRequest request = new BatchMediaShareRequest();
+						request.setMediaIds(mediaIds.stream().map(UUID::toString).collect(Collectors.toSet()));
+						request.setGroupId(group.getId());
+						request.setMessageId(UUID.fromString(id));			
+						
+						// FIX: Turn synchronous blocking Feign Client call into a lazy deferred reactive wrapper
+						processingPipeline = Mono.fromCallable(() -> shareMedias(senderMucMember.get().getUserKey(), request))
+								.subscribeOn(DB_SCHEDULER)
+								.flatMap(shared -> {
+									if(!shared) {
+										xmppUtil.sendError(ctx, id, fromJid, domainProperties.getDomain(), XmppErrorType.CANCEL, 
+												XmppErrorConditions.INTERNAL_SERVER_ERROR, "Error sharing media file(s)");
+										return Mono.error(new RuntimeException("Media sharing failed"));
+									}
+									return Mono.empty();
+								});
+					}				
+				} catch(Exception ex) {
+					log.error("Error parsing media references {}", originalXml, ex);
+					xmppUtil.sendError(ctx, id, fromJid, domainProperties.getDomain(), XmppErrorType.CANCEL, 
+							XmppErrorConditions.INTERNAL_SERVER_ERROR, "Error parsing media file(s)");
+					return Mono.empty(); // Typed hint to align signatures
+				}			
+				
+				// Insert stanza ID
+				String stampedXml = XmppStanzaUtil.insertStanzaId(originalXml, stanzaId.toString(), principal.getDomain());		
+				Boolean isCountable = XmppCustomStanzaUtil.isCountableMessage(originalXml);
+				
+				final List<UUID> finalMediaIds = mediaIds;
+				// Chain persistence execution flow sequentially
+				processingPipeline = processingPipeline.then(
+					xmppArchiveService.archiveEvent(stampedXml, id, XmppUtil.getRoomId(toRoomJid), (pmToMucMember != null ? pmToMucMember.getUserKey() : null), 
+							XmppUtil.getUserKey(fromJid), stanzaId, isCountable, finalMediaIds, group.getMessageRetentionDays())
+					.flatMap(saved -> {
+						// Send an immediate server-level acknowledgment to the sender.
+						XmppServerAckUtil.send(ctx, id, domainProperties.getDomain(), stanzaId.toString(), group.getMessageRetentionDays());
+						
+						Mono<Void> postSaveTasks = Mono.empty();
+						
+						// Move cursor for the message sender
+						if (isCountable) {
+							postSaveTasks = postSaveTasks.then(mucMessageReadService.advanceReadCursor(
+									UUID.fromString(principal.getUserKey()), group.getId(), UUID.fromString(id)))
+									.then();
+						}
+
+						log.debug("MAM Archive Success: ID={} Room={}", stanzaId, toRoomId);
+						return postSaveTasks;
+					})
+					.subscribeOn(DB_SCHEDULER) // Shifting storage execution completely away from Netty Event Loop
+					.doOnError(e -> {
+						log.error("MAM Archive Failure: {}", e.getMessage(), e);
+						handleArchiveError(ctx, id, principal, e);
+					})
+				);
+			}
+
+			// 4. DISPATCHING (Executed safely AFTER database work has settled cleanly)
+			final String finalXml = isArchivable ? XmppStanzaUtil.insertStanzaId(originalXml, stanzaId.toString(), principal.getDomain()) : originalXml;
+			
+			return processingPipeline.then(mucMessageRouter.broadcastToOccupants(ctx, id, toRoomJid, fromJid, msgType, group, pmToMucMember, finalXml))
+					.onErrorResume(err -> Mono.empty());
+		});
+	}
+	
+	// Simple wrapper class to pass lookup tuple down the flatMap pipeline
+	private static class AuthorizationResult {
+		final Group group;
+		final Optional<GroupMember> senderMucMember;
+		AuthorizationResult(Group group, Optional<GroupMember> senderMucMember) {
+			this.group = group;
+			this.senderMucMember = senderMucMember;
+		}
 	}
 	
 	private boolean shareMedias(String fromUserKey, BatchMediaShareRequest request) {

@@ -29,6 +29,7 @@ import com.github.f4b6a3.uuid.UuidCreator;
 import io.netty.channel.ChannelHandlerContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
 
@@ -52,8 +53,9 @@ public class MucMemberLeftEventHandler {
      * @param xml       The original incoming XML presence stanza.
      * @param group     The Data Transfer Object representing the current room state.
      * @param principal 
+     * @return A {@link Mono<Void>} signaling completion of the room exit processes.
      */
-    public void handleMemberLeftRoom(ChannelHandlerContext ctx, String roomJid, String xml, Group group, XmppPrincipal principal) { 	        
+    public Mono<Void> handleMemberLeftRoom(ChannelHandlerContext ctx, String roomJid, String xml, Group group, XmppPrincipal principal) { 	        
         String roomBareJid = XmppUtil.getRoomBareJid(roomJid);
         
         // 1. Send "Self-Presence" back to the leaving user.
@@ -67,13 +69,13 @@ public class MucMemberLeftEventHandler {
 				.role(MucRole.NONE.getValue())
         		.build();
         
-        clusterMessagePublisher.convertAndSendToUser(
+        Mono<Void> selfPresenceMono = clusterMessagePublisher.convertAndSendToUser(
         	UuidCreator.getTimeOrderedEpoch().toString(), 
             principal.getUserKey(), 
             principal.getUserKey(), 
             ChatType.GROUPCHAT, 
             selfPresenceXml
-        );
+        ).then();
         
         // 2. Broadcast the joiner's availability to all members in the room.
         // This includes updating the joiner's view of existing members (Synchronizing State).       
@@ -85,7 +87,13 @@ public class MucMemberLeftEventHandler {
 				.role(MucRole.NONE.getValue())
 				.build();
         
-        mucMessageRouter.broadcastToOccupants(UuidCreator.getTimeOrderedEpoch().toString(), principal.getUserKey(), group, presenceXml, principal.getSessionId());
+        Mono<Void> broadcastPresenceMono = mucMessageRouter.broadcastToOccupants(
+        		UuidCreator.getTimeOrderedEpoch().toString(), 
+        		principal.getUserKey(), 
+        		group, 
+        		presenceXml, 
+        		principal.getSessionId()
+        );
         
         /**
 		 * ----------------------------------------------------------
@@ -94,10 +102,9 @@ public class MucMemberLeftEventHandler {
 		 * Human-readable audit trail message.
 		 */
 		String messageId = UuidCreator.getTimeOrderedEpoch().toString();
-
 		String body = principal.getUsername() + " left";
-	
 		String senderJid = jidUtil.getBareJid(principal.getUserKey());
+		
         String xmlLogStanza = buildMemberLeftLogStanza(
         		messageId,
         		senderJid,
@@ -115,7 +122,7 @@ public class MucMemberLeftEventHandler {
 		// Insert stanza ID
 		String forArchiveXmlLog = XmppStanzaUtil.insertStanzaId(xmlLogStanza, stanzaId.toString(), domainProperties.getDomain());
 		
-		saveToDatabase(messageId, roomBareJid, senderJid, group, principal, stanzaId, forArchiveXmlLog, group.getMessageRetentionDays());
+		Mono<Void> saveDbMono = saveToDatabaseReactive(messageId, roomBareJid, senderJid, group, principal, stanzaId, forArchiveXmlLog, group.getMessageRetentionDays());
 
 		/**
 		 * ----------------------------------------------------------
@@ -123,7 +130,7 @@ public class MucMemberLeftEventHandler {
 		 * ----------------------------------------------------------
 		 * This is visible chat history event.
 		 */
-		xmppBroadCastHandler.broadcastToOccupants(
+		Mono<Void> xmppBroadcastMono = xmppBroadCastHandler.broadcastToOccupants(
 				ctx,
 				messageId,
 				roomBareJid,
@@ -134,21 +141,24 @@ public class MucMemberLeftEventHandler {
 				forArchiveXmlLog);
 		
 		// Cleanup up member group messages media files		
-		exitGroupMemberMediaCleanupEventPublisher.publish(
+		Mono<Void> cleanupMono = exitGroupMemberMediaCleanupEventPublisher.publish(
 		        UUID.fromString(XmppUtil.getRoomId(roomJid)), 
 		        UUID.fromString(principal.getUserKey())
 		    )
 		.subscribeOn(Schedulers.boundedElastic())
 	    .doOnError(e -> log.error("Failed to clean up group member media files for user {} in room {}", principal.getUserKey(), roomJid, e))
-	    .subscribe();
+	    .then();
 
 		// Remove sender key for E2EE
-		removeGroupSenderKeyPublisher.publish(XmppUtil.getRoomId(roomJid), principal.getUserKey())
+		Mono<Void> removeSenderKeyMono = removeGroupSenderKeyPublisher.publish(XmppUtil.getRoomId(roomJid), principal.getUserKey())
 		    .subscribeOn(Schedulers.boundedElastic())
 		    .doOnError(e -> log.error("Failed to remove group sender key for user {} in room {}", principal.getUserKey(), roomJid, e))
-		    .subscribe();
+		    .then();
         
-        log.debug("User left the room presence synchronization is completed for user {} in room {}", principal.getUserKey(), roomBareJid);
+		// Compose the reactive lifecycle execution flow sequentially or concurrently where safe
+		return Mono.when(selfPresenceMono, broadcastPresenceMono)
+				.then(Mono.when(saveDbMono, xmppBroadcastMono, cleanupMono, removeSenderKeyMono))
+				.doOnSuccess(unused -> log.debug("User left the room presence synchronization is completed for user {} in room {}", principal.getUserKey(), roomBareJid));
     }
     
     private String buildMemberLeftLogStanza(
@@ -169,7 +179,7 @@ public class MucMemberLeftEventHandler {
 				.toXml();	
 	}
     
-    private void saveToDatabase(
+    private Mono<Void> saveToDatabaseReactive(
 			String id,
 			String roomBareJid,
 			String senderJid,
@@ -179,7 +189,7 @@ public class MucMemberLeftEventHandler {
 			String xml,
 			Integer messageRetentionDays) {
 
-		xmppArchiveService.archiveEvent(
+		return xmppArchiveService.archiveEvent(
 				xml,
 				id,
 				XmppUtil.getRoomId(roomBareJid),
@@ -189,6 +199,6 @@ public class MucMemberLeftEventHandler {
 				messageRetentionDays)
 		.subscribeOn(Schedulers.boundedElastic())
 	    .doOnError(e -> log.error("Failed to archive departure event log for user {} inside room {}", principal.getUserKey(), roomBareJid, e))
-	    .subscribe();
+	    .then();
 	}
 }

@@ -5,14 +5,14 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 
 import com.algomeet.common.service.AbstractGroupCache;
-import com.algomeet.xmpp.chatservice.cluster.publisher.ReactiveClusterMessagePublisher;
+import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.document.PinMucMessage;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.enums.ViewManageEnum;
 import com.algomeet.xmpp.chatservice.exceptions.PinMessageNotFoundException;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.repository.PinMucMessageRepository;
-import com.algomeet.xmpp.chatservice.routing.muc.ReactiveMucMessageRouter;
+import com.algomeet.xmpp.chatservice.routing.muc.MucMessageRouter;
 import com.algomeet.xmpp.chatservice.stanza.PinStanza;
 import com.algomeet.xmpp.chatservice.stanza.ViewManageSyncStanza;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
@@ -33,9 +33,9 @@ public class PinMucMessageService {
     private final PinMucMessageRepository pinMucMessageRepository;
     private final JidUtil jidUtil;
     private final DomainProperties domainProperties;
-    private final ReactiveMucMessageRouter reactiveMucMessageRouter;
+    private final MucMessageRouter reactiveMucMessageRouter;
     private final AbstractGroupCache groupCacheService;
-    private final ReactiveClusterMessagePublisher reactiveClusterMessagePublisher;
+    private final ClusterMessagePublisher reactiveClusterMessagePublisher;
 
     // Dedicated pool to cleanly offload blocking repository or cache actions away from Netty
     private static final Scheduler MUC_WORKER_SCHEDULER = Schedulers.newBoundedElastic(200, 10000, "xmpp-pin-muc-message-workers");

@@ -74,15 +74,15 @@ public class XmppUserGlobalPresenceHandler {
 					principal.getUserKey(),
 					principal.getSessionId(),
 					newState
-					);
-
+					)
 			// 2. Broadcast updated presence to contacts / subscribers
 			// (XMPP presence fan-out mechanism)
-			xmppUserGlobalPresenceHandler.broadcastUserPresenceAsync(
+			.then(xmppUserGlobalPresenceHandler.broadcastUserPresence(
 					ctx,
 					principal,
 					newState
-					);
+					))
+			.subscribe();
 
 			// 3. Ensure "initial session sync" logic executes only once per connection
 			Attribute<Boolean> initialPresenceAttr =
@@ -99,7 +99,8 @@ public class XmppUserGlobalPresenceHandler {
 				// A. Push contact presence snapshot ("world state")
 				// Only needed for fresh sessions (not fully resumed ones)
 				if (smResumptionSuccess == null || !smResumptionSuccess.get()) {
-					xmppPresencePushHandler.pushUsersPresenceAsync(ctx, principal);
+					xmppPresencePushHandler.pushUsersPresence(ctx, principal)
+					.subscribe();
 				}
 
 				// B. Deliver offline messages accumulated while user was disconnected

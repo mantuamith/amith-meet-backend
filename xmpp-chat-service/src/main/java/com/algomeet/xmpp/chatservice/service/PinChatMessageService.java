@@ -5,7 +5,7 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 
 import com.algomeet.common.util.DeterministicConversationIdUtil;
-import com.algomeet.xmpp.chatservice.cluster.publisher.ReactiveClusterMessagePublisher;
+import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.document.PinChatMessage;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.enums.ViewManageEnum;
@@ -31,7 +31,7 @@ import reactor.core.scheduler.Schedulers;
 public class PinChatMessageService {
 
     private final PinChatMessageRepository pinChatMessageRepository;
-    private final ReactiveClusterMessagePublisher reactiveClusterMessagePublisher;
+    private final ClusterMessagePublisher reactiveClusterMessagePublisher;
     private final DomainProperties domainProperties;
     private final JidUtil jidUtil;
 

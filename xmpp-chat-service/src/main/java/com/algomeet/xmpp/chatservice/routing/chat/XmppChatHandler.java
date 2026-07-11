@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
+import com.algomeet.multitenancy.context.TenantContext;
 import com.algomeet.notificationservice.dto.Notification;
 import com.algomeet.notificationservice.enums.NotificationType;
 import com.algomeet.notificationservice.service.NotificationService;
@@ -85,10 +86,7 @@ public class XmppChatHandler {
 		String fromUserKey = principal.getUserKey();
 		
 		String forArchiveXml = originalXml;
-		
-		// Get user sessions from redis
-		Set<UserSession> sessions = userSessionRegistry.getSessions(toUserKey);
-
+				
 		// Persistence & XEP-0198 Acknowledgment
 		boolean isArchivable = XmppStanzaUtil.isArchivable(originalXml);
 		// Determine if message is ACK stanza
@@ -169,6 +167,9 @@ public class XmppChatHandler {
 	            	// used to provide early delivery assurance back to the sender.
 					XmppServerAckUtil.send(ctx, id, domainProperties.getDomain(), stanzaId.toString(), saved.retentionDays()); 
 
+					// Replace the old sequential "postSaveTasks = Mono.empty()" pattern with a structured list
+		            List<Mono<Void>> tasks = new java.util.ArrayList<>();
+		            
 					if (isAckStanza) {
 						/*
 		                 * CRITICAL TIMING SEQUENCE:
@@ -180,12 +181,10 @@ public class XmppChatHandler {
 		                 * and target data that hasn't physically settled in the collection yet.
 		                 * ACKs cleanup logic under ClusterMessageListener.onMessage().
 		                 */
-						clusterMessagePublisher.convertAndSendToUser(id, toUserKey, fromUserKey, ChatType.CHAT, false, true, isAckStanza, archivedXml, principal);
+						tasks.add(clusterMessagePublisher.convertAndSendToUser(id, toUserKey, fromUserKey, 
+								ChatType.CHAT, false, true, isAckStanza, archivedXml, principal));
 					}
 					
-					// Replace the old sequential "postSaveTasks = Mono.empty()" pattern with a structured list
-		            List<Mono<Void>> tasks = new java.util.ArrayList<>();
-
 		            // 1. Process Retractions
 		            // Check if the message contains the XMPP Message Retraction namespace (XEP-0424 / urn:xmpp:message-retract:1)
 		            if (XmppStanzaUtil.isRetractStanza(originalXml)) {
@@ -265,24 +264,40 @@ public class XmppChatHandler {
 		// Handle call life cycle 
 		if (XmppMessageType.SET == XmppMessageType.fromString(type) 
 				&& originalXml.contains(Constants.NS_JINGLE)) {
-			callTracker.track(ctx, toJid, fromJid, originalXml, principal);
+			processingPipeline = processingPipeline.then(callTracker.track(ctx, toJid, fromJid, originalXml, principal));
 		}   				
 
 		// Check if carbon copy is required, if archivable the Carbon Copy is required
 		Boolean shouldCarbon = isArchivable;
 		final String finalArchiveXml = forArchiveXml;
 		
-		// Broadast to Redis: Even if they are AWAY/DND, we attempt delivery 
-		// to their active WebSocket channels across the cluster.
-		return processingPipeline.then(Mono.fromRunnable(() -> {
-			if(!isAckStanza) {
-				clusterMessagePublisher.convertAndSendToUser(id, toUserKey, fromUserKey, ChatType.CHAT, false, shouldCarbon, isAckStanza,
-						(isArchivable ? finalArchiveXml : originalXml), principal);
+		// Broadcast to Redis and handle push updates reactively
+		return processingPipeline.then(Mono.defer(() -> {
+		    if (!isAckStanza) {
+		        String payload = isArchivable ? finalArchiveXml : originalXml;
+		        
+		        // Asynchronously retrieve user sessions, fallback to empty set on error
+		        return userSessionRegistry.getSessions(toUserKey)
+		            .defaultIfEmpty(java.util.Collections.emptySet())
+		            .flatMap(sessions -> {
+		                // Ensure a safe fallback if the set itself is explicitly null
+		                Set<UserSession> activeSessions = (sessions != null) ? sessions : java.util.Collections.emptySet();
 
-				pushNotification(ctx, id, toUserKey, fromUserKey, type, originalXml, sessions, principal);
-			}
-		})).onErrorResume(err -> Mono.empty())
-				.then(); 
+		                // 1. Fire the native reactive cluster publisher (Always runs)
+		                return clusterMessagePublisher.convertAndSendToUser(
+		                        id, toUserKey, fromUserKey, ChatType.CHAT, false, shouldCarbon, isAckStanza, payload, principal
+		                    )
+		                    // 2. Chain seamlessly into the push notification method
+		                    .then(pushNotification(ctx, id, toUserKey, fromUserKey, type, originalXml, activeSessions, principal));
+		            });
+		    }
+		    return Mono.empty();
+		}))
+		.onErrorResume(err -> {
+		    log.error("Error executing post-routing actions for message ID: {}", id, err);
+		    return Mono.empty();
+		})
+		.then();
 	}
 	
 	private boolean shareMedias(String fromUserKey, BatchMediaShareRequest request) {
@@ -328,7 +343,7 @@ public class XmppChatHandler {
 	            });
 	}
 
-	private void pushNotification(ChannelHandlerContext ctx,
+	private Mono<Void> pushNotification(ChannelHandlerContext ctx,
 			String id,
 			String toUserKey,
 			String fromUserKey,
@@ -354,7 +369,7 @@ public class XmppChatHandler {
 					&& xml.contains(Constants.NS_JINGLE)) {   
 
 				// Handle Jingle Signaling notification
-				jingleNotificationHandler.handlePush(ctx, id, toUserKey, fromUserKey, xml, principal);
+				return jingleNotificationHandler.handlePush(ctx, id, toUserKey, fromUserKey, xml, principal);
 
 			} else {                 
 				/*
@@ -365,10 +380,11 @@ public class XmppChatHandler {
 				 */            	
 				if (XmppStanzaUtil.isArchivable(xml)) {
 					String body = XmppUtil.getMessageBody(xml);
-					sendPushNotification(toUserKey, body, NotificationType.DIRECT_MESSAGE, principal);
+					return sendPushNotification(toUserKey, body, NotificationType.DIRECT_MESSAGE, principal);
 				}
 			}     
 		}
+		return Mono.empty();
 	}  
 		
 	/**
@@ -378,15 +394,27 @@ public class XmppChatHandler {
 	 * @param message
 	 * @param notifcationType
 	 */
-	private void sendPushNotification(String toKey, String message, NotificationType notifcationType, XmppPrincipal principal) {
-		Notification notif = Notification.builder()
-				.receiverIds(Set.of(toKey))
-				.type(notifcationType)
-				.title("You have new message")
-				.body(message)
-				.tenantId(principal.getTenantId())
-				.build();
+	private Mono<Void> sendPushNotification(String toKey, String message, NotificationType notificationType, XmppPrincipal principal) {
+	    return Mono.fromRunnable(() -> {
+	        // Explicitly set the tenant context for this synchronous boundary worker thread
+	        TenantContext.setCurrentTenant(principal.getTenantId());
+	        try {
+	            Notification notif = Notification.builder()
+	                    .receiverIds(Set.of(toKey))
+	                    .type(notificationType)
+	                    .title("You have new message")
+	                    .body(message)
+	                    .tenantId(principal.getTenantId())
+	                    .build();
 
-		notificationService.sendPush(notif);
+	            notificationService.sendPush(notif);
+	        } finally {
+	            // Clean up the ThreadLocal to prevent leakage back into the worker pool
+	            TenantContext.clear();
+	        }
+	    })
+	    .subscribeOn(Schedulers.boundedElastic()) // Offload the network/IO push operation completely
+	    .doOnError(e -> log.error("Failed to deliver reactive push notification to user key: {}", toKey, e))
+	    .then(); // Transforms Mono<Object> into a clean Mono<Void> pipeline signal
 	}
 }

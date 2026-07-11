@@ -8,7 +8,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
-import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.constant.XmppErrorConditions;
 import com.algomeet.xmpp.chatservice.enums.XmppErrorType;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
@@ -167,9 +166,7 @@ public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocke
 		    final String finalFromJid = fromJid;
 		    final String finalId = id;
 		    
-			if (!mam && (XmppMessageType.GROUPCHAT == XmppMessageType.fromString(type) || isGroupChat(toJid))) {
-				xmppMucHandler.handleGroupChatRouting(ctx, id, toJid, fromJid, type, xml);
-				
+			if (!mam && (XmppMessageType.GROUPCHAT == XmppMessageType.fromString(type) || isGroupChat(toJid))) {				
 				// Apply sequential backpressure for room chats			    
 			    Mono<Void> mucTask = Mono.defer(() -> {
 			        ctx.channel().config().setAutoRead(false);

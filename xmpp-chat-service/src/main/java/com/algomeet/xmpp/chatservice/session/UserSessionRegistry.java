@@ -2,7 +2,6 @@ package com.algomeet.xmpp.chatservice.session;
 
 import java.time.Instant;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -10,9 +9,8 @@ import java.util.Set;
 
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.redis.core.HashOperations;
-import org.springframework.data.redis.core.RedisCallback;
-import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.ReactiveHashOperations;
+import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 
@@ -22,6 +20,9 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 /**
  * <p>A distributed registry for managing active XMPP user sessions using Redis.</p>
@@ -48,7 +49,7 @@ import lombok.extern.slf4j.Slf4j;
 public class UserSessionRegistry {
     private static final String USER_SESSIONS_KEY_PREFIX = "xmpp:user-sessions:";
     
-    private final RedisTemplate<String, String> redisTemplate;
+    private final ReactiveStringRedisTemplate redisTemplate;
     
     private final ObjectMapper objectMapper;
 
@@ -57,7 +58,7 @@ public class UserSessionRegistry {
     private int zombieMaxAgeHours;
     
     public UserSessionRegistry(
-            @Qualifier("stringRedisTemplate") RedisTemplate<String, String> redisTemplate,
+            @Qualifier("reactiveStringRedisTemplate") ReactiveStringRedisTemplate redisTemplate,
             ObjectMapper objectMapper
     ) {
         this.redisTemplate = redisTemplate;
@@ -74,7 +75,7 @@ public class UserSessionRegistry {
     /**
      * Helper to access Redis Hash operations.
      */
-    private HashOperations<String, String, String> hashOps() {
+    private ReactiveHashOperations<String, String, String> hashOps() {
         return redisTemplate.opsForHash();
     }
 
@@ -84,16 +85,16 @@ public class UserSessionRegistry {
      * @param userKey The unique key of the user.
      * @param session The session metadata to persist.
      */
-    public void addSession(String userKey, UserSession session) {
-        try {
-            String key = userKey(userKey);
-            String value = objectMapper.writeValueAsString(session);
-            hashOps().put(key, session.getSessionId(), value);
-                        
-            log.debug("Session {} added for user {}", session.getSessionId(), userKey);
-        } catch (Exception e) {
-            log.error("CRITICAL: Failed to persist session to Redis for user {}", userKey, e);
-        }
+    public Mono<Boolean> addSession(String userKey, UserSession session) {
+        return Mono.fromCallable(() -> objectMapper.writeValueAsString(session))
+                .subscribeOn(Schedulers.parallel()) // <-- Run CPU-bound JSON serialization here
+                .flatMap(value -> {
+                    String key = userKey(userKey);
+                    return hashOps().put(key, session.getSessionId(), value);
+                })
+                .doOnSuccess(success -> log.debug("Session {} added for user {}", session.getSessionId(), userKey))
+                .doOnError(e -> log.error("CRITICAL: Failed to persist session to Redis for user {}", userKey, e))
+                .onErrorReturn(false);
     }
 
     /**
@@ -102,25 +103,26 @@ public class UserSessionRegistry {
      * @param userKey The unique key of the user.
      * @return A Set of {@link UserSession} objects, or an empty Set if none exist.
      */
-    public Set<UserSession> getSessions(String userKey) {
-        try {
-            String key = userKey(userKey);
+    public Mono<Set<UserSession>> getSessions(String userKey) {
+        String key = userKey(userKey);
 
-            Map<String, String> entries = hashOps().entries(key);
-            if (CollectionUtils.isEmpty(entries)) {
-                return new HashSet<>();
-            }
-
-            Set<UserSession> sessions = new HashSet<>();
-            for (String value : entries.values()) {
-                sessions.add(objectMapper.readValue(value, UserSession.class));
-            }
-
-            return sessions;
-        } catch (Exception e) {
-            log.error("Failed to retrieve sessions from Redis for user {}", userKey, e);
-            return new HashSet<>();
-        }
+        return hashOps().values(key)
+                .publishOn(Schedulers.parallel()) // <-- Switch context for upcoming CPU-bound parsing
+                .map(value -> {
+                    try {
+                        return objectMapper.readValue(value, UserSession.class);
+                    } catch (JsonProcessingException e) {
+                        log.error("Failed to deserialize session JSON for user {}", userKey, e);
+                        return null;
+                    }
+                })
+                .filter(java.util.Objects::nonNull)
+                .collectList()
+                .map(list -> (Set<UserSession>) new HashSet<>(list)) 
+                .onErrorResume(e -> {
+                    log.error("Failed to retrieve sessions from Redis for user {}", userKey, e);
+                    return Mono.just(new HashSet<>());
+                });
     }
     
     /**
@@ -133,34 +135,38 @@ public class UserSessionRegistry {
      * @param sessionId The specific Netty channel ID.
      * @param newState  The new {@link UserState} (e.g., ACTIVE, AWAY, GONE).
      */
-    public void updateSessionStatus(String userKey, String sessionId, UserState newState) {
-        try {
-            String key = userKey(userKey);
-            
-            // 1. Retrieve the existing session JSON from the Redis Hash
-            String json = hashOps().get(key, sessionId);
-            if (json == null) {
-                log.warn("Cannot update status: Session {} not found for user {}", sessionId, userKey);
-                return;
-            }
+    public Mono<Void> updateSessionStatus(String userKey, String sessionId, UserState newState) {
+        String key = userKey(userKey);
+        
+        // 1. Retrieve the existing session JSON from the Redis Hash
+        return hashOps().get(key, sessionId)
+                .flatMap(json -> {
+                    try {
+                        // 2. Deserialize, update fields, and re-serialize
+                        UserSession session = objectMapper.readValue(json, UserSession.class);
+                        session.setState(newState);
+                        
+                        // 3. Set update timestamp (UTC)
+                        session.setUpdatedAt(Instant.now().toEpochMilli());
 
-            // 2. Deserialize, update fields, and re-serialize
-            UserSession session = objectMapper.readValue(json, UserSession.class);
-            session.setState(newState);
-            
-            // 3. Set update timestamp (UTC)
-            session.setUpdatedAt(Instant.now().toEpochMilli());
-
-            String updatedValue = objectMapper.writeValueAsString(session);
-            
-            // 4. Persist back to Redis
-            hashOps().put(key, sessionId, updatedValue);
-            
-            log.debug("Session {} status updated to {} for user {}", sessionId, newState, userKey);
-
-        } catch (Exception e) {
-            log.error("Failed to update session status for user: {}", userKey, e);
-        }
+                        String updatedValue = objectMapper.writeValueAsString(session);
+                        
+                        // 4. Persist back to Redis
+                        return hashOps().put(key, sessionId, updatedValue)
+                                .doOnSuccess(v -> log.debug("Session {} status updated to {} for user {}", sessionId, newState, userKey))
+                                .then();
+                    } catch (Exception e) {
+                        log.error("Failed to update session status serialization for user: {}", userKey, e);
+                        return Mono.empty();
+                    }
+                })
+                .switchIfEmpty(Mono.fromRunnable(() -> 
+                    log.warn("Cannot update status: Session {} not found for user {}", sessionId, userKey)
+                ))
+                .onErrorResume(e -> {
+                    log.error("Failed to update session status for user: {}", userKey, e);
+                    return Mono.empty();
+                });
     }
     
     /**
@@ -170,40 +176,47 @@ public class UserSessionRegistry {
      * @param userKey   The user's unique key.
      * @param sessionId The ID of the session to terminate.
      */
-    public void removeSession(String userKey, String sessionId) {
+    public Mono<Void> removeSession(String userKey, String sessionId) {
         String key = userKey(userKey);
-        hashOps().delete(key, sessionId);
         
-        // Cleanup zombie sessions
-        Map<String, String> sessions = hashOps().entries(key);
-        for (Map.Entry<String, String> session : sessions.entrySet()) {        	
-            try {
-            	// Deserialize
-				UserSession userSession = objectMapper.readValue(session.getValue(), UserSession.class);
-				long time = (Instant.now().toEpochMilli() - userSession.getUpdatedAt());
-				// Convert to hours
-				long sessionAgeInhours = time / (60 * 60 * 1000L);
+        // FIX: Use .remove() to delete specific fields/sessionIds from the Hash
+        return hashOps().remove(key, sessionId)
+                .thenMany(hashOps().entries(key)) // Treat entries as a stream (Flux)
+                .flatMap(entry -> {
+                    try {
+                        // Deserialize
+                        UserSession userSession = objectMapper.readValue(entry.getValue(), UserSession.class);
+                        long time = (Instant.now().toEpochMilli() - userSession.getUpdatedAt());
+                        // Convert to hours
+                        long sessionAgeInhours = time / (60 * 60 * 1000L);
 
-				if (sessionAgeInhours > zombieMaxAgeHours) {
-					hashOps().delete(key, session.getKey());
-				}
-			} catch (JsonProcessingException e) {
-				log.error("Error transforming/processing user session from redis", e);
-			} 
-        }
-
-        // Cleanup: If the user has no more active sessions, remove the hash key entirely
-        Long size = hashOps().size(key);
-        if (size == null || size == 0) {
-            redisTemplate.delete(key);
-            log.debug("All sessions removed. Cleaned up root key for user: {}", userKey);
-        }
+                        if (sessionAgeInhours > zombieMaxAgeHours) {
+                            // FIX: Use .remove() here as well for field deletion
+                            return hashOps().remove(key, entry.getKey()).then();
+                        }
+                    } catch (JsonProcessingException e) {
+                        log.error("Error transforming/processing user session from redis", e);
+                    }
+                    return Mono.empty();
+                })
+                // Complete processing of all entries before evaluating root key size
+                .then(hashOps().size(key)) 
+                .flatMap(size -> {
+                    // Cleanup: If the user has no more active sessions, remove the hash key entirely
+                    if (size == null || size == 0) {
+                        // Correct use of redisTemplate.delete(key) to wipe out the whole root key
+                        return redisTemplate.delete(key)
+                                .doOnSuccess(v -> log.debug("All sessions removed. Cleaned up root key for user: {}", userKey))
+                                .then();
+                    }
+                    return Mono.empty();
+                });
     }
 
     /**
      * Validates if a specific session ID is still present in the global registry.
      */
-    public boolean hasSession(String userKey, String sessionId) {
+    public Mono<Boolean> hasSession(String userKey, String sessionId) {
         String key = userKey(userKey);
         return hashOps().hasKey(key, sessionId);
     }
@@ -211,66 +224,50 @@ public class UserSessionRegistry {
     /**
      * Forcefully clears all session data for a user.
      */
-    public void deleteAllSessions(String userKey) {
-        redisTemplate.delete(userKey(userKey));
-        log.info("Force-deleted all sessions for user: {}", userKey);
+    public Mono<Void> deleteAllSessions(String userKey) {
+        return redisTemplate.delete(userKey(userKey))
+                .doOnSuccess(v -> log.info("Force-deleted all sessions for user: {}", userKey))
+                .then();
     }
     
     /**
-     * Retrieves sessions for multiple users in a single Redis round-trip using Pipelining.
-     * This is critical for performance when fetching presence for a user's contact list.
-     * * @param userKeys List of unique user identifiers.
+     * Retrieves sessions for multiple users in a single Redis round-trip without blocking threads.
+     * This uses non-blocking concurrent streams which replaces manual pipelining.
+     * 
+     * @param userKeys List of unique user identifiers.
      * @return A Map where Key is the userKey and Value is the Set of their active UserSessions.
      */
-    public Map<String, Set<UserSession>> getAllSessions(List<String> userKeys) {
+    public Mono<Map<String, Set<UserSession>>> getAllSessions(List<String> userKeys) {
         if (CollectionUtils.isEmpty(userKeys)) {
-            return Collections.emptyMap();
+            return Mono.just(Collections.emptyMap());
         }
 
-        try {
-            // executePipelined will use the Template's StringSerializers automatically
-            List<Object> pipelinedResults = redisTemplate.executePipelined((RedisCallback<Object>) connection -> {
-                for (String userKey : userKeys) {
-                    // Use the template's serializer to stay consistent with how data was saved
-                    byte[] keyBytes = redisTemplate.getStringSerializer().serialize(userKey(userKey));
-                    connection.hGetAll(keyBytes);
-                }
-                return null;
-            });
-
-            Map<String, Set<UserSession>> resultMap = new HashMap<>();
-
-            for (int i = 0; i < userKeys.size(); i++) {
-                String currentUserKey = userKeys.get(i);
-                Object result = pipelinedResults.get(i);
-
-                // FIX: Spring has already deserialized the bytes into Strings 
-                // because your template is RedisTemplate<String, String>
-                if (result instanceof Map) {
-                    @SuppressWarnings("unchecked")
-                    Map<Object, Object> hashEntries = (Map<Object, Object>) result;
-                    Set<UserSession> sessions = new HashSet<>();
-
-                    for (Object value : hashEntries.values()) {
-                        if (value instanceof String json) {
-                            try {
-                                sessions.add(objectMapper.readValue(json, UserSession.class));
-                            } catch (JsonProcessingException e) {
-                                log.error("Failed to deserialize session JSON for user {}", currentUserKey, e);
-                            }
-                        }
-                    }
-                    resultMap.put(currentUserKey, sessions);
-                } else {
-                    resultMap.put(currentUserKey, new HashSet<>());
-                }
-            }
-
-            return resultMap;
-
-        } catch (Exception e) {
-            log.error("Failed to execute pipelined session retrieval for {} keys", userKeys.size(), e);
-            return Collections.emptyMap();
-        }
+        return Flux.fromIterable(userKeys)
+                .flatMap(currentUserKey -> {
+                    String key = userKey(currentUserKey);
+                    
+                    return hashOps().values(key)
+                            .map(json -> {
+                                try {
+                                    return objectMapper.readValue(json, UserSession.class);
+                                } catch (JsonProcessingException e) {
+                                    log.error("Failed to deserialize session JSON for user {}", currentUserKey, e);
+                                    return null; // Handled by filter below
+                                }
+                            })
+                            .filter(java.util.Objects::nonNull)
+                            .collectList()
+                            .map(HashSet::new) // Collect to standard Set
+                            // Transform item stream into an entry object linking userKey with their sessions
+                            .map(sessions -> Map.entry(currentUserKey, (Set<UserSession>) sessions))
+                            // Handle exceptions isolated to an individual user lookup to avoid collapsing the batch
+                            .onErrorReturn(Map.entry(currentUserKey, new HashSet<>()));
+                })
+                // Reduce the streamed map entries back into your unified result Map
+                .collectMap(Map.Entry::getKey, Map.Entry::getValue)
+                .onErrorResume(e -> {
+                    log.error("Failed to execute reactive session retrieval for {} keys", userKeys.size(), e);
+                    return Mono.just(Collections.emptyMap());
+                });
     }
 }

@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
@@ -36,6 +37,7 @@ import com.github.f4b6a3.uuid.UuidCreator;
 import io.netty.channel.ChannelHandlerContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
 /**
@@ -97,8 +99,9 @@ public class MucAddMemberEventHandler {
 	 * @param xml original IQ stanza payload
 	 * @param group current room state snapshot
 	 * @param sender admin user performing the action
+	 * @return A {@link Mono<Void>} signaling completion of the add member flow.
 	 */
-	public void handleAddMemberRequest(
+	public Mono<Void> handleAddMemberRequest(
 			ChannelHandlerContext ctx,
 			String roomJid,
 			String xml,
@@ -143,8 +146,10 @@ public class MucAddMemberEventHandler {
 			xmppUtil.sendError(ctx, id, senderJid, domainProperties.getGroupChatDomain(), 
 					XmppErrorType.AUTH, XmppErrorConditions.FORBIDDEN, "Error code 403");
 			log.error("Error code 403 adding new member {} to room {} by {}", newMemberJid, roomJid, senderJid);
-			return;
+			return Mono.empty();
 		}
+
+		String newMemberUserKey = XmppUtil.getUserKey(newMemberJid);
 
 		/**
 		 * NOTE:
@@ -152,147 +157,109 @@ public class MucAddMemberEventHandler {
 		 * - stale room state
 		 * - race condition during membership update
 		 */
-		Set<UserSession> newMemberSessions = userSessionRegistry.getSessions(
-				newMemberOpt.get().getUserKey());
+		return userSessionRegistry.getSessions(newMemberOpt.get().getUserKey())
+				.flatMap((Set<UserSession> newMemberSessions) -> {
 
-		/**
-		 * ----------------------------------------------------------
-		 * 3. Determine presence state across devices
-		 * ----------------------------------------------------------
-		 * Multi-device logic:
-		 * - ONLINE if any session active
-		 * - otherwise GONE/OFFLINE
-		 */
-		String newMemberUserKey = XmppUtil.getUserKey(newMemberJid);
+					/**
+					 * ----------------------------------------------------------
+					 * 3. Determine presence state across devices
+					 * ----------------------------------------------------------
+					 * Multi-device logic:
+					 * - ONLINE if any session active
+					 * - otherwise GONE/OFFLINE
+					 */
+					UserState newMemberState = UserState.GONE;
+					long updatedAt = 0L;
 
-		UserState newMemberState = UserState.GONE;
-		long updatedAt = 0L;
+					if (!newMemberSessions.isEmpty()) {
+						newMemberState = UserStateUtil.determineOverallState(newMemberSessions);
 
-		if (!newMemberSessions.isEmpty()) {
+						/**
+						 * Take latest activity across all devices.
+						 */
+						updatedAt = newMemberSessions.stream()
+								.mapToLong(UserSession::getUpdatedAt)
+								.max()
+								.orElse(0L);
+					}
 
-			newMemberState = UserStateUtil.determineOverallState(
-					newMemberSessions);
+					/**
+					 * ----------------------------------------------------------
+					 * 4. Build MUC presence update stanza
+					 * ----------------------------------------------------------
+					 * Broadcasts updated role/affiliation to all occupants.
+					 */
+					String presenceXml = MucUserPresenceBuilder.create()
+							.from(roomBareJid, newMemberUserKey)
+							.show(newMemberState.name().toLowerCase())
+							.affiliation(newMemberMucAffiliation)
+							.role(MucRole.fromString(newMemberMucAffiliation).getValue())
+							.targetJid(jidUtil.getBareJid(newMemberUserKey))
+							.updatedAt(Instant.ofEpochMilli(updatedAt).toString())
+							.reason(reason)
+							.build();
 
-			/**
-			 * Take latest activity across all devices.
-			 */
-			updatedAt =
-					newMemberSessions.stream()
-					.mapToLong(UserSession::getUpdatedAt)
-					.max()
-					.orElse(0L);
-		}
+					/**
+					 * ----------------------------------------------------------
+					 * 5. Build system log message
+					 * ----------------------------------------------------------
+					 * Human-readable audit trail message.
+					 */
+					String messageId = UuidCreator.getTimeOrderedEpoch().toString();
+					String body = sender.getUsername() + " added " + newMemberOpt.get().getUsername();
 
-		/**
-		 * ----------------------------------------------------------
-		 * 4. Build MUC presence update stanza
-		 * ----------------------------------------------------------
-		 * Broadcasts updated role/affiliation to all occupants.
-		 */
-		String presenceXml =
-				MucUserPresenceBuilder.create()
-				.from(roomBareJid, newMemberUserKey)
-				.show(newMemberState.name().toLowerCase())
-				.affiliation(newMemberMucAffiliation)
-				.role(
-						MucRole.fromString(
-								newMemberMucAffiliation
-								).getValue()
-						)
-				.targetJid(jidUtil.getBareJid(newMemberUserKey))
-				.updatedAt(
-						Instant.ofEpochMilli(updatedAt).toString()
-						)
-				.reason(reason)
-				.build();
+					String xmlLogStanza = buildMemberAddedLogStanza(
+							messageId,
+							senderJid,
+							roomBareJid,
+							body,
+							newMemberJid);
 
-		/**
-		 * Broadcast presence update to ALL room occupants.
-		 */
-		mucMessageRouter.broadcastToOccupants(
-				id,
-				sender.getUserKey(),
-				group,
-				presenceXml);
+					/**
+					 * ----------------------------------------------------------
+					 * 6. Persist event (Message Archive Management)
+					 * ----------------------------------------------------------
+					 * Ensures historical traceability of room changes.
+					 */
+					UUID stanzaId = UuidCreator.getTimeOrderedEpoch();
+					String forArchiveXmlLog = XmppStanzaUtil.insertStanzaId(xmlLogStanza, stanzaId.toString(), domainProperties.getDomain());
 
-		/**
-		 * ----------------------------------------------------------
-		 * 5. Build system log message
-		 * ----------------------------------------------------------
-		 * Human-readable audit trail message.
-		 */
-		String messageId = UuidCreator.getTimeOrderedEpoch().toString();
-
-		String body =
-				sender.getUsername()
-				+ " added "
-				+ newMemberOpt.get().getUsername();
-
-		String xmlLogStanza = buildMemberAddedLogStanza(
-				messageId,
-				senderJid,
-				roomBareJid,
-				body,
-				newMemberJid);
-
-		/**
-		 * ----------------------------------------------------------
-		 * 6. Persist event (Message Archive Management)
-		 * ----------------------------------------------------------
-		 * Ensures historical traceability of room changes.
-		 */
-		UUID stanzaId = UuidCreator.getTimeOrderedEpoch();
-		// Insert stanza ID
-		String forArchiveXmlLog = XmppStanzaUtil.insertStanzaId(xmlLogStanza, stanzaId.toString(), domainProperties.getDomain());
-		
-		saveToDatabase(messageId, roomBareJid, sender, stanzaId, forArchiveXmlLog, group.getMessageRetentionDays());
-
-		/**
-		 * ----------------------------------------------------------
-		 * 7. Broadcast system message to room
-		 * ----------------------------------------------------------
-		 * This is visible chat history event.
-		 */
-		xmppBroadCastHandler.broadcastToOccupants(
-				ctx,
-				messageId,
-				roomJid,
-				senderJid,
-				XmppMessageType.GROUPCHAT,
-				group,
-				null,
-				forArchiveXmlLog);
-
-		/**
-		 * ----------------------------------------------------------
-		 * 8. Send IQ success response to admin
-		 * ----------------------------------------------------------
-		 * Confirms operation completed successfully.
-		 */
-		sendSuccessResponse(ctx, senderJid, roomJid, id);
-
-		/**
-		 * ----------------------------------------------------------
-		 * 9. Push updated presence to target user devices
-		 * ----------------------------------------------------------
-		 * Ensures newly added member sees room state immediately.
-		 */
-		if (!CollectionUtils.isEmpty(newMemberSessions)) {
-			mucPresenceService.pushGroupParticipantsPresenceToUser(
-					ctx,
-					group,
-					newMemberUserKey);
-		}
-
-		log.info("Successfully promoted {} in room {}",
-				newMemberJid,
-				roomJid);
+					// Sequential orchestration of all broadcasts and storage pipelines
+					return mucMessageRouter.broadcastToOccupants(id, sender.getUserKey(), group, presenceXml)
+							.then(Mono.defer(() -> saveToDatabaseReactive(messageId, roomBareJid, sender, stanzaId, forArchiveXmlLog, group.getMessageRetentionDays())))
+							.then(Mono.defer(() -> xmppBroadCastHandler.broadcastToOccupants(
+									ctx,
+									messageId,
+									roomJid,
+									senderJid,
+									XmppMessageType.GROUPCHAT,
+									group,
+									null,
+									forArchiveXmlLog)))
+							.then(Mono.defer(() -> sendSuccessResponseReactive(ctx, senderJid, roomJid, id)))
+							.then(Mono.defer(() -> {
+								/**
+								 * ----------------------------------------------------------
+								 * 9. Push updated presence to target user devices
+								 * ----------------------------------------------------------
+								 * Ensures newly added member sees room state immediately.
+								 */
+								if (!CollectionUtils.isEmpty(newMemberSessions)) {
+									return mucPresenceService.pushGroupParticipantsPresenceToUser(
+											ctx,
+											group,
+											newMemberUserKey);
+								}
+								return Mono.empty();
+							}))
+							.doOnSuccess(unused -> log.info("Successfully promoted {} in room {}", newMemberJid, roomJid));
+				});
 	}
 
 	/**
 	 * Archives membership change with XEP-0359 stanza-id injection.
 	 */
-	private void saveToDatabase(
+	private Mono<Void> saveToDatabaseReactive(
 			String id,
 			String roomBareJid,
 			GroupMember sender,
@@ -300,7 +267,7 @@ public class MucAddMemberEventHandler {
 			String xml,
 			Integer messageRetentionDays) {
 
-		xmppArchiveService.archiveEvent(
+		return xmppArchiveService.archiveEvent(
 				xml,
 				id,
 				XmppUtil.getRoomId(roomBareJid),
@@ -309,8 +276,8 @@ public class MucAddMemberEventHandler {
 				stanzaId, 
 				messageRetentionDays)
 		.subscribeOn(Schedulers.boundedElastic()) // <-- REQUIRED to offload DB I/O
-        .doOnError(e -> log.error("Failed to archive event", e)) // <-- Always catch errors
-        .subscribe();
+		.doOnError(e -> log.error("Failed to archive event", e)) // <-- Always catch errors
+		.then();
 	}
 
 	/**
@@ -337,17 +304,14 @@ public class MucAddMemberEventHandler {
 	/**
 	 * Sends IQ result response confirming success.
 	 */
-	private void sendSuccessResponse(
+	private Mono<Void> sendSuccessResponseReactive(
 			ChannelHandlerContext ctx,
 			String to,
 			String from,
 			String id) {
 
-		String resp =
-				String.format("<iq from='%s' to='%s' id='%s' type='result'/>",
-						from, to, id);
-
-		localStanzaDispatcher.dispatchLocally(to, from, resp).subscribe();
+		String resp = String.format("<iq from='%s' to='%s' id='%s' type='result'/>", from, to, id);
+		return localStanzaDispatcher.dispatchLocally(to, from, resp).then();
 	}
 
 	/**

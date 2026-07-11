@@ -8,6 +8,7 @@ import com.algomeet.xmpp.chatservice.service.ContactPresenceService;
 import io.netty.channel.ChannelHandlerContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.publisher.Mono;
 
 /**
  * Handler responsible for pushing the initial "world state" of presence to a user.
@@ -32,14 +33,13 @@ public class XmppPresencePushHandler {
      * @param ctx       The Netty {@link ChannelHandlerContext} used to write the 
      * resulting XML stanzas to the socket.
      * @param principal The authenticated identity of the user receiving the updates.
+     * @return 
      */
-    public void pushUsersPresenceAsync(ChannelHandlerContext ctx, XmppPrincipal principal) { 
+    public Mono<Void> pushUsersPresence(ChannelHandlerContext ctx, XmppPrincipal principal) { 
         log.info("Initiating full presence sync for user: {}", principal.getUserKey());
 
         // 1. Sync 1:1 Contact Presence (Roster)
         // Fetches statuses of all users in the user's accepted contact list.
-        contactPresenceService.pushContactsPresenceToUser(ctx, principal);
-        
-        log.debug("Full presence sync task submitted for user: {}", principal.getUserKey());
+        return contactPresenceService.pushContactsPresenceToUser(ctx, principal);        
     }	
 }

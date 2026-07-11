@@ -16,9 +16,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
+import com.algomeet.common.dto.Group;
 import com.algomeet.common.dto.GroupMember;
 import com.algomeet.common.service.AbstractGroupCache;
-import com.algomeet.common.dto.Group;
 import com.algomeet.multitenancy.context.TenantContext;
 import com.algomeet.notificationservice.dto.Notification;
 import com.algomeet.notificationservice.enums.NotificationType;
@@ -31,7 +31,6 @@ import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.enums.UserState;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.session.UserSessionRegistry;
-import com.algomeet.xmpp.chatservice.session.model.UserSession;
 import com.algomeet.xmpp.chatservice.stanza.jingle.JingleTerminationIq;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
@@ -262,32 +261,35 @@ public class MucMissedCallService {
 					log.info("Processing missed call SID: {} for user: {}", sid, toUserKey);
 
 					// --- CHANGE STARTS HERE ---
-					// Wrap EVERYTHING that touches synchronous Redis/Registry into the Runnable
-					return Mono.fromRunnable(() -> {
-						TenantContext.setCurrentTenant(tenantIdInt);
-						try {
-							// Move the blocking Registry call INSIDE the protected thread
-							Set<UserSession> userSessions = userSessionRegistry.getSessions(toUserKey);
-							boolean hasActiveSession = !CollectionUtils.isEmpty(userSessions) && userSessions.stream()
-									.anyMatch(s -> UserState.ACTIVE == s.getState());
+					// Fetch user sessions reactively from Redis without blocking wrappers
+					return userSessionRegistry.getSessions(toUserKey)
+							.defaultIfEmpty(java.util.Collections.emptySet())
+							.flatMap(userSessions -> {
+								boolean hasActiveSession = !CollectionUtils.isEmpty(userSessions) && userSessions.stream()
+										.anyMatch(s -> UserState.ACTIVE == s.getState());
 
-							sendGroupChatMissedCallStanza(fromJid, toJid, sid, type, groupId);
-
-							// Delete MUC call session from DB
-							mucCallTrackerService.remove(sid, UUID.fromString(toUserKey)).subscribe();
-
-							if (!hasActiveSession) {
-								sendPush(toUserKey,
-										"video".equalsIgnoreCase(type) ? NotificationType.VIDEO_MISSED_CALL : NotificationType.AUDIO_MISSED_CALL,
-												"Missed " + type + " Call",
-												String.format("Missed %s call from %s", type, username),
-												tenantIdInt);
-							}	                     
-						} finally {
-							TenantContext.clear();
-						}
-					})
-							.subscribeOn(Schedulers.boundedElastic()) // This ensures the Runnable doesn't block Netty
+								// Explicitly bind and isolate the multi-tenancy ThreadLocal context around execution boundaries
+								return Mono.defer(() -> {
+									TenantContext.setCurrentTenant(tenantIdInt);
+									return Mono.empty();
+								})
+								.then(sendGroupChatMissedCallStanza(fromJid, toJid, sid, type, groupId))
+								// Delete MUC call session from DB without dangling .subscribe() blocks
+								.then(mucCallTrackerService.remove(sid, UUID.fromString(toUserKey)))
+								.then(Mono.defer(() -> {
+									if (!hasActiveSession) {
+										return sendPush(toUserKey,
+												"video".equalsIgnoreCase(type) ? NotificationType.VIDEO_MISSED_CALL : NotificationType.AUDIO_MISSED_CALL,
+														"Missed " + type + " Call",
+														String.format("Missed %s call from %s", type, username),
+														tenantIdInt);
+									}
+									return Mono.empty();
+								}))
+								// Always wipe thread states clean to preserve downstream connection pool health
+								.doFinally(signalType -> TenantContext.clear());
+							})
+							.subscribeOn(Schedulers.boundedElastic()) // This ensures the processing context doesn't block Netty
 							.then(reactiveRedisTemplate.delete(metaKey))
 							.then();
 				});
@@ -297,7 +299,7 @@ public class MucMissedCallService {
 	 * specialized MUC (Multi-User Chat) handler.
 	 * Archives events using {@code xmppArchiveService} to ensure visibility in group history.
 	 */
-	private void sendGroupChatMissedCallStanza(String fromJid, String toJid, String sid, String type, String groupId) {
+	private Mono<Void> sendGroupChatMissedCallStanza(String fromJid, String toJid, String sid, String type, String groupId) {
 		String id = UuidCreator.getTimeOrderedEpoch().toString();
 		String fromUserKey = XmppUtil.getUserKey(fromJid);
 		String toUserKey = XmppUtil.getUserKey(toJid);	
@@ -323,16 +325,6 @@ public class MucMissedCallService {
 		// Insert stanza ID
 		String forArchiveXml = XmppStanzaUtil.insertStanzaId(xml, stanzaId, domainProperties.getDomain());
 		
-		xmppArchiveService.archiveEvent(forArchiveXml, UuidCreator.getTimeOrderedEpoch().toString(), groupId, toUserKey, 
-				fromUserKey, UuidCreator.getTimeOrderedEpoch(), group.getMessageRetentionDays())
-		.doOnSuccess(success -> {
-			// Publish 
-			clusterMessagePublisher.convertAndSendToUser(id, toUserKey, fromUserKey, ChatType.GROUPCHAT, forArchiveXml);
-
-		})
-		.doOnError(e -> log.error("MUC Archive failed: {}", e.getMessage()))
-		.subscribe();	
-
 		// Send timeout message
 		String timeoutId = UuidCreator.getTimeOrderedEpoch().toString();
 		JingleTerminationIq timeoutStanza = JingleTerminationIq.builder()
@@ -343,23 +335,45 @@ public class MucMissedCallService {
 				.reason(JingleTerminationIq.REASON_TIMEOUT)
 				.build();
 
-		// Publish 
-		clusterMessagePublisher.convertAndSendToUser(timeoutId, toUserKey, fromUserKey, ChatType.GROUPCHAT, timeoutStanza.toXml());
+		return xmppArchiveService.archiveEvent(forArchiveXml, UuidCreator.getTimeOrderedEpoch().toString(), groupId, toUserKey, 
+				fromUserKey, UuidCreator.getTimeOrderedEpoch(), group.getMessageRetentionDays())
+		.flatMap(success -> {
+			// Publish 
+			// Broadcast both the archived stanza and the session timeout notification concurrently
+			return Mono.when(
+				clusterMessagePublisher.convertAndSendToUser(id, toUserKey, fromUserKey, ChatType.GROUPCHAT, forArchiveXml),
+				clusterMessagePublisher.convertAndSendToUser(timeoutId, toUserKey, fromUserKey, ChatType.GROUPCHAT, timeoutStanza.toXml())
+			);
+		})
+		.doOnError(e -> log.error("MUC Archive failed: {}", e.getMessage()))
+		.then();
 	}
 
 	/**
 	 * Out-of-band notification dispatcher for mobile platform delivery.
+	 * @return 
 	 */
-	private void sendPush(String to, NotificationType type, String title, String body, Integer tenantId) {        
-		Notification notif = Notification.builder()
-				.receiverIds(Set.of(to))
-				.type(type)
-				.title(title)
-				.body(body)
-				.tenantId(tenantId)
-				.build();
-		notificationService.sendPush(notif);
+	private Mono<Void> sendPush(String to, NotificationType type, String title, String body, Integer tenantId) {     
+		return Mono.fromRunnable(() -> {
+	        // Explicitly set the tenant context for this synchronous boundary worker thread
+	        TenantContext.setCurrentTenant(tenantId);
+	        try {
+	    		Notification notif = Notification.builder()
+	    				.receiverIds(Set.of(to))
+	    				.type(type)
+	    				.title(title)
+	    				.body(body)
+	    				.tenantId(tenantId)
+	    				.build();
+
+	            notificationService.sendPush(notif);
+	        } finally {
+	            // Clean up the ThreadLocal to prevent leakage back into the worker pool
+	            TenantContext.clear();
+	        }
+	    })
+	    .subscribeOn(Schedulers.boundedElastic()) // Offload the network/IO push operation completely
+	    .doOnError(e -> log.error("Failed to deliver reactive push notification to user key: {}", to, e))
+	    .then(); // Transforms Mono<Object> into a clean Mono<Void> pipeline signal
 	}
-
-
 }

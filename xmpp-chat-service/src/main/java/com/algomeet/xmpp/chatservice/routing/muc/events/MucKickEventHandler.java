@@ -5,8 +5,8 @@ import java.util.UUID;
 
 import org.springframework.stereotype.Component;
 
-import com.algomeet.common.dto.GroupMember;
 import com.algomeet.common.dto.Group;
+import com.algomeet.common.dto.GroupMember;
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.constant.XmppErrorConditions;
 import com.algomeet.xmpp.chatservice.enums.MucEventType;
@@ -30,6 +30,7 @@ import com.github.f4b6a3.uuid.UuidCreator;
 import io.netty.channel.ChannelHandlerContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
 @Slf4j
@@ -41,7 +42,6 @@ public class MucKickEventHandler {
 	private final MucMessageRouter mucMessageRouter;
 	private final LocalStanzaDispatcher localStanzaDispatcher;
 	private final XmppUtil xmppUtil;
-	private final MucMessageRouter xmppBroadCastHandler;
 	private final XmppArchiveService xmppArchiveService;
 	private final ExitGroupMemberMediaCleanupEventPublisher exitGroupMemberMediaCleanupEventPublisher;
 	private final RemoveGroupSenderKeyPublisher removeGroupSenderKeyPublisher;
@@ -55,12 +55,12 @@ public class MucKickEventHandler {
 	 *
 	 * @param ctx       Netty context.
 	 * @param roomJid   Target room JID.
-	 * @param senderJid Real JID of the moderator.
 	 * @param xml       The request payload containing the target nick.
 	 * @param group     The room DTO.
 	 * @param sender    The moderator's profile.
+	 * @return A Mono<Void> signaling operation sequence completion.
 	 */
-	public void handleKickMemberRequest(ChannelHandlerContext ctx, String roomJid, String xml, Group group, GroupMember sender) {
+	public Mono<Void> handleKickMemberRequest(ChannelHandlerContext ctx, String roomJid, String xml, Group group, GroupMember sender) {
 		String id = XmppStanzaUtil.getAttribute(xml, "id");
 		String victimJid = XmppStanzaUtil.getAttribute(xml, "item", "jid");
 		String reason = extractReason(xml);
@@ -77,28 +77,25 @@ public class MucKickEventHandler {
 					XmppErrorType.AUTH, XmppErrorConditions.FORBIDDEN, "Error code 403");
 			
 			log.error("Error code 403 removing member {} from room {} by {}.", victimJid, roomJid, senderJid);
-			return;
+			return Mono.empty();
 		}
 
 		String roomBareJid = XmppUtil.getRoomBareJid(roomJid);
 		String kickPresence = buildKickPresence(roomBareJid, victimUserKey, victimJid, senderJid, reason);
 		XmppPrincipal principal = ctx.channel().attr(XmppSessionAttributes.PRINCIPAL).get();  
-		mucMessageRouter.broadcastToOccupants(id, sender.getUserKey(), group, kickPresence, principal.getSessionId());
-		sendSuccessResponse(ctx, senderJid, roomJid, id);
 		
-		 /**
+		/**
 		 * ----------------------------------------------------------
 		 * Build system log message
 		 * ----------------------------------------------------------
 		 * Human-readable audit trail message.
 		 */
 		String messageId = UuidCreator.getTimeOrderedEpoch().toString();
-
 		String body = sender.getUsername() + " removed";
 	
-        String xmlLogStanza = buildMemberRemovedLogStanza(
-        		messageId,
-        		senderJid,
+		String xmlLogStanza = buildMemberRemovedLogStanza(
+				messageId,
+				senderJid,
 				roomBareJid,
 				body,
 				victimJid);
@@ -114,49 +111,54 @@ public class MucKickEventHandler {
 		// Insert stanza ID
 		String forArchiveXmlLog = XmppStanzaUtil.insertStanzaId(xmlLogStanza, stanzaId.toString(), domainProperties.getDomain());
 		
-		saveToDatabase(messageId, roomBareJid, sender, stanzaId, forArchiveXmlLog, group.getMessageRetentionDays());
-
-		/**
-		 * ----------------------------------------------------------
-		 * 7. Broadcast system message to room
-		 * ----------------------------------------------------------
-		 * This is visible chat history event.
-		 */
-		xmppBroadCastHandler.broadcastToOccupants(
-				ctx,
-				messageId,
-				roomBareJid,
-				senderJid,
-				XmppMessageType.GROUPCHAT,
-				group,
-				null,
-				forArchiveXmlLog);
-		
-		// Cleanup member group messages media files		
-		exitGroupMemberMediaCleanupEventPublisher.publish(
-		        UUID.fromString(XmppUtil.getRoomId(roomJid)), UUID.fromString(victimUserKey))
-		    .subscribeOn(Schedulers.boundedElastic())
-		    .doOnError(e -> log.error("Failed to clean up media files for kicked user {}", victimUserKey, e))
-		    .subscribe();
-
-		// Remove group sender key for E2EE
-		removeGroupSenderKeyPublisher.publish(XmppUtil.getRoomId(roomJid), victimUserKey)
-		    .subscribeOn(Schedulers.boundedElastic())
-		    .doOnError(e -> log.error("Failed to remove sender key for kicked user {}", victimUserKey, e))
-		    .subscribe();
-
-		log.info("Kick successful: {} removed from {}", victimJid, roomJid);
+		return mucMessageRouter.broadcastToOccupants(id, sender.getUserKey(), group, kickPresence, principal.getSessionId())
+				.then(Mono.defer(() -> sendSuccessResponseReactive(ctx, senderJid, roomJid, id)))
+				.then(Mono.defer(() -> saveToDatabaseReactive(messageId, roomBareJid, sender, stanzaId, forArchiveXmlLog, group.getMessageRetentionDays())))
+				.then(Mono.defer(() -> {
+					/**
+					 * ----------------------------------------------------------
+					 * 7. Broadcast system message to room
+					 * ----------------------------------------------------------
+					 * This is visible chat history event.
+					 */
+					return mucMessageRouter.broadcastToOccupants(
+							ctx,
+							messageId,
+							roomBareJid,
+							senderJid,
+							XmppMessageType.GROUPCHAT,
+							group,
+							null,
+							forArchiveXmlLog);
+				}))
+				.then(Mono.defer(() -> {
+					// Cleanup member group messages media files		
+					return exitGroupMemberMediaCleanupEventPublisher.publish(
+							UUID.fromString(XmppUtil.getRoomId(roomJid)), UUID.fromString(victimUserKey))
+						.subscribeOn(Schedulers.boundedElastic())
+						.doOnError(e -> log.error("Failed to clean up media files for kicked user {}", victimUserKey, e))
+						.onErrorResume(e -> Mono.empty());
+				}))
+				.then(Mono.defer(() -> {
+					// Remove group sender key for E2EE
+					return removeGroupSenderKeyPublisher.publish(XmppUtil.getRoomId(roomJid), victimUserKey)
+						.subscribeOn(Schedulers.boundedElastic())
+						.doOnError(e -> log.error("Failed to remove sender key for kicked user {}", victimUserKey, e))
+						.onErrorResume(e -> Mono.empty());
+				}))
+				.doOnSuccess(unused -> log.info("Kick successful: {} removed from {}", victimJid, roomJid))
+				.then();
 	}
 	
 	/**
 	 * Transmits a standard IQ 'result' stanza to acknowledge successful processing of an admin command.
 	 */
-	private void sendSuccessResponse(ChannelHandlerContext ctx, String to, String from, String id) {
+	private Mono<Void> sendSuccessResponseReactive(ChannelHandlerContext ctx, String to, String from, String id) {
 		String resp = String.format("<iq from='%s' to='%s' id='%s' type='result'/>", from, to, id);
-		localStanzaDispatcher.dispatchLocally(to, from, resp)
-		.subscribeOn(Schedulers.boundedElastic())
-	    .doOnError(e -> log.error("Failed to dispatch local IQ kick confirmation to {}", to, e))
-	    .subscribe();
+		return localStanzaDispatcher.dispatchLocally(to, from, resp)
+				.subscribeOn(Schedulers.boundedElastic())
+				.doOnError(e -> log.error("Failed to dispatch local IQ kick confirmation to {}", to, e))
+				.then();
 	}
 	
 	/**
@@ -187,43 +189,42 @@ public class MucKickEventHandler {
 		return xml.substring(xml.indexOf("<reason>") + 8, xml.indexOf("</reason>"));
 	}
 	
-	  private String buildMemberRemovedLogStanza(
-				String id,
-				String fromJid,
-				String roomJid,
-				String body,
-				String removedUserJid) {
+	private String buildMemberRemovedLogStanza(
+			String id,
+			String fromJid,
+			String roomJid,
+			String body,
+			String removedUserJid) {
 		  
-	    	return MucSystemEventLogMessageStanza.builder()
-					.id(id)
-					.from(fromJid)
-					.to(roomJid)
-					.body(body)
-					.eventType(MucEventType.MEMBER_REMOVED)
-					.eventJid(removedUserJid)
-					.build()
-					.toXml();	    	
-		}
+		return MucSystemEventLogMessageStanza.builder()
+				.id(id)
+				.from(fromJid)
+				.to(roomJid)
+				.body(body)
+				.eventType(MucEventType.MEMBER_REMOVED)
+				.eventJid(removedUserJid)
+				.build()
+				.toXml();	    	
+	}
 	    
-	    private void saveToDatabase(
-				String id,
-				String roomBareJid,
-				GroupMember sender,
-				UUID stanzaId,
-				String xml,
-				Integer messageRetentionDays) {
+	private Mono<Void> saveToDatabaseReactive(
+			String id,
+			String roomBareJid,
+			GroupMember sender,
+			UUID stanzaId,
+			String xml,
+			Integer messageRetentionDays) {
 
-			xmppArchiveService.archiveEvent(
-					xml,
-					id,
-					XmppUtil.getRoomId(roomBareJid),
-					null,
-					sender.getUserKey(),
-					stanzaId,
-					messageRetentionDays)
-			.subscribeOn(Schedulers.boundedElastic())
-		    .doOnError(e -> log.error("Failed to database archive kick tracking log for room {}", roomBareJid, e))
-		    .subscribe();
-		}
-	
+		return xmppArchiveService.archiveEvent(
+				xml,
+				id,
+				XmppUtil.getRoomId(roomBareJid),
+				null,
+				sender.getUserKey(),
+				stanzaId,
+				messageRetentionDays)
+				.subscribeOn(Schedulers.boundedElastic())
+				.doOnError(e -> log.error("Failed to database archive kick tracking log for room {}", roomBareJid, e))
+				.then();
+	}
 }

@@ -20,6 +20,7 @@ import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.service.CallTrackerService;
 import com.algomeet.xmpp.chatservice.service.OfflineMessageService;
 import com.algomeet.xmpp.chatservice.service.UnreadCountService;
+import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
 import com.github.f4b6a3.uuid.UuidCreator;
@@ -50,29 +51,30 @@ public class CallLifeCycleTracker {
 
 	/**
 	 * Entry point for analyzing incoming XMPP stanzas for Jingle signaling actions.
+	 * Now safely returns a unified Mono pipeline context without dangling subscriptions.
 	 */
-	public void track(ChannelHandlerContext ctx, String toJid, String fromJid, String xml, XmppPrincipal principal) {
+	public Mono<Void> track(ChannelHandlerContext ctx, String toJid, String fromJid, String xml, XmppPrincipal principal) {
 		// Detect specific Jingle actions defined in XEP-0166
 		boolean isInitiate = xml.contains("session-initiate");
 		boolean isAccept = xml.contains("session-accept");
 		boolean isTerminate = xml.contains("session-terminate");
 
 		String sid = XmppStanzaUtil.getAttribute(xml, "sid");
-		if (sid == null) return;
+		if (sid == null) {
+			return Mono.empty();
+		}
 
 		if (isInitiate) {
-			handleInitiate(toJid, fromJid, xml, sid, principal)
-			.subscribeOn(Schedulers.boundedElastic())
-			.subscribe();
+			return handleInitiate(toJid, fromJid, xml, sid, principal)
+					.then();
 		} else if (isAccept) {
-			handleAccept(sid, UUID.fromString(principal.getUserKey()), principal.getSessionId())
-			.subscribeOn(Schedulers.boundedElastic())
-			.subscribe();
+			return handleAccept(sid, UUID.fromString(principal.getUserKey()), principal.getSessionId())
+					.then();
 		} else if (isTerminate) {
-			handleTerminate(ctx, toJid, fromJid, xml, sid, principal)
-			.subscribeOn(Schedulers.boundedElastic())
-			.subscribe();
+			return handleTerminate(ctx, toJid, fromJid, xml, sid, principal);
 		}
+
+		return Mono.empty();
 	}
 
 	/**
@@ -167,32 +169,32 @@ public class CallLifeCycleTracker {
 			return callTrackerService.finalizeAndNotify(sid, principal.getSessionId(), "success");
 		}
 		else if (xml.contains("<decline/>")) {
+			
 			// 1. To Initiator: "The other person rejected your call"
-		    sendCallLog(ctx, fromJid, toJid, sid, "rejected", "Call Declined", callType);
-		    
-		    // 2. To Responder (Self): "You rejected this call"
-		    sendCallLog(ctx, toJid, fromJid, sid, "declined", "Call Declined", callType);		
-		    
-		    // Remove call session for declined call
-			return callTrackerService.remove(sid);
+			return sendCallLog(ctx, fromJid, toJid, sid, "rejected", "Call Declined", callType)
+					// 2. To Responder (Self): "You rejected this call"
+					.then(sendCallLog(ctx, toJid, fromJid, sid, "declined", "Call Declined", callType))
+
+					// 3. Remove call session for declined call
+					.then(Mono.defer(() -> callTrackerService.remove(sid)));
 		} 		
 		// Case: Caller hung up before the recipient answered
 		else if (xml.contains("<cancel/>")) {
 			// 1. To Initiator (Self): "You canceled the call attempt"
-			sendCallLog(ctx, toJid, fromJid, sid, "canceled", "Call Canceled", callType);
+			return sendCallLog(ctx, toJid, fromJid, sid, "canceled", "Call Canceled", callType)
 
 			// 2. To Responder: "You missed an incoming call"
-			sendCallLog(ctx, fromJid, toJid, sid, "missed", "Missed Call", callType);
+			.then(sendCallLog(ctx, fromJid, toJid, sid, "missed", "Missed Call", callType))
 
 			// Remove call session for canceled call
-			return callTrackerService.remove(sid);			
+			.then(callTrackerService.remove(sid));			
 		}	
 		else if (xml.contains("<busy/>")) {
 			// 1. To Initiator: "Busy"
-			sendCallLog(ctx, toJid, fromJid, sid, "busy", "Line Busy", callType);
+			return sendCallLog(ctx, toJid, fromJid, sid, "busy", "Line Busy", callType)
 
 			// Remove call session for busy call
-			return callTrackerService.remove(sid);	
+			.then(callTrackerService.remove(sid));	
 		} else if (xml.contains("<alternative-session>")) {
 			// No logs
 			// Remove call session for busy call
@@ -205,15 +207,15 @@ public class CallLifeCycleTracker {
 		} else {
 			
 			if (isCallInDelayQueue) {
+				log.error("Unknown error during call initiation payload {} ", xml);
 				// 1. To Initiator (Self): "You missed an incoming call"
-				sendCallLog(ctx, toJid, fromJid, sid, "unknown", "Unknown Error", callType);
+				return sendCallLog(ctx, toJid, fromJid, sid, "unknown", "Unknown Error", callType)
 
 				// 2. To Responder: "You missed an incoming call"
-				sendCallLog(ctx, fromJid, toJid, sid, "missed", "Unknown Error", callType);
-
-				log.error("Unknown error during call initiation payload {} ", xml);
+				.then(sendCallLog(ctx, fromJid, toJid, sid, "missed", "Unknown Error", callType))
+				
 				// Remove call session for busy call
-				return callTrackerService.remove(sid);				
+				.then(callTrackerService.remove(sid));				
 			} else {
 				log.error("Unknown error terminates the call {} ", xml);
 				// Calculate and send call logs
@@ -243,48 +245,59 @@ public class CallLifeCycleTracker {
 
 	/**
 	 * Constructs the XMPP 'headline' message and persists it to the Offline store/Cluster.
+	 * @return 
 	 */
-	private void sendCallLog(ChannelHandlerContext ctx, String fromJid, String toJid, 
-			String sid, String status, String bodyText, String callType ) {
+	private Mono<Void> sendCallLog(ChannelHandlerContext ctx, String fromJid, String toJid, 
+	        String sid, String status, String bodyText, String callType) {
 
-		UUID messageId = UuidCreator.getTimeOrderedEpoch();
-		String timestamp = java.time.Instant.now().toString();
+	    UUID messageId = UuidCreator.getTimeOrderedEpoch();
+	    String timestamp = java.time.Instant.now().toString();
 
-		// Building XEP-compliant message with custom AlgoMeet call-log namespace
-		StringBuilder xml = new StringBuilder();
-		xml.append("<message from='").append(fromJid).append("' ")
-		.append("to='").append(toJid).append("' ")
-		.append("type='chat' ")
-		.append("id='").append(messageId).append("'>")
-		.append("<subject>").append(bodyText).append("</subject>")
-		.append("<body>").append(bodyText).append("</body>")
-		.append("<call-log xmlns='urn:xmpp:algomeet:calls' ")
-		.append("type='").append(callType).append("' ")
-		.append("status='").append(status).append("' ")
-		.append("timestamp='").append(timestamp).append("' ")
-		.append("sid='").append(sid).append("'/>")
-		.append("<countable xmlns='urn:algomeet:meta:0'/>")
-		.append("</message>");
+	    // Building XEP-compliant message with custom AlgoMeet call-log namespace
+	    StringBuilder xml = new StringBuilder();
+	    xml.append("<message from='").append(fromJid).append("' ")
+	       .append("to='").append(toJid).append("' ")
+	       .append("type='chat' ")
+	       .append("id='").append(messageId).append("'>")
+	       .append("<subject>").append(bodyText).append("</subject>")
+	       .append("<body>").append(bodyText).append("</body>")
+	       .append("<call-log xmlns='urn:xmpp:algomeet:calls' ")
+	       .append("type='").append(callType).append("' ")
+	       .append("status='").append(status).append("' ")
+	       .append("timestamp='").append(timestamp).append("' ")
+	       .append("sid='").append(sid).append("'/>")
+	       .append("<countable xmlns='urn:algomeet:meta:0'/>")
+	       .append("</message>");
 
-		String toUserKey = XmppUtil.getUserKey(toJid);
-		String fromUserKey = XmppUtil.getUserKey(fromJid);
+	    String toUserKey = XmppUtil.getUserKey(toJid);
+	    String fromUserKey = XmppUtil.getUserKey(fromJid);
 
-        UUID stanzaId = UuidCreator.getTimeOrderedEpoch();
-		// Insert stanza ID
-		String forArchiveXml = XmppStanzaUtil.insertStanzaId(xml.toString(), stanzaId.toString(), domainProperties.getDomain());
-		
-		// Persist to MongoDB for offline retrieval
-		offlineMessageService.save(messageId, stanzaId, toUserKey, fromUserKey, XmppMessageType.CHAT.getXmlValue(), forArchiveXml)
-		.doOnSuccess(saved -> {
-			// Increment user unread message
-			unreadCountService.incrementUnreadCount(fromUserKey, toUserKey);
-		})
-		.doOnError(e -> log.error("Storage failure during saving of call logs {}: {}", xml.toString(), e.getMessage()))
-		.subscribeOn(Schedulers.boundedElastic()).subscribe();
+	    UUID stanzaId = UuidCreator.getTimeOrderedEpoch();
+	    // Insert stanza ID
+	    String forArchiveXml = XmppStanzaUtil.insertStanzaId(xml.toString(), stanzaId.toString(), domainProperties.getDomain());
+	    
+	    // Pull the active connection principal context 
+	    XmppPrincipal principal = ctx.channel().attr(XmppSessionAttributes.PRINCIPAL).get();
 
-		// Broadcast to cluster to ensure all logged-in devices of the user receive the log
-		clusterMessagePublisher.convertAndSendToUser(messageId.toString(), toUserKey, fromUserKey, ChatType.CHAT, forArchiveXml);
-
-		log.debug("Published {} call log for SID: {}", status, sid);
-	}	
+	    // 1. Start with the database persistence layer
+	    return offlineMessageService.save(messageId, stanzaId, toUserKey, fromUserKey, XmppMessageType.CHAT.getXmlValue(), forArchiveXml)
+	            // 2. Smoothly switch processing to handle the side-effect tasks once save resolves successfully
+	            .flatMap(saved -> {
+	                log.debug("Successfully saved call log to database. Incrementing unread count.");
+	                return unreadCountService.incrementUnreadCount(fromUserKey, toUserKey);
+	            })
+	            // 3. Shift database/counting disk operations away from Netty's selector thread pool
+	            .subscribeOn(Schedulers.boundedElastic())
+	            .doOnError(e -> log.error("Storage/Increment failure during call log handling for SID {}: {}", sid, e.getMessage()))
+	            // 4. Chain execution downstream to fire the cluster broadcast over Redis/WebSockets
+	            .then(Mono.defer(() -> {
+	                log.debug("Published {} call log across cluster for SID: {}", status, sid);
+	                
+	                // Matches the method signature: (id, to, from, chatType, isAllowEcho, shouldCarbon, isAckStanza, payload, principal)
+	                return clusterMessagePublisher.convertAndSendToUser(
+	                    messageId.toString(), toUserKey, fromUserKey, ChatType.CHAT, 
+	                    false, true, false, forArchiveXml, principal
+	                );
+	            }));
+	}
 }

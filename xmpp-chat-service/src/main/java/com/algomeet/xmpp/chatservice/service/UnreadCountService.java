@@ -12,7 +12,7 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
-import com.algomeet.xmpp.chatservice.cluster.publisher.ReactiveClusterMessagePublisher; // FIXED: Consistent reactive variant mapping
+import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher; // FIXED: Consistent reactive variant mapping
 import com.algomeet.xmpp.chatservice.constant.Constants;
 import com.algomeet.xmpp.chatservice.document.UnreadCount;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
@@ -36,7 +36,7 @@ import static com.algomeet.xmpp.chatservice.document.UnreadCount.*;
 public class UnreadCountService {
 	private final ReactiveMongoTemplate reactiveMongoTemplate;
 	private final DomainProperties domainProperties;
-	private final ReactiveClusterMessagePublisher reactiveClusterMessagePublisher; // FIXED: Swapped to reactive
+	private final ClusterMessagePublisher reactiveClusterMessagePublisher; // FIXED: Swapped to reactive
 	private final OfflineMessageRepository offlineMessageRepository;
 
 	private static final Scheduler DB_WORKER_POOL = Schedulers.newBoundedElastic(150, 8000, "unread-count-workers");
