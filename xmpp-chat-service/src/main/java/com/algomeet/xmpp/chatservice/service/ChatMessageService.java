@@ -38,8 +38,16 @@ public class ChatMessageService {
 	private final DomainProperties domainProperties;
 	private final ReactiveMongoTemplate reactiveMongoTemplate; 
 
-	// Isolate database computations away from Netty event loops
-	private static final Scheduler CHAT_DB_SCHEDULER = Schedulers.newBoundedElastic(150, 8000, "chat-message-cutoff-workers");
+	/**
+	 * PRODUCTION OPTIMIZATION:
+	 * Since both Mongo operations here utilize fully reactive drivers, these threads handle orchestration 
+	 * and heavy in-memory data serialization/mapping rather than network-wait blocking.
+	 * 
+	 * - Threads (64): Tightened to prevent CPU thrashing and excessive JVM stack memory overhead.
+	 * - Queue (25,000): Significantly broadened to smoothly handle thundering-herd login events,
+	 *   mass catch-up clear/read marker sweeps, and bulk retention changes without dropping tasks.
+	 */
+	private static final Scheduler CHAT_DB_SCHEDULER = Schedulers.newBoundedElastic(64, 25000, "chat-message-workers");
 
 	/**
 	 * Synchronizes dynamic user timelines, updates unread stats, and issues cross-node cluster sync signals.

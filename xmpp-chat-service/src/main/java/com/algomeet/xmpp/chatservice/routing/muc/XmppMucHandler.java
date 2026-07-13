@@ -78,7 +78,13 @@ public class XmppMucHandler {
 	private final MediaClient mediaClient;
 
 	// Define a dedicated thread pool for your database work so Netty doesn't starve
-	private static final Scheduler DB_SCHEDULER = Schedulers.newBoundedElastic(200, 10000, "xmpp-muc-db-workers");
+	// Pool A: Dedicated ONLY to non-blocking or fast reactive DB tracking/save orchestration
+	private static final Scheduler MUC_DB_SCHEDULER = 
+	        Schedulers.newBoundedElastic(64, 20000, "xmpp-muc-db");
+
+	// Pool B: Dedicated exclusively to isolating heavy blocking network I/O calls (Feign Clients)
+	private static final Scheduler MEDIA_IO_SCHEDULER = 
+	        Schedulers.newBoundedElastic(150, 5000, "xmpp-media-io");
 	
 	/**
 	 * Main entry point for MUC stanza processing.
@@ -109,7 +115,7 @@ public class XmppMucHandler {
 				TenantContext.clear(); // Clean up immediately after blocking work finishes
 			}
 		})
-		.subscribeOn(DB_SCHEDULER) // Shifting the lookup away from Netty Event Loop
+		.subscribeOn(MUC_DB_SCHEDULER) // Shifting the lookup away from Netty Event Loop
 		.flatMap((AuthorizationResult auth) -> { // Explicit parameter type hint
 			Group group = auth.group;
 			Optional<GroupMember> senderMucMember = auth.senderMucMember;
@@ -165,7 +171,7 @@ public class XmppMucHandler {
 						processingPipeline = Mono.when(
 							mucMessageReadService.advanceReadCursor(UUID.fromString(principal.getUserKey()), group.getId(), messageId),
 							mucMessageService.bulkMarkRoomMessagesAsRead(messageId)
-						).subscribeOn(DB_SCHEDULER);
+						).subscribeOn(MUC_DB_SCHEDULER);
 					}					
 				}
 			} else if ((msgType.supportsOfflineStorage() && isArchivable)) {
@@ -182,7 +188,7 @@ public class XmppMucHandler {
 						
 						// FIX: Turn synchronous blocking Feign Client call into a lazy deferred reactive wrapper
 						processingPipeline = Mono.fromCallable(() -> shareMedias(senderMucMember.get().getUserKey(), request))
-								.subscribeOn(DB_SCHEDULER)
+								.subscribeOn(MEDIA_IO_SCHEDULER)
 								.flatMap(shared -> {
 									if(!shared) {
 										xmppUtil.sendError(ctx, id, fromJid, domainProperties.getDomain(), XmppErrorType.CANCEL, 
@@ -224,7 +230,7 @@ public class XmppMucHandler {
 						log.debug("MAM Archive Success: ID={} Room={}", stanzaId, toRoomId);
 						return postSaveTasks;
 					})
-					.subscribeOn(DB_SCHEDULER) // Shifting storage execution completely away from Netty Event Loop
+					.subscribeOn(MUC_DB_SCHEDULER) // Shifting storage execution completely away from Netty Event Loop
 					.doOnError(e -> {
 						log.error("MAM Archive Failure: {}", e.getMessage(), e);
 						handleArchiveError(ctx, id, principal, e);

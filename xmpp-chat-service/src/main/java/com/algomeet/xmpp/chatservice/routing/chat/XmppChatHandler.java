@@ -71,7 +71,13 @@ public class XmppChatHandler {
 	private final MediaClient mediaClient;
 	
 	// Define a dedicated thread pool for your database work so Netty doesn't starve
-	private static final Scheduler DB_SCHEDULER = Schedulers.newBoundedElastic(200, 10000, "xmpp-chat-db-workers");
+	// Pool A: Dedicated ONLY to non-blocking or fast reactive DB tracking/save orchestration
+	private static final Scheduler CHAT_DB_SCHEDULER = 
+	        Schedulers.newBoundedElastic(64, 20000, "xmpp-chat-db");
+
+	// Pool B: Dedicated exclusively to isolating heavy blocking network I/O calls (Feign Clients)
+	private static final Scheduler MEDIA_IO_SCHEDULER = 
+	        Schedulers.newBoundedElastic(150, 5000, "xmpp-media-io");
 
 	/**
 	 * Handles 1-to-1 message routing, persistence for offline storage, 
@@ -111,7 +117,7 @@ public class XmppChatHandler {
 					
 					// FIX: Defer the blocking media client call securely onto the DB worker pool
 					processingPipeline = Mono.fromCallable(() -> shareMedias(fromUserKey, request))
-							.subscribeOn(DB_SCHEDULER)
+							.subscribeOn(MEDIA_IO_SCHEDULER)
 							.flatMap(shared -> {
 								if (!shared) {
 									xmppUtil.sendError(ctx, id, fromJid, domainProperties.getDomain(), XmppErrorType.CANCEL, 
@@ -249,7 +255,7 @@ public class XmppChatHandler {
 		            // Execute ALL gathered tasks asynchronously and concurrently
 		            return Mono.when(tasks);
 				})
-				.subscribeOn(DB_SCHEDULER) // Shifting execution away from Netty Event Loop
+				.subscribeOn(CHAT_DB_SCHEDULER) // Shifting execution away from Netty Event Loop
 				.doOnError(e -> {                  
 					log.error("Storage failure for message {}: {}", id, e.getMessage(), e);
 					if (e instanceof DuplicateKeyException) {

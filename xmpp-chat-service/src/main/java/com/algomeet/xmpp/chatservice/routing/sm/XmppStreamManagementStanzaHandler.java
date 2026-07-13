@@ -57,8 +57,14 @@ public class XmppStreamManagementStanzaHandler {
 	 */
 	
 	// Fixed package resolution path here
-    private static final Scheduler SM_WORKER_SCHEDULER = 
-            Schedulers.newBoundedElastic(100, 5000, "xmpp-sm-workers");
+	private static final Scheduler SM_WORKER_SCHEDULER = 
+	        Schedulers.newBoundedElastic(
+	            // Keep thread count tight to limit memory foot-print and context switching
+	            100, 
+	            // Broaden the queue threshold to buffer mass concurrent reconnect drops safely
+	            30_000, 
+	            "xmpp-sm-workers"
+	        );
 	
 	public Mono<Void> process(ChannelHandlerContext ctx, String xml, XmppPrincipal principal) {	
 		return Mono.defer(() -> {
