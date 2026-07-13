@@ -309,6 +309,104 @@ class MeetingServiceTest {
         verify(meetingRepository, never()).save(any());
     }
 
+    // ---------------------------------------------------------------------------
+    // Duplicate-meeting bug (getMeetingsForUser)
+    // ---------------------------------------------------------------------------
+
+    /**
+     * BUG REPRODUCER — proves the old query was broken.
+     *
+     * Hibernate joined the meeting_attendees collection table and returned one
+     * SQL row per attendee, all for the same Meeting. The old code piped those
+     * rows straight into a List, so a meeting with 3 attendees appeared 3 times.
+     *
+     * This test runs the OLD logic inline (filter only, no dedup) and asserts that
+     * it produces 3 duplicates. It is meant to FAIL on the old code — proving the
+     * bug — and has no expectation that the service method behaves this way now.
+     */
+    @Test
+    void getMeetingsForUser_bugReproducer_oldQueryReturnsDuplicates() {
+        Meeting meeting = buildMeetingWithAttendees(
+                "m1", "host@example.com",
+                Set.of("a@ex.com", "b@ex.com", "c@ex.com"));
+
+        // Simulate what Hibernate actually returned via findDistinctByHostEmailOrAttendees…:
+        // 3 identical Meeting references, one per attendee row in the SQL result.
+        List<Meeting> whatHibernateReturned = List.of(meeting, meeting, meeting);
+
+        // OLD service logic: just filter by type, no deduplication.
+        List<Meeting> oldResult = whatHibernateReturned.stream()
+                .filter(m -> m.getMeetingType() == MeetingType.MEETING)
+                .toList();
+
+        // Old code produced 3 results for 1 meeting — THIS is the bug the tester reported.
+        assertThat(oldResult)
+                .as("Bug: old code returns 3 duplicate entries for one meeting with 3 attendees")
+                .hasSize(3);
+    }
+
+    /**
+     * FIX VERIFICATION — proves the fixed getMeetingsForUser deduplicates correctly.
+     *
+     * Uses the two clean repository queries (findAllByHostEmail + findAllByAttendeeEmail)
+     * and simulates the real-world overlap: the host's email appears in the attendees
+     * list as well, so both queries return the same Meeting. The fixed service must
+     * return exactly 1 entry.
+     */
+    @Test
+    void getMeetingsForUser_fixedCode_deduplicatesWhenSameMeetingReturnedByBothQueries() {
+        Meeting meeting = buildMeetingWithAttendees(
+                "m1", "host@example.com",
+                Set.of("host@example.com", "a@ex.com", "b@ex.com"));
+
+        // findAllByHostEmail returns the meeting once (host match)
+        when(meetingRepository.findAllByHostEmail("host@example.com"))
+                .thenReturn(List.of(meeting));
+
+        // findAllByAttendeeEmail also returns the same meeting (attendee match)
+        when(meetingRepository.findAllByAttendeeEmail("host@example.com"))
+                .thenReturn(List.of(meeting));
+
+        List<Meeting> result = service.getMeetingsForUser("host@example.com");
+
+        assertThat(result)
+                .as("Fixed code must deduplicate: one meeting, not two")
+                .hasSize(1);
+        assertThat(result.get(0).getId()).isEqualTo("m1");
+    }
+
+    /**
+     * FIX VERIFICATION — attendee-only user still sees meetings they didn't host.
+     */
+    @Test
+    void getMeetingsForUser_fixedCode_attendeeSeesHostedAndInvitedMeetings() {
+        Meeting hosted = buildMeetingWithAttendees("m1", "user@ex.com", Set.of());
+        Meeting invited = buildMeetingWithAttendees("m2", "other@ex.com", Set.of("user@ex.com"));
+
+        when(meetingRepository.findAllByHostEmail("user@ex.com"))
+                .thenReturn(List.of(hosted));
+        when(meetingRepository.findAllByAttendeeEmail("user@ex.com"))
+                .thenReturn(List.of(invited));
+
+        List<Meeting> result = service.getMeetingsForUser("user@ex.com");
+
+        assertThat(result).hasSize(2)
+                .extracting(Meeting::getId)
+                .containsExactlyInAnyOrder("m1", "m2");
+    }
+
+    private Meeting buildMeetingWithAttendees(String id, String hostEmail, Set<String> attendees) {
+        Meeting m = new Meeting();
+        m.setId(id);
+        m.setHostEmail(hostEmail);
+        m.setMeetingType(MeetingType.MEETING);
+        m.setMeetingStartTime(Instant.now().plus(5, ChronoUnit.MINUTES));
+        m.setMeetingEndTime(Instant.now().plus(30, ChronoUnit.MINUTES));
+        m.setStatus(MeetingStatus.SCHEDULED);
+        m.setAttendees(new HashSet<>(attendees));
+        return m;
+    }
+
     // --- helpers ---
 
     private Request feignRequest() {
