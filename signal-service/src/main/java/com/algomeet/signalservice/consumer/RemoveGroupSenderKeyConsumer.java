@@ -52,6 +52,9 @@ public class RemoveGroupSenderKeyConsumer implements StreamListener<String, MapR
 	@Autowired
 	private GroupSenderKeyBackupService groupSenderKeyBackupService;
 
+	
+	
+	
 	@Autowired
 	@Qualifier("streamStringRedisTemplate")
 	private RedisTemplate<String, String> redisTemplate;
