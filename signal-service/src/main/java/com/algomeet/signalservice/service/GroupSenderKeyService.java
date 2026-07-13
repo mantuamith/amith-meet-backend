@@ -195,7 +195,7 @@ public class GroupSenderKeyService {
 	public void deleteByReceiverUserKeyAndGroupId(UUID receiverUserKey, UUID groupId) {	
 		repository.deleteByIdReceiverUserKeyAndIdGroupId(receiverUserKey, groupId);
 	}
-				
+			
 	@Transactional
 	public void delete(String currentUserKey, UUID groupId) {		
 	    Group group = groupCacheService.getCachedGroup(groupId.toString());
@@ -207,10 +207,15 @@ public class GroupSenderKeyService {
 	    		return;
 	    	}
 	    }
+	    Pageable limitOne = PageRequest.of(0, 1);
+	    
+		if(repository.findFirstByGroupId(groupId, limitOne).isEmpty()) {
+			throw new RecordNotFoundException("Group sender keys not found");
+		}
 		
 		repository.deleteByIdGroupId(groupId);
 	}	
-	
+		
 	@Transactional
 	public void deleteByGroupId(UUID groupId) {			
 		repository.deleteByIdGroupId(groupId);

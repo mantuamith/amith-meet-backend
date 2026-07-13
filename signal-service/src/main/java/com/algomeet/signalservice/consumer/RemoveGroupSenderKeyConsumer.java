@@ -49,6 +49,7 @@ public class RemoveGroupSenderKeyConsumer implements StreamListener<String, MapR
 	@Autowired
 	private GroupSenderKeyService groupSenderKeyService;
 	
+	@Autowired
 	private GroupSenderKeyBackupService groupSenderKeyBackupService;
 
 	@Autowired
@@ -119,7 +120,7 @@ public class RemoveGroupSenderKeyConsumer implements StreamListener<String, MapR
 			String groupId = message.getValue().get(RemoveGroupSenderKeyFields.GROUP_ID);
 
 			if (!(StringUtils.isEmpty(groupId))) {
-				if (!(StringUtils.isEmpty(groupId) || StringUtils.isEmpty(userKey))) {
+				if (!(StringUtils.isEmpty(userKey))) {
 					groupSenderKeyService.deleteByReceiverUserKeyAndGroupId(UUID.fromString(userKey), UUID.fromString(groupId));
 				} else {
 					// Remove sender key
