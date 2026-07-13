@@ -39,9 +39,9 @@ public class MucUnreadCountService {
 	// Dedicated scheduler to offload blocking cache or metadata lookups
 	private static final Scheduler MUC_UNREAD_POOL = Schedulers.newBoundedElastic(
 		    // Max Threads: Match 2x to 4x your CPU cores. Let's say a 16-core container:
-		    64, 
+			1000, 
 		    // Queue Size: Larger buffer to absorb concurrent login bursts
-		    25_000, 
+		    50_000, 
 		    "muc-unread-workers"
 		);
 	

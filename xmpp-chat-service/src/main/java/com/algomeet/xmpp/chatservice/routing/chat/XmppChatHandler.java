@@ -71,13 +71,29 @@ public class XmppChatHandler {
 	private final MediaClient mediaClient;
 	
 	// Define a dedicated thread pool for your database work so Netty doesn't starve
-	// Pool A: Dedicated ONLY to non-blocking or fast reactive DB tracking/save orchestration
+	// Scaled to 1,000 threads / 50,000 queue bounds to comfortably handle multi-task flatMap processing chains
 	private static final Scheduler CHAT_DB_SCHEDULER = 
-	        Schedulers.newBoundedElastic(64, 20000, "xmpp-chat-db");
+	        Schedulers.newBoundedElastic(
+	            1000, 
+	            50000, 
+	            "xmpp-chat-db"
+	        );
 
-	// Pool B: Dedicated exclusively to isolating heavy blocking network I/O calls (Feign Clients)
+	// Expanded queue bounds to 50,000 to safely buffer out-of-band media batch allocations during blocking retry periods
 	private static final Scheduler MEDIA_IO_SCHEDULER = 
-	        Schedulers.newBoundedElastic(150, 5000, "xmpp-media-io");
+	        Schedulers.newBoundedElastic(
+	            1000, 
+	            50000, 
+	            "xmpp-media-io"
+	        );
+
+	// Explicit isolation pool created specifically to decouple Push Notification (FCM/APNs) dependencies
+	private static final Scheduler PUSH_NOTIFICATION_SCHEDULER = 
+	        Schedulers.newBoundedElastic(
+	            1000, 
+	            50000, 
+	            "xmpp-push-io"
+	        );
 
 	/**
 	 * Handles 1-to-1 message routing, persistence for offline storage, 
@@ -419,7 +435,7 @@ public class XmppChatHandler {
 	            TenantContext.clear();
 	        }
 	    })
-	    .subscribeOn(Schedulers.boundedElastic()) // Offload the network/IO push operation completely
+	    .subscribeOn(PUSH_NOTIFICATION_SCHEDULER) // Offload the network/IO push operation completely
 	    .doOnError(e -> log.error("Failed to deliver reactive push notification to user key: {}", toKey, e))
 	    .then(); // Transforms Mono<Object> into a clean Mono<Void> pipeline signal
 	}

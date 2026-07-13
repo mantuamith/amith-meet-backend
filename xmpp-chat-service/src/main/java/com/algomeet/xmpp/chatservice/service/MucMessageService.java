@@ -65,7 +65,7 @@ public class MucMessageService {
 	 * - Queue (50,000): Deep queue buffer to elegantly handle multi-member catchups, room migrations, 
 	 *   and global room synchronization events without rejecting downstream execution frames.
 	 */
-	private static final Scheduler MUC_THREAD_POOL = Schedulers.newBoundedElastic(64, 50000, "muc-message-workers");
+	private static final Scheduler MUC_THREAD_POOL = Schedulers.newBoundedElastic(1000, 50000, "muc-message-workers");
 
 	public Mono<List<MucMessageResponse>> getMessagesAfter(
 	        UUID userKey,

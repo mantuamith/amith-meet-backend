@@ -37,8 +37,15 @@ public class PinMucMessageService {
     private final AbstractGroupCache groupCacheService;
     private final ClusterMessagePublisher reactiveClusterMessagePublisher;
 
-    // Dedicated pool to cleanly offload blocking repository or cache actions away from Netty
-    private static final Scheduler MUC_WORKER_SCHEDULER = Schedulers.newBoundedElastic(200, 10000, "xmpp-pin-muc-message-workers");
+    // PRODUCTION UPDATE: Uniformly scaled to 1,000 active threads and 50,000 queue slots to match production messaging service bounds
+    private static final Scheduler MUC_WORKER_SCHEDULER = 
+    		Schedulers.newBoundedElastic(
+    				// Max Threads: Increased from 200 to prevent group broadcast blocks on heavy data spikes
+    				1000, 
+    				// Max Queue: Expanded from 10,000 to cleanly protect against OutOfMemory during massive parallel fan-outs
+    				50000, 
+    				"xmpp-pin-muc-message-workers"
+    				);
 
     /**
      * Pins a new message inside a specific MUC room context.

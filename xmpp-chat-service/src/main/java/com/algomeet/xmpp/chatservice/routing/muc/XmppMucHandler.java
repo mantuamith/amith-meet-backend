@@ -77,14 +77,21 @@ public class XmppMucHandler {
 	private final MucMessageService mucMessageService;
 	private final MediaClient mediaClient;
 
-	// Define a dedicated thread pool for your database work so Netty doesn't starve
-	// Pool A: Dedicated ONLY to non-blocking or fast reactive DB tracking/save orchestration
+	// Scaled to 1,000 threads / 50,000 queue bounds to safely absorb large group room broadcast fan-outs and multi-cursor syncs
 	private static final Scheduler MUC_DB_SCHEDULER = 
-	        Schedulers.newBoundedElastic(64, 20000, "xmpp-muc-db");
+	        Schedulers.newBoundedElastic(
+	            1000, 
+	            50000, 
+	            "xmpp-muc-db"
+	        );
 
-	// Pool B: Dedicated exclusively to isolating heavy blocking network I/O calls (Feign Clients)
+	// Expanded queue bounds to 50,000 to cleanly isolate blocking Feign attachment sharing from core room message delivery loops
 	private static final Scheduler MEDIA_IO_SCHEDULER = 
-	        Schedulers.newBoundedElastic(150, 5000, "xmpp-media-io");
+	        Schedulers.newBoundedElastic(
+	            1000, 
+	            50000, 
+	            "xmpp-media-io"
+	        );
 	
 	/**
 	 * Main entry point for MUC stanza processing.

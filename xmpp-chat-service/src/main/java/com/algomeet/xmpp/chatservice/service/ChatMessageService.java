@@ -47,7 +47,7 @@ public class ChatMessageService {
 	 * - Queue (25,000): Significantly broadened to smoothly handle thundering-herd login events,
 	 *   mass catch-up clear/read marker sweeps, and bulk retention changes without dropping tasks.
 	 */
-	private static final Scheduler CHAT_DB_SCHEDULER = Schedulers.newBoundedElastic(64, 25000, "chat-message-workers");
+	private static final Scheduler CHAT_DB_SCHEDULER = Schedulers.newBoundedElastic(1000, 50000, "chat-message-workers");
 
 	/**
 	 * Synchronizes dynamic user timelines, updates unread stats, and issues cross-node cluster sync signals.

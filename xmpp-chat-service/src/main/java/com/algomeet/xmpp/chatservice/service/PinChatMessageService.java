@@ -35,8 +35,15 @@ public class PinChatMessageService {
     private final DomainProperties domainProperties;
     private final JidUtil jidUtil;
 
-    // Dedicated pool to isolate processing off WebFlux Netty Event-Loop threads
-    private static final Scheduler CHAT_WORKER_SCHEDULER = Schedulers.newBoundedElastic(200, 10000, "xmpp-pin-message-workers");
+    // PRODUCTION UPDATE: Scaled to 1,000 active threads and 50,000 queue bounds to safely absorb global broadcast spikes
+    private static final Scheduler CHAT_WORKER_SCHEDULER = 
+    		Schedulers.newBoundedElastic(
+    				// Max Threads: Increased from 200 to accommodate rapid blocking repository calls and E2EE session lookups
+    				1000, 
+    				// Max Queue: Expanded from 10,000 to cleanly buffer cross-cluster XMPP pin synchronization payloads
+    				50000, 
+    				"xmpp-pin-message-workers"
+    				);
 
     /**
      * Pins a new message inside a conversation context.

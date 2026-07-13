@@ -60,9 +60,9 @@ public class XmppStreamManagementStanzaHandler {
 	private static final Scheduler SM_WORKER_SCHEDULER = 
 	        Schedulers.newBoundedElastic(
 	            // Keep thread count tight to limit memory foot-print and context switching
-	            100, 
+	            1000, 
 	            // Broaden the queue threshold to buffer mass concurrent reconnect drops safely
-	            30_000, 
+	            50_000, 
 	            "xmpp-sm-workers"
 	        );
 	
