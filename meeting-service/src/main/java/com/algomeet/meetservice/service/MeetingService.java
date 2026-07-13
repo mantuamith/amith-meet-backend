@@ -374,25 +374,13 @@ public class MeetingService {
     // Get all meetings where user is host or attendee
     public List<Meeting> getMeetingsForUser(String email) {
         log.info("GetMeetingsForUser: user={}", maskEmail(email));
-
-        // Use separate queries and merge to avoid Hibernate duplicate-entity bug:
-        // findDistinctByHostEmailOrAttendeesContaining joins on the meeting_attendees
-        // collection table, producing N rows per meeting (one per attendee). SQL DISTINCT
-        // can't help because those rows differ in attendee_email. Merging two clean queries
-        // and deduplicating by ID is the safe fix.
-        LinkedHashMap<String, Meeting> seen = new LinkedHashMap<>();
-        meetingRepository.findAllByHostEmail(email)
-                .forEach(m -> seen.put(m.getId(), m));
-        meetingRepository.findAllByAttendeeEmail(email)
-                .forEach(m -> seen.putIfAbsent(m.getId(), m));
-
-        List<Meeting> filtered = seen.values().stream()
+        List<Meeting> allMeeting = meetingRepository
+                .findDistinctByHostEmailOrAttendeesContainingOrderByMeetingStartTimeAsc(email, email);
+        List<Meeting> filtered = allMeeting.stream()
                 .filter(m -> m.getMeetingType() == MeetingType.MEETING)
-                .sorted(Comparator.comparing(Meeting::getMeetingStartTime,
-                        Comparator.nullsLast(Comparator.naturalOrder())))
                 .toList();
         log.info("GetMeetingsForUser: user={}, total={}, filtered={}",
-                maskEmail(email), seen.size(), filtered.size());
+                maskEmail(email), allMeeting.size(), filtered.size());
         return filtered;
     }
 
