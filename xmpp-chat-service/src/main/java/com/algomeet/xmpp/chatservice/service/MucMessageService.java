@@ -58,12 +58,7 @@ public class MucMessageService {
 	private final AbstractGroupCache groupCacheService;
 
 	/**
-	 * PRODUCTION OPTIMIZATION:
 	 * Dedicated pool tuned for high-volume Multi-User Chat room processing and fallback sync-cache operations.
-	 * 
-	 * - Threads (64): Tightened to bound thread switching friction and lower native memory pressure.
-	 * - Queue (50,000): Deep queue buffer to elegantly handle multi-member catchups, room migrations, 
-	 *   and global room synchronization events without rejecting downstream execution frames.
 	 */
 	private static final Scheduler MUC_THREAD_POOL = Schedulers.newBoundedElastic(1000, 50000, "muc-message-workers");
 

@@ -39,12 +39,10 @@ public class UnreadCountService {
 	private final ClusterMessagePublisher reactiveClusterMessagePublisher; // FIXED: Swapped to reactive
 	private final OfflineMessageRepository offlineMessageRepository;
 
-	// PRODUCTION UPDATE: Uniformly scaled to 1,000 active threads and 50,000 queue bounds to protect against lock-retry cascades
+	// Uniformly scaled to 1,000 active threads and 50,000 queue bounds to protect against lock-retry cascades
 	private static final Scheduler DB_WORKER_POOL = 
 			Schedulers.newBoundedElastic(
-					// Max Threads: Scaled from 150 to absorb rapid concurrent optimistic mutations and batch synchronization tasks
 					1000, 
-					// Max Queue: Expanded from 8,000 to safely queue backlogged updates during extreme delivery bursts
 					50000, 
 					"unread-count-workers"
 					);

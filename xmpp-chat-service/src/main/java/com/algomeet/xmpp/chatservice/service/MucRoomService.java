@@ -63,12 +63,10 @@ public class MucRoomService {
     private final JidUtil jidUtil;
     private final RemoveGroupSenderKeyPublisher removeGroupSenderKeyPublisher;
     
-    // PRODUCTION UPDATE: Scaled to handle enterprise load and prevent pipeline degradation during spike intervals
+    // Scaled to handle enterprise load and prevent pipeline degradation during spike intervals
     private static final Scheduler MUC_THREAD_POOL = 
     		Schedulers.newBoundedElastic(
-    				// Max Threads: Increased from 200 to handle parallel blocking lookups and disk/S3 media scrubbing pipelines
     				1000, 
-    				// Max Queue: Expanded from 10,000 to safely buffer cascading group purges and bulk user evictions
     				50000, 
     				"muc-service-workers"
     				);

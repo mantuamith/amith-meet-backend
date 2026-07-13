@@ -35,7 +35,7 @@ public class PinChatMessageService {
     private final DomainProperties domainProperties;
     private final JidUtil jidUtil;
 
-    // PRODUCTION UPDATE: Scaled to 1,000 active threads and 50,000 queue bounds to safely absorb global broadcast spikes
+    // Scaled to 1,000 active threads and 50,000 queue bounds to safely absorb global broadcast spikes
     private static final Scheduler CHAT_WORKER_SCHEDULER = 
     		Schedulers.newBoundedElastic(
     				// Max Threads: Increased from 200 to accommodate rapid blocking repository calls and E2EE session lookups

@@ -56,7 +56,6 @@ public class XmppStreamManagementStanzaHandler {
 	 * @return A Mono signaling completion of the processing logic.
 	 */
 	
-	// Fixed package resolution path here
 	private static final Scheduler SM_WORKER_SCHEDULER = 
 	        Schedulers.newBoundedElastic(
 	            // Keep thread count tight to limit memory foot-print and context switching
