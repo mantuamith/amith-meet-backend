@@ -14,6 +14,8 @@ public class GroupSenderKeyResponse {
     private UUID senderUserKey;
     private Integer senderDeviceId;
 
+    private UUID distributionId;
+    
     private String skdmCipher;
 
     private Instant createdAt;
