@@ -6,6 +6,7 @@ import com.algomeet.xmpp.chatservice.session.UserSessionRegistry;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.publisher.Mono;
 
 /**
  * Service layer responsible for orchestrating user session lifecycles.
@@ -39,11 +40,11 @@ public class SessionService {
      *
      * @param userKey   The unique identifier of the user (e.g., account ID or email).
      * @param sessionId The specific resource or UUID of the session to be removed.
+     * @return 
      */
-    public void removeSession(String userKey, String sessionId) {
+    public Mono<Void> removeSession(String userKey, String sessionId) {
         // Delegate the actual data removal to the Redis-backed registry
-        userSessionRegistry.removeSession(userKey, sessionId);
-        
-        log.debug("Session {} successfully removed from Redis for user {}", sessionId, userKey);
+    	log.debug("Session {} successfully removed from Redis for user {}", sessionId, userKey);
+        return userSessionRegistry.removeSession(userKey, sessionId);        
     }
 }

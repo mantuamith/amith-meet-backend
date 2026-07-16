@@ -8,7 +8,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
-import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.constant.XmppErrorConditions;
 import com.algomeet.xmpp.chatservice.enums.XmppErrorType;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
@@ -32,6 +31,7 @@ import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.publisher.Mono;
 
 /**
  * <p>The primary entry point for processing and routing all incoming XMPP stanzas 
@@ -71,6 +71,39 @@ public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocke
 	private final XmppUtil xmppUtil;
 	private final XmppViewManageHandler xmppViewManagementHandler;
 
+	/**
+	 * Unique Netty {@link io.netty.util.AttributeKey} used to attach a thread-safe, 
+	 * reactive serialization queue directly to an active socket channel's context.
+	 * * <p><b>Architectural Purpose:</b></p>
+	 * This key binds a {@link reactor.core.publisher.Sinks.Many} buffer containing lazy 
+	 * {@link reactor.core.publisher.Mono} routing tasks to individual connection sessions. 
+	 * It acts as a localized FIFO queue that forces all inbound stanzas from a single user 
+	 * connection to be processed in strict, chronological order via non-blocking serialization.
+	 * * <p><b>Concurrency & Backpressure Control:</b></p>
+	 * By isolating this queue per connection, the application guarantees that Message N+1 
+	 * will never begin its database execution path until Message N has completely finished. 
+	 * This design prevents out-of-order race conditions introduced by the multi-threaded 
+	 * database thread pool without locking or blocking Netty's underlying EventLoop selector.
+	 */
+	private static final io.netty.util.AttributeKey<reactor.core.publisher.Sinks.Many<reactor.core.publisher.Mono<Void>>> CHANNEL_QUEUE_KEY = 
+			io.netty.util.AttributeKey.valueOf("xmpp.channel.pipeline.queue");
+
+	@Override
+	public void channelActive(ChannelHandlerContext ctx) throws Exception {
+		// Initialize a serialized, thread-safe queue for this channel when it connects
+		reactor.core.publisher.Sinks.Many<reactor.core.publisher.Mono<Void>> queue = 
+				reactor.core.publisher.Sinks.many().unicast().onBackpressureBuffer();
+
+		ctx.channel().attr(CHANNEL_QUEUE_KEY).set(queue);
+
+		// Drain the queue sequentially (concatMap guarantees message N+1 never starts until message N completes)
+		queue.asFlux()
+		.concatMap(taskMono -> taskMono.onErrorResume(e -> reactor.core.publisher.Mono.empty()))
+		.subscribe();
+
+		super.channelActive(ctx);
+	}
+		
 	/**
 	 * Entry point for incoming WebSocket text frames.
 	 * 
@@ -129,17 +162,67 @@ public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocke
 			// 7. Branch based on logic: MAM and Server-directed queries go to InfoQueryHandler
 			// Direct/Group messages go to respective handlers
 
-			if (!mam && (XmppMessageType.GROUPCHAT == XmppMessageType.fromString(type) || isGroupChat(toJid))) {
-				xmppMucHandler.handleGroupChatRouting(ctx, id, toJid, fromJid, type, xml);
+			final String finalXml = xml;
+		    final String finalFromJid = fromJid;
+		    final String finalId = id;
+		    
+			if (!mam && (XmppMessageType.GROUPCHAT == XmppMessageType.fromString(type) || isGroupChat(toJid))) {				
+				// Apply sequential backpressure for room chats			    
+			    Mono<Void> mucTask = Mono.defer(() -> {
+			        ctx.channel().config().setAutoRead(false);
+			        return xmppMucHandler.handleGroupChatRouting(ctx, finalId, toJid, finalFromJid, type, finalXml);
+			    }).doFinally(signal -> {
+			        ctx.channel().config().setAutoRead(true);
+			        ctx.read();
+			    });
+
+			    reactor.core.publisher.Sinks.Many<Mono<Void>> queue = ctx.channel().attr(CHANNEL_QUEUE_KEY).get();
+			    if (queue != null) {
+			        queue.tryEmitNext(mucTask);
+			    } else {
+			        mucTask.subscribe();
+			    }
 
 			} else if (!mam && StringUtils.hasText(toJid)) {
-				xmppDirectChatHandler.handleDirectChatRouting(ctx, id, toJid, fromJid, type, xml);
+				// Apply sequential backpressure for direct 1:1 chats					
+				Mono<Void> directChatTask = Mono.defer(() -> {
+					// Toggle read suspension *only* when this message reaches the front of the queue
+					ctx.channel().config().setAutoRead(false);
+					return xmppDirectChatHandler.handleDirectChatRouting(ctx, finalId, toJid, finalFromJid, type, finalXml);
+				})
+				.doFinally(signal -> {
+					// Restore channel availability immediately on termination metrics
+					ctx.channel().config().setAutoRead(true);
+					ctx.read(); 
+				});
 
+				// Feed it into this specific connection's queue for serialized execution
+				reactor.core.publisher.Sinks.Many<Mono<Void>> queue = ctx.channel().attr(CHANNEL_QUEUE_KEY).get();
+				if (queue != null) {
+					queue.tryEmitNext(directChatTask);
+				} else {
+					// Fallback if channel initialization was skipped
+					directChatTask.subscribe();
+				}
 			} else {
 				
 				// This block catches MAM, Service Discovery, and Stream Management
-				if (xmppStreamManagementHandler.isStreamManagementStanza(xml)) {
-					xmppStreamManagementHandler.process(ctx, xml, principal);
+				if (xmppStreamManagementHandler.isStreamManagementStanza(xml)) {					
+					// Handle resume connection and etc. 
+					Mono<Void> smTask = Mono.defer(() -> {
+				        ctx.channel().config().setAutoRead(false);
+				        return xmppStreamManagementHandler.process(ctx, finalXml, principal);
+				    }).doFinally(signal -> {
+				        ctx.channel().config().setAutoRead(true);
+				        ctx.read();
+				    });
+
+				    reactor.core.publisher.Sinks.Many<Mono<Void>> queue = ctx.channel().attr(CHANNEL_QUEUE_KEY).get();
+				    if (queue != null) {
+				        queue.tryEmitNext(smTask);
+				    } else {
+				    	smTask.subscribe();
+				    }
 					
 				} else if (mam) {
 					// XEP-0313: Message Archive Management
@@ -147,7 +230,20 @@ public class XmppRoutingHandler extends SimpleChannelInboundHandler<TextWebSocke
 					
 				} else if (xmppViewManagementHandler.isMessageViewManagementStanza(xml)) {
 					// Handle hiding of messages and etc. 
-					xmppViewManagementHandler.process(ctx, xml, principal);
+					Mono<Void> vmTask = Mono.defer(() -> {
+				        ctx.channel().config().setAutoRead(false);
+				        return xmppViewManagementHandler.process(ctx, finalXml, principal);
+				    }).doFinally(signal -> {
+				        ctx.channel().config().setAutoRead(true);
+				        ctx.read();
+				    });
+
+				    reactor.core.publisher.Sinks.Many<Mono<Void>> queue = ctx.channel().attr(CHANNEL_QUEUE_KEY).get();
+				    if (queue != null) {
+				        queue.tryEmitNext(vmTask);
+				    } else {
+				    	vmTask.subscribe();
+				    }
 					
 				} else {
 					xmppDiscoveryHandler.handleQuery(ctx, xml);

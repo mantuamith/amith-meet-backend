@@ -76,4 +76,8 @@ public class GroupSenderKeyBackupService {
 
 		repository.deleteById(new GroupSenderKeyBackupId(userKey, groupId, distributionId));
 	}
+	
+	public void deleteByIdGroupId(UUID groupId) {
+		repository.deleteByIdGroupId(groupId);
+	}
 }

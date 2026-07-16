@@ -18,6 +18,9 @@ public class GroupSenderKeyRequest {
     @Min(value = 1, message = "receiverDeviceId must be greater than 0")
     private Integer receiverDeviceId;
 
+	@NotNull(message = "distributionId is required")
+	private UUID distributionId;
+	
     /** Base64 or hex encoded SKDM ciphertext */
     @NotEmpty
     @Size(max = 3000)

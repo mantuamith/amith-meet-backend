@@ -18,6 +18,7 @@ public class GroupSenderKeyMapper {
 				groupId
 				));
 
+		entity.setDistributionId(req.getDistributionId());		
 		entity.setSkdmCipher(req.getSkdmCipher());
 
 		// createdAt is set by @PrePersist
@@ -31,6 +32,7 @@ public class GroupSenderKeyMapper {
 		dto.setGroupId(entity.getId().getGroupId());
 		dto.setSenderUserKey(entity.getId().getSenderUserKey());
 		dto.setSenderDeviceId(entity.getId().getSenderDeviceId());
+		dto.setDistributionId(entity.getDistributionId());
 		dto.setSkdmCipher(entity.getSkdmCipher());
 		dto.setCreatedAt(entity.getCreatedAt());
 		dto.setDeletedAt(entity.getDeletedAt());

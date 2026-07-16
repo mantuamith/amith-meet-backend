@@ -53,139 +53,132 @@ public class XmppStreamManagementStanzaHandler {
 	 * @param ctx       The Netty {@link ChannelHandlerContext}.
 	 * @param xml       The raw XML string (either {@code <r/>} or {@code <a/>}).
 	 * @param principal The authenticated user session.
+	 * @return A Mono signaling completion of the processing logic.
 	 */
 	
-	// Fixed package resolution path here
-    private static final Scheduler SM_WORKER_SCHEDULER = 
-            Schedulers.newBoundedElastic(100, 5000, "xmpp-sm-workers");
+	private static final Scheduler SM_WORKER_SCHEDULER = 
+	        Schedulers.newBoundedElastic(
+	            // Keep thread count tight to limit memory foot-print and context switching
+	            1000, 
+	            // Broaden the queue threshold to buffer mass concurrent reconnect drops safely
+	            50_000, 
+	            "xmpp-sm-workers"
+	        );
 	
-	public void process(ChannelHandlerContext ctx, String xml, XmppPrincipal principal) {	
-		if (isStreamManagementReq(xml)) {                        
-			// SM must be explicitly enabled for the session (<enable xmlns='urn:xmpp:sm:3'/>)
-			AtomicBoolean isEnabledSM =
-					ctx.channel().attr(XmppSessionAttributes.SM_INBOUND_H_ENABLED_KEY).get();
+	public Mono<Void> process(ChannelHandlerContext ctx, String xml, XmppPrincipal principal) {	
+		return Mono.defer(() -> {
+			if (isStreamManagementReq(xml)) {                        
+				// SM must be explicitly enabled for the session (<enable xmlns='urn:xmpp:sm:3'/>)
+				AtomicBoolean isEnabledSM =
+						ctx.channel().attr(XmppSessionAttributes.SM_INBOUND_H_ENABLED_KEY).get();
 
-			// If SM is active, we increment the inbound sequence counter (h)
-			if (isEnabledSM != null && isEnabledSM.get()) {
+				// If SM is active, we increment the inbound sequence counter (h)
+				if (isEnabledSM != null && isEnabledSM.get()) {
 
-				// The client is requesting an 'h' value from the server
-				AtomicLong handledCount = ctx.channel().attr(XmppSessionAttributes.SM_INBOUND_H_KEY).get();
-				Long h = handledCount != null ? handledCount.get() : 0;
-				ctx.writeAndFlush(new TextWebSocketFrame(new StreamAck(h).toXml()));
-				log.trace("Responded to ack request from {} with h={}", principal.getUserKey(), h);
+					// The client is requesting an 'h' value from the server
+					AtomicLong handledCount = ctx.channel().attr(XmppSessionAttributes.SM_INBOUND_H_KEY).get();
+					Long h = handledCount != null ? handledCount.get() : 0;
+					ctx.writeAndFlush(new TextWebSocketFrame(new StreamAck(h).toXml()));
+					log.trace("Responded to ack request from {} with h={}", principal.getUserKey(), h);
+				}
+				return Mono.empty();
+			} else {
+				return processSmEnable(ctx, xml, principal);
 			}
-		} else {
-			processSmEnable(ctx, xml, principal);
-		}
+		});
 	}
 
-	public void processSmEnable(ChannelHandlerContext ctx, String xml, XmppPrincipal principal) {
-		if (xml.contains("<enable")) {  			
+	public Mono<Void> processSmEnable(ChannelHandlerContext ctx, String xml, XmppPrincipal principal) {
+		return Mono.defer(() -> {
+			if (xml.contains("<enable")) {  			
 
-			// 1. Extract the client's requested 'resume' preference (default to false if not found)
-			boolean resumeRequested = Boolean.valueOf(XmppStanzaUtil.getAttribute(xml, "resume"));
+				// 1. Extract the client's requested 'resume' preference (default to false if not found)
+				boolean resumeRequested = Boolean.valueOf(XmppStanzaUtil.getAttribute(xml, "resume"));
 
-			// 2. Generate a unique SM ID if resumption is enabled
-			String smId = resumeRequested ? UUID.randomUUID().toString() : null;
+				// 2. Generate a unique SM ID if resumption is enabled
+				String smId = resumeRequested ? UUID.randomUUID().toString() : null;
 
-			// 3. Initialize Stream Management Counters (XEP-0198)       
-			XmppSmSessionUtil.initSmSession(ctx, resumeRequested, smId, 0L);
+				// 3. Initialize Stream Management Counters (XEP-0198)       
+				XmppSmSessionUtil.initSmSession(ctx, resumeRequested, smId, 0L);
 
-			// 4. Create redis entry for SM session and build the <enabled /> response
-			StringBuilder response = new StringBuilder("<enabled xmlns='urn:xmpp:sm:3'");
-			if (smId != null) {				
-				// Add SM Id in the response
-				response.append(String.format(" id='%s'", smId));
+				// 4. Create redis entry for SM session and build the <enabled /> response
+				StringBuilder response = new StringBuilder("<enabled xmlns='urn:xmpp:sm:3'");
+				if (smId != null) {				
+					// Add SM Id in the response
+					response.append(String.format(" id='%s'", smId));
+				}
+				
+				response.append(String.format(" resume='%b'/>", resumeRequested));
+
+				// 5. Send the confirmation back to the client
+				ctx.writeAndFlush(new TextWebSocketFrame(response.toString()));
+
+				log.debug("Stream Management enabled for session. Resumable: {}", resumeRequested);
+				return Mono.empty();
+
+			} else if (xml.contains("<resume")) {
+			    // Extract required attributes for XEP-0198 stream resumption
+			    String prevId = XmppStanzaUtil.getAttribute(xml, "previd");
+			    
+			    log.debug("Received <resume /> for previd: {} with client-h: {}", prevId, XmppStanzaUtil.getAttribute(xml, "h"));
+			    
+			    /**
+			     * STRATEGY: Sequence Alignment & State Restoration
+			     * * By changing this to a completely reactive flow, we no longer need .block().
+			     * Stanza Interleaving is fully prevented by Netty's setAutoRead(false) execution state
+			     * context boundary. Auto-read remains deactivated until the pipeline confirms state alignment.
+			     */
+			    String userKey = principal.getBareJid(); // Get the owner of the session
+			    
+			    return xmppSmRedisUtil.getSmSessionData(prevId)
+		            .subscribeOn(SM_WORKER_SCHEDULER) // Offload I/O lookup off the Netty worker thread
+			        .filter(sessionMap -> !sessionMap.isEmpty()) 
+			        // Type Hint <sessionMap> ensures the compiler knows the final return type of the flatMap
+			        .<Long>flatMap(sessionMap -> {   
+			    	       Long lastAck = Long.parseLong(sessionMap.get(XmppSmSessionRedisUtil.FIELD_H).toString());
+			    	       String prevUserSessionId = sessionMap.get(XmppSmSessionRedisUtil.FIELD_USER_SESSION_ID).toString();
+			    	       log.info("Resume connection of previous user session ID: {}, h: {}", prevUserSessionId, lastAck);
+			    	   		    	   	    	   
+			    	       /**
+			                * Marks the current Netty channel session as successfully resumed
+			                * under Stream Management (XEP-0198).
+			                *
+			                * This indicates that the client has reconnected using a valid
+			                * previous SM session (previd) and the server has accepted the
+			                * resumption request.
+			                *
+			                * Effects of setting this flag:
+			                * - Enables replay continuation of buffered stanzas (if any)
+			                * - Differentiates resumed session from a fresh login session
+			                * - Helps prevent duplicate processing of previously acknowledged stanzas
+			                *
+			                * Note:
+			                * This is stored as a channel-level attribute and is only valid
+			                * for the lifetime of the active connection.
+			                */
+			               ctx.channel()
+			                   .attr(XmppSessionAttributes.SM_RESUMPTION_SUCCESS_KEY)
+			                   .set(new AtomicBoolean(true));
+			                // 1. Re-bind to local Netty context	
+			                XmppSmSessionUtil.initSmSession(ctx, true, prevId, lastAck);
+			                
+			                // 2. Resume dropped call and chain the update mappings securely
+			                return callSessionRecoveryService.updateSessionRebind(prevUserSessionId, principal.getSessionId())
+			                    .then(xmppSmRedisUtil.updateUserSessionId(prevId, principal.getSessionId()))
+			                    .thenReturn(lastAck);
+			        })
+			        .switchIfEmpty(Mono.defer(() -> {
+			            log.warn("Resumption failed for user {} with previd {}", userKey, prevId);
+			            sendResumeFailed(ctx);
+			            return Mono.empty();
+			        }))
+			        .doOnNext(lastAck -> {
+			            sendResumeResponse(ctx, lastAck);
+			        })
+			        .then();
 			}
-			
-			response.append(String.format(" resume='%b'/>", resumeRequested));
-
-			// 5. Send the confirmation back to the client
-			ctx.writeAndFlush(new TextWebSocketFrame(response.toString()));
-
-			log.debug("Stream Management enabled for session. Resumable: {}", resumeRequested);
-
-		} else if (xml.contains("<resume")) {
-		    // Extract required attributes for XEP-0198 stream resumption
-		    String prevId = XmppStanzaUtil.getAttribute(xml, "previd");
-		    
-		    log.debug("Received <resume /> for previd: {} with client-h: {}", prevId, XmppStanzaUtil.getAttribute(xml, "h"));
-		    
-		    // NON-BLOCKING BARRIER: Turn off auto-read on the TCP socket channel.
-	        // This stops incoming stanzas from interleaving without freezing the execution thread.
-	        ctx.channel().config().setAutoRead(false);
-
-		    /**
-		     * STRATEGY: Sequence Alignment & State Restoration
-		     * * We use a blocking call here as a "Barrier" pattern. In a Netty pipeline, 
-		     * subsequent stanzas (e.g., Jingle candidates) might already be in the 
-		     * TCP buffer. We must restore the 'h' counter and re-bind the session 
-		     * before the next handler in the pipeline attempts to process them.
-		     */
-	        // Example usage in your Resumption Handler
-		    String userKey = principal.getBareJid(); // Get the owner of the session
-		    
-		    xmppSmRedisUtil.getSmSessionData(prevId)
-	        .subscribeOn(SM_WORKER_SCHEDULER) // Offload I/O lookup off the Netty worker thread
-		    .filter(sessionMap -> !sessionMap.isEmpty()) 
-		    // Type Hint <sessionMap> ensures the compiler knows the final return type of the flatMap
-		    .<Long>flatMap(sessionMap -> {   
-		    	   Long lastAck = Long.parseLong(sessionMap.get(XmppSmSessionRedisUtil.FIELD_H).toString());
-		    	   String prevUserSessionId = sessionMap.get(XmppSmSessionRedisUtil.FIELD_USER_SESSION_ID).toString();
-		    	   log.info("Resume connection of previous user session ID: {}, h: {}", prevUserSessionId, lastAck);
-		    	   		    	   	    	   
-		    	   /**
-		            * Marks the current Netty channel session as successfully resumed
-		            * under Stream Management (XEP-0198).
-		            *
-		            * This indicates that the client has reconnected using a valid
-		            * previous SM session (previd) and the server has accepted the
-		            * resumption request.
-		            *
-		            * Effects of setting this flag:
-		            * - Enables replay continuation of buffered stanzas (if any)
-		            * - Differentiates resumed session from a fresh login session
-		            * - Helps prevent duplicate processing of previously acknowledged stanzas
-		            *
-		            * Note:
-		            * This is stored as a channel-level attribute and is only valid
-		            * for the lifetime of the active connection.
-		            */
-		           ctx.channel()
-		               .attr(XmppSessionAttributes.SM_RESUMPTION_SUCCESS_KEY)
-		               .set(new AtomicBoolean(true));
-		            // 1. Re-bind to local Netty context	
-		            XmppSmSessionUtil.initSmSession(ctx, true, prevId, lastAck);
-		            
-		            // 2. Resume dropped call:
-		            callSessionRecoveryService.updateSessionRebind(prevUserSessionId, principal.getSessionId()).subscribe();
-
-		            // 3. Update mapping to the NEW WebSocket/Netty session ID
-		            return xmppSmRedisUtil.updateUserSessionId(prevId, principal.getSessionId())
-		                .thenReturn(lastAck);
-		        })
-		        .switchIfEmpty(Mono.defer(() -> {
-		            log.warn("Resumption failed for user {} with previd {}", userKey, prevId);
-		            sendResumeFailed(ctx);
-		            return Mono.empty();
-		        }))
-		        .doOnNext(lastAck -> {
-		            sendResumeResponse(ctx, lastAck);
-		        })
-		        .doFinally(signalType -> {
-	                // RE-ENABLE READS: Once processing is complete (success, failure, or cancel),
-	                // turn auto-read back on to flush waiting downstream stanzas.
-	                ctx.channel().config().setAutoRead(true);
-	                ctx.read(); // Explicitly request a fresh read pass 
-	            })
-		        /**
-		         * .block() is used intentionally here.
-		         * By blocking the current Netty thread, we prevent "Stanza Interleaving" 
-		         * where a message might be processed by a downstream handler before 
-		         * the Stream Management session is officially 'resumed'.
-		         */
-		        .block(); 
-		}
+			return Mono.empty();
+		});
 	}
 
 	/**

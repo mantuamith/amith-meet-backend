@@ -12,6 +12,7 @@ public class GroupSenderKeyViewMapper {
 		dto.setGroupId(entity.getGroupId());
 		dto.setSenderUserKey(entity.getSenderUserKey());
 		dto.setSenderDeviceId(entity.getSenderDeviceId());
+		dto.setDistributionId(entity.getDistributionId());
 		dto.setCreatedAt(entity.getCreatedAt());
 		dto.setDeletedAt(entity.getDeletedAt());
 

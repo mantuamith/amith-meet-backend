@@ -279,16 +279,11 @@ public class CallTrackerService {
 
 					/**
 					 * Queue call summary messages for both parties.
+					 * 
+					 * Delete tracker after messages are successfully processed and queued.
 					 */
-					sendCallLogs(session, sid, duration, status, timestamp);
-
-					/**
-					 * Delete tracker after messages are queued.
-					 *
-					 * Alternative production design:
-					 * set processed=true instead of deleting.
-					 */
-					return repository.deleteBySid(sid);
+					return sendCallLogs(session, sid, duration, status, timestamp)
+							.then(repository.deleteBySid(sid));
 				})
 				.then();
 	}
@@ -344,7 +339,7 @@ public class CallTrackerService {
 	 * - readable body text
 	 * - structured <call-log/> extension
 	 */
-	private void sendCallLogs(
+	private Mono<Void> sendCallLogs(
 			CallSession session,
 			String sid,
 			long duration,
@@ -368,11 +363,11 @@ public class CallTrackerService {
 				status,
 				ts);
 
-        UUID stanzaId = UuidCreator.getTimeOrderedEpoch();
+		UUID stanzaId = UuidCreator.getTimeOrderedEpoch();
 		// Insert stanza ID
 		String forArchiveCallerMsg = XmppStanzaUtil.insertStanzaId(callerMsg, stanzaId.toString(), domainProperties.getDomain());
 		
-		publish(callerMsgId, stanzaId, session.getCaller().toString(), session.getCallee().toString(), ChatType.CHAT, forArchiveCallerMsg);
+		Mono<Void> publishToCaller = publish(callerMsgId, stanzaId, session.getCaller().toString(), session.getCallee().toString(), ChatType.CHAT, forArchiveCallerMsg);
 
 		// Send compose and send call logs to responder/callee
 		String calleeMsg = composeCallLogStanza(
@@ -385,11 +380,14 @@ public class CallTrackerService {
 				status,
 				ts);
 		
-        String stanzaIdCallee = UuidCreator.getTimeOrderedEpoch().toString();
+		String stanzaIdCallee = UuidCreator.getTimeOrderedEpoch().toString();
 		// Insert stanza ID
 		String forArchiveCalleeMsg = XmppStanzaUtil.insertStanzaId(calleeMsg, stanzaIdCallee, domainProperties.getDomain());
 
-		publish(calleeMsgId, stanzaId, session.getCallee().toString(), session.getCaller().toString(), ChatType.CHAT, forArchiveCalleeMsg);
+		Mono<Void> publishToCallee = publish(calleeMsgId, stanzaId, session.getCallee().toString(), session.getCaller().toString(), ChatType.CHAT, forArchiveCalleeMsg);
+
+		// Execute both message dispatches concurrently 
+		return Mono.when(publishToCaller, publishToCallee);
 	}
 
 	/**
@@ -400,7 +398,7 @@ public class CallTrackerService {
 	 *
 	 * This guarantees both persistence and live delivery.
 	 */
-	private void publish(
+	private Mono<Void> publish(
 			UUID id,
 			UUID stanzaId,
 			String to,
@@ -408,21 +406,24 @@ public class CallTrackerService {
 			ChatType chatType,
 			String payload) {
 
-		offlineMessageService.save(id, stanzaId, to, from, XmppMessageType.CHAT.getXmlValue(), payload)
-		.doOnSuccess(success -> {
-			// Increment unread message counter
-			unreadCountService.incrementUnreadCount(from, to);
-		})
-		.doOnError(e -> {
-			log.error(
-					"Storage failure for message {}: {}", id, e.getMessage(), e	);
-			})
-		.subscribe();
+		Mono<Void> offlineWorkflow = offlineMessageService.save(id, stanzaId, to, from, XmppMessageType.CHAT.getXmlValue(), payload)
+				.doOnSuccess(success -> {
+					// Increment unread message counter
+					unreadCountService.incrementUnreadCount(from, to);
+				})
+				.doOnError(e -> {
+					log.error("Storage failure for message {}: {}", id, e.getMessage(), e);
+				})
+				.then();
 
 		/**
 		 * Push immediately to connected nodes/users.
 		 */
-		clusterMessagePublisher.convertAndSendToUser(id.toString(), to, from, chatType, payload);
+		Mono<Void> clusterWorkflow = clusterMessagePublisher.convertAndSendToUser(id.toString(), to, from, chatType, payload)
+				.then();
+
+		// Keep workflows paired together reactively without blocking threads
+		return Mono.when(offlineWorkflow, clusterWorkflow);
 	}
 
 	/**

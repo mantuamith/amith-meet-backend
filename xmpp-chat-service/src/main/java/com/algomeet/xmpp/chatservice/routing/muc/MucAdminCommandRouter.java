@@ -4,10 +4,8 @@ import org.springframework.stereotype.Component;
 
 import com.algomeet.common.dto.GroupMember;
 import com.algomeet.common.service.AbstractGroupCache;
-import com.algomeet.common.dto.Group;
 import com.algomeet.multitenancy.context.TenantContext;
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
-import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.routing.muc.events.MucAddMemberEventHandler;
 import com.algomeet.xmpp.chatservice.routing.muc.events.MucKickEventHandler;
 import com.algomeet.xmpp.chatservice.routing.muc.events.MucMuteEventHandler;
@@ -18,6 +16,8 @@ import com.algomeet.xmpp.chatservice.util.XmppUtil;
 import io.netty.channel.ChannelHandlerContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 /**
  * Orchestrates administrative commands for Multi-User Chat (MUC) rooms.
@@ -53,82 +53,99 @@ public class MucAdminCommandRouter {
 	 * @param xml       The raw XML payload of the IQ stanza.
 	 * @param group     The data transfer object representing the current room state.
 	 * @param sender    The {@link GroupMember} profile of the initiator for permission validation.
+	 * @return 
 	 */
-	public void handleCommandStanza(ChannelHandlerContext ctx, String roomJid, String xml, GroupMember sender, XmppPrincipal principal) {
-    	// Set tenant Id to support multi-tenancy 
-    	TenantContext.setCurrentTenant(principal.getTenantId());
-    	
-		// Force refresh group cache
-		Group group = groupCacheService.refreshGroupCache(XmppUtil.getRoomId(roomJid));
-				
-		if (MucCommandUtil.isKickPayload(xml)) {
-			/**
-			 * Kick or remove member request stanza.
-			 *
-			 * Example:
-			 * <iq from='2fc35cae-e0b7-40a5-b2aa-e86206730e99@algomeet.app'
-			 *     id='kick-request-11121'
-			 *     to='289c5f4d-58a0-4def-bf5b-0fd15c045575@conference.algomeet.app'
-			 *     type='set'>
-			 *   <query xmlns='http://jabber.org/protocol/muc#admin'>
-			 *     <item jid='50748cb4-940e-4a97-b4f2-86125d207a1c@algomeet.app' role='none'>
-			 *       <reason>Please stay on topic.</reason>
-			 *     </item>
-			 *   </query>
-			 * </iq>
-			 */
-			mucKickEventHandler.handleKickMemberRequest(ctx, roomJid, xml, group, sender);
-		} else if (MucCommandUtil.isMutePayload(xml)) {
-			/**
-			 * Mute member request stanza.
-			 *
-			 * Example:
-			 * <iq from='2fc35cae-e0b7-40a5-b2aa-e86206730e99@algomeet.app'
-			 *     id='kick-request-11120'
-			 *     to='289c5f4d-58a0-4def-bf5b-0fd15c045575@conference.algomeet.app'
-			 *     type='set'>
-			 *   <query xmlns='http://jabber.org/protocol/muc#admin'>
-			 *     <item jid='xxxx-xxxx@algomeet.app' role='visitor'>
-			 *       <reason>Please stay on mute during the demo.</reason>
-			 *     </item>
-			 *   </query>
-			 * </iq>
-			 */
-			mucMuteEventHandler.handleMuteRequest(ctx, roomJid, xml, group, sender);
-		} else if (MucCommandUtil.isUnMutePayload(xml)) {
-			/**
-			 * Unmute member request stanza.
-			 *
-			 * Example:
-			 * <iq from='2fc35cae-e0b7-40a5-b2aa-e86206730e99@algomeet.app'
-			 *     id='unmute_01'
-			 *     to='289c5f4d-58a0-4def-bf5b-0fd15c045575@conference.algomeet.app'
-			 *     type='set'>
-			 *   <query xmlns='http://jabber.org/protocol/muc#admin'>
-			 *     <item jid='xxxx-xxxx@algomeet.app' role='participant'>
-			 *       <reason>Issue resolved, restoring voice.</reason>
-			 *     </item>
-			 *   </query>
-			 * </iq>
-			 */
-			mucUnMuteEventHandler.handleUnMuteRequest(ctx, roomJid, xml, group, sender);
-		} else if (MucCommandUtil.isAddMemberStanza(xml)) {
-			/**
-			 * Add member request stanza.
-			 *
-			 * Example:
-			 * <iq from='2fc35cae-e0b7-40a5-b2aa-e86206730e99@algomeet.app'
-			 *     id='add_user_01'
-			 *     to='289c5f4d-58a0-4def-bf5b-0fd15c045575@conference.algomeet.app'
-			 *     type='set'>
-			 *   <query xmlns='http://jabber.org/protocol/muc#admin'>
-			 *     <item affiliation='member' jid='xxxx-xxxx@algomeet.app'>
-			 *       <reason>Onboarding to the Backend Team</reason>
-			 *     </item>
-			 *   </query>
-			 * </iq>
-			 */
-			mucAddMemberEventHandler.handleAddMemberRequest(ctx, roomJid, xml, group, sender);
-		}
-	}	
+	public Mono<Void> handleCommandStanza(ChannelHandlerContext ctx, String roomJid, String xml, GroupMember sender, XmppPrincipal principal) {
+	    // 1. Wrap the blocking cache synchronization call onto the boundedElastic scheduler
+	    return Mono.fromCallable(() -> {
+	        // Explicitly set context on the elastic thread for this specific synchronous boundary execution
+	        // Set tenant Id to support multi-tenancy 
+	        TenantContext.setCurrentTenant(principal.getTenantId());
+	        try {
+	            return groupCacheService.refreshGroupCache(XmppUtil.getRoomId(roomJid));
+	        } finally {
+	            TenantContext.clear(); // Prevent leakage on the worker pool thread
+	        }
+	    })
+	    .subscribeOn(Schedulers.boundedElastic()) // Offload the heavy cache/DB refresh completely
+	    .flatMap(group -> {
+	        // Re-establish multi-tenancy context for downstream handlers running on this flatMap execution step
+	        TenantContext.setCurrentTenant(principal.getTenantId());
+	        try {
+	            if (MucCommandUtil.isKickPayload(xml)) {
+	                /**
+	                 * Kick or remove member request stanza.
+	                 *
+	                 * Example:
+	                 * <iq from='2fc35cae-e0b7-40a5-b2aa-e86206730e99@algomeet.app'
+	                 *     id='kick-request-11121'
+	                 *     to='289c5f4d-58a0-4def-bf5b-0fd15c045575@conference.algomeet.app'
+	                 *     type='set'>
+	                 *   <query xmlns='http://jabber.org/protocol/muc#admin'>
+	                 *     <item jid='50748cb4-940e-4a97-b4f2-86125d207a1c@algomeet.app' role='none'>
+	                 *       <reason>Please stay on topic.</reason>
+	                 *     </item>
+	                 *   </query>
+	                 * </iq>
+	                 */
+	                return mucKickEventHandler.handleKickMemberRequest(ctx, roomJid, xml, group, sender);
+	            } else if (MucCommandUtil.isMutePayload(xml)) {
+	                /**
+	                 * Mute member request stanza.
+	                 *
+	                 * Example:
+	                 * <iq from='2fc35cae-e0b7-40a5-b2aa-e86206730e99@algomeet.app'
+	                 *     id='kick-request-11120'
+	                 *     to='289c5f4d-58a0-4def-bf5b-0fd15c045575@conference.algomeet.app'
+	                 *     type='set'>
+	                 *   <query xmlns='http://jabber.org/protocol/muc#admin'>
+	                 *     <item jid='xxxx-xxxx@algomeet.app' role='visitor'>
+	                 *       <reason>Please stay on mute during the demo.</reason>
+	                 *     </item>
+	                 *   </query>
+	                 * </iq>
+	                 */
+	                return mucMuteEventHandler.handleMuteRequest(ctx, roomJid, xml, group, sender);
+	            } else if (MucCommandUtil.isUnMutePayload(xml)) {
+	                /**
+	                 * Unmute member request stanza.
+	                 *
+	                 * Example:
+	                 * <iq from='2fc35cae-e0b7-40a5-b2aa-e86206730e99@algomeet.app'
+	                 *     id='unmute_01'
+	                 *     to='289c5f4d-58a0-4def-bf5b-0fd15c045575@conference.algomeet.app'
+	                 *     type='set'>
+	                 *   <query xmlns='http://jabber.org/protocol/muc#admin'>
+	                 *     <item jid='xxxx-xxxx@algomeet.app' role='participant'>
+	                 *       <reason>Issue resolved, restoring voice.</reason>
+	                 *     </item>
+	                 *   </query>
+	                 * </iq>
+	                 */
+	                return mucUnMuteEventHandler.handleUnMuteRequest(ctx, roomJid, xml, group, sender);
+	            } else if (MucCommandUtil.isAddMemberStanza(xml)) {
+	                /**
+	                 * Add member request stanza.
+	                 *
+	                 * Example:
+	                 * <iq from='2fc35cae-e0b7-40a5-b2aa-e86206730e99@algomeet.app'
+	                 *     id='add_user_01'
+	                 *     to='289c5f4d-58a0-4def-bf5b-0fd15c045575@conference.algomeet.app'
+	                 *     type='set'>
+	                 *   <query xmlns='http://jabber.org/protocol/muc#admin'>
+	                 *     <item affiliation='member' jid='xxxx-xxxx@algomeet.app'>
+	                 *       <reason>Onboarding to the Backend Team</reason>
+	                 *     </item>
+	                 *   </query>
+	                 * </iq>
+	                 */
+	                return mucAddMemberEventHandler.handleAddMemberRequest(ctx, roomJid, xml, group, sender);
+	            }
+	            
+	            return Mono.empty();
+	        } finally {
+	            TenantContext.clear(); // Ensure ThreadLocal cleanup after execution completes
+	        }
+	    });
+	}
 }

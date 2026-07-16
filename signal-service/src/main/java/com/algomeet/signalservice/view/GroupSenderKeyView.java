@@ -14,6 +14,8 @@ public interface GroupSenderKeyView {
 
     Integer getSenderDeviceId();
 
+    UUID getDistributionId();
+    
     Instant getCreatedAt();
     
     Instant getDeletedAt();

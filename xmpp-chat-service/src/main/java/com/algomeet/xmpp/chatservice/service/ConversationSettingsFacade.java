@@ -10,10 +10,10 @@ import org.springframework.stereotype.Service;
 
 import com.algomeet.common.util.DeterministicConversationIdUtil;
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
-import com.algomeet.xmpp.chatservice.cluster.publisher.ReactiveClusterMessagePublisher;
+import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
-import com.algomeet.xmpp.chatservice.publisher.ReactiveMessageBackupRetentionUpdateEventPublisher;
+import com.algomeet.xmpp.chatservice.publisher.MessageBackupRetentionUpdateEventPublisher;
 import com.algomeet.xmpp.chatservice.redis.lock.ReactiveChatMessageRetentionLockManager;
 import com.algomeet.xmpp.chatservice.stanza.SyncMessageRetentionStanza;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
@@ -32,8 +32,8 @@ public class ConversationSettingsFacade {
 	private final ReactiveChatMessageRetentionLockManager reactiveChatMessageRetentionLockManager;
 	private final ChatMessageService chatMessageService;
 	private final JidUtil jidUtil;    
-	private final ReactiveClusterMessagePublisher reactiveClusterMessagePublisher;
-	private final ReactiveMessageBackupRetentionUpdateEventPublisher reactiveMessageBackupRetentionUpdateEventPublisher;
+	private final ClusterMessagePublisher reactiveClusterMessagePublisher;
+	private final MessageBackupRetentionUpdateEventPublisher reactiveMessageBackupRetentionUpdateEventPublisher;
 	private final ReactiveRedisTemplate<String, String> reactiveRedisTemplate;
 
 	private static final String LOCAL_LOCK_KEY = "xmpp:lock:update:conv-settings-retention:";

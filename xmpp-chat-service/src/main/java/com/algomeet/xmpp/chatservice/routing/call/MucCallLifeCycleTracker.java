@@ -7,7 +7,7 @@ import java.util.concurrent.TimeUnit;
 
 import org.redisson.api.RSemaphoreReactive;
 import org.redisson.api.RedissonReactiveClient;
-import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 import org.springframework.stereotype.Component;
 
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
@@ -94,8 +94,8 @@ import reactor.core.publisher.Mono;
 @RequiredArgsConstructor
 public class MucCallLifeCycleTracker {
 
-	private final StringRedisTemplate redisTemplate;
-	private final ClusterMessagePublisher clusterMessagePublisher;
+	private final ReactiveStringRedisTemplate reactiveRedisTemplate;
+	private final ClusterMessagePublisher reactiveClusterMessagePublisher;
 	private final OfflineMessageService offlineMessageService;
 	private final MucCallTrackerService mucCallTrackerService;
 	private final JidUtil jidUtil;
@@ -116,7 +116,7 @@ public class MucCallLifeCycleTracker {
 	 * @param principal authenticated session
 	 * @param groupId   room/group id
 	 */
-	public void track(ChannelHandlerContext ctx,
+	public Mono<Void> track(ChannelHandlerContext ctx,
 			String toJid,
 			String fromJid,
 			String xml,
@@ -140,30 +140,21 @@ public class MucCallLifeCycleTracker {
 
 		if (sid == null) {
 			log.warn("Ignoring call stanza without SID");
-			return;
+			return Mono.empty();
 		}
 
 		/**
 		 * Route to proper lifecycle handler.
 		 */
 		if (isInitiate) {
-			handleInitiate(toJid, fromJid, xml, sid, groupId, principal);
-
+			return handleInitiate(toJid, fromJid, xml, sid, groupId, principal).then();
 		} else if (isAccept) {
-			handleAccept(sid,
-					UUID.fromString(principal.getUserKey()),
-					principal.getSessionId());
-
+			return handleAccept(sid, UUID.fromString(principal.getUserKey()), principal.getSessionId()).then();
 		} else if (isTerminate) {
-			handleTerminate(ctx,
-					toJid,
-					fromJid,
-					xml,
-					sid,
-					groupId.toString(),
-					principal,
-					messageRetentionDays);
+			return handleTerminate(ctx, toJid, fromJid, xml, sid, groupId.toString(), principal, messageRetentionDays);
 		}
+
+		return Mono.empty();
 	}
 
 	/**
@@ -178,8 +169,9 @@ public class MucCallLifeCycleTracker {
 	 * 1. Store temporary metadata in Redis HASH
 	 * 2. Add SID to delayed timeout queue
 	 * 3. Persist tracker row for analytics/duration
+	 * @return 
 	 */
-	private void handleInitiate(String toJid,
+	private Mono<CallSession> handleInitiate(String toJid,
 			String fromJid,
 			String xml,
 			String sid,
@@ -223,48 +215,50 @@ public class MucCallLifeCycleTracker {
 		/**
 		 * Save metadata.
 		 */
-		redisTemplate.opsForHash().putAll(metadataKey, data);
+		Mono<Boolean> putAllMono = reactiveRedisTemplate.opsForHash().putAll(metadataKey, data);
 
 		/**
 		 * Safety expiration.
 		 */
-		redisTemplate.expire(metadataKey, callProperties.getSessionMetadataTtl().getSeconds(), 
-				TimeUnit.SECONDS);
+		Mono<Boolean> expireMono = reactiveRedisTemplate.expire(metadataKey, 
+				java.time.Duration.ofSeconds(callProperties.getSessionMetadataTtl().getSeconds()));
 
 		/**
 		 * Add to delayed queue.
 		 *
 		 * score = future timeout timestamp
 		 */
-		redisTemplate.opsForZSet().add(CallSessionRedisKey.MUC_CALL_TIMEOUT_QUEUE.getVal(),
+		Mono<Boolean> zAddMono = reactiveRedisTemplate.opsForZSet().add(
+				CallSessionRedisKey.MUC_CALL_TIMEOUT_QUEUE.getVal(),
 				mucSid,
-				executeAt
-				);
-
-		log.info("Call [{}] initiated Redis MUC SID={} timeout={}s",
-				callType,
-				mucSid,
-				callProperties.getRingingTimeout().getSeconds());
+				(double) executeAt
+		);
 
 		/**
 		 * Save persistent tracker row.
 		 */
-		mucCallTrackerService.trackInitiation(
-				sid,
-				UUID.fromString(principal.getUserKey()),
-				principal.getSessionId(),
-				UUID.fromString(XmppUtil.getUserKey(toJid)),
-				callType,
-				roomId
-				).subscribe();
+		return Mono.zip(putAllMono, expireMono, zAddMono)
+				.doOnSuccess(v -> log.info("Call [{}] initiated Redis MUC SID={} timeout={}s",
+						callType,
+						mucSid,
+						callProperties.getRingingTimeout().getSeconds()))
+				.then(mucCallTrackerService.trackInitiation(
+						sid,
+						UUID.fromString(principal.getUserKey()),
+						principal.getSessionId(),
+						UUID.fromString(XmppUtil.getUserKey(toJid)),
+						callType,
+						roomId
+				));
 	}
 
 	/**
 	 * Read all call metadata in one Redis round trip.
 	 */
-	private Map<Object, Object> getSessionMetadata(String sid) {
-		return redisTemplate.opsForHash()
-				.entries(CallSessionRedisKey.CALL_METADATA_PREFIX.format(sid));
+	private Mono<Map<Object, Object>> getSessionMetadata(String sid) {
+		return reactiveRedisTemplate.opsForHash()
+				.entries(CallSessionRedisKey.CALL_METADATA_PREFIX.format(sid))
+				.collectMap(Map.Entry::getKey, Map.Entry::getValue);
 	}
 
 	/**
@@ -275,8 +269,9 @@ public class MucCallLifeCycleTracker {
 	 * Important:
 	 * Remove timeout queue immediately so background worker
 	 * does NOT produce false missed-call log.
+	 * @return 
 	 */
-	private void handleAccept(String sid,
+	private Mono<CallSession> handleAccept(String sid,
 			UUID calleeUserKey,
 			String calleeSid) {
 
@@ -285,13 +280,12 @@ public class MucCallLifeCycleTracker {
 
 		log.info("Call accepted MUC SID={}", mucId);
 
-		handleResolution(mucId);
-
-		mucCallTrackerService.trackAcceptance(
-				sid,
-				calleeUserKey,
-				calleeSid
-				).subscribe();
+		return handleResolution(mucId)
+				.then(mucCallTrackerService.trackAcceptance(
+						sid,
+						calleeUserKey,
+						calleeSid
+				));
 	}
 
 	/**
@@ -306,135 +300,122 @@ public class MucCallLifeCycleTracker {
 	 * cancel       -> caller canceled before answer
 	 * busy         -> already in another call
 	 * unknown      -> unexpected failure
+	 * @return 
 	 */
-	private void handleTerminate(ChannelHandlerContext ctx,
+	private Mono<Void> handleTerminate(ChannelHandlerContext ctx,
 			String toJid,
 			String fromJid,
 			String xml,
-			String sid,
+			String sid, 
 			String groupId,
 			XmppPrincipal principal,
 			Integer messageRetentionDays) {
 
-		Map<Object, Object> metadata = getSessionMetadata(sid);
+		return getSessionMetadata(sid)
+				.flatMap(metadata -> {
+					if (metadata.isEmpty()) {
+						return Mono.empty();
+					}
 
-		if (metadata == null) {
-			return;
-		}
+					String callType = (String) metadata.get(CallSessionMetadata.CALL_TYPE.getKey());
 
-		String callType = (String) metadata.get(CallSessionMetadata.CALL_TYPE.getKey());
+					/**
+					 * NORMAL CALL END
+					 */
+					if (xml.contains("<success/>")) {
+						return mucCallTrackerService.finalizeAndNotify(sid, principal.getSessionId(), "success", messageRetentionDays);
+					}
 
-		/**
-		 * NORMAL CALL END
-		 */
-		if (xml.contains("<success/>")) {
-			mucCallTrackerService.finalizeAndNotify(sid, principal.getSessionId(), "success", messageRetentionDays)
-			.subscribe();
-		}
+					/**
+					 * REJECTED
+					 */
+					else if (xml.contains("<decline/>")) {
 
-		/**
-		 * REJECTED
-		 */
-		else if (xml.contains("<decline/>")) {
+						// Generate Redis MUC SID using sid and callee user key
+						String redisMucSid = CallSessionRedisKey.getMucSid(sid, principal.getUserKey());
+						
+						return isCallInDelayQueue(redisMucSid)
+								.flatMap(isCallInDelayQueue -> {
+									if (isCallInDelayQueue) {
+										/**
+										 * Always cleanup first to avoid races.
+										 */
+										String fromRoomFullJid = jidUtil.getGroupBareJid(groupId) + "/" + XmppUtil.getUserKey(fromJid);
 
-			// Generate Redis MUC SID using sid and callee user key
-			String redisMucSid = CallSessionRedisKey.getMucSid(sid, principal.getUserKey());
-			boolean isCallInDelayQueue = isCallInDelayQueue(redisMucSid);
+										return handleResolution(redisMucSid)
+												.then(sendCallLog(ctx, fromRoomFullJid, fromJid, sid, "declined", "Call Declined", callType))
+												.then(mucCallTrackerService.remove(sid, UUID.fromString(principal.getUserKey())));
+									}
+									return Mono.empty();
+								});
+					}
 
-			if(isCallInDelayQueue) {
-				/**
-				 * Always cleanup first to avoid races.
-				 */
-				handleResolution(redisMucSid);
+					/**
+					 * CANCELED BEFORE ANSWERED
+					 */
+					else if (xml.contains("<cancel/>")) {
+						// create from room JID
+						String fromRoomFullJid = jidUtil.getGroupBareJid(groupId) + "/"	+ XmppUtil.getUserKey(fromJid);
+						
+						// To prevent competing threads
+						// A Semaphore with 1 permit acts exactly like a non-reentrant lock
+						RSemaphoreReactive semaphore = redissonReactiveClient.getSemaphore("xmpp:lock:cancel:sid:" + sid + ":user-key:" + XmppUtil.getUserKey(fromJid));
+						// tryAcquire(permits, waitTime, unit)
+						// permits: 1 (only one process can enter)
+						// waitTime: 0 (immediate fail-fast; if the permit is taken, we discard the redundant trigger)
+						return semaphore.tryAcquire(1, 0, TimeUnit.SECONDS)
+								.flatMap(acquired -> {
+									if (!acquired) {
+										// No permit taken, return early without releasing anything
+										return Mono.empty();
+									}
 
-				// create from room JID
-				String fromRoomFullJid = jidUtil.getGroupBareJid(groupId) + "/"	+ XmppUtil.getUserKey(fromJid);
+									// Permit taken -> chain the logic and defer the release until AFTER handleCancelCall finishes
+									return handleCancelCall(ctx, fromJid, sid, fromRoomFullJid, callType)
+											.then() 
+											.doFinally(sig -> semaphore.release(1).subscribe()); 
+								});
+					}
 
-				// Send to responder only
-				sendCallLog(ctx, fromRoomFullJid, fromJid,
-						sid, "declined",
-						"Call Declined", callType);
+					/**
+					 * BUSY
+					 */
+					else if (xml.contains("<busy/>")) {
+						// No need to send logs to caller nor receiver
 
-				// Delete MUC call session 
-				mucCallTrackerService.remove(sid, UUID.fromString(principal.getUserKey())).subscribe();	
-			}	
-		}
+						// Generate Redis MUC SID using sid and callee user key
+						String calleeUserKey = principal.getUserKey();
+						String mucSid = CallSessionRedisKey.getMucSid(sid, calleeUserKey);
 
-		/**
-		 * CANCELED BEFORE ANSWERED
-		 */
-		else if (xml.contains("<cancel/>")) {
-			// create from room JID
-			String fromRoomFullJid = jidUtil.getGroupBareJid(groupId) + "/"	+ XmppUtil.getUserKey(fromJid);
-			
-			// To prevent competing threads
-			// A Semaphore with 1 permit acts exactly like a non-reentrant lock
-			RSemaphoreReactive semaphore = redissonReactiveClient.getSemaphore("xmpp:lock:cancel:sid:" + sid + ":user-key:" + XmppUtil.getUserKey(fromJid));
-			// tryAcquire(permits, waitTime, unit)
-			// permits: 1 (only one process can enter)
-			// waitTime: 0 (immediate fail-fast; if the permit is taken, we discard the redundant trigger)
-			semaphore.tryAcquire(1, 0, TimeUnit.SECONDS) // Try to get 1 permit immediately
-			.flatMap(acquired -> {
-				if (!acquired) {
-					// If lock is held, another process is already finalizing this SID.
-					return Mono.empty();
-				}
+						return handleResolution(mucSid)
+								.then(mucCallTrackerService.remove(sid, UUID.fromString(principal.getUserKey())));
+					}
 
-				return handleCancelCall(ctx,
-						fromJid,
-						sid,
-						fromRoomFullJid,
-						callType)
-						.then();
-			})
-			// Use finalize to ensure unlock happens regardless of success/error/empty
-			// Use doFinally to ensure the permit is ALWAYS released
-			.doFinally(sig -> semaphore.release(1).subscribe()) 
-			.then();
-		}
+					/**
+					 * OTHER NON-LOGGING STATES
+					 */
+					else if (xml.contains("<alternative-session>")
+							|| xml.contains("<unsupported-transports/>")) {
 
-		/**
-		 * BUSY
-		 */
-		else if (xml.contains("<busy/>")) {
-			// No need to send logs to caller nor receiver
+						// Generate Redis MUC SID using sid and callee user key
+						String calleeUserKey = principal.getUserKey();
+						String redisMucSid = CallSessionRedisKey.getMucSid(sid, calleeUserKey);
 
-			// Generate Redis MUC SID using sid and callee user key
-			String calleeUserKey = principal.getUserKey();
-			String mucSid = CallSessionRedisKey.getMucSid(sid, calleeUserKey);
+						/**
+						 * Always cleanup first to avoid races.
+						 */
+						return handleResolution(redisMucSid)
+								.then(mucCallTrackerService.remove(sid, UUID.fromString(principal.getUserKey())));
+					}
 
-			handleResolution(mucSid);
-
-			// remove from db
-			mucCallTrackerService.remove(sid, UUID.fromString(principal.getUserKey())).subscribe();
-		}
-
-		/**
-		 * OTHER NON-LOGGING STATES
-		 */
-		else if (xml.contains("<alternative-session>")
-				|| xml.contains("<unsupported-transports/>")) {
-
-			// Generate Redis MUC SID using sid and callee user key
-			String calleeUserKey = principal.getUserKey();
-			String redisMucSid = CallSessionRedisKey.getMucSid(sid, calleeUserKey);
-
-			/**
-			 * Always cleanup first to avoid races.
-			 */
-			handleResolution(redisMucSid);
-
-			// Remove call session from database
-			mucCallTrackerService.remove(sid, UUID.fromString(principal.getUserKey())).subscribe();
-		}
-
-		/**
-		 * UNKNOWN FAILURE
-		 */
-		else {
-
-			log.error("Unknown error terminated the MUC call {}", xml);
-		}
+					/**
+					 * UNKNOWN FAILURE
+					 */
+					else {
+						log.error("Unknown error terminated the MUC call {}", xml);
+						return Mono.empty();
+					}
+				});
 	}
 
 	private Flux<CallSession> handleCancelCall(ChannelHandlerContext ctx,
@@ -445,39 +426,33 @@ public class MucCallLifeCycleTracker {
 
 		// Send logs to responders
 		return mucCallTrackerService.findBySid(sid)
-				.doOnEach(callSession -> {
-					UUID calleeUserKey = callSession.get().getCallee();
+				.flatMap(callSession -> {
+					UUID calleeUserKey = callSession.getCallee();
 
 					// Generate Redis MUC SID using sid and callee user key
 					String mucSid = CallSessionRedisKey.getMucSid(sid, calleeUserKey.toString());	
-					boolean isCallInDelayQueue = isCallInDelayQueue(mucSid);
-
-					if(isCallInDelayQueue) {					
-						/**
-						 * Always cleanup first to avoid races.
-						 */
-						handleResolution(mucSid);
-
-						// Send to responder
-						sendCallLog(ctx, fromRoomFullJid, jidUtil.getBareJid(calleeUserKey.toString()),
-								sid, "missed",
-								"Missed Call", callType);
-					}
+					
+					return isCallInDelayQueue(mucSid)
+							.flatMap(isCallInDelayQueue -> {
+								if (isCallInDelayQueue) {					
+									/**
+									 * Always cleanup first to avoid races.
+									 */
+									return handleResolution(mucSid)
+											.then(sendCallLog(ctx, fromRoomFullJid, jidUtil.getBareJid(calleeUserKey.toString()),
+													sid, "missed", "Missed Call", callType))
+											.then(Mono.just(callSession));
+								}
+								return Mono.just(callSession);
+							});
 				})
-				.doFinally(signal -> {
-					// Send call log to caller
-					sendCallLog(ctx, fromRoomFullJid, fromJid,
-							sid, "canceled",
-							"Call Canceled", callType);
-
-					try {
-						// Delete muc call session records
-						mucCallTrackerService.deleteBySid(sid).subscribe();
-					} catch(Exception ex) {
-						// silent
-					}
-
-				});		
+				.concatWith(
+						// Safely defer subsequent logic to downstream execution chains to simulate step-ordering
+						Mono.defer(() -> sendCallLog(ctx, fromRoomFullJid, fromJid, sid, "canceled", "Call Canceled", callType)
+								.then(mucCallTrackerService.deleteBySid(sid))
+								.onErrorResume(ex -> Mono.empty()) // silent failure
+								.then(Mono.empty()))
+				);
 	}
 
 	/**
@@ -487,21 +462,20 @@ public class MucCallLifeCycleTracker {
 	 * - delayed queue item
 	 * - metadata hash
 	 */
-	private void handleResolution(String sid) {
-
-		redisTemplate.opsForZSet().remove(CallSessionRedisKey.MUC_CALL_TIMEOUT_QUEUE.getVal(), sid);
-		redisTemplate.delete(CallSessionRedisKey.CALL_METADATA_PREFIX.format(sid));
+	private Mono<Void> handleResolution(String sid) {
+		Mono<Long> removeZSet = reactiveRedisTemplate.opsForZSet().remove(CallSessionRedisKey.MUC_CALL_TIMEOUT_QUEUE.getVal(), sid);
+		Mono<Long> deleteHash = reactiveRedisTemplate.delete(CallSessionRedisKey.CALL_METADATA_PREFIX.format(sid));
+		return Mono.when(removeZSet, deleteHash);
 	}
 
 	/**
 	 * Returns true if still waiting in delayed queue.
 	 */
-	public boolean isCallInDelayQueue(String sid) {
-
-		Double score = redisTemplate.opsForZSet().score(
-				CallSessionRedisKey.MUC_CALL_TIMEOUT_QUEUE.getVal(),	sid);
-
-		return score != null;
+	public Mono<Boolean> isCallInDelayQueue(String sid) {
+		return reactiveRedisTemplate.opsForZSet().score(
+				CallSessionRedisKey.MUC_CALL_TIMEOUT_QUEUE.getVal(), sid)
+				.map(score -> true)
+				.defaultIfEmpty(false);
 	}
 
 	/**
@@ -511,7 +485,7 @@ public class MucCallLifeCycleTracker {
 	 *
 	 * Persists call history and broadcasts to all user devices.
 	 */
-	private void sendCallLog(ChannelHandlerContext ctx,
+	private Mono<Void> sendCallLog(ChannelHandlerContext ctx,
 			String fromRoomJid,
 			String toJid,
 			String sid,
@@ -544,32 +518,31 @@ public class MucCallLifeCycleTracker {
         UUID stanzaId = UuidCreator.getTimeOrderedEpoch();
 		// Insert stanza ID
 		String forArchiveXml = XmppStanzaUtil.insertStanzaId(xml.toString(), stanzaId.toString(), domainProperties.getDomain());		
+		
 		/**
 		 * Persist for offline retrieval.
 		 */
-		offlineMessageService.save(
+		Mono<Void> saveOfflineMono = offlineMessageService.save(
 				messageId,
 				stanzaId,
 				toUserKey,
 				fromUserKey,
 				XmppMessageType.GROUPCHAT.getXmlValue(),
 				forArchiveXml
-				)
-		.doOnSuccess(success -> {
-		})
-		.subscribe();
+		).then();
 
 		/**
 		 * Push to cluster for all online devices.
 		 */
-		clusterMessagePublisher.convertAndSendToUser(
+		Mono<Void> clusterPublishMono = reactiveClusterMessagePublisher.convertAndSendToUser(
 				messageId.toString(),
 				toUserKey,
 				fromUserKey,
 				ChatType.CHAT,
 				forArchiveXml
-				);
+		).then();
 
-		log.debug("Published {} call log SID={}", status, sid);
+		return Mono.when(saveOfflineMono, clusterPublishMono)
+				.doOnSuccess(v -> log.debug("Published {} call log SID={}", status, sid));
 	}
 }

@@ -11,6 +11,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import reactor.core.publisher.Mono;
 
 /**
  * REST controller for managing active XMPP/WebSocket sessions and Redis-based presence states.
@@ -42,7 +43,7 @@ public interface SessionControllerDoc {
         @ApiResponse(responseCode = "404", description = "Session or state record not found"),
         @ApiResponse(responseCode = "500", description = "Internal server error during Redis operation")
     })
-    public ResponseEntity<CommonResponse<?>> removeSession(
+    public Mono<ResponseEntity<CommonResponse<?>>> removeSession(
             @Parameter(
                 description = "Unique identifier for the session or presence record to be evicted",
                 example = "a3f9c2d1-9b7e-4c6f-8a12-abc123xyz"

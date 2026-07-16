@@ -5,7 +5,7 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 
 import com.algomeet.common.util.DeterministicConversationIdUtil;
-import com.algomeet.xmpp.chatservice.cluster.publisher.ReactiveClusterMessagePublisher;
+import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.document.PinChatMessage;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.enums.ViewManageEnum;
@@ -31,12 +31,19 @@ import reactor.core.scheduler.Schedulers;
 public class PinChatMessageService {
 
     private final PinChatMessageRepository pinChatMessageRepository;
-    private final ReactiveClusterMessagePublisher reactiveClusterMessagePublisher;
+    private final ClusterMessagePublisher reactiveClusterMessagePublisher;
     private final DomainProperties domainProperties;
     private final JidUtil jidUtil;
 
-    // Dedicated pool to isolate processing off WebFlux Netty Event-Loop threads
-    private static final Scheduler CHAT_WORKER_SCHEDULER = Schedulers.newBoundedElastic(200, 10000, "xmpp-pin-message-workers");
+    // Scaled to 1,000 active threads and 50,000 queue bounds to safely absorb global broadcast spikes
+    private static final Scheduler CHAT_WORKER_SCHEDULER = 
+    		Schedulers.newBoundedElastic(
+    				// Max Threads: Increased from 200 to accommodate rapid blocking repository calls and E2EE session lookups
+    				1000, 
+    				// Max Queue: Expanded from 10,000 to cleanly buffer cross-cluster XMPP pin synchronization payloads
+    				50000, 
+    				"xmpp-pin-message-workers"
+    				);
 
     /**
      * Pins a new message inside a conversation context.
@@ -111,14 +118,13 @@ public class PinChatMessageService {
                 .id(id)
                 .targetId(targetId)
                 .from(jidUtil.getBareJid(userKey))
-                .to(jidUtil.getBareJid(userKey)) 
                 .peer(peerKey)
                 .action(viewManageEnum.getValue())
                 .build();
 
         String stanzaId = UuidCreator.getTimeOrderedEpoch().toString();		
         String xml = XmppStanzaUtil.insertStanzaId(vmSync.toXml(), stanzaId, domainProperties.getDomain());
-
+        // Sync user's other devices by sending this message to itself
         return reactiveClusterMessagePublisher.convertAndSendToUser(
                 id, userKey, userKey, ChatType.CHAT, false, false, xml, sessionId);
     }
@@ -133,21 +139,15 @@ public class PinChatMessageService {
                 .id(id)
                 .targetId(targetId)
                 .from(jidUtil.getBareJid(userKey))
-                .to(jidUtil.getBareJid(peerKey)) 
                 .action(viewManageEnum.getValue())
                 .build();
 
         String stanzaId = UuidCreator.getTimeOrderedEpoch().toString();		
         String xml = XmppStanzaUtil.insertStanzaId(pinStanza.toXml(), stanzaId, domainProperties.getDomain());
-
-        // Notify the calling user's multi-resource client sessions
-        Mono<Void> syncSender = reactiveClusterMessagePublisher.convertAndSendToUser(
-                id, userKey, userKey, ChatType.CHAT, false, true, xml, sessionId);
                 
         // Notify the target recipient peer about the pin action event change
-        Mono<Void> syncPeer = reactiveClusterMessagePublisher.convertAndSendToUser(
-                id, peerKey, userKey, ChatType.CHAT, false, false, xml, sessionId);
+        return reactiveClusterMessagePublisher.convertAndSendToUser(
+                id, peerKey, userKey, ChatType.CHAT, false, true, xml, sessionId);
 
-        return Mono.when(syncSender, syncPeer);
     }
 }

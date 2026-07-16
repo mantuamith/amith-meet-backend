@@ -1,6 +1,7 @@
 package com.algomeet.xmpp.chatservice.cluster.publisher;
 
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.data.redis.core.ReactiveRedisTemplate;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -12,54 +13,40 @@ import com.algomeet.xmpp.chatservice.properties.RedisTopicProperties;
 import com.algomeet.xmpp.chatservice.util.ClusterSyncProtocolUtil;
 import com.github.f4b6a3.uuid.UuidCreator;
 
-import lombok.Data;
-import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.publisher.Mono;
 
 /**
- * <p>Cluster-wide Broadcaster for XMPP stanzas using Redis Pub/Sub.</p>
- *
- * <p>In a horizontally scaled environment, users may be connected to different
- * application nodes. A stanza received on Node A may need to be delivered to a
- * recipient whose active session exists on Node B.</p>
- *
- * <p>This component converts the routing request into a
- * {@link ClusterSyncMessage} and publishes it to a shared Redis topic.
- * All nodes subscribed to that topic can inspect the message and the node
- * owning the destination session performs the actual WebSocket delivery.</p>
- *
- * <p><b>Main Responsibilities:</b></p>
+ * <p>Combined Redis Configuration for Algomeet Cluster Synchronization.</p>
+ * * <p>This class serves as the backbone for horizontal scaling in the Algomeet environment. 
+ * It manages two primary responsibilities:</p>
  * <ul>
- *     <li>Bridge local routing into cluster-wide routing.</li>
- *     <li>Provide cross-node delivery for direct chat and group events.</li>
- *     <li>Support multi-session synchronization such as message echo/carbons.</li>
- *     <li>Decouple nodes using Redis as a lightweight signaling backbone.</li>
+ * <li><b>Outbound:</b> Providing a shared {@link RedisTemplate} for publishing 
+ * XMPP stanzas to other nodes in the cluster.</li>
+ * <li><b>Inbound:</b> Setting up a localized, self-starting subscriber container 
+ * that listens for synchronization events from the Redis Pub/Sub fabric.</li>
  * </ul>
- *
- * @author Algomeet Core Team
+ * * @author Algomeet Core Team
  */
+
 @Slf4j
 @Component
-@Getter
 public class ClusterMessagePublisher extends AbstractClusterMessagePublisher{
+
+	public ClusterMessagePublisher(
+			@Qualifier("reactiveStringRedisTemplate")
+			ReactiveRedisTemplate<String, String> reactiveRedisTemplate,
+			RedisTopicProperties redisTopicProperties) {
+		this.reactiveRedisTemplate = reactiveRedisTemplate;
+		this.redisTopicProperties = redisTopicProperties;
+	}
+
 	/**
 	 * Redis client used to publish {@link ClusterSyncMessage} objects
 	 * to subscribed cluster nodes.
 	 */
-	private final RedisTemplate<String, String> redisTemplate;
-
-	/**
-	 * Configuration holder containing Redis topic names used by the system.
-	 */
+	private final ReactiveRedisTemplate<String, String> reactiveRedisTemplate;
 	private final RedisTopicProperties redisTopicProperties;
-
-	public ClusterMessagePublisher(
-			@Qualifier("clusterStringRedisTemplate") RedisTemplate<String, String> redisTemplate,
-			RedisTopicProperties redisTopicProperties
-			) {
-		this.redisTemplate = redisTemplate;
-		this.redisTopicProperties = redisTopicProperties;
-	}
 
 	/**
 	 * Convenience overload for normal routing behavior.
@@ -77,15 +64,72 @@ public class ClusterMessagePublisher extends AbstractClusterMessagePublisher{
 	 * @param from      Sender user key or JID
 	 * @param chatType  CHAT / GROUPCHAT
 	 * @param payload   Raw XML stanza payload
+	 * @return 
 	 */
-	public void convertAndSendToUser(
+	public Mono<Void> convertAndSendToUser(
 			String id,
 			String to,
 			String from,
 			ChatType chatType,
 			String payload) {
 
-		convertAndSendToUser(id, to, from, chatType, true, null, false, false, payload);
+		return convertAndSendToUser(id, to, from, chatType, true, null, false, false, payload);
+	}
+	
+	/**
+	 * Convenience overload that resolves the originating session ID from the
+	 * authenticated principal and disables carbon copy delivery.
+	 *
+	 * <p>When same-session echo is disabled, the sender's session ID is attached
+	 * so receiving nodes can skip the originating device while still delivering
+	 * to the user's other active sessions.</p>
+	 *
+	 * @param id          Unique stanza/message ID
+	 * @param to          Recipient user key or JID
+	 * @param from        Sender user key or JID
+	 * @param chatType    CHAT / GROUPCHAT
+	 * @param isAllowEcho Whether delivery back to the same session is allowed
+	 * @param payload     Raw XML stanza payload
+	 * @param principal   Authenticated XMPP session principal
+	 */
+	public Mono<Void> convertAndSendToUser(
+			String id,
+			String to,
+			String from,
+			ChatType chatType,
+			Boolean isAllowEcho,
+			String payload,
+			XmppPrincipal principal) {
+
+		String sessionId = null;
+
+		// Include session ID only when same-session echo is disabled.
+		if (principal != null && !isAllowEcho) {
+			sessionId = principal.getSessionId();
+		}
+
+		return convertAndSendToUser(id, to, from, chatType, isAllowEcho, sessionId, false, false, payload);
+	}
+
+	public Mono<Void> convertAndSendToUser(
+			String id,
+			String to,
+			String from,
+			ChatType chatType,
+			Boolean isAllowEcho,
+			Boolean shouldCarbon,
+			Boolean isAckStanza,
+			String payload,
+			XmppPrincipal principal) {
+
+		String sessionId = null;
+
+		// Include session ID only when same-session echo is disabled.
+		if (principal != null && !isAllowEcho) {
+			sessionId = principal.getSessionId();
+		}
+
+		return convertAndSendToUser(id, to, from, chatType, isAllowEcho, sessionId, shouldCarbon, isAckStanza, payload);
 	}
 
 	/**
@@ -104,63 +148,19 @@ public class ClusterMessagePublisher extends AbstractClusterMessagePublisher{
 	 * @param payload     Raw XML stanza payload
 	 * @param principal   Authenticated XMPP session principal
 	 */
-	public void convertAndSendToUser(
-	        String id,
-	        String to,
-	        String from,
-	        ChatType chatType,
-	        Boolean isAllowEcho,
-	        String payload,
-	        XmppPrincipal principal) {
+	public Mono<Void> convertAndSendToUser(
+			String id,
+			String to,
+			String from,
+			ChatType chatType,
+			Boolean isAllowEcho,
+			Boolean shouldCarbon,
+			String payload,
+			String sessionId) {
 
-	    String sessionId = null;
-
-	    // Include session ID only when same-session echo is disabled.
-	    if (principal != null && !isAllowEcho) {
-	        sessionId = principal.getSessionId();
-	    }
-
-	    convertAndSendToUser(id, to, from, chatType, isAllowEcho, sessionId, false, false, payload);
+		return convertAndSendToUser(id, to, from, chatType, isAllowEcho, sessionId, shouldCarbon, false, payload);
 	}
 
-	/**
-	 * Convenience overload that resolves the originating session ID from the
-	 * authenticated principal.
-	 *
-	 * <p>When same-session echo is disabled, the sender's session ID is attached
-	 * so receiving nodes can skip the originating device while still delivering
-	 * to the user's other active sessions.</p>
-	 *
-	 * @param id           Unique stanza/message ID
-	 * @param to           Recipient user key or JID
-	 * @param from         Sender user key or JID
-	 * @param chatType     CHAT / GROUPCHAT
-	 * @param isAllowEcho  Whether delivery back to the same session is allowed
-	 * @param shouldCarbon Whether message is eligible for carbon copy handling
-	 * @param payload      Raw XML stanza payload
-	 * @param principal    Authenticated XMPP session principal
-	 */
-	public void convertAndSendToUser(
-	        String id,
-	        String to,
-	        String from,
-	        ChatType chatType,
-	        Boolean isAllowEcho,
-	        Boolean shouldCarbon,
-	        Boolean isAckStanza,
-	        String payload,
-	        XmppPrincipal principal) {
-
-	    String sessionId = null;
-
-	    // Include session ID only when same-session echo is disabled.
-	    if (principal != null && !isAllowEcho) {
-	        sessionId = principal.getSessionId();
-	    }
-
-	    convertAndSendToUser(id, to, from, chatType, isAllowEcho, sessionId, shouldCarbon, isAckStanza, payload);
-	}
-		
 	/**
 	 * Publishes a cluster synchronization message to Redis.
 	 *
@@ -184,7 +184,7 @@ public class ClusterMessagePublisher extends AbstractClusterMessagePublisher{
 	 *
 	 * @throws ClusterMessageException if Redis publish fails.
 	 */
-	public void convertAndSendToUser(
+	public Mono<Void> convertAndSendToUser(
 			String id,
 			String to,
 			String from,
@@ -258,7 +258,7 @@ public class ClusterMessagePublisher extends AbstractClusterMessagePublisher{
 			/**
 			 * Publish to shared Redis topic.
 			 */
-			publish(msg);
+			return publish(msg);
 
 		} catch (Exception ex) {
 
@@ -284,8 +284,8 @@ public class ClusterMessagePublisher extends AbstractClusterMessagePublisher{
 					);
 		}
 	}
-	
-	private void publish(String msg) {
+
+	private Mono<Void> publish(String msg) {
 		/**
 		 * Publish to shared Redis topic.
 		 *
@@ -293,9 +293,9 @@ public class ClusterMessagePublisher extends AbstractClusterMessagePublisher{
 		 * Only the node that owns the recipient session typically performs
 		 * the final socket delivery.
 		 */
-		redisTemplate.convertAndSend(
+		return reactiveRedisTemplate.convertAndSend(
 				redisTopicProperties.getClusterSync(),
-				msg
-				);
+				msg)
+				.then();
 	}
 }

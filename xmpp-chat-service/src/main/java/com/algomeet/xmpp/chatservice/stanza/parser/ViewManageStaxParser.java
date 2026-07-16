@@ -10,6 +10,8 @@ import javax.xml.stream.XMLStreamReader;
 
 import org.springframework.stereotype.Component;
 
+import com.algomeet.xmpp.chatservice.constant.Constants;
+
 @Component
 public class ViewManageStaxParser {
 
@@ -70,7 +72,7 @@ public class ViewManageStaxParser {
                     // <query>
                     if ("query".equals(localName)) {
                         String ns = reader.getNamespaceURI();
-                        if ("https://algomeet.app/protocol/view-management".equals(ns)) {
+                        if (Constants.NS_VIEW_MANAGEMENT.equals(ns)) {
                             inQuery = true;
                         }
                     }

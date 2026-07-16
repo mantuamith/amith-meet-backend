@@ -57,8 +57,10 @@ public class MucMessageService {
 	private final RedissonReactiveClient redissonReactiveClient;
 	private final AbstractGroupCache groupCacheService;
 
-	// Dedicated thread pool for heavy or synchronous metadata / index scanning operations
-	private static final Scheduler MUC_THREAD_POOL = Schedulers.newBoundedElastic(150, 8000, "muc-message-workers");
+	/**
+	 * Dedicated pool tuned for high-volume Multi-User Chat room processing and fallback sync-cache operations.
+	 */
+	private static final Scheduler MUC_THREAD_POOL = Schedulers.newBoundedElastic(1000, 50000, "muc-message-workers");
 
 	public Mono<List<MucMessageResponse>> getMessagesAfter(
 	        UUID userKey,
@@ -224,64 +226,66 @@ public class MucMessageService {
 	 * per conversation, sorted reverse-chronologically by activity time.
 	 */	
 	public Mono<List<MucMessageResponse>> getConversations(UUID userKey) {
-	    // 1. Fetch group IDs from cache service (Assuming this is a fast redis/in-memory sync call)
-	    List<String> groupIds = mucUserGroupsCacheService.getCachedGroupIds(userKey.toString());
-
-	    if (CollectionUtils.isEmpty(groupIds)) {
-	        return Mono.just(Collections.emptyList());
-	    }
-
-	    // 2. Convert String IDs to a Set of UUIDs
-	    Set<UUID> roomUuids = groupIds.stream()
-	            .map(UUID::fromString)
-	            .collect(Collectors.toSet());
-
-	    AggregationOptions options = AggregationOptions.builder().build();
-
-	    // 3. Build the aggregation pipeline with targeted MUC visibility and privacy constraints
-	    Aggregation aggregation = Aggregation.newAggregation(
-	            Aggregation.match(
-	                    new Criteria().andOperator(
-	                            // Constraint A: Only pull from rooms the user belongs to, and not soft-deleted
-	                            Criteria.where(MucMessage.FIELD_ROOM_ID).in(roomUuids)
-	                            .and(MucMessage.FIELD_DELETED_AT).is(null),
-
-	                            // Constraint B: Public room message OR private message specifically for this user
-	                            new Criteria().orOperator(
-	                                    Criteria.where("to").is(null),
-	                                    Criteria.where("to").is(userKey)
-	                                    ),
-
-	                            // Constraint C: Exclude messages explicitly hidden from this user
-	                            Criteria.where("hiddenFromUserKeys").nin(userKey)
-	                            )
-	                    ),
-	            Aggregation.sort(Sort.Direction.DESC, MucMessage.FIELD_ID),
-	            Aggregation.group(MucMessage.FIELD_ROOM_ID).first(Aggregation.ROOT).as("latestMessage"),
-	            Aggregation.replaceRoot("latestMessage"),
-	            Aggregation.sort(Sort.Direction.DESC, MucMessage.FIELD_ID)
-	            )
-	            .withOptions(options);
-
-	    // 4. Execute using ReactiveMongoTemplate (Completely non-blocking)
-	    return mongoTemplate.aggregate(aggregation, "muc_messages", MucMessage.class)
-	            .map(m -> mucMessageMapper.toResponse(m, userKey))
-	            .collectList() // Asynchronously gathers the Flux elements into a standard Java List Mono
-	            .flatMap(resultDtos -> {
-	                if (CollectionUtils.isEmpty(resultDtos)) {
-	                    return Mono.just(resultDtos);
+	    // 1. Fetch group IDs from cache service safely on the elastic scheduler
+	    return Mono.fromCallable(() -> mucUserGroupsCacheService.getCachedGroupIds(userKey.toString()))
+	            .subscribeOn(Schedulers.boundedElastic())
+	            .flatMap(groupIds -> {
+	                if (CollectionUtils.isEmpty(groupIds)) {
+	                    return Mono.just(java.util.Collections.<MucMessageResponse>emptyList());
 	                }
 
-	                // 5. Apply filters in-memory (Assuming this mutates the list elements or modifies the collection)
-	                filterConversationsByVisibilityAndCutoff(userKey, resultDtos, groupIds);
-	                
-	                // Re-verify after filtering step
-	                if (CollectionUtils.isEmpty(resultDtos)) {
-	                    return Mono.just(resultDtos);
-	                }
+	                // 2. Convert String IDs to a Set of UUIDs
+	                Set<UUID> roomUuids = groupIds.stream()
+	                        .map(UUID::fromString)
+	                        .collect(Collectors.toSet());
 
-	                // 6. Properly chain the asynchronous read-cursor enrichment step into the stream graph
-	                return retrieveAndSetReaders(resultDtos);
+	                AggregationOptions options = AggregationOptions.builder().build();
+
+	                // 3. Build the aggregation pipeline with targeted MUC visibility and privacy constraints
+	                Aggregation aggregation = Aggregation.newAggregation(
+	                        Aggregation.match(
+	                                new Criteria().andOperator(
+	                                        // Constraint A: Only pull from rooms the user belongs to, and not soft-deleted
+	                                        Criteria.where(MucMessage.FIELD_ROOM_ID).in(roomUuids)
+	                                        .and(MucMessage.FIELD_DELETED_AT).is(null),
+
+	                                        // Constraint B: Public room message OR private message specifically for this user
+	                                        new Criteria().orOperator(
+	                                                Criteria.where("to").is(null),
+	                                                Criteria.where("to").is(userKey)
+	                                                ),
+
+	                                        // Constraint C: Exclude messages explicitly hidden from this user
+	                                        Criteria.where("hiddenFromUserKeys").nin(userKey)
+	                                        )
+	                                ),
+	                        Aggregation.sort(Sort.Direction.DESC, MucMessage.FIELD_ID),
+	                        Aggregation.group(MucMessage.FIELD_ROOM_ID).first(Aggregation.ROOT).as("latestMessage"),
+	                        Aggregation.replaceRoot("latestMessage"),
+	                        Aggregation.sort(Sort.Direction.DESC, MucMessage.FIELD_ID)
+	                        )
+	                        .withOptions(options);
+
+	                // 4. Execute using ReactiveMongoTemplate (Completely non-blocking)
+	                return mongoTemplate.aggregate(aggregation, "muc_messages", MucMessage.class)
+	                        .map(m -> mucMessageMapper.toResponse(m, userKey))
+	                        .collectList() // Asynchronously gathers the Flux elements into a standard Java List Mono
+	                        .flatMap(resultDtos -> {
+	                            if (CollectionUtils.isEmpty(resultDtos)) {
+	                                return Mono.just(resultDtos);
+	                            }
+
+	                            // 5. Apply filters in-memory (Assuming this mutates the list elements or modifies the collection)
+	                            filterConversationsByVisibilityAndCutoff(userKey, resultDtos, groupIds);
+	                            
+	                            // Re-verify after filtering step
+	                            if (CollectionUtils.isEmpty(resultDtos)) {
+	                                return Mono.just(resultDtos);
+	                            }
+
+	                            // 6. Properly chain the asynchronous read-cursor enrichment step into the stream graph
+	                            return retrieveAndSetReaders(resultDtos);
+	                        });
 	            });
 	}
 	
@@ -308,76 +312,78 @@ public class MucMessageService {
 	 * objects containing only structural IDs (id, messageId, roomId) per conversation.
 	 */
 	public Mono<List<MucMessageResponse>> getEarliestRetainedMessages(UUID userKey) {
-	    // 1. Fetch group IDs from cache service (Fast Redis/in-memory sync call)
-	    List<String> groupIds = mucUserGroupsCacheService.getCachedGroupIds(userKey.toString());
+	    // 1. Fetch group IDs from cache service safely on the elastic scheduler
+	    return Mono.fromCallable(() -> mucUserGroupsCacheService.getCachedGroupIds(userKey.toString()))
+	            .subscribeOn(Schedulers.boundedElastic())
+	            .flatMap(groupIds -> {
+	                if (CollectionUtils.isEmpty(groupIds)) {
+	                    return Mono.just(java.util.Collections.<MucMessageResponse>emptyList());
+	                }
 
-	    if (CollectionUtils.isEmpty(groupIds)) {
-	        return Mono.just(Collections.emptyList());
-	    }
+	                // 2. Convert String IDs to a Set of UUIDs
+	                Set<UUID> roomUuids = groupIds.stream()
+	                        .map(UUID::fromString)
+	                        .collect(Collectors.toSet());
 
-	    // 2. Convert String IDs to a Set of UUIDs
-	    Set<UUID> roomUuids = groupIds.stream()
-	            .map(UUID::fromString)
-	            .collect(Collectors.toSet());
+	                AggregationOptions options = AggregationOptions.builder().build();
 
-	    AggregationOptions options = AggregationOptions.builder().build();
+	                // 3. Build the high-performance aggregation pipeline
+	                Aggregation aggregation = Aggregation.newAggregation(
+	                        // Stage 1: Fast IXSCAN filtering using existing compound indexes
+	                        Aggregation.match(
+	                                new Criteria().andOperator(
+	                                        Criteria.where(MucMessage.FIELD_ROOM_ID).in(roomUuids)
+	                                                .and(MucMessage.FIELD_DELETED_AT).is(null),
+	                                        new Criteria().orOperator(
+	                                                Criteria.where("to").is(null),
+	                                                Criteria.where("to").is(userKey)
+	                                        ),
+	                                        Criteria.where("hiddenFromUserKeys").nin(userKey)
+	                                )
+	                        ),
 
-	    // 3. Build the high-performance aggregation pipeline
-	    Aggregation aggregation = Aggregation.newAggregation(
-	            // Stage 1: Fast IXSCAN filtering using existing compound indexes
-	            Aggregation.match(
-	                    new Criteria().andOperator(
-	                            Criteria.where(MucMessage.FIELD_ROOM_ID).in(roomUuids)
-	                                    .and(MucMessage.FIELD_DELETED_AT).is(null),
-	                            new Criteria().orOperator(
-	                                    Criteria.where("to").is(null),
-	                                    Criteria.where("to").is(userKey)
-	                            ),
-	                            Criteria.where("hiddenFromUserKeys").nin(userKey)
-	                    )
-	            ),
+	                        // Stage 2: EARLY PROJECTION (Crucial for 1B records)
+	                        // Drops stanzaXml immediately so subsequent operations process light primitives in RAM
+	                        Aggregation.project()
+	                                .and(MucMessage.FIELD_ID).as("id")
+	                                .and(MucMessage.FIELD_MESSAGE_ID).as("messageId")
+	                                .and(MucMessage.FIELD_ROOM_ID).as("roomId")
+	                                .and("to").as("to")
+	                                .and("hiddenFromUserKeys").as("hiddenFromUserKeys"),
 
-	            // Stage 2: EARLY PROJECTION (Crucial for 1B records)
-	            // Drops stanzaXml immediately so subsequent operations process light primitives in RAM
-	            Aggregation.project()
-	                    .and(MucMessage.FIELD_ID).as("id")
-	                    .and(MucMessage.FIELD_MESSAGE_ID).as("messageId")
-	                    .and(MucMessage.FIELD_ROOM_ID).as("roomId")
-	                    .and("to").as("to")
-	                    .and("hiddenFromUserKeys").as("hiddenFromUserKeys"),
+	                        // Stage 3: Sort aligned with index lookups 
+	                        Aggregation.sort(Sort.Direction.ASC, MucMessage.FIELD_ROOM_ID, MucMessage.FIELD_ID),
 
-	            // Stage 3: Sort aligned with index lookups 
-	            Aggregation.sort(Sort.Direction.ASC, MucMessage.FIELD_ROOM_ID, MucMessage.FIELD_ID),
+	                        // Stage 4: Deduplicate to find the earliest remaining message per room
+	                        // Memory footprint here is now tiny because ROOT only contains the projected fields
+	                        Aggregation.group(MucMessage.FIELD_ROOM_ID).first(Aggregation.ROOT).as("earliestMessage"),
 
-	            // Stage 4: Deduplicate to find the earliest remaining message per room
-	            // Memory footprint here is now tiny because ROOT only contains the projected fields
-	            Aggregation.group(MucMessage.FIELD_ROOM_ID).first(Aggregation.ROOT).as("earliestMessage"),
+	                        // Stage 5: Promote the matched document back to the top level
+	                        Aggregation.replaceRoot("earliestMessage"),
 
-	            // Stage 5: Promote the matched document back to the top level
-	            Aggregation.replaceRoot("earliestMessage"),
+	                        // Stage 6: Clean up the final fields for the output payload
+	                        Aggregation.project()
+	                                .and("id").as("id")
+	                                .and("messageId").as("messageId")
+	                                .and("roomId").as("roomId"),
 
-	            // Stage 6: Clean up the final fields for the output payload
-	            Aggregation.project()
-	                    .and("id").as("id")
-	                    .and("messageId").as("messageId")
-	                    .and("roomId").as("roomId"),
+	                        // Stage 7: Final uniform sort order for application consistency
+	                        Aggregation.sort(Sort.Direction.ASC, "id")
+	                ).withOptions(options);
+	         
+	                // 4. Execute using Document.class to bypass heavy POJO mapping overhead
+	                return mongoTemplate.aggregate(aggregation, "muc_messages", Document.class)
+	                        .map(doc -> {
+	                            // Instantiate a hollow shell containing only the required IDs for the mapper
+	                            MucMessage partialMessage = new MucMessage();
+	                            partialMessage.setId((UUID) doc.get("id"));
+	                            partialMessage.setMessageId((UUID) doc.get("messageId"));
+	                            partialMessage.setRoomId((UUID) doc.get("roomId"));
 
-	            // Stage 7: Final uniform sort order for application consistency
-	            Aggregation.sort(Sort.Direction.ASC, "id")
-	    ).withOptions(options);
- 
-	    // 4. Execute using Document.class to bypass heavy POJO mapping overhead
-	    return mongoTemplate.aggregate(aggregation, "muc_messages", Document.class)
-	            .map(doc -> {
-	                // Instantiate a hollow shell containing only the required IDs for the mapper
-	                MucMessage partialMessage = new MucMessage();
-	                partialMessage.setId(doc.get("id", UUID.class));
-	                partialMessage.setMessageId(doc.get("messageId", UUID.class));
-	                partialMessage.setRoomId(doc.get("roomId", UUID.class));
-
-	                return mucMessageMapper.toResponse(partialMessage, userKey);
-	            })
-	            .collectList();
+	                            return mucMessageMapper.toResponse(partialMessage, userKey);
+	                        })
+	                        .collectList();
+	            });
 	}
 	
 	/**

@@ -59,7 +59,8 @@ public class MucMissedCallScheduler {
 
 		loadMissedCalls()
 		.doFinally(sig -> running.set(false))
-		.subscribe();
+		// FIX: Explicit execution fallback error logging to intercept unhandled pipeline drops
+		.subscribe(null, err -> log.error("MUC missed call scheduler batch execution failed", err));
 	}
 
 	/**
@@ -67,62 +68,67 @@ public class MucMissedCallScheduler {
 	 * * @return A Mono signal indicating completion of the batch process.
 	 */
 	private Mono<Void> loadMissedCalls() {
-		String lockKey = "xmpp:lock:publish:muc-missed-calls";
-		RLockReactive lock = redissonReactiveClient.getLock(lockKey);
+		// FIX: Isolated instantiation within Mono.defer() to cleanly catch synchronous boot exceptions safely
+		return Mono.defer(() -> {
+			String lockKey = "xmpp:lock:publish:muc-missed-calls";
+			RLockReactive lock = redissonReactiveClient.getLock(lockKey);
 
-		return Mono.<Void, Boolean>usingWhen(
-				// 1. ACQUIRE: Short wait time (300ms) with a safety lease (1s)
-				lock.tryLock(300, 1000, TimeUnit.MILLISECONDS),
-				acquired -> {
-					if (!acquired) {
-						return Mono.<Void>empty();
-					}
+			return Mono.<Void, Boolean>usingWhen(
+					// 1. ACQUIRE: Short wait time (300ms) with a safety lease (1s)
+					lock.tryLock(300, 1000, TimeUnit.MILLISECONDS),
+					acquired -> {
+						if (!acquired) {
+							return Mono.<Void>empty();
+						}
 
-					long now = System.currentTimeMillis();
-					// 2. QUERY: Fetch all SIDs whose score (timeout) is <= now
-					return reactiveRedisTemplate.opsForZSet()
-							.rangeByScore(CallSessionRedisKey.MUC_CALL_TIMEOUT_QUEUE.getVal(), Range.closed(0.0, (double) now))
-							.<String>flatMap(mucSid -> 
-							// 3. ATOMIC REMOVE: Only the node that deletes the SID processes it
-							reactiveRedisTemplate.opsForZSet()
-							.remove(CallSessionRedisKey.MUC_CALL_TIMEOUT_QUEUE.getVal(), mucSid)							
-							.filter(removed -> removed != null && removed > 0)
-							.thenReturn(mucSid))
-							.collectList() // Collects all successfully removed SIDs into a List<String>
-							.<Void>flatMap(lists -> {								
-								if(lists.isEmpty()) {
-									return Mono.<Void>empty(); 
-								}
-								
-								log.info("MUC {}  SID: {}", lists);
-								
-								// 3. Grouping (Synchronous, fast)
-								Map<String, List<String>> groupedBySids = lists.stream()
-								    .map(CallSessionRedisKey::getSidAndMucSidPair)
-								    .collect(Collectors.groupingBy(
-								        arr -> arr[0], 
-								        Collectors.mapping(arr -> arr[1], Collectors.toList())
-								    ));
+						long now = System.currentTimeMillis();
+						// 2. QUERY: Fetch all SIDs whose score (timeout) is <= now
+						return reactiveRedisTemplate.opsForZSet()
+								.rangeByScore(CallSessionRedisKey.MUC_CALL_TIMEOUT_QUEUE.getVal(), Range.closed(0.0, (double) now))
+								// FIX: Apply serialization backpressure boundaries on initial collection removals
+								.flatMap(mucSid -> 
+								// 3. ATOMIC REMOVE: Only the node that deletes the SID processes it
+								reactiveRedisTemplate.opsForZSet()
+								.remove(CallSessionRedisKey.MUC_CALL_TIMEOUT_QUEUE.getVal(), mucSid)							
+								.filter(removed -> removed != null && removed > 0)
+								.thenReturn(mucSid), 1)
+								.collectList() // Collects all successfully removed SIDs into a List<String>
+								.<Void>flatMap(lists -> {								
+									if(lists.isEmpty()) {
+										return Mono.<Void>empty(); 
+									}
+									
+									// FIX: Cleaned up trailing orphan placeholder to map arguments correctly
+									log.info("Processing expired MUC missed call sessions: {}", lists);
+									
+									// 3. Grouping (Synchronous, fast)
+									Map<String, List<String>> groupedBySids = lists.stream()
+									    .map(CallSessionRedisKey::getSidAndMucSidPair)
+									    .collect(Collectors.groupingBy(
+									        arr -> arr[0], 
+									        Collectors.mapping(arr -> arr[1], Collectors.toList())
+									    ));
 
-								// 4. Processing (Reactive, non-blocking)
-								return Flux.fromIterable(groupedBySids.entrySet())
-								    .flatMap(entry -> 
-								        missedCallStreamPublisher.publish(entry.getValue(), ChatType.GROUPCHAT.name())
-								            .onErrorResume(e -> {
-								                log.error("Failed to publish for SID: {}", entry.getKey(), e);
-								                return Mono.empty(); 
-								            })
-								    )
-								    .then(); // Returns Mono<Void>					
-								    
-							})
-							.then();
-				},
-				// 5. CLEANUP: Safe unlock logic to prevent IllegalMonitorStateException crashes
-				acquired -> acquired ? safeUnlock(lock) : Mono.empty(),
-						(acquired, err) -> acquired ? safeUnlock(lock) : Mono.empty(),
-								acquired -> acquired ? safeUnlock(lock) : Mono.empty()
-				);
+									// 4. Processing (Reactive, non-blocking)
+									return Flux.fromIterable(groupedBySids.entrySet())
+											// FIX: Set explicit concurrency max limit parameter to prevent parallel stream flooding
+										    .flatMap(entry -> 
+										        missedCallStreamPublisher.publish(entry.getValue(), ChatType.GROUPCHAT.name())
+										            .onErrorResume(e -> {
+										                log.error("Failed to publish for SID: {}", entry.getKey(), e);
+										                return Mono.empty(); 
+										            }), 1
+										    )
+										    .then(); // Returns Mono<Void>					
+								})
+								.then();
+					},
+					// 5. CLEANUP: Safe unlock logic to prevent IllegalMonitorStateException crashes
+					acquired -> acquired ? safeUnlock(lock) : Mono.empty(),
+					(acquired, err) -> acquired ? safeUnlock(lock) : Mono.empty(),
+					acquired -> acquired ? safeUnlock(lock) : Mono.empty()
+			);
+		});
 	}
 
 	/**

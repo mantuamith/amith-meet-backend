@@ -4,8 +4,8 @@ import java.util.UUID;
 
 import org.springframework.stereotype.Component;
 
-import com.algomeet.common.dto.GroupMember;
 import com.algomeet.common.dto.Group;
+import com.algomeet.common.dto.GroupMember;
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
@@ -27,6 +27,8 @@ import com.github.f4b6a3.uuid.UuidCreator;
 import io.netty.channel.ChannelHandlerContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 /**
  * Handler for processing accepted group invitations.
@@ -43,7 +45,6 @@ public class MucAcceptInviteEventHandler {
     private final ClusterMessagePublisher clusterMessagePublisher;
     private final XmppArchiveService xmppArchiveService;
     private final DomainProperties domainProperties;
-    private final MucMessageRouter xmppBroadCastHandler;
     private final MucMessageRouter mucMessageRouter;
     private final JidUtil jidUtil;
     private final MucPresenceService mucPresenceService;
@@ -52,7 +53,7 @@ public class MucAcceptInviteEventHandler {
      * Entry point for handling an invitation acceptance. 
      * Orchestrates presence synchronization and system notification.
      */
-    public void handleAcceptedInvite(ChannelHandlerContext ctx, String roomJid, String xml, Group group, GroupMember sender) { 
+    public Mono<Void> handleAcceptedInvite(ChannelHandlerContext ctx, String roomJid, String xml, Group group, GroupMember sender) { 
         String roomBareJid = XmppUtil.getRoomBareJid(roomJid);
         String senderJid = jidUtil.getBareJid(sender.getUserKey());
         
@@ -60,24 +61,36 @@ public class MucAcceptInviteEventHandler {
         // The Status 110 code is mandatory for the client to confirm its own session join.
         String selfPresenceXml = MucUserPresenceBuilder
         		.create()
-        		.from(roomJid, sender.getUserKey()) // Resource-part is the member's room identity
+        		.from(roomBareJid, sender.getUserKey()) // Resource-part is the member's room identity
 				.affiliation(sender.getRole())
 				.role(MucRole.fromString(sender.getRole()).getValue())
 				.statusCode(110)
         		.build();
         
-        clusterMessagePublisher.convertAndSendToUser(UuidCreator.getTimeOrderedEpoch().toString(), sender.getUserKey(), sender.getUserKey(), ChatType.GROUPCHAT, selfPresenceXml);
+        Mono<Void> sendSelfPresenceMono = clusterMessagePublisher.convertAndSendToUser(
+                UuidCreator.getTimeOrderedEpoch().toString(), 
+                sender.getUserKey(), 
+                sender.getUserKey(), 
+                ChatType.GROUPCHAT, 
+                selfPresenceXml
+        ).then();
         
         // 2. Notify all existing members of the new occupant and sync occupant list for the joiner.        
         String presenceXml = MucUserPresenceBuilder
 				.create()
-				.from(roomJid, sender.getUserKey()) // Resource-part is the member's room identity
+				.from(roomBareJid, sender.getUserKey()) // Resource-part is the member's room identity
 				.affiliation(sender.getRole())
 				.role(MucRole.fromString(sender.getRole()).getValue())
 				.build();
         
         XmppPrincipal principal = ctx.channel().attr(XmppSessionAttributes.PRINCIPAL).get();        
-        mucMessageRouter.broadcastToOccupants(UuidCreator.getTimeOrderedEpoch().toString(), sender.getUserKey(), group, presenceXml, principal.getSessionId());
+        Mono<Void> broadcastPresenceMono = mucMessageRouter.broadcastToOccupants(
+                UuidCreator.getTimeOrderedEpoch().toString(), 
+                sender.getUserKey(), 
+                group, 
+                presenceXml, 
+                principal.getSessionId()
+        ).then();
                       
         // 3. Prepare a system message to log the join event in the chat stream.
         String messageId = UuidCreator.getTimeOrderedEpoch().toString();
@@ -89,29 +102,46 @@ public class MucAcceptInviteEventHandler {
 		String forArchiveLogXml = XmppStanzaUtil.insertStanzaId(acceptedInvitationLogXml, stanzaId.toString(), domainProperties.getDomain());
         
         // 4. Persistence: Archive the join event to the database for future Message Archive Management (MAM) queries.
-        saveToDatabase(messageId, roomJid, sender, stanzaId, forArchiveLogXml, group.getMessageRetentionDays());
+        Mono<Void> saveDbMono = saveToDatabase(messageId, roomJid, sender, stanzaId, forArchiveLogXml, group.getMessageRetentionDays());
         
         // 5. Broadcast: Real-time notification to all online occupants via the MessageRouter.
-        xmppBroadCastHandler.broadcastToOccupants(ctx, messageId, roomJid, senderJid, XmppMessageType.GROUPCHAT, group, null, forArchiveLogXml);
+        Mono<Void> broadcastSystemMsgMono = mucMessageRouter.broadcastToOccupants(
+        		ctx, 
+        		messageId, 
+        		roomJid, 
+        		senderJid, 
+        		XmppMessageType.GROUPCHAT, 
+        		group, 
+        		null, 
+        		forArchiveLogXml)
+        		.then();
                 
         // Push group members presence to user
-        mucPresenceService.pushGroupParticipantsPresenceToUser(ctx, group, sender.getUserKey());
+        Mono<Void> pushParticipantsPresenceMono = mucPresenceService.pushGroupParticipantsPresenceToUser(ctx, group, sender.getUserKey());
         
-        log.info("User {} successfully joined room {} via invitation", senderJid, roomBareJid);
+        // Execute all reactive updates concurrently to optimize response time
+        return Mono.when(
+                sendSelfPresenceMono, 
+                broadcastPresenceMono, 
+                saveDbMono, 
+                broadcastSystemMsgMono, 
+                pushParticipantsPresenceMono
+        ).doOnSuccess(v -> log.info("User {} successfully joined room {} via invitation", senderJid, roomBareJid));
     }
     
     /**
      * Persists the join event to the archive. 
      * Injects a unique Stanza-ID (XEP-0359) using a monotonic UUIDv7 for stable ordering.
      */
-    private void saveToDatabase(String id, String roomBareJid, GroupMember sender, UUID stanzaId, String xml, Integer messageRetentionDays) {      
-
-        xmppArchiveService.archiveEvent(xml, id, XmppUtil.getRoomId(roomBareJid), null, 
-        		sender.getUserKey(), stanzaId, messageRetentionDays)
-        .doOnError(error -> {
-            log.error("Failed to archive join event for {} in room {}", sender.getUserKey(), roomBareJid, error);
-        })
-        .subscribe();
+    private Mono<Void> saveToDatabase(String id, String roomBareJid, GroupMember sender, UUID stanzaId, String xml, Integer messageRetentionDays) {      
+        return xmppArchiveService.archiveEvent(xml, id, XmppUtil.getRoomId(roomBareJid), null, 
+                sender.getUserKey(), stanzaId, messageRetentionDays)
+            // Offload the subscription context to a background worker pool
+            .subscribeOn(Schedulers.boundedElastic()) 
+            .doOnError(error -> {
+                log.error("Failed to archive join event for {} in room {}", sender.getUserKey(), roomBareJid, error);
+            })
+            .then();
     }
     
     /**

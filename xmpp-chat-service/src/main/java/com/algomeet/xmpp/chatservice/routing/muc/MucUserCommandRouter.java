@@ -23,6 +23,8 @@ import com.algomeet.xmpp.chatservice.util.XmppUtil;
 import io.netty.channel.ChannelHandlerContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 /**
  * Orchestrates the dispatching and broadcasting of MUC-related user commands.
@@ -53,18 +55,32 @@ public class MucUserCommandRouter {
 	 * @param group     The room DTO containing current occupant information.
 	 * @param sender    The MUC member profile of the initiator.
 	 */
-	public void handleCommandStanza(ChannelHandlerContext ctx, String type, String roomJid, String xml, XmppPrincipal principal) {
-		// Set tenant Id to support multi-tenancy 
-		TenantContext.setCurrentTenant(principal.getTenantId());
-		
-		Optional<String> actionOpt = MucMetaActionParser.extractAction(xml);
-		String action = actionOpt.orElse(null);
-		
-		// Force refresh group cache
-		Group group = groupCacheService.refreshGroupCache(XmppUtil.getRoomId(roomJid));
-		Optional<GroupMember> senderMucMember = group.getMembers().stream()
-				.filter(m -> m.getUserKey().equals(principal.getUserKey()))
-				.findFirst();
+	public Mono<Void> handleCommandStanza(ChannelHandlerContext ctx, String type, String roomJid, String xml, XmppPrincipal principal) {
+		// 1. Wrap the blocking cache synchronization call onto the boundedElastic scheduler
+	    return Mono.fromCallable(() -> {
+	        // Explicitly set context on the elastic thread for this specific synchronous boundary execution
+	    	// Set tenant Id to support multi-tenancy 
+	        TenantContext.setCurrentTenant(principal.getTenantId());
+	        try {
+	            return groupCacheService.refreshGroupCache(XmppUtil.getRoomId(roomJid));
+	        } finally {
+	            TenantContext.clear(); // Prevent leakage on the worker pool thread
+	        }
+	    })
+	    .subscribeOn(Schedulers.boundedElastic()) // Offload the heavy cache/DB refresh completely
+	    .flatMap(group -> {
+	        Optional<GroupMember> senderMucMember = group.getMembers().stream()
+	                .filter(m -> m.getUserKey().equals(principal.getUserKey()))
+	                .findFirst();
+
+	        // Guard clause for missing room membership profiles
+	        if (senderMucMember.isEmpty() && !PresenceType.UNAVAILABLE.getValue().equals(type)) {
+	            log.warn("MUC presence operation rejected: user {} is not a member of room {}", principal.getUserKey(), roomJid);
+	            return Mono.empty();
+	        }
+
+	        Optional<String> actionOpt = MucMetaActionParser.extractAction(xml);
+	        String action = actionOpt.orElse(null);
 
 		if (PresenceMetaAction.INVITE_ACCEPT == PresenceMetaAction.fromString(action)) {
 			/**
@@ -78,7 +94,7 @@ public class MucUserCommandRouter {
 			 *   </x>
 			 * </presence>
 			 */
-			mucAcceptInviteEventHandler.handleAcceptedInvite(ctx,  roomJid, xml, group, senderMucMember.get());
+			return mucAcceptInviteEventHandler.handleAcceptedInvite(ctx,  roomJid, xml, group, senderMucMember.get());
 			
 		} else {
 			String[] roomJidArr = roomJid.split("/");
@@ -97,7 +113,7 @@ public class MucUserCommandRouter {
 				 *   <x xmlns='http://jabber.org/protocol/muc'/>
 				 * </presence>
 				 */
-				mucMemberJoinEventHandler.handleMemberJoinRequest(ctx, roomJid, xml, group, senderMucMember.get());	
+				return mucMemberJoinEventHandler.handleMemberJoinRequest(ctx, roomJid, xml, group, senderMucMember.get());	
 				
 			} else if (PresenceType.UNAVAILABLE.getValue().equals(type)) {
 				/**
@@ -108,7 +124,7 @@ public class MucUserCommandRouter {
 				 *   to='room@conference.example.com/nick'
 				 *   type='unavailable'/>
 				 */
-				mucMemberLeftEventHandler.handleMemberLeftRoom(ctx, roomJid, xml, group, principal);
+				return mucMemberLeftEventHandler.handleMemberLeftRoom(ctx, roomJid, xml, group, principal);
 				
 			} else if (resoure != null && resoure.trim().equalsIgnoreCase(senderMucMember.get().getUserKey())) {
 				/**
@@ -120,7 +136,7 @@ public class MucUserCommandRouter {
 				 *   <status>AFK</status>
 				 * </presence>
 				 */
-				mucMemberPresenceEventHandler.handleMemberPresenceRequest(ctx, roomJid, xml, group, senderMucMember.get());
+				return mucMemberPresenceEventHandler.handleMemberPresenceRequest(ctx, roomJid, xml, group, senderMucMember.get());
 			
 			} else {
 				/**
@@ -130,9 +146,10 @@ public class MucUserCommandRouter {
 				 * <presence 
 				 *     to='289c5f4d-58a0-4def-bf5b-0fd15c045575@conference.algomeet.app/James'/>
 				 */
-				mucChangeNickNameEventHandler.handleChangeNicknameRequest(ctx, roomJid, xml, group, senderMucMember.get());
+				return mucChangeNickNameEventHandler.handleChangeNicknameRequest(ctx, roomJid, xml, group, senderMucMember.get());
 			}
 		}
+	    });
 	}
 
 	/**

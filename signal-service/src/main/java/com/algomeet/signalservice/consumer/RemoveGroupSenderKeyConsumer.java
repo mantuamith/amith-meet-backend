@@ -27,9 +27,10 @@ import org.springframework.data.redis.stream.StreamMessageListenerContainer;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
-import com.algomeet.common.constant.MessageBackupRetentionFields;
+import com.algomeet.common.constant.RemoveGroupSenderKeyFields;
 import com.algomeet.common.properties.CommonRedisStreamProperties;
-import com.algomeet.signalservice.service.MessageBackupService;
+import com.algomeet.signalservice.service.GroupSenderKeyBackupService;
+import com.algomeet.signalservice.service.GroupSenderKeyService;
 
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
@@ -38,7 +39,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @RequiredArgsConstructor
 @Service
-public class ApplyMessageBackupRetentionConsumer implements StreamListener<String, MapRecord<String, String, String>> {
+public class RemoveGroupSenderKeyConsumer implements StreamListener<String, MapRecord<String, String, String>> {
 	@Autowired
 	private CommonRedisStreamProperties redisStreamProperties;
 	
@@ -46,16 +47,22 @@ public class ApplyMessageBackupRetentionConsumer implements StreamListener<Strin
 	private RedisConnectionFactory connectionFactory;
 	
 	@Autowired
-	private MessageBackupService messageBackupService;
+	private GroupSenderKeyService groupSenderKeyService;
+	
+	@Autowired
+	private GroupSenderKeyBackupService groupSenderKeyBackupService;
 
+	
+	
+	
 	@Autowired
 	@Qualifier("streamStringRedisTemplate")
 	private RedisTemplate<String, String> redisTemplate;
 
-	private static final String GROUP_NAME = "apply-message-backup-retention-group"; // Static name for persistence
+	private static final String GROUP_NAME = "remove-group-sender-key-group"; // Static name for persistence
 	private final String consumerName = "consumer-" + UUID.randomUUID();
 	
-    private static final String LOCK_KEY = "lock:scheduler:process-pending:apply-message-backup-retention-group";
+    private static final String LOCK_KEY = "lock:scheduler:process-pending:remove-group-sender-key-group";
     
     // Lua script ensuring atomic "check-then-delete" lock releases to avoid cross-node lease hijacking
     private static final String RELEASE_LUA_SCRIPT = 
@@ -70,7 +77,7 @@ public class ApplyMessageBackupRetentionConsumer implements StreamListener<Strin
 
 	@PostConstruct
 	public void init() {
-		String streamKey = redisStreamProperties.getMessageBackupRetentionUpdateEvents();
+		String streamKey = redisStreamProperties.getRemoveGroupSenderKeyEvents();
 
 		// 1. Setup Group (Blocking is okay here as it only runs once at startup)
 		try {
@@ -101,7 +108,7 @@ public class ApplyMessageBackupRetentionConsumer implements StreamListener<Strin
 				);
 
 		container.start();
-		log.info("Apply message backup retention consumer {} started on group {}", consumerName, GROUP_NAME);
+		log.info("Remvoe group sende key consumer {} started on group {}", consumerName, GROUP_NAME);
 	}
 
 	@Override
@@ -109,17 +116,24 @@ public class ApplyMessageBackupRetentionConsumer implements StreamListener<Strin
 		log.info("Received message: {}", message.getId());
 		
 		try {
-			String streamKey = redisStreamProperties.getMessageBackupRetentionUpdateEvents();
+			String streamKey = redisStreamProperties.getRemoveGroupSenderKeyEvents();
 
 			// Retrieve message content
-			String userKey = message.getValue().get(MessageBackupRetentionFields.USER_KEY);
-			String peerKey = message.getValue().get(MessageBackupRetentionFields.PEER_KEY);
-			String messageRetentionDays = message.getValue().get(MessageBackupRetentionFields.MESSAGE_RETENTION_DAYS);
+			String userKey = message.getValue().get(RemoveGroupSenderKeyFields.USER_KEY);
+			String groupId = message.getValue().get(RemoveGroupSenderKeyFields.GROUP_ID);
 
-			if (!(StringUtils.isEmpty(userKey) || StringUtils.isEmpty(peerKey) || StringUtils.isEmpty(messageRetentionDays)) ) {
-				messageBackupService.applyMessageBackupRetention(UUID.fromString(userKey), UUID.fromString(peerKey), Integer.valueOf(messageRetentionDays));
+			if (!(StringUtils.isEmpty(groupId))) {
+				if (!(StringUtils.isEmpty(userKey))) {
+					groupSenderKeyService.deleteByReceiverUserKeyAndGroupId(UUID.fromString(userKey), UUID.fromString(groupId));
+				} else {
+					// Remove sender key
+					groupSenderKeyService.deleteByGroupId(UUID.fromString(groupId));
+					
+					// Remove from backup
+					groupSenderKeyBackupService.deleteByIdGroupId(UUID.fromString(groupId));
+				}
 			} else {
-				log.error("Invalid payload values userKey {}, peerKey {} messageRetentionDays {}", userKey, peerKey, messageRetentionDays);
+				log.error("Invalid payload values userKey {}, groupId {}", userKey, groupId);
 			}
 
 			redisTemplate.opsForStream().acknowledge(GROUP_NAME, message);
@@ -186,7 +200,7 @@ public class ApplyMessageBackupRetentionConsumer implements StreamListener<Strin
 	}
 	
 	private void executeCleanupPipeline() {
-	    String streamKey = redisStreamProperties.getMessageBackupRetentionUpdateEvents();
+	    String streamKey = redisStreamProperties.getRemoveGroupSenderKeyEvents();
 	    log.debug("Checking for abandoned messages in group {}...", GROUP_NAME);
 
 	    // Evict idle consumers

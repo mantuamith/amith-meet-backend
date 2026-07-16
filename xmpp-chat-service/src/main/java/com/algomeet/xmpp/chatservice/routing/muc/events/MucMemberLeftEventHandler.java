@@ -16,9 +16,9 @@ import com.algomeet.xmpp.chatservice.enums.PresenceType;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.publisher.ExitGroupMemberMediaCleanupEventPublisher;
+import com.algomeet.xmpp.chatservice.publisher.RemoveGroupSenderKeyPublisher;
 import com.algomeet.xmpp.chatservice.routing.muc.MucMessageRouter;
 import com.algomeet.xmpp.chatservice.service.XmppArchiveService;
-import com.algomeet.xmpp.chatservice.session.constant.XmppSessionAttributes;
 import com.algomeet.xmpp.chatservice.stanza.events.MucSystemEventLogMessageStanza;
 import com.algomeet.xmpp.chatservice.stanza.presence.MucUserPresenceBuilder;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
@@ -29,6 +29,8 @@ import com.github.f4b6a3.uuid.UuidCreator;
 import io.netty.channel.ChannelHandlerContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 
 @Slf4j
@@ -42,6 +44,7 @@ public class MucMemberLeftEventHandler {
 	private final MucMessageRouter xmppBroadCastHandler;
 	private final XmppArchiveService xmppArchiveService;
 	private final ExitGroupMemberMediaCleanupEventPublisher exitGroupMemberMediaCleanupEventPublisher;
+	private final RemoveGroupSenderKeyPublisher removeGroupSenderKeyPublisher;
     
     /**
      * Handles the left event of a member from a room by broadcasting presence and generate logs.
@@ -50,40 +53,47 @@ public class MucMemberLeftEventHandler {
      * @param xml       The original incoming XML presence stanza.
      * @param group     The Data Transfer Object representing the current room state.
      * @param principal 
+     * @return A {@link Mono<Void>} signaling completion of the room exit processes.
      */
-    public void handleMemberLeftRoom(ChannelHandlerContext ctx, String roomJid, String xml, Group group, XmppPrincipal principal) { 	        
+    public Mono<Void> handleMemberLeftRoom(ChannelHandlerContext ctx, String roomJid, String xml, Group group, XmppPrincipal principal) { 	        
         String roomBareJid = XmppUtil.getRoomBareJid(roomJid);
         
         // 1. Send "Self-Presence" back to the leaving user.
         // XMPP clients require status code 110 to recognize their own nickname in the room.        
         String selfPresenceXml = MucUserPresenceBuilder
         		.create()
-        		.from(roomJid, principal.getUserKey()) // Resource-part is the member's room identity
+        		.from(roomBareJid, principal.getUserKey()) // Resource-part is the member's room identity
         		.type(PresenceType.UNAVAILABLE.getValue())
 				.affiliation(MucAffiliation.NONE.getValue())
 				.statusCode(PresenceStatusCode.OWN_PRESENCE.getCode())
 				.role(MucRole.NONE.getValue())
         		.build();
         
-        clusterMessagePublisher.convertAndSendToUser(
+        Mono<Void> selfPresenceMono = clusterMessagePublisher.convertAndSendToUser(
         	UuidCreator.getTimeOrderedEpoch().toString(), 
             principal.getUserKey(), 
             principal.getUserKey(), 
             ChatType.GROUPCHAT, 
             selfPresenceXml
-        );
+        ).then();
         
         // 2. Broadcast the joiner's availability to all members in the room.
         // This includes updating the joiner's view of existing members (Synchronizing State).       
         String presenceXml = MucUserPresenceBuilder
 				.create()
 				.type(PresenceType.UNAVAILABLE.getValue())
-				.from(roomJid, principal.getUserKey()) // Resource-part is the member's room identity
+				.from(roomBareJid, principal.getUserKey()) // Resource-part is the member's room identity
 				.affiliation(MucAffiliation.NONE.getValue())
 				.role(MucRole.NONE.getValue())
 				.build();
         
-        mucMessageRouter.broadcastToOccupants(UuidCreator.getTimeOrderedEpoch().toString(), principal.getUserKey(), group, presenceXml, principal.getSessionId());
+        Mono<Void> broadcastPresenceMono = mucMessageRouter.broadcastToOccupants(
+        		UuidCreator.getTimeOrderedEpoch().toString(), 
+        		principal.getUserKey(), 
+        		group, 
+        		presenceXml, 
+        		principal.getSessionId()
+        );
         
         /**
 		 * ----------------------------------------------------------
@@ -92,10 +102,9 @@ public class MucMemberLeftEventHandler {
 		 * Human-readable audit trail message.
 		 */
 		String messageId = UuidCreator.getTimeOrderedEpoch().toString();
-
 		String body = principal.getUsername() + " left";
-	
 		String senderJid = jidUtil.getBareJid(principal.getUserKey());
+		
         String xmlLogStanza = buildMemberLeftLogStanza(
         		messageId,
         		senderJid,
@@ -113,7 +122,7 @@ public class MucMemberLeftEventHandler {
 		// Insert stanza ID
 		String forArchiveXmlLog = XmppStanzaUtil.insertStanzaId(xmlLogStanza, stanzaId.toString(), domainProperties.getDomain());
 		
-		saveToDatabase(messageId, roomBareJid, senderJid, group, principal, stanzaId, forArchiveXmlLog, group.getMessageRetentionDays());
+		Mono<Void> saveDbMono = saveToDatabaseReactive(messageId, roomBareJid, senderJid, group, principal, stanzaId, forArchiveXmlLog, group.getMessageRetentionDays());
 
 		/**
 		 * ----------------------------------------------------------
@@ -121,7 +130,7 @@ public class MucMemberLeftEventHandler {
 		 * ----------------------------------------------------------
 		 * This is visible chat history event.
 		 */
-		xmppBroadCastHandler.broadcastToOccupants(
+		Mono<Void> xmppBroadcastMono = xmppBroadCastHandler.broadcastToOccupants(
 				ctx,
 				messageId,
 				roomBareJid,
@@ -132,10 +141,24 @@ public class MucMemberLeftEventHandler {
 				forArchiveXmlLog);
 		
 		// Cleanup up member group messages media files		
-		exitGroupMemberMediaCleanupEventPublisher.publish(
-				UUID.fromString(XmppUtil.getRoomId(roomJid)), UUID.fromString(principal.getUserKey()));
+		Mono<Void> cleanupMono = exitGroupMemberMediaCleanupEventPublisher.publish(
+		        UUID.fromString(XmppUtil.getRoomId(roomJid)), 
+		        UUID.fromString(principal.getUserKey())
+		    )
+		.subscribeOn(Schedulers.boundedElastic())
+	    .doOnError(e -> log.error("Failed to clean up group member media files for user {} in room {}", principal.getUserKey(), roomJid, e))
+	    .then();
+
+		// Remove sender key for E2EE
+		Mono<Void> removeSenderKeyMono = removeGroupSenderKeyPublisher.publish(XmppUtil.getRoomId(roomJid), principal.getUserKey())
+		    .subscribeOn(Schedulers.boundedElastic())
+		    .doOnError(e -> log.error("Failed to remove group sender key for user {} in room {}", principal.getUserKey(), roomJid, e))
+		    .then();
         
-        log.debug("User left the room presence synchronization is completed for user {} in room {}", principal.getUserKey(), roomBareJid);
+		// Compose the reactive lifecycle execution flow sequentially or concurrently where safe
+		return Mono.when(selfPresenceMono, broadcastPresenceMono)
+				.then(Mono.when(saveDbMono, xmppBroadcastMono, cleanupMono, removeSenderKeyMono))
+				.doOnSuccess(unused -> log.debug("User left the room presence synchronization is completed for user {} in room {}", principal.getUserKey(), roomBareJid));
     }
     
     private String buildMemberLeftLogStanza(
@@ -156,7 +179,7 @@ public class MucMemberLeftEventHandler {
 				.toXml();	
 	}
     
-    private void saveToDatabase(
+    private Mono<Void> saveToDatabaseReactive(
 			String id,
 			String roomBareJid,
 			String senderJid,
@@ -166,13 +189,16 @@ public class MucMemberLeftEventHandler {
 			String xml,
 			Integer messageRetentionDays) {
 
-		xmppArchiveService.archiveEvent(
+		return xmppArchiveService.archiveEvent(
 				xml,
 				id,
 				XmppUtil.getRoomId(roomBareJid),
 				null,
 				principal.getUserKey(),
 				stanzaId,
-				messageRetentionDays);
+				messageRetentionDays)
+		.subscribeOn(Schedulers.boundedElastic())
+	    .doOnError(e -> log.error("Failed to archive departure event log for user {} inside room {}", principal.getUserKey(), roomBareJid, e))
+	    .then();
 	}
 }

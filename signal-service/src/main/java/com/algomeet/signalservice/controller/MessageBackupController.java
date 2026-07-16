@@ -472,7 +472,7 @@ public class MessageBackupController implements MessageBackupControllerDoc{
            
     @PostMapping("/{peerKey}/messages/by-ids")
 	public ResponseEntity<CommonResponse<List<MessageBackupResponse>>> findMessagesByIds(
-	        @PathVariable UUID groupId,
+	        @PathVariable UUID peerKey,
 	        @RequestBody @Validated GetMessagesByIdsRequest request) {
 
 	    UUID currentUserKey = UUID.fromString(SecurityUtil.getUserKey());

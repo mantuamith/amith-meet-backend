@@ -4,7 +4,7 @@ import java.util.Objects;
 
 /**
  * Represents an XMPP stanza used to notify users when a message is pinned or unpinned.
- * Uses the 'chat' message type to target a specific recipient connection context.
+ * Uses the 'headline' message type to target a specific recipient connection context.
  */
 public class PinStanza {
 	private final String from;
@@ -18,7 +18,7 @@ public class PinStanza {
 		this.from = builder.from;
 		this.to = builder.to;
 		this.id = builder.id;
-		this.type = "chat"; // Fixed standard for direct messaging/pin notifications
+		this.type = "headline";
 		this.action = builder.action;
 		this.targetId = builder.targetId;
 	}

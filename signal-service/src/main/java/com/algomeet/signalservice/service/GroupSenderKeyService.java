@@ -190,6 +190,11 @@ public class GroupSenderKeyService {
 
 		repository.deleteByIdSenderUserKeyAndIdReceiverUserKeyAndIdGroupId(senderUserKey, receiverUserKey, groupId);
 	}
+	
+	@Transactional
+	public void deleteByReceiverUserKeyAndGroupId(UUID receiverUserKey, UUID groupId) {	
+		repository.deleteByIdReceiverUserKeyAndIdGroupId(receiverUserKey, groupId);
+	}
 			
 	@Transactional
 	public void delete(String currentUserKey, UUID groupId) {		
@@ -210,5 +215,11 @@ public class GroupSenderKeyService {
 		
 		repository.deleteByIdGroupId(groupId);
 	}	
+		
+	@Transactional
+	public void deleteByGroupId(UUID groupId) {			
+		repository.deleteByIdGroupId(groupId);
+	}	
+	
 }
 

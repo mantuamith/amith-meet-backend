@@ -19,6 +19,7 @@ import org.springframework.data.redis.connection.stream.RecordId;
 import org.springframework.data.redis.connection.stream.StreamOffset;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
+import org.springframework.data.redis.stream.StreamReceiver;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -31,6 +32,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.util.retry.Retry;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -43,6 +45,7 @@ public class ExitGroupMemberMediaCleanupConsumer {
     private final RedissonReactiveClient redisson;
     
     private final MucRoomService mucRoomService;
+    private final StreamReceiver<String, MapRecord<String, String, String>> streamReceiver;
 
     private static final String GROUP_NAME = "exit-group-member-media-cleanup-group"; 
     private final String consumerName = "consumer-" + UUID.randomUUID();
@@ -77,24 +80,28 @@ public class ExitGroupMemberMediaCleanupConsumer {
         // 2. Start the non-blocking pull consumer loop
         startConsumerLoop(streamKey);
     }
+    
+    private void startConsumerLoop(String streamKey) {
+    	Consumer consumer = Consumer.from(GROUP_NAME, consumerName);
 
-    @SuppressWarnings("unchecked")
-	private void startConsumerLoop(String streamKey) {
-        Consumer consumer = Consumer.from(GROUP_NAME, consumerName);
+        log.info("Starting Redis Stream consumer. stream={}, group={}, consumer={}",
+                streamKey, GROUP_NAME, consumerName);
 
-        // Continuously read from the reactive template
-        reactiveRedisTemplate.opsForStream()
-            .read(consumer, StreamOffset.create(streamKey, ReadOffset.lastConsumed()))
-            .flatMap(message -> {
-                // Cast or safely map to MapRecord
-                MapRecord<String, String, String> record = (MapRecord<String, String, String>) (Object) message;
-                
-                // 3. Throttle execution! Only process 5 groups concurrently max
-                return processMessagePayload(record);
-            }, 5) 
-            .doOnError(err -> log.error("Fatal error in Redis Stream Consumer loop", err))
-            .retryWhen(reactor.util.retry.Retry.backoff(Long.MAX_VALUE, Duration.ofSeconds(2))) // Don't let the consumer die
-            .subscribe(); // Single subscribe keeps the entire stream processing alive safely
+        streamReceiver.receive(
+                consumer,
+                StreamOffset.create(streamKey, ReadOffset.lastConsumed()))
+            .doOnSubscribe(subscription ->
+                    log.info("Missed Call Stream consumer subscribed."))
+            .doOnNext(record ->
+                    log.debug("Received stream message {}", record.getId()))
+            .flatMap(this::processMessagePayload, 4)
+            .doOnError(error ->
+                    log.error("Critical error in Exit Group Member Media Cleanup consumer loop.", error))
+            .retryWhen(
+                    Retry.backoff(Long.MAX_VALUE, Duration.ofSeconds(2))
+                         .maxBackoff(Duration.ofMinutes(1))
+            )
+            .subscribe();    
     }
 
     private Mono<Void> processMessagePayload(MapRecord<String, String, String> message) {

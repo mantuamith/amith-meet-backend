@@ -86,5 +86,11 @@ public interface GroupSenderKeyRepository extends JpaRepository<GroupSenderKey, 
 			@Param("receiverUserKey") UUID receiverUserKey,
 			@Param("groupId") UUID groupId, Pageable pageable);
 
+	@Modifying
+	@Transactional
 	void deleteByIdSenderUserKeyAndIdReceiverUserKeyAndIdGroupId(UUID senderUserKey, UUID receiverUserKey, UUID groupId);
+	
+	@Modifying
+	@Transactional
+	void deleteByIdReceiverUserKeyAndIdGroupId(UUID receiverUserKey, UUID groupId);
 }

@@ -14,6 +14,7 @@ import com.algomeet.xmpp.chatservice.util.SecurityUtil;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.publisher.Mono;
 
 /**
  * REST controller for managing active XMPP and WebSocket sessions, as well as Redis-based presence states.
@@ -36,42 +37,41 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class SessionController implements SessionControllerDoc {
 
-    private final SessionService sessionService;
+	private final SessionService sessionService;
 
-    /**
-     * Removes session state and clears user presence data from Redis.
-     * <p>
-     * This endpoint is utilized to prune "zombie" or orphan records from the distributed cache. 
-     * It performs the following:
-     * <ol>
-     * <li>Retrieves the unique {@code userKey} from the security context.</li>
-     * <li>Invokes {@link SessionService#removeSession} to purge presence metadata (Active/Inactive status) from Redis.</li>
-     * <li>Ensures the local node terminates any hanging Netty channels associated with the session.</li>
-     * </ol>
-     * </p>
-     *
-     * @param sessionId The unique identifier of the session/state to be evicted from Redis.
-     * @return A {@link ResponseEntity} containing a {@link CommonResponse} confirming the cleanup.
-     * @throws Exception if there is a failure communicating with the Redis cluster or the service layer.
-     */
-    @DeleteMapping("/{sessionId}")
-    public ResponseEntity<CommonResponse<?>> removeSession(
-            @PathVariable String sessionId) {
-        
-        // Retrieve the identifier for the currently authenticated user
-        String userKey = SecurityUtil.getUserKey();
-        
-        log.info("Request to evict presence state and remove orphan session {} for user {}", sessionId, userKey);
-        
-        try {
-            // Execute the removal logic to clean up Redis state and local channels
-            sessionService.removeSession(userKey, sessionId);
-            
-            return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
-        } catch (Exception e) {
-            log.error("Failed to clear Redis session/presence for user {} and session {}", userKey, sessionId, e);
-            // Re-throw to be handled by GlobalExceptionHandler
-            throw e;
-        }
-    }
+	/**
+	 * Removes session state and clears user presence data from Redis.
+	 * <p>
+	 * This endpoint is utilized to prune "zombie" or orphan records from the distributed cache. 
+	 * It performs the following:
+	 * <ol>
+	 * <li>Retrieves the unique {@code userKey} from the security context.</li>
+	 * <li>Invokes {@link SessionService#removeSession} to purge presence metadata (Active/Inactive status) from Redis.</li>
+	 * <li>Ensures the local node terminates any hanging Netty channels associated with the session.</li>
+	 * </ol>
+	 * </p>
+	 *
+	 * @param sessionId The unique identifier of the session/state to be evicted from Redis.
+	 * @return A {@link Mono} wrapping the {@link ResponseEntity} containing a {@link CommonResponse} confirming the cleanup.
+	 */
+	@DeleteMapping("/{sessionId}")
+	public Mono<ResponseEntity<CommonResponse<?>>> removeSession(
+			@PathVariable String sessionId) {
+
+		// Retrieve the identifier for the currently authenticated user
+		String userKey = SecurityUtil.getUserKey();
+
+		log.info("Request to evict presence state and remove orphan session {} for user {}", sessionId, userKey);
+
+		// Execute the removal logic to clean up Redis state and local channels reactively
+		return sessionService.removeSession(userKey, sessionId)
+				.then(Mono.fromCallable(() -> {
+					ResponseEntity<CommonResponse<?>> response = ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS));
+					return response;
+				}))
+				.onErrorResume(e -> {
+					log.error("Failed to clear Redis session/presence for user {} and session {}", userKey, sessionId, e);
+					return Mono.error(e);
+				});
+	}
 }

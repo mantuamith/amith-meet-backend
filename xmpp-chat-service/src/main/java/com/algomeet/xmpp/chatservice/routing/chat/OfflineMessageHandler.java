@@ -83,7 +83,7 @@ public class OfflineMessageHandler {
                     return localStanzaDispatcher.dispatchLocally(userKey, msg.getFrom().toString(), xmlWithDelay)
                             // If dispatchLocally returns a Mono<Boolean>, intercept the result here
                             .doOnNext(isSuccess -> {
-                                if (Boolean.TRUE.equals(isSuccess) && msg.getIsAckStanza()) {
+                                if (Boolean.TRUE.equals(isSuccess) && (msg.getIsAckStanza() != null && msg.getIsAckStanza())) {
                                 	// Delete if record is ACK stanza
                                 	offlineMessageRepository.deleteByMessageIdAndIsAckStanzaTrue(msg.getMessageId()).subscribe();
                                  }

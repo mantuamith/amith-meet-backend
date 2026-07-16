@@ -1,13 +1,14 @@
 package com.algomeet.signalservice.entity;
 
 import java.time.Instant;
+import java.util.UUID;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.EmbeddedId;
 import jakarta.persistence.Entity;
+import jakarta.persistence.Index;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
-import jakarta.persistence.Index;
 import lombok.Data;
 
 @Data
@@ -32,6 +33,10 @@ import lombok.Data;
 						columnList = "sender_user_key, group_id"
 						),
 				@Index(
+						name = "idx_receiver_user_group",
+						columnList = "receiver_user_key, group_id"
+						),
+				@Index(
 						name = "idx_group",
 						columnList = "group_id"
 						)
@@ -40,6 +45,8 @@ public class GroupSenderKey {
 	@EmbeddedId
 	private GroupSenderKeyId id;
 
+	private UUID distributionId;
+	
 	/** Sender key distribution message */
 	@Column(nullable = true, length = 3000)
 	private String skdmCipher;

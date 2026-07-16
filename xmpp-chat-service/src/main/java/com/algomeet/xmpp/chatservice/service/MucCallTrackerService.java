@@ -417,7 +417,8 @@ public class MucCallTrackerService {
 		xmppArchiveService.archiveEvent(forArchiveXml, id, toRoomId, to, from, stanzaId, messageRetentionDays)
 		.doFinally(signal -> {
 			// publish to cluster for synchronization
-			clusterMessagePublisher.convertAndSendToUser(id.toString(), to, from, chatType, forArchiveXml);
+			clusterMessagePublisher.convertAndSendToUser(id.toString(), to, from, chatType, forArchiveXml)
+			.subscribe();
 		})
 		.doOnError(e -> {
 			log.error("Storage failure for message {}: {}", id, e.getMessage(), e);

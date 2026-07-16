@@ -19,7 +19,7 @@ import com.algomeet.common.dto.GroupMember;
 import com.algomeet.common.redis.lock.MucMessageRetentionLockManager;
 import com.algomeet.common.service.AbstractGroupCache;
 import com.algomeet.xmpp.chatservice.client.GroupClient;
-import com.algomeet.xmpp.chatservice.cluster.publisher.ReactiveClusterMessagePublisher;
+import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.constant.Constants;
 import com.algomeet.xmpp.chatservice.document.MucMessage;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
@@ -28,8 +28,9 @@ import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
 import com.algomeet.xmpp.chatservice.exceptions.GroupNotFoundException;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.publisher.PurgeGroupConversationStreamPublisher;
+import com.algomeet.xmpp.chatservice.publisher.RemoveGroupSenderKeyPublisher;
 import com.algomeet.xmpp.chatservice.repository.MucMessageRepository;
-import com.algomeet.xmpp.chatservice.routing.muc.ReactiveMucMessageRouter;
+import com.algomeet.xmpp.chatservice.routing.muc.MucMessageRouter;
 import com.algomeet.xmpp.chatservice.stanza.SyncMessageRetentionStanza;
 import com.algomeet.xmpp.chatservice.util.DeleteMediaUtil;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
@@ -51,18 +52,24 @@ public class MucRoomService {
 
     private final GroupClient groupClient;
     private final AbstractGroupCache groupCacheService; 
-    private final ReactiveClusterMessagePublisher reactiveClusterMessagePublisher; // FIXED: Swapped to reactive variant
+    private final ClusterMessagePublisher reactiveClusterMessagePublisher; // FIXED: Swapped to reactive variant
     private final DomainProperties domainProperties;
     private final MucMessageRepository mucMessageRepository;
     private final DeleteMediaUtil deleteMediaUtil;
     private final PurgeGroupConversationStreamPublisher purgeGroupConversationStreamPublisher;
-    private final ReactiveMucMessageRouter reactiveMucMessageRouter; // FIXED: Swapped to reactive variant
+    private final MucMessageRouter reactiveMucMessageRouter; // FIXED: Swapped to reactive variant
     private final MucMessageRetentionLockManager mucMessageRetentionLockManager;
     private final ReactiveMongoTemplate reactiveMongoTemplate; 
     private final JidUtil jidUtil;
+    private final RemoveGroupSenderKeyPublisher removeGroupSenderKeyPublisher;
     
-    // Dedicated worker pool to cleanly isolate blocking/heavy computations off Netty
-    private static final Scheduler MUC_THREAD_POOL = Schedulers.newBoundedElastic(200, 10000, "muc-service-workers");
+    // Scaled to handle enterprise load and prevent pipeline degradation during spike intervals
+    private static final Scheduler MUC_THREAD_POOL = 
+    		Schedulers.newBoundedElastic(
+    				1000, 
+    				50000, 
+    				"muc-service-workers"
+    				);
 
     /**
      * Handles the business flow for clearing a member's history timeline.
@@ -119,7 +126,7 @@ public class MucRoomService {
      */
     public Mono<Boolean> purgeGroupConversation(UUID groupId, UUID userKey) {
         return Mono.fromCallable(() -> {
-            log.warn("Executing administrative database purge for all messages in group: {}", groupId);
+            log.warn("Executing administrative database purge validation for all messages in group: {}", groupId);
             Group group = groupCacheService.getCachedGroup(groupId.toString());
             
             if (group != null) {
@@ -129,12 +136,24 @@ public class MucRoomService {
                     throw new AccessDeniedException("Unauthorized to purge the group messages.");
                 }
             }
-            
-            purgeGroupConversationStreamPublisher.publish(groupId);
-            groupCacheService.evictGroup(groupId.toString());
             return Optional.ofNullable(group);
         })
         .subscribeOn(MUC_THREAD_POOL)
+        // 1. Execute DB/Stream purge
+        .flatMap(groupOpt -> 
+        	// Remove group conversation messages
+            purgeGroupConversationStreamPublisher.publish(groupId)
+                // 2. Remove E2EE sender keys right after DB purge completes
+                .then(Mono.defer(() -> removeGroupSenderKeyPublisher.publish(groupId.toString(), null)
+                        .doOnError(e -> log.error("Failed to remove group sender keys during purge for group {}", groupId, e))
+                        .onErrorResume(e -> Mono.empty()) // Prevent key removal failure from crashing the whole pipeline
+                ))
+                // 3. Evict cache on success
+                .doOnSuccess(v -> groupCacheService.evictGroup(groupId.toString()))
+                // 4. Pass the group configuration down to the XMPP broadcast step
+                .thenReturn(groupOpt) 
+        )
+        // 5. Broadcast XMPP clearance stanza
         .flatMap(groupOpt -> {
             if (groupOpt.isEmpty()) {
                 return Mono.just(true);

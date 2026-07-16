@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import com.algomeet.xmpp.chatservice.dto.CommonResponse;
 import com.algomeet.xmpp.chatservice.dto.MucMessageResponse;
 import com.algomeet.xmpp.chatservice.dto.GetMessagesByIdsRequest;
+import com.algomeet.xmpp.chatservice.dto.HideMessageRequest;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -346,4 +347,44 @@ public interface MucMessageControllerDoc {
 					example = "4a1b2c3d-5e6f-7a8b-9c0d-1e2f3a4b5c6d"
 					)
 			@PathVariable UUID groupId);
+	
+	@Operation(
+	        summary = "Hide multiple group messages",
+	        description = "Performs an atomic 'Delete for Me' operation on a collection of message IDs within a specific MUC room. Syncs across all the user's active sessions."
+	    )
+	    @ApiResponses(value = {
+	        @ApiResponse(
+	            responseCode = "200", 
+	            description = "Messages hidden successfully across all user devices.",
+	            content = @Content(schema = @Schema(implementation = CommonResponse.class))
+	        ),
+	        @ApiResponse(
+	            responseCode = "400", 
+	            description = "Invalid payload formatting, unparseable UUIDs, or missing fields.", 
+	            content = @Content
+	        ),
+	        @ApiResponse(
+	            responseCode = "401", 
+	            description = "Unauthorized - Missing or expired security context token.", 
+	            content = @Content
+	        ),
+	        @ApiResponse(
+	            responseCode = "404", 
+	            description = "Group room or targeted messages not found.", 
+	            content = @Content
+	        )
+	    })
+	    public Mono<ResponseEntity<CommonResponse<?>>> hideMessages(
+	            @Parameter(
+	                description = "The unique UUID of the MUC room/group channel", 
+	                required = true, 
+	                example = "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d"
+	            )
+	            @PathVariable UUID groupId,
+	            
+	            @io.swagger.v3.oas.annotations.parameters.RequestBody(
+	                description = "Payload containing target message identifiers and the originating sessionId",
+	                required = true
+	            )
+	            @RequestBody @Validated HideMessageRequest request);
 }

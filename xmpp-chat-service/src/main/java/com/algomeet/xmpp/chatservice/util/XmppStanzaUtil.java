@@ -16,6 +16,7 @@ import javax.xml.stream.XMLStreamReader;
 
 import org.springframework.util.StringUtils;
 
+import com.algomeet.xmpp.chatservice.constant.Constants;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
 
 import lombok.extern.slf4j.Slf4j;
@@ -34,8 +35,6 @@ public class XmppStanzaUtil {
 	private static final String RECEIPTS_START_TAG  = "<received";
 	
 	private static final String RETRACTED_TAG = "<retracted xmlns='urn:xmpp:message-retract:1'/>";
-	
-	private static final String NS_PIN_OR_UNPIN_MESSAGE = "urn:xmpp:algomeet:pin:0";
 
 	// Matches <body>...</body> across multiple lines (?s mode)
 	private static final Pattern BODY_PATTERN = Pattern.compile("(?s)<body>.*?</body>");
@@ -213,7 +212,7 @@ public class XmppStanzaUtil {
 	}
 
 	public static boolean isJingleStanza(XmppMessageType msgType, String xml) {
-		return XmppMessageType.SET == msgType && xml.contains("urn:xmpp:jingle:1");
+		return XmppMessageType.SET == msgType && xml.contains(Constants.NS_JINGLE);
 	}
 
 	public static boolean isMessageAckStanza(String xml) {

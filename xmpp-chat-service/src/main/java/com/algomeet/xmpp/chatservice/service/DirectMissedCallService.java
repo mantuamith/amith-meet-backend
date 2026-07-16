@@ -23,7 +23,6 @@ import com.algomeet.xmpp.chatservice.enums.UserState;
 import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.session.UserSessionRegistry;
-import com.algomeet.xmpp.chatservice.session.model.UserSession;
 import com.algomeet.xmpp.chatservice.stanza.jingle.JingleTerminationIq;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
@@ -131,34 +130,39 @@ public class DirectMissedCallService {
 
 					log.info("Processing missed call SID: {} for user: {}", sid, toUserKey);
 
-					// Wrap EVERYTHING that touches synchronous Redis/Registry into the Runnable
-					return Mono.fromRunnable(() -> {
-						TenantContext.setCurrentTenant(tenantIdInt);
-						try {
-							// Move the blocking Registry call INSIDE the protected thread
-							Set<UserSession> userSessions = userSessionRegistry.getSessions(toUserKey);
-							boolean hasActiveSession = !CollectionUtils.isEmpty(userSessions) && userSessions.stream()
-									.anyMatch(s -> UserState.ACTIVE == s.getState());
+					// Non-blocking retrieval of user sessions from Redis
+					return userSessionRegistry.getSessions(toUserKey)
+							.defaultIfEmpty(java.util.Collections.emptySet())
+							.flatMap(userSessions -> {
+								boolean hasActiveSession = !CollectionUtils.isEmpty(userSessions) && userSessions.stream()
+										.anyMatch(s -> UserState.ACTIVE == s.getState());
 
-							// Send message to both caller and responder/callee
-							sendMissedCallStanza(fromJid, toJid, sid, type);
-							sendMissedCallStanza(toJid, fromJid, sid, type);
-
-							// Delete by session ID
-							callTrackerService.deleteBySid(sid).subscribe();
-
-							if (!hasActiveSession) {
-								sendPush(toUserKey,
-										"video".equalsIgnoreCase(type) ? NotificationType.VIDEO_MISSED_CALL : NotificationType.AUDIO_MISSED_CALL,
-												"Missed " + type + " Call",
-												String.format("Missed %s call from %s", type, username),
-												tenantIdInt);
-							}	                     
-						} finally {
-							TenantContext.clear();
-						}
-					})
-							.subscribeOn(Schedulers.boundedElastic()) // This ensures the Runnable doesn't block Netty
+								// Synchronously bind the Multi-Tenancy storage token to the thread context execution lifecycle
+								return Mono.defer(() -> {
+									TenantContext.setCurrentTenant(tenantIdInt);
+									return Mono.empty();
+								})
+								.then(
+									// Execute stanza transmissions concurrently
+									Mono.when(
+										sendMissedCallStanza(fromJid, toJid, sid, type),
+										sendMissedCallStanza(toJid, fromJid, sid, type)
+									)
+								)
+								.then(callTrackerService.deleteBySid(sid))
+								.then(Mono.defer(() -> {
+									if (!hasActiveSession) {
+										return sendPush(toUserKey,
+												"video".equalsIgnoreCase(type) ? NotificationType.VIDEO_MISSED_CALL : NotificationType.AUDIO_MISSED_CALL,
+														"Missed " + type + " Call",
+														String.format("Missed %s call from %s", type, username),
+														tenantIdInt);
+									}
+									return Mono.empty();
+								}))
+								.doFinally(signalType -> TenantContext.clear()); // Assure ThreadLocal storage cleanup
+							})
+							.subscribeOn(Schedulers.boundedElastic()) // Protect Netty loop threads from Context overhead transitions
 							.then(reactiveRedisTemplate.delete(metaKey))
 							.then();
 				});
@@ -168,7 +172,7 @@ public class DirectMissedCallService {
 	 * Generates a chat message with a custom 'call-log' extension.
 	 * Persists to offline storage for MAM/Archive and publishes to the cluster.
 	 */
-	private void sendMissedCallStanza(String fromJid, String toJid, String sid, String type) {
+	private Mono<Void> sendMissedCallStanza(String fromJid, String toJid, String sid, String type) {
 		UUID id = UuidCreator.getTimeOrderedEpoch();
 		String timestamp = Instant.now().toString();
 		String fromUserKey = XmppUtil.getUserKey(fromJid);
@@ -187,19 +191,8 @@ public class DirectMissedCallService {
 		UUID stanzaId = UuidCreator.getTimeOrderedEpoch();
 		// Insert stanza ID
 		String forArchiveXml = XmppStanzaUtil.insertStanzaId(xml, stanzaId.toString(), domainProperties.getDomain());	
-			
-		offlineMessageService.save(id, stanzaId, toUserKey, fromUserKey, XmppMessageType.HEADLINE.getXmlValue(), forArchiveXml)
-		.doOnSuccess(success -> {
-			// Publish after successfully saved
-			clusterMessagePublisher.convertAndSendToUser(id.toString(), toUserKey, fromUserKey, ChatType.CHAT, forArchiveXml);
-			
-			// Increment user unread message
-			unreadCountService.incrementUnreadCount(fromUserKey, toUserKey);
-		})
-		.doOnError(e -> log.error("MAM Persistence failed for SID {}: {}", sid, e.getMessage()))
-		.subscribe();
 		
-		// Send timeout message
+		// Send timeout message setup
 		String timeoutId = UuidCreator.getTimeOrderedEpoch().toString();
 		JingleTerminationIq timeoutStanza = JingleTerminationIq.builder()
 				.id(timeoutId)
@@ -209,21 +202,43 @@ public class DirectMissedCallService {
 				.reason(JingleTerminationIq.REASON_TIMEOUT)
 				.build();
 
-		// Publish timeout
-		clusterMessagePublisher.convertAndSendToUser(timeoutId, toUserKey, fromUserKey, ChatType.CHAT, timeoutStanza.toXml());
+		return offlineMessageService.save(id, stanzaId, toUserKey, fromUserKey, XmppMessageType.HEADLINE.getXmlValue(), forArchiveXml)
+				.flatMap(success -> {
+					// Broadcast notifications simultaneously once message tracking record updates successfully
+					return Mono.when(
+						clusterMessagePublisher.convertAndSendToUser(id.toString(), toUserKey, fromUserKey, ChatType.CHAT, forArchiveXml),
+						clusterMessagePublisher.convertAndSendToUser(timeoutId, toUserKey, fromUserKey, ChatType.CHAT, timeoutStanza.toXml())
+					)
+					.then(Mono.fromRunnable(() -> unreadCountService.incrementUnreadCount(fromUserKey, toUserKey)));
+				})
+				.doOnError(e -> log.error("MAM Persistence/Cluster Delivery failed for SID {}: {}", sid, e.getMessage()))
+				.then();
 	}
 
 	/**
 	 * Out-of-band notification dispatcher for mobile platform delivery.
 	 */
-	private void sendPush(String to, NotificationType type, String title, String body, Integer tenantId) {        
-		Notification notif = Notification.builder()
-				.receiverIds(Set.of(to))
-				.type(type)
-				.title(title)
-				.body(body)
-				.tenantId(tenantId)
-				.build();
-		notificationService.sendPush(notif);
+	private Mono<Void> sendPush(String to, NotificationType type, String title, String body, Integer tenantId) {  
+	    return Mono.fromRunnable(() -> {
+	        // Explicitly set the tenant context for this synchronous boundary worker thread
+	        TenantContext.setCurrentTenant(tenantId);
+	        try {
+	        	 Notification notif = Notification.builder()
+	 	                .receiverIds(Set.of(to))
+	 	                .type(type)
+	 	                .title(title)
+	 	                .body(body)
+	 	                .tenantId(tenantId)
+	 	                .build();
+
+	            notificationService.sendPush(notif);
+	        } finally {
+	            // Clean up the ThreadLocal to prevent leakage back into the worker pool
+	            TenantContext.clear();
+	        }
+	    })
+	    .subscribeOn(Schedulers.boundedElastic()) // Offload the network/IO push operation completely
+	    .doOnError(e -> log.error("Failed to deliver reactive push notification to user key: {}", to, e))
+	    .then(); // Transforms Mono<Object> into a clean Mono<Void> pipeline signal
 	}
 }

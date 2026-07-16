@@ -17,6 +17,7 @@ import com.github.f4b6a3.uuid.UuidCreator;
 import io.netty.channel.ChannelHandlerContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.publisher.Mono;
 
 @Slf4j
 @Component
@@ -40,37 +41,42 @@ public class MucChangeNickNameEventHandler {
      * @param xml       The presence stanza.
      * @param group     Current room state and member list.
      * @param sender    Sender's current member metadata.
+     * @return A {@link Mono<Void>} signaling completion of the nickname change sequence.
      */
-    public void handleChangeNicknameRequest(ChannelHandlerContext ctx, String roomJid, String xml, Group group, GroupMember sender) {
-        // 1. Extract metadata (nickname)
-        String[] jidArr = roomJid.split("/");
-        String newNickname = null;
-        if(jidArr.length > 1 && StringUtils.hasText(jidArr[1])) {
-            newNickname = jidArr[1].trim();
-        }
+    public Mono<Void> handleChangeNicknameRequest(ChannelHandlerContext ctx, String roomJid, String xml, Group group, GroupMember sender) {
+        return Mono.defer(() -> {
+            // 1. Extract metadata (nickname)
+            String[] jidArr = roomJid.split("/");
+            String newNickname = null;
+            if(jidArr.length > 1 && StringUtils.hasText(jidArr[1])) {
+                newNickname = jidArr[1].trim();
+            }
 
-        String mucAffiliation = MucAffiliation.fromString(sender.getRole()).getValue();
-        String senderJid = jidUtil.getBareJid(sender.getUserKey());
-        
-        String roomBareJid = XmppUtil.getRoomBareJid(roomJid);
-        log.info("User {} attempting to change nickname {} from room {}", senderJid, newNickname, roomJid);
+            String mucAffiliation = MucAffiliation.fromString(sender.getRole()).getValue();
+            String senderJid = jidUtil.getBareJid(sender.getUserKey());
+            
+            String roomBareJid = XmppUtil.getRoomBareJid(roomJid);
+            log.info("User {} attempting to change nickname {} from room {}", senderJid, newNickname, roomJid);
 
-        // 2. Construct the rename presence 
-        String renamePresence = buildRenamePresence(roomBareJid, sender.getUserKey(), newNickname, mucAffiliation,
-                MucRoleUtil.getMucRole(sender.getRole()).getValue());
+            // 2. Construct the rename presence 
+            String renamePresence = buildRenamePresence(roomBareJid, sender.getUserKey(), newNickname, mucAffiliation,
+                    MucRoleUtil.getMucRole(sender.getRole()).getValue());
 
-        // 3. Broadcast "Old Nick" exit to the Room
-        XmppPrincipal principal = ctx.channel().attr(XmppSessionAttributes.PRINCIPAL).get();   
-        mucMessageRouter.broadcastToOccupants(UuidCreator.getTimeOrderedEpoch().toString(), sender.getUserKey(), group, renamePresence, principal.getSessionId());
-        
-        // 4. Construct the available presence 
-        String availablePresence = buildAvailablePresence(roomBareJid, sender.getUserKey(), mucAffiliation, 
-                MucRoleUtil.getMucRole(sender.getRole()).getValue()); 
+            // 3. Broadcast "Old Nick" exit to the Room
+            XmppPrincipal principal = ctx.channel().attr(XmppSessionAttributes.PRINCIPAL).get();   
+            
+            final String finalNewNickname = newNickname;
+            return mucMessageRouter.broadcastToOccupants(UuidCreator.getTimeOrderedEpoch().toString(), sender.getUserKey(), group, renamePresence, principal.getSessionId())
+                    .then(Mono.defer(() -> {
+                        // 4. Construct the available presence 
+                        String availablePresence = buildAvailablePresence(roomBareJid, sender.getUserKey(), mucAffiliation, 
+                                MucRoleUtil.getMucRole(sender.getRole()).getValue()); 
 
-        // 5. Broadcast "New Nick" entry to the Room
-        mucMessageRouter.broadcastToOccupants(UuidCreator.getTimeOrderedEpoch().toString(), sender.getUserKey(), group, availablePresence, principal.getSessionId());
-
-        log.info("User successful: Changed nickname to {}", newNickname);
+                        // 5. Broadcast "New Nick" entry to the Room
+                        return mucMessageRouter.broadcastToOccupants(UuidCreator.getTimeOrderedEpoch().toString(), sender.getUserKey(), group, availablePresence, principal.getSessionId());
+                    }))
+                    .doOnSuccess(unused -> log.info("User successful: Changed nickname to {}", finalNewNickname));
+        });
     }
 
     /**
