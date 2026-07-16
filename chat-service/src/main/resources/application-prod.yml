@@ -50,6 +50,9 @@ spring:
 group:
   service:
     url: http://group-service:8087
+user:
+  service:
+    url: http://user-service:8082
 media:
   service:
     url: http://media-service:8095

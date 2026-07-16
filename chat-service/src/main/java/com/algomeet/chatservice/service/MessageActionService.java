@@ -1,6 +1,7 @@
 package com.algomeet.chatservice.service;
 
 import com.algomeet.chatservice.client.GroupClient;
+import com.algomeet.chatservice.client.UserDirectoryClient;
 import com.algomeet.chatservice.document.*;
 import com.algomeet.chatservice.dto.messageactions.ForwardRequest;
 import com.algomeet.chatservice.dto.messageactions.ReactionEntry;
@@ -46,6 +47,7 @@ public class MessageActionService {
     private final GroupClient groupClient;
     private final MessageMapper messageMapper;
     private final MediaService mediaService;
+    private final UserDirectoryClient userDirectoryClient;
 
     /* -------- Core mutations -------- */
 
@@ -507,9 +509,25 @@ public class MessageActionService {
         } else {
             fwd.setType(MessageType.DIRECT);
             fwd.setReceiver(req.getReceiver());
-            fwd.setReceiverKey(req.getToKey());
-            fwd.setGroupMessage(false);
 
+            String toKey = req.getToKey();
+            if (!org.springframework.util.StringUtils.hasText(toKey)
+                    && org.springframework.util.StringUtils.hasText(req.getReceiver())) {
+                // Client did not send toKey — resolve it server-side so MediaService
+                // can grant the receiver download access to the forwarded media.
+                try {
+                    UserDirectoryClient.UserLookup lookup = userDirectoryClient.exact(req.getReceiver());
+                    if (lookup != null && lookup.userKey() != null) {
+                        toKey = lookup.userKey().toString();
+                        log.info("[Forward] Resolved receiverKey for receiver={}", req.getReceiver());
+                    }
+                } catch (Exception e) {
+                    log.warn("[Forward] Could not resolve receiverKey for receiver={}: {}", req.getReceiver(), e.getMessage());
+                }
+            }
+
+            fwd.setReceiverKey(toKey);
+            fwd.setGroupMessage(false);
             fwd.setGroupId(null);
         }
 
