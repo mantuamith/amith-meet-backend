@@ -171,10 +171,10 @@ export default function SignalDirectMessageDemo() {
           bobSignedPreKeyId, 
           bobSignedPreKeyPair.publicKey,
           bobSignedPreKeySig,
-          bobIdentityKey,
+          bobIdentityKey /*,
           bobKyberPreKeyId,
           bobKyberPreKeyPair.publicKey,
-          bobKyberPreKeySig);
+          bobKyberPreKeySig */);
       
     // Create Alice session builder
     const aliceSessionBuilder = SessionBuilder.fromStore(aliceStore, bobAddress);

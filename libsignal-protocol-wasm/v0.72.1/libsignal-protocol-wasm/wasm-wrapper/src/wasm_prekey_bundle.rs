@@ -64,6 +64,7 @@ fn js_uint8array_from_vec(v: Vec<u8>) -> Uint8Array {
 // WASM exports
 // -----------------------------------------------------------------------------
 
+/*
 #[wasm_bindgen(js_namespace = preKeyBundle)]
 pub fn prekeybundle_new(
     registration_id: u32,
@@ -128,13 +129,6 @@ pub fn prekeybundle_new(
         return Err(JsValue::from_str("kyber pointer is null"));
     }
 
-    // --------------------------
-    // Kyber public key (required)
-    // --------------------------
-    if kyber_ptr == 0 {
-        return Err(JsValue::from_str("kyber pointer is null"));
-    }
-
     let kyber_pub =
         crate::wasm_kem_public_key::with_kyber_public_key(kyber_ptr, |pk| {
             Ok(pk.clone())
@@ -165,16 +159,114 @@ pub fn prekeybundle_new(
     let pre_key_for_new =
         pre_key_opt.map(|(id, pk)| (id.into(), pk));
 
-    let bundle = PreKeyBundle::new(
+	let bundle = PreKeyBundle::new(
+		registration_id,
+		device_id,
+		pre_key_for_new,
+		signed_prekey_id.into(),
+		signed_pub,
+		signed_sig,
+		identity_key,
+	)
+	.map_err(|e| {
+		JsValue::from_str(&format!(
+		   "PreKeyBundle::new failed: {:?}",
+		   e
+		))
+	})?
+	.with_kyber_pre_key(
+		kyber_prekey_id.into(),
+		kyber_pub,
+		kyber_sig,
+	);
+
+    Ok(store_prekeybundle(bundle))
+} */
+
+#[wasm_bindgen(js_namespace = preKeyBundle)]
+pub fn prekeybundle_new(
+    registration_id: u32,
+    device_id: u32,
+    pre_key_id: i32,      // -1 means None
+    pre_key_ptr: u32,     // 0 means None
+    signed_prekey_id: u32,
+    signed_prekey_ptr: u32,
+    signed_prekey_signature: &Uint8Array,
+    identity_ptr: u32,
+    kyber_prekey_id: u32, // -1 means None
+    kyber_ptr: u32,       // 0 means no Kyber
+    kyber_prekey_signature: &Uint8Array,
+) -> Result<u32, JsValue> {
+	let signed_sig = signed_prekey_signature.to_vec();
+	let kyber_sig = kyber_prekey_signature.to_vec();
+
+	// DeviceId conversion
+	let device_id = device_id
+	    .try_into()
+	    .map_err(|_| JsValue::from_str("invalid device id"))?;
+
+	// --------------------------
+	// Optional EC pre-key
+	// --------------------------
+	let pre_key_opt: Option<(u32, libsignal_core::curve::PublicKey)> =
+	    if pre_key_id == -1 || pre_key_ptr == 0 {
+	        None
+	    } else {
+	        Some((
+	            pre_key_id as u32,
+	            with_public_key(pre_key_ptr, |pk| Ok(pk.clone()))?,
+	        ))
+	    };
+
+	// --------------------------
+	// Signed EC pre-key (required)
+	// --------------------------
+	if signed_prekey_ptr == 0 {
+	    return Err(JsValue::from_str("signedPreKey pointer is null"));
+	}
+
+	let signed_pub =
+	    with_public_key(signed_prekey_ptr, |pk| Ok(pk.clone()))?;
+
+	// --------------------------
+	// Identity key (required)
+	// --------------------------
+	if identity_ptr == 0 {
+	    return Err(JsValue::from_str("identity pointer is null"));
+	}
+
+	let identity_pub =
+	    with_public_key(identity_ptr, |pk| Ok(pk.clone()))?;
+
+	let identity_key = libsignal_protocol::IdentityKey::new(identity_pub.clone());
+
+	// --------------------------
+	// DEBUG: local signature verification
+	// --------------------------
+	assert!(
+	    identity_pub.verify_signature(
+	        &signed_pub.serialize(),
+	        &signed_sig,
+	    ),
+	    "LOCAL SIGNED PREKEY SIGNATURE INVALID"
+	);
+
+	// --------------------------
+	// Build PreKeyBundle
+	// --------------------------
+	let pre_key_for_new =
+	    pre_key_opt.map(|(id, pk)| (id.into(), pk));
+
+    // --------------------------
+    // Build bundle (X3DH)
+    // --------------------------
+    let mut bundle = PreKeyBundle::new(
         registration_id,
         device_id,
         pre_key_for_new,
         signed_prekey_id.into(),
         signed_pub,
         signed_sig,
-        kyber_prekey_id.into(),
-        kyber_pub,
-        kyber_sig,
         identity_key,
     )
     .map_err(|e| {
@@ -183,6 +275,33 @@ pub fn prekeybundle_new(
             e
         ))
     })?;
+
+    // --------------------------
+    // Optional Kyber (PQXDH)
+    // --------------------------
+    if kyber_ptr != 0 {
+	   let kyber_pub =
+		    crate::wasm_kem_public_key::with_kyber_public_key(kyber_ptr, |pk| {
+		        Ok(pk.clone())
+		    })?;
+
+		// --------------------------
+		// DEBUG: local signature verification
+		// --------------------------
+		assert!(
+		    identity_pub.verify_signature(
+		        &kyber_pub.serialize(),
+		        &kyber_sig,
+		    ),
+		    "LOCAL KYBER PREKEY SIGNATURE INVALID"
+		);
+
+        bundle = bundle.with_kyber_pre_key(
+            kyber_prekey_id.into(),
+            kyber_pub,
+            kyber_sig,
+        );
+    }
 
     Ok(store_prekeybundle(bundle))
 }
@@ -282,29 +401,38 @@ pub fn prekeybundle_get_registration_id(ptr: u32) -> Result<u32, JsValue> {
 pub fn prekeybundle_get_kyber_prekey_id(ptr: u32) -> Result<u32, JsValue> {
     let b = get_prekeybundle_clone(ptr)?;
 
-    let id = b.kyber_pre_key_id()
-        .map_err(|e| JsValue::from_str(&format!("kyber_pre_key_id failed: {e}")))?;
+	let id = b
+	    .kyber_pre_key_id()
+	    .map_err(|e| JsValue::from_str(&format!("kyber_pre_key_id failed: {e}")))?;
 
-    Ok(id.into())
+	Ok(id.map(u32::from).unwrap_or(0))
 }
 
 #[wasm_bindgen(js_namespace = preKeyBundle)]
 pub fn prekeybundle_get_kyber_prekey_public(ptr: u32) -> Result<u32, JsValue> {
     let b = get_prekeybundle_clone(ptr)?;
 
-    let pk = b.kyber_pre_key_public()
-        .map_err(|e| JsValue::from_str(&format!("kyber_pre_key_public failed: {e}")))?;
+	let pk = b
+	    .kyber_pre_key_public()
+	    .map_err(|e| JsValue::from_str(&format!("kyber_pre_key_public failed: {e}")))?;
 
-    Ok(crate::wasm_kem_public_key::store_kyber_public_key(pk.clone()))
+	match pk {
+	    Some(pk) => Ok(crate::wasm_kem_public_key::store_kyber_public_key(pk.clone())),
+	    None => Ok(0),
+	}
 }
 
 #[wasm_bindgen(js_namespace = preKeyBundle)]
 pub fn prekeybundle_get_kyber_prekey_signature(ptr: u32) -> Result<Uint8Array, JsValue> {
     let b = get_prekeybundle_clone(ptr)?;
 
-    let sig = b.kyber_pre_key_signature()
-        .map_err(|e| JsValue::from_str(&format!("kyber_pre_key_signature failed: {e}")))?;
+	let sig = b
+	    .kyber_pre_key_signature()
+	    .map_err(|e| JsValue::from_str(&format!("kyber_pre_key_signature failed: {e}")))?;
 
-    Ok(Uint8Array::from(sig))
+	match sig {
+	    Some(sig) => Ok(Uint8Array::from(sig)),
+	    None => Ok(Uint8Array::new_with_length(0)),
+	}
 }
 

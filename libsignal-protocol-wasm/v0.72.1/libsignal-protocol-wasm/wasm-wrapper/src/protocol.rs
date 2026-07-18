@@ -35,7 +35,7 @@ use libsignal_protocol::{
     kem::PublicKey as KyberPublicKey,
 }; 
 
-use libsignal_core::address::InvalidDeviceId;
+use libsignal_core::DeviceId;
 
 // ---------------------------------------------
 // Local js_err helper (required)
@@ -217,23 +217,23 @@ pub fn prekey_bundle_new_wasm(
         _ => return Err(js_err("Must supply both or neither of prekey + prekey_id")),
     };
 
-    let device_id = device_id.try_into()
-        .map_err(|e: InvalidDeviceId| js_err(e.to_string()))?;
+    let device_id: DeviceId = device_id.into();
 
-    let kyber_prekey_clone = kyber_prekey.clone();
-
-    let bundle = PreKeyBundle::new(
-        registration_id,
-        device_id,
-        prekey,
-        signed_prekey_id.into(),
-        signed_prekey,
-        signed_prekey_sig.to_vec(),
-        kyber_prekey_id.into(),
-        kyber_prekey,
-        kyber_prekey_sig.to_vec(),
-        identity_key,
-    ).map_err(js_err)?;
+	let bundle = PreKeyBundle::new(
+	    registration_id,
+	    device_id,
+	    prekey,
+	    signed_prekey_id.into(),
+	    signed_prekey,
+	    signed_prekey_sig.to_vec(),
+	    identity_key,
+	)
+	.map_err(js_err)?
+	.with_kyber_pre_key(
+	    kyber_prekey_id.into(),
+	    kyber_prekey.clone(),
+	    kyber_prekey_sig.to_vec(),
+	);
 
     // Convert to JS object — WASM cannot return PreKeyBundle itself
     // JS object to return *all* bundle components
@@ -289,8 +289,9 @@ Reflect::set(&obj, &"kyber_prekey_id".into(), &JsValue::from(kyber_prekey_id))?;
 Reflect::set(
     &obj,
     &"kyber_prekey_public".into(),
-    &Uint8Array::from(kyber_prekey_clone.serialize().as_ref()).into(),
+    &Uint8Array::from(kyber_prekey.serialize().as_ref()).into(),
 )?;
+
 Reflect::set(
     &obj,
     &"kyber_prekey_signature".into(),

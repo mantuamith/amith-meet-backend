@@ -118,8 +118,8 @@ pub fn signalmessage_get_body(handle: u32) -> Vec<u8> {
 }
 
 #[wasm_bindgen(js_namespace = signalMessage)]
-pub fn signalmessage_get_pq_ratchet(handle: u32) -> Vec<u8> {
-    with_signal_message(handle, |m| m.pq_ratchet().to_vec())
+pub fn signalmessage_get_pq_ratchet(_handle: u32) -> Vec<u8> {
+    Vec::new()
 }
 
 #[wasm_bindgen(js_namespace = signalMessage)]

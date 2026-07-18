@@ -161,33 +161,11 @@ pub fn kyberprekeystore_contains_kyber_prekey(
 pub fn kyberprekeystore_mark_kyber_prekey_used(
     store_handle: u32,
     kyber_prekey_id: u32,
-    signed_prekey_id: u32,
-    base_key_handle: u32,
 ) -> Result<(), JsValue> {
-    crate::wasm_ec_public_key::with_public_key(base_key_handle, |base_key| {
-        with_kyber_prekey_store_mut(store_handle, |store| {
-            // Mark Kyber prekey as used
-            store.used.insert(kyber_prekey_id);
-
-            let entry = store
-                .base_keys_seen
-                .entry((kyber_prekey_id, signed_prekey_id))
-                .or_insert_with(Vec::new);
-
-            let base_bytes = base_key.serialize();
-
-            // Reject reused base keys
-            for existing in entry.iter() {
-                if existing.serialize() == base_bytes {
-                    return Err(JsValue::from_str("ReusedBaseKeyException"));
-                }
-            }
-
-            // Store a CLONE (ownership required)
-            entry.push(base_key.clone());
-
-            Ok(())
-        })
+    with_kyber_prekey_store_mut(store_handle, |store| {
+        // Mark the Kyber pre-key as used.
+        store.used.insert(kyber_prekey_id);
+        Ok(())
     })
 }
 

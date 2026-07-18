@@ -6,7 +6,7 @@ use once_cell::sync::Lazy;
 use std::sync::Mutex;
 use std::time::{Duration, SystemTime};
 
-use libsignal_protocol::{SessionRecord, SessionUsabilityRequirements};
+use libsignal_protocol::SessionRecord;
 use libsignal_core::curve::PublicKey;
 
 use crate::handle_table::HandleTable;
@@ -169,10 +169,7 @@ pub fn sessionrecord_has_usable_sender_chain(ptr: u32, now_ms: u64) -> bool {
     match get_session_record_clone(ptr) {
         Ok(rec) => {
             let system_time = SystemTime::UNIX_EPOCH + Duration::from_millis(now_ms);
-            match rec.has_usable_sender_chain(
-                system_time,
-                SessionUsabilityRequirements::NotStale,
-            ) {
+            match rec.has_usable_sender_chain(system_time) {
                 Ok(v) => v,
                 Err(e) => {
                     console::error_1(

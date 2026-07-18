@@ -3,16 +3,14 @@ use js_sys::Uint8Array;
 use web_sys::console;
 
 use libsignal_protocol::{
-    KyberPreKeyStore,
+    GenericSignedPreKey,
     KyberPreKeyId,
     KyberPreKeyRecord,
-    PublicKey,
+    KyberPreKeyStore,
     SignalProtocolError,
-    SignedPreKeyId,
 };
 
 use libsignal_protocol::error::Result as ProtocolResult;
-use libsignal_protocol::GenericSignedPreKey;
 
 use crate::wasm_kyber_prekey_store;
 use crate::wasm_ec_public_key;
@@ -66,21 +64,14 @@ impl KyberPreKeyStore for KyberPreKeyStoreAdapter {
         .map_err(js_err)
     }
 
-    async fn mark_kyber_pre_key_used(
-        &mut self,
-        kyber_prekey_id: KyberPreKeyId,
-        signed_prekey_id: SignedPreKeyId,
-        base_key: &PublicKey,
-    ) -> ProtocolResult<()> {
-        let base_key_handle =
-            wasm_ec_public_key::store_public_key(base_key.clone());
-
-        wasm_kyber_prekey_store::kyberprekeystore_mark_kyber_prekey_used(
-            self.handle,
-            kyber_prekey_id.into(),
-            signed_prekey_id.into(),
-            base_key_handle,
-        )
-        .map_err(js_err)
-    }
+	async fn mark_kyber_pre_key_used(
+	    &mut self,
+	    kyber_prekey_id: KyberPreKeyId,
+	) -> ProtocolResult<()> {
+	    wasm_kyber_prekey_store::kyberprekeystore_mark_kyber_prekey_used(
+	        self.handle,
+	        kyber_prekey_id.into(),
+	    )
+	    .map_err(js_err)
+	}
 }

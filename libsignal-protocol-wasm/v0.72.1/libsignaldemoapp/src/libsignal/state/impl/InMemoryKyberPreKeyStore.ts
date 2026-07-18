@@ -68,11 +68,9 @@ export class InMemoryKyberPreKeyStore implements KyberPreKeyStore {
   // ---------------------------------------------------------------------------
 
   markKyberPreKeyUsed(
-    kyberPreKeyId: number,
-    signedPreKeyId: number,
-    baseKey: ECPublicKey
+    kyberPreKeyId: number
   ): void {
-    kyberPreKeyStoreWasm.kyberprekeystore_mark_kyber_prekey_used(this.storeHandle, kyberPreKeyId, signedPreKeyId, baseKey.handle);    
+    kyberPreKeyStoreWasm.kyberprekeystore_mark_kyber_prekey_used(this.storeHandle, kyberPreKeyId);    
   }
 
   // ---------------------------------------------------------------------------

@@ -28,14 +28,14 @@ export class PreKeyBundle {
     signedPreKeyPublic: ECPublicKey,
     signedPreKeySignature: Uint8Array,
     identityKey: IdentityKey,
-    kyberPreKeyId: number,
-    kyberPreKeyPublic: KEMPublicKey,
-    kyberPreKeySignature: Uint8Array
+    kyberPreKeyId?: number,
+    kyberPreKeyPublic?: KEMPublicKey | null,
+    kyberPreKeySignature?: Uint8Array,
   ) {
     const preKeyPtr = preKeyPublic ? preKeyPublic.handle : 0;
     const signedPreKeyPtr = signedPreKeyPublic.handle;
     const identityPtr = identityKey.getPublicKey().handle;
-    const kyberPtr = kyberPreKeyPublic.handle;
+    const kyberPtr = kyberPreKeyPublic?.handle ?? 0;
 
     const native = preKeyBundleWasm.prekeybundle_new(
       registrationId,
@@ -46,9 +46,9 @@ export class PreKeyBundle {
       signedPreKeyPtr,
       signedPreKeySignature,
       identityPtr,
-      kyberPreKeyId,
+      kyberPreKeyId ?? -1,
       kyberPtr,
-      kyberPreKeySignature
+      kyberPreKeySignature ?? new Uint8Array(),
     );
 
     if (!native) {

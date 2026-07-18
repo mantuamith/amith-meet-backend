@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-mod address;
+pub mod address;
 // Not exporting the members because they have overly-generic names.
 pub mod curve;
 mod e164;

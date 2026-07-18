@@ -34,9 +34,7 @@ export interface KyberPreKeyStore {
    * @throws ReusedBaseKeyException if the same tuple was seen previously.
    */
   markKyberPreKeyUsed(
-    kyberPreKeyId: number,
-    signedPreKeyId: number,
-    baseKey: ECPublicKey
+    kyberPreKeyId: number
   ): void;
 
   getKyberPreKeyStoreHandle(): number;

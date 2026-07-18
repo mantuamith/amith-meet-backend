@@ -69,22 +69,15 @@ pub async fn sessioncipher_encrypt_message(
             let mut identity_key_store =
                 crate::wasm_identity_key_store_adapter::IdentityStoreAdapter::new(identity_key_store_handle);
 
-            let mut seed = [0u8; 32];
-            getrandom::getrandom(&mut seed)
-                .map_err(|e| JsValue::from_str(&format!("Random seed error: {}", e)))?;
-
-            let mut rng = ChaCha20Rng::from_seed(seed);
-
-            let msg = libsignal_protocol::message_encrypt(
-                &plaintext_vec,
-                &address,
-                &mut session_store,
-                &mut identity_key_store,
-                now,
-                &mut rng,
-            )
-            .await
-            .map_err(|e| JsValue::from_str(&format!("{:?}", e)))?;
+			let msg = libsignal_protocol::message_encrypt(
+				    &plaintext_vec,
+				    &address,
+				    &mut session_store,
+				    &mut identity_key_store,
+				    now,
+			)
+			.await
+			.map_err(|e| JsValue::from_str(&format!("{:?}", e)))?;
 
             // ✅ ALWAYS return a valid ciphertext handle
             Ok(crate::wasm_ciphertext_message::store_ciphertext_message(msg))

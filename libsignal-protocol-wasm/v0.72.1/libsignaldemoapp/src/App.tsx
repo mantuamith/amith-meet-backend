@@ -4,7 +4,7 @@ import SignalGroupMessageDemo from "./SignalGroupMessageDemo";
 function App() {
   return (
     <div>
-      <SignalGroupMessageDemo />
+      <SignalDirectMessageDemo />
     </div>
   );
 }
