@@ -16,6 +16,7 @@ import org.signal.libsignal.protocol.SessionBuilder;
 import org.signal.libsignal.protocol.SessionCipher;
 import org.signal.libsignal.protocol.SignalProtocolAddress;
 import org.signal.libsignal.protocol.UntrustedIdentityException;
+import org.signal.libsignal.protocol.ecc.Curve;
 import org.signal.libsignal.protocol.ecc.ECKeyPair;
 import org.signal.libsignal.protocol.ecc.ECPublicKey;
 import org.signal.libsignal.protocol.kem.KEMKeyPair;
@@ -40,7 +41,7 @@ public class ExampleAliceToBobWeb {
 	}  
 	
 	private static IdentityKeyPair generateIdentityKeyPair() {
-		ECKeyPair identityKeyPairKeys = ECKeyPair.generate();
+		ECKeyPair identityKeyPairKeys = Curve.generateKeyPair();
 
 		return new IdentityKeyPair(
 				new IdentityKey(identityKeyPairKeys.getPublicKey()), identityKeyPairKeys.getPrivateKey());
@@ -59,8 +60,8 @@ public class ExampleAliceToBobWeb {
 
 		// Generate bob store and keys
 		final InMemorySignalProtocolStore bobStore = new InMemorySignalProtocolStore(generateIdentityKeyPair(), generateRegistrationId());
-		ECKeyPair    bobPreKeyPair            = ECKeyPair.generate();
-		ECKeyPair    bobSignedPreKeyPair      = ECKeyPair.generate();
+		ECKeyPair    bobPreKeyPair            = Curve.generateKeyPair();
+		ECKeyPair    bobSignedPreKeyPair      = Curve.generateKeyPair();
 
 		byte[] bobSignedPreKeySignature =
 				bobStore
