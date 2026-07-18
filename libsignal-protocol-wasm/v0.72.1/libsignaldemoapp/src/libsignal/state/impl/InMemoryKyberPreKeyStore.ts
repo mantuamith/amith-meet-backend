@@ -1,5 +1,4 @@
 import { InvalidKeyIdException } from "../../exceptions/InvalidKeyIdException";
-import type { ECPublicKey } from "../../protocol/ecc/ECPublicKey";
 import { KyberPreKeyRecord } from "../KyberPreKeyRecord";
 import type { KyberPreKeyStore } from "../KyberPreKeyStore";
 import { kyberPreKeyStore as kyberPreKeyStoreWasm } from "libsignal_wasm_pqxdh";
