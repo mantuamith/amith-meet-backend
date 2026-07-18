@@ -138,6 +138,11 @@ class GroupSenderKeyServiceTest {
 			@Override
 			public Instant getDeletedAt() {
 				return null;
+			}
+
+			@Override
+			public UUID getDistributionId() {
+				return null;
 			}        	
         };
        

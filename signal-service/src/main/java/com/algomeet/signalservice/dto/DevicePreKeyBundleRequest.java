@@ -11,7 +11,6 @@ public class DevicePreKeyBundleRequest {
 	@NotNull
     private SignedPreKeyRequest signedPreKey;
 
-	@NotNull
     private KyberPreKeyRequest kyberPreKey;
 	
 	@NotNull
