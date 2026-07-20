@@ -146,8 +146,16 @@ export default function SignalDirectMessageDemo() {
   }
   
   bobKyberPreKeySig = bobIdentityKeyPair.getPrivateKey().calculateSignature(bobKyberPreKeyPair.publicKey.serialize()); 
-  console.log("Bob privateKey: " + b64.encode(bobIdentityKeyPair.privateKey.serialize()));
-  console.log("Bob publicKey: " + b64.encode(bobIdentityKeyPair.publicKey.serialize()));
+  
+  console.log("Bob registration ID: " + bobRegistrationId);
+  console.log("Bob Indentity privateKey: " + b64.encode(bobIdentityKeyPair.privateKey.serialize()));
+  console.log("Bob Indentity publicKey: " + b64.encode(bobIdentityKeyPair.publicKey.serialize()));
+  
+  console.log("Bob prekey privateKey: " + b64.encode(bobPreKeyPair.privateKey.serialize()));
+  console.log("Bob prekey publicKey: " + b64.encode(bobPreKeyPair.publicKey.serialize()));
+  
+  console.log("Bob signed prekey private: " + b64.encode(bobSignedPreKeyPair.privateKey.serialize()));
+  console.log("Bob signed prekey public: " + b64.encode(bobSignedPreKeyPair.publicKey.serialize()));
  
   console.log("Bob signed prekey signature: " + b64.encode(bobSignedPreKeySig));
   console.log("Bob kyber prekey signature: " + b64.encode(bobKyberPreKeySig));

@@ -114,6 +114,7 @@ public class ExampleAliceToBob {
 
 		//Add tp store the prekeys
 		bobStore.storePreKey(bobPreKeyId, new PreKeyRecord(bobPreKeyId, bobPreKeyPair));
+		// Sample add more pre-keys
 		bobStore.storePreKey(2, new PreKeyRecord(2, bobPreKeyPair));
 		
 		//Add tp store the signed-prekeys
