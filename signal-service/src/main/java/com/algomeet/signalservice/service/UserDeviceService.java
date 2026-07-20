@@ -28,6 +28,7 @@ import com.algomeet.signalservice.entity.UserDevice;
 import com.algomeet.signalservice.entity.UserDeviceId;
 import com.algomeet.signalservice.enums.E2eeEventActionType;
 import com.algomeet.signalservice.exceptions.DeviceExistsException;
+import com.algomeet.signalservice.exceptions.DevicePreKeyBundleExistException;
 import com.algomeet.signalservice.exceptions.OneTimePreKeyExistsException;
 import com.algomeet.signalservice.exceptions.RecordNotFoundException;
 import com.algomeet.signalservice.mapper.KyberPreKeyMapper;
@@ -139,6 +140,10 @@ public class UserDeviceService {
 		}
 
 		//Save signed prekeys
+		if (signedPreKeyRepository.findById(new SignedPreKeyId(userKey, deviceId)).isPresent()) {
+			throw new DevicePreKeyBundleExistException("Device prekey bundle has been added already");
+		}
+		
 		SignedPreKey signedPreKey = SignedPreKeyMapper.toEntity(userKey, deviceId, request.getSignedPreKey());		
 		signedPreKey.setCreatedAt(Instant.now());
 		SignedPreKey savedSignedPreKey= signedPreKeyRepository.save(signedPreKey);

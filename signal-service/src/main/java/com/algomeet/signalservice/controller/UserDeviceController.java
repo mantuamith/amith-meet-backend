@@ -25,6 +25,7 @@ import com.algomeet.signalservice.dto.UserDeviceRequest;
 import com.algomeet.signalservice.dto.UserDeviceResponse;
 import com.algomeet.signalservice.enums.ResponseCode;
 import com.algomeet.signalservice.exceptions.DeviceExistsException;
+import com.algomeet.signalservice.exceptions.DevicePreKeyBundleExistException;
 import com.algomeet.signalservice.exceptions.OneTimePreKeyExistsException;
 import com.algomeet.signalservice.exceptions.RecordNotFoundException;
 import com.algomeet.signalservice.service.UserDeviceService;
@@ -108,6 +109,9 @@ public class UserDeviceController implements UserDeviceControllerDoc{
 		} catch (OneTimePreKeyExistsException ex) {
 			return ResponseEntity.status(HttpStatus.CONFLICT).body(
 					CommonResponse.from(ResponseCode.ONE_TIME_PRE_KEY_EXISTS));
+		} catch (DevicePreKeyBundleExistException ex) {
+			return ResponseEntity.status(HttpStatus.CONFLICT).body(
+					CommonResponse.from(ResponseCode.DEVICE_PRE_KEY_BUNDLE_EXISTS));
 		}
 	}
 }
