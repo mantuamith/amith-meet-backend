@@ -138,7 +138,7 @@
     <dependency>
 	    <groupId>org.signal</groupId>
 	    <artifactId>libsignal-client</artifactId>
-	    <version>0.86.5</version>
+	    <version>0.72.1</version>
 	</dependency>
 	
 	<dependency>
