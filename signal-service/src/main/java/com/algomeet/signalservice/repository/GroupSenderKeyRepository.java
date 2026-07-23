@@ -27,9 +27,9 @@ public interface GroupSenderKeyRepository extends JpaRepository<GroupSenderKey, 
 			    created_at as createdAt,
 			    deleted_at as deletedAt
 			FROM signal_group_sender_keys
-			WHERE sender_user_key = :senderUserKey 
-			  AND sender_device_id = :senderDeviceId 
-			  AND group_id = :groupId
+			WHERE sender_user_key = CAST(:senderUserKey AS VARCHAR)
+			  AND sender_device_id = :senderDeviceId
+			  AND group_id = CAST(:groupId AS VARCHAR)
 			  AND deleted_at is null
 			""", nativeQuery = true)
 	List<GroupSenderKeyView> findByIdSenderUserKeyAndIdSenderDeviceIdAndIdGroupId(
@@ -50,8 +50,8 @@ public interface GroupSenderKeyRepository extends JpaRepository<GroupSenderKey, 
 			    created_at as createdAt,
 			    deleted_at as deletedAt
 			FROM signal_group_sender_keys
-			WHERE sender_user_key = :senderUserKey 
-			  AND group_id = :groupId
+			WHERE sender_user_key = CAST(:senderUserKey AS VARCHAR)
+			  AND group_id = CAST(:groupId AS VARCHAR)
 			""", nativeQuery = true)
 	List<GroupSenderKeyView> findByIdSenderUserKeyAndIdGroupId(
 			@Param("senderUserKey") UUID senderUserKey, 
