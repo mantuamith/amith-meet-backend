@@ -27,7 +27,7 @@ public interface GroupSenderKeyRepository extends JpaRepository<GroupSenderKey, 
 			    created_at as createdAt,
 			    deleted_at as deletedAt
 			FROM signal_group_sender_keys
-			WHERE sender_user_key = CAST(:senderUserKey AS VARCHAR)
+			WHERE sender_user_key = :senderUserKey
 			  AND sender_device_id = :senderDeviceId
 			  AND group_id = CAST(:groupId AS VARCHAR)
 			  AND deleted_at is null
@@ -37,8 +37,17 @@ public interface GroupSenderKeyRepository extends JpaRepository<GroupSenderKey, 
 			@Param("senderDeviceId") Integer senderDeviceId, 
 			@Param("groupId") UUID groupId);
 
+	@Query(value = """
+			SELECT * FROM signal_group_sender_keys
+			WHERE receiver_user_key = :receiverUserKey
+			  AND receiver_device_id = :receiverDeviceId
+			  AND group_id = CAST(:groupId AS VARCHAR)
+			  AND deleted_at IS NULL
+			""", nativeQuery = true)
 	List<GroupSenderKey> findByIdReceiverUserKeyAndIdReceiverDeviceIdAndIdGroupIdAndDeletedAtIsNull(
-			UUID receiverUserKey, Integer receiverDeviceId, UUID groupId);
+			@Param("receiverUserKey") UUID receiverUserKey,
+			@Param("receiverDeviceId") Integer receiverDeviceId,
+			@Param("groupId") UUID groupId);
 
 	@Query(value = """
 			SELECT 
@@ -50,7 +59,7 @@ public interface GroupSenderKeyRepository extends JpaRepository<GroupSenderKey, 
 			    created_at as createdAt,
 			    deleted_at as deletedAt
 			FROM signal_group_sender_keys
-			WHERE sender_user_key = CAST(:senderUserKey AS VARCHAR)
+			WHERE sender_user_key = :senderUserKey
 			  AND group_id = CAST(:groupId AS VARCHAR)
 			""", nativeQuery = true)
 	List<GroupSenderKeyView> findByIdSenderUserKeyAndIdGroupId(
