@@ -11,12 +11,13 @@ import org.springframework.web.bind.annotation.RequestParam;
 import com.algomeet.signalservice.dto.CommonResponse;
 import com.algomeet.signalservice.dto.GroupSenderKeyRequest;
 import com.algomeet.signalservice.dto.GroupSenderKeyResponse;
+import com.algomeet.signalservice.dto.GroupSenderKeysRequest;
+import com.algomeet.signalservice.dto.GroupSenderKeysResponse;
 import com.algomeet.signalservice.dto.UserDeviceResponse;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
-import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -34,7 +35,7 @@ public interface GroupSenderKeyControllerV3Doc {
             @ApiResponse(responseCode = "200", description = "Sender keys uploaded successfully"),
             @ApiResponse(responseCode = "404", description = "Sender device not found")
     })
-    ResponseEntity<CommonResponse<GroupSenderKeyResponse>> create(
+    ResponseEntity<CommonResponse<GroupSenderKeysResponse>> create(
             @Parameter(description = "Group identifier")
             @PathVariable UUID groupId,
 
@@ -45,21 +46,10 @@ public interface GroupSenderKeyControllerV3Doc {
                     description = "Encrypted sender key payload",
                     required = true,
                     content = @Content(
-                            schema = @Schema(implementation = GroupSenderKeyRequest.class),
-                            examples = @ExampleObject(value = """
-                                    {
-                                      "items": [
-                                        {
-                                          "receiverUserKey": "2fc35cae-e0b7-40a5-b2aa-e86206730e99",
-                                          "receiverDeviceId": 1,
-                                          "skdmCipher": "BASE64_ENCRYPTED_SKDM"
-                                        }
-                                      ]
-                                    }
-                                    """)
+                            schema = @Schema(implementation = GroupSenderKeysRequest.class)                            
                     )
             )
-            @RequestBody GroupSenderKeyRequest request);
+            @RequestBody GroupSenderKeysRequest request);
 
     @Operation(
             summary = "Get uploaded sender keys by sender device",

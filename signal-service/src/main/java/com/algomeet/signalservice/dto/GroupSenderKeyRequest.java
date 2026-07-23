@@ -11,15 +11,15 @@ import lombok.Data;
 
 @Data
 public class GroupSenderKeyRequest {
+	@NotNull(message = "distributionId is required")
+	private UUID distributionId;
+	
 	@NotNull
     private UUID receiverUserKey;
 
 	@NotNull(message = "receiverDeviceId is required")
     @Min(value = 1, message = "receiverDeviceId must be greater than 0")
     private Integer receiverDeviceId;
-
-	@NotNull(message = "distributionId is required")
-	private UUID distributionId;
 	
     /** Base64 or hex encoded SKDM ciphertext */
     @NotEmpty

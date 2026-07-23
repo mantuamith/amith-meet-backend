@@ -36,6 +36,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.algomeet.signalservice.config.LocalizationConfig;
 import com.algomeet.signalservice.dto.GroupSenderKeyRequest;
 import com.algomeet.signalservice.dto.GroupSenderKeyResponse;
+import com.algomeet.signalservice.dto.GroupSenderKeysRequest;
+import com.algomeet.signalservice.dto.GroupSenderKeysResponse;
 import com.algomeet.signalservice.enums.ResponseCode;
 import com.algomeet.signalservice.exceptions.RecordNotFoundException;
 import com.algomeet.signalservice.service.GroupSenderKeyService;
@@ -85,12 +87,15 @@ class GroupSenderKeyControllerTest {
      * ------------------------------------------------- */
     @Test
     void createGroupSenderKey_success() throws Exception {
-        GroupSenderKeyRequest request = new GroupSenderKeyRequest();       
-        request.setReceiverUserKey(UUID.fromString("22222222-2222-2222-2222-222222222222"));
-        request.setReceiverDeviceId(1);
-        request.setSkdmCipher("U29tZVNhbXBsZVNlbmRlclNLRE1EYXRh"); // valid Base64 string
+    	GroupSenderKeysRequest request = new GroupSenderKeysRequest();  
+        GroupSenderKeyRequest key = new GroupSenderKeyRequest();       
+        key.setReceiverUserKey(UUID.fromString("22222222-2222-2222-2222-222222222222"));
+        key.setReceiverDeviceId(1);
+        key.setSkdmCipher("U29tZVNhbXBsZVNlbmRlclNLRE1EYXRh"); // valid Base64 string
+        
+        request.setKeys(List.of(key));
 
-        GroupSenderKeyResponse response = new GroupSenderKeyResponse();
+        GroupSenderKeysResponse response = new GroupSenderKeysResponse();
 
         when(service.create(USER_KEY, 1, GROUP_ID, request))
                 .thenReturn(response);
@@ -105,11 +110,13 @@ class GroupSenderKeyControllerTest {
 
     @Test
     void createGroupSenderKey_deviceNotFound() throws Exception {
-        GroupSenderKeyRequest request = new GroupSenderKeyRequest();
-        request.setReceiverUserKey(UUID.fromString("22222222-2222-2222-2222-222222222222"));
-        request.setReceiverDeviceId(1);
-        request.setSkdmCipher("U29tZVNhbXBsZVNlbmRlclNLRE1EYXRh"); // valid Base64 string
-
+        GroupSenderKeysRequest request = new GroupSenderKeysRequest();
+        GroupSenderKeyRequest key = new GroupSenderKeyRequest();
+        key.setReceiverUserKey(UUID.fromString("22222222-2222-2222-2222-222222222222"));
+        key.setReceiverDeviceId(1);
+        key.setSkdmCipher("U29tZVNhbXBsZVNlbmRlclNLRE1EYXRh"); // valid Base64 string
+        request.setKeys(List.of(key));
+        
         when(service.create(USER_KEY, 1, GROUP_ID, request))
                 .thenThrow(new RecordNotFoundException("not found"));
 

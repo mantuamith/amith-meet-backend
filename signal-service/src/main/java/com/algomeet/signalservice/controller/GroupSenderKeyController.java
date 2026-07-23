@@ -18,6 +18,8 @@ import com.algomeet.signalservice.controller.swagger.GroupSenderKeyControllerDoc
 import com.algomeet.signalservice.dto.CommonResponse;
 import com.algomeet.signalservice.dto.GroupSenderKeyRequest;
 import com.algomeet.signalservice.dto.GroupSenderKeyResponse;
+import com.algomeet.signalservice.dto.GroupSenderKeysRequest;
+import com.algomeet.signalservice.dto.GroupSenderKeysResponse;
 import com.algomeet.signalservice.enums.ResponseCode;
 import com.algomeet.signalservice.exceptions.RecordNotFoundException;
 import com.algomeet.signalservice.service.GroupSenderKeyService;
@@ -35,15 +37,18 @@ public class GroupSenderKeyController implements GroupSenderKeyControllerDoc{
 	/** Sender device uploads SKDM */
 	@Deprecated
 	@PostMapping("/{senderDeviceId}/groups/{groupId}/sender-keys")
-	public ResponseEntity<CommonResponse<GroupSenderKeyResponse>> create(
+	public ResponseEntity<CommonResponse<GroupSenderKeysResponse>> create(
 			@PathVariable Integer senderDeviceId,
 			@PathVariable UUID groupId,
 			@Validated @RequestBody GroupSenderKeyRequest request) {
 		try {
 			UUID senderUserKey = UUID.fromString(SecurityUtil.getUserKey());
 
+			GroupSenderKeysRequest req = new GroupSenderKeysRequest();
+			req.setKeys(List.of(request));
+			
 			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS,
-					service.create(senderUserKey, senderDeviceId, groupId, request))
+					service.create(senderUserKey, senderDeviceId, groupId, req))
 					);
 		} catch(RecordNotFoundException ex) {
 			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(

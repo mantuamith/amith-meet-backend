@@ -21,6 +21,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.algomeet.signalservice.dto.GroupSenderKeyRequest;
 import com.algomeet.signalservice.dto.GroupSenderKeyResponse;
+import com.algomeet.signalservice.dto.GroupSenderKeysRequest;
+import com.algomeet.signalservice.dto.GroupSenderKeysResponse;
 import com.algomeet.signalservice.entity.GroupSenderKey;
 import com.algomeet.signalservice.view.GroupSenderKeyView;
 import com.algomeet.signalservice.entity.GroupSenderKeyId;
@@ -48,14 +50,17 @@ class GroupSenderKeyServiceTest {
     private static final Integer SENDER_DEVICE_ID = 1;
     private static final Integer RECEIVER_DEVICE_ID = 2;
 
-    private GroupSenderKeyRequest request;
+    private GroupSenderKeysRequest request;
 
     @BeforeEach
     void setup() {
-        request = new GroupSenderKeyRequest();
-        request.setReceiverUserKey(RECEIVER_USER_KEY);
-        request.setReceiverDeviceId(RECEIVER_DEVICE_ID);
-        request.setSkdmCipher("U29tZVNhbXBsZVNlbmRlclNLRE1EYXRh"); // valid Base64
+        request = new GroupSenderKeysRequest();
+        
+        GroupSenderKeyRequest key = new GroupSenderKeyRequest();
+        key.setReceiverUserKey(RECEIVER_USER_KEY);
+        key.setReceiverDeviceId(RECEIVER_DEVICE_ID);
+        key.setSkdmCipher("U29tZVNhbXBsZVNlbmRlclNLRE1EYXRh"); // valid Base64
+        request.setKeys(List.of(key));
     }
 
     /* -------------------------------------------------
@@ -75,7 +80,7 @@ class GroupSenderKeyServiceTest {
         when(repository.save(any(GroupSenderKey.class)))
                 .thenReturn(groupSenderKey);
 
-        GroupSenderKeyResponse response = service.create(SENDER_USER_KEY, SENDER_DEVICE_ID, GROUP_ID, request);
+        GroupSenderKeysResponse response = service.create(SENDER_USER_KEY, SENDER_DEVICE_ID, GROUP_ID, request);
 
         assertNotNull(response);
     }

@@ -17,8 +17,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.algomeet.signalservice.controller.swagger.GroupSenderKeyControllerV3Doc;
 import com.algomeet.signalservice.dto.CommonResponse;
-import com.algomeet.signalservice.dto.GroupSenderKeyRequest;
 import com.algomeet.signalservice.dto.GroupSenderKeyResponse;
+import com.algomeet.signalservice.dto.GroupSenderKeysRequest;
+import com.algomeet.signalservice.dto.GroupSenderKeysResponse;
 import com.algomeet.signalservice.dto.UserDeviceResponse;
 import com.algomeet.signalservice.entity.GroupSenderKeyId;
 import com.algomeet.signalservice.enums.ResponseCode;
@@ -41,10 +42,10 @@ public class GroupSenderKeyControllerV3 implements GroupSenderKeyControllerV3Doc
 
     /** Sender uploads SKDM */
     @PostMapping("/devices/{senderDeviceId}")
-    public ResponseEntity<CommonResponse<GroupSenderKeyResponse>> create(
+    public ResponseEntity<CommonResponse<GroupSenderKeysResponse>> create(
             @PathVariable UUID groupId,
             @PathVariable Integer senderDeviceId,
-            @Validated @RequestBody GroupSenderKeyRequest request) {
+            @Validated @RequestBody GroupSenderKeysRequest request) {
 
         try {
             return ResponseEntity.ok(
