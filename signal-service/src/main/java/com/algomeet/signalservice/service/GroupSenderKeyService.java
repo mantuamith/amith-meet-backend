@@ -19,8 +19,6 @@ import com.algomeet.common.dto.GroupMember;
 import com.algomeet.common.service.AbstractGroupCache;
 import com.algomeet.signalservice.dto.GroupSenderKeyRequest;
 import com.algomeet.signalservice.dto.GroupSenderKeyResponse;
-import com.algomeet.signalservice.dto.GroupSenderKeysRequest;
-import com.algomeet.signalservice.dto.GroupSenderKeysResponse;
 import com.algomeet.signalservice.dto.UserDeviceResponse;
 import com.algomeet.signalservice.entity.GroupSenderKey;
 import com.algomeet.signalservice.entity.GroupSenderKeyId;
@@ -47,24 +45,24 @@ public class GroupSenderKeyService {
 	private final UserDeviceRepository deviceRepository;
 	private final AbstractGroupCache groupCacheService;
 
-	public GroupSenderKeysResponse create(UUID senderUserKey, Integer senderDeviceId, UUID groupId, GroupSenderKeysRequest request) {
+	public List<GroupSenderKeyResponse> create(
+	        UUID senderUserKey, 
+	        Integer senderDeviceId, 
+	        UUID groupId, 
+	        List<GroupSenderKeyRequest> requests) {
+
 	    deviceRepository.findById(new UserDeviceId(senderUserKey, senderDeviceId))
 	            .orElseThrow(() -> new RecordNotFoundException("User device ID not found"));
 
-	    List<GroupSenderKey> senderKeys = request.getKeys().stream()
+	    List<GroupSenderKey> senderKeys = requests.stream()
 	            .map(key -> GroupSenderKeyMapper.toEntity(senderUserKey, senderDeviceId, groupId, key))
 	            .toList();
 
 	    List<GroupSenderKey> savedKeys = repository.saveAll(senderKeys);
 
-	    List<GroupSenderKeyResponse> keyResponses = savedKeys.stream()
+	    return savedKeys.stream()
 	            .map(GroupSenderKeyMapper::toDto)
 	            .toList();
-
-	    GroupSenderKeysResponse resp = new GroupSenderKeysResponse();
-	    resp.setKeys(keyResponses); 
-
-	    return resp;
 	}
 
 	@Transactional(readOnly = true)

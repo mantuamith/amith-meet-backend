@@ -11,7 +11,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import com.algomeet.signalservice.dto.CommonResponse;
 import com.algomeet.signalservice.dto.GroupSenderKeyRequest;
 import com.algomeet.signalservice.dto.GroupSenderKeyResponse;
-import com.algomeet.signalservice.dto.GroupSenderKeysResponse;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -42,7 +41,7 @@ public interface GroupSenderKeyControllerDoc {
 			content = @Content(schema = @Schema(implementation = CommonResponse.class))
 			)
 	@Deprecated
-	public ResponseEntity<CommonResponse<GroupSenderKeysResponse>> create(
+	public ResponseEntity<CommonResponse<GroupSenderKeyResponse>> create(
 			@Parameter(description = "Sender device ID", required = true)
 			@PathVariable Integer senderDeviceId,
 

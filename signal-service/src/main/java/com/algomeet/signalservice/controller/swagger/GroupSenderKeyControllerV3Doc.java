@@ -11,8 +11,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import com.algomeet.signalservice.dto.CommonResponse;
 import com.algomeet.signalservice.dto.GroupSenderKeyRequest;
 import com.algomeet.signalservice.dto.GroupSenderKeyResponse;
-import com.algomeet.signalservice.dto.GroupSenderKeysRequest;
-import com.algomeet.signalservice.dto.GroupSenderKeysResponse;
 import com.algomeet.signalservice.dto.UserDeviceResponse;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -35,7 +33,7 @@ public interface GroupSenderKeyControllerV3Doc {
             @ApiResponse(responseCode = "200", description = "Sender keys uploaded successfully"),
             @ApiResponse(responseCode = "404", description = "Sender device not found")
     })
-    ResponseEntity<CommonResponse<GroupSenderKeysResponse>> create(
+    ResponseEntity<CommonResponse<GroupSenderKeyResponse>> create(
             @Parameter(description = "Group identifier")
             @PathVariable UUID groupId,
 
@@ -46,10 +44,10 @@ public interface GroupSenderKeyControllerV3Doc {
                     description = "Encrypted sender key payload",
                     required = true,
                     content = @Content(
-                            schema = @Schema(implementation = GroupSenderKeysRequest.class)                            
+                            schema = @Schema(implementation = GroupSenderKeyRequest.class)                            
                     )
             )
-            @RequestBody GroupSenderKeysRequest request);
+            @RequestBody GroupSenderKeyRequest request);
 
     @Operation(
             summary = "Get uploaded sender keys by sender device",

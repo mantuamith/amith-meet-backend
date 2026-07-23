@@ -17,9 +17,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.algomeet.signalservice.controller.swagger.GroupSenderKeyControllerV3Doc;
 import com.algomeet.signalservice.dto.CommonResponse;
+import com.algomeet.signalservice.dto.GroupSenderKeyRequest;
 import com.algomeet.signalservice.dto.GroupSenderKeyResponse;
-import com.algomeet.signalservice.dto.GroupSenderKeysRequest;
-import com.algomeet.signalservice.dto.GroupSenderKeysResponse;
 import com.algomeet.signalservice.dto.UserDeviceResponse;
 import com.algomeet.signalservice.entity.GroupSenderKeyId;
 import com.algomeet.signalservice.enums.ResponseCode;
@@ -42,18 +41,18 @@ public class GroupSenderKeyControllerV3 implements GroupSenderKeyControllerV3Doc
 
     /** Sender uploads SKDM */
     @PostMapping("/devices/{senderDeviceId}")
-    public ResponseEntity<CommonResponse<GroupSenderKeysResponse>> create(
+    public ResponseEntity<CommonResponse<GroupSenderKeyResponse>> create(
             @PathVariable UUID groupId,
             @PathVariable Integer senderDeviceId,
-            @Validated @RequestBody GroupSenderKeysRequest request) {
+            @Validated @RequestBody GroupSenderKeyRequest request) {
 
         try {
-            return ResponseEntity.ok(
-                    CommonResponse.from(
-                            ResponseCode.SUCCESS,
-                            service.create(currentUserKey(), senderDeviceId, groupId, request)
-                    )
-            );
+        	
+			List<GroupSenderKeyResponse> resp = service.create(currentUserKey(), senderDeviceId, groupId, List.of(request));
+			
+			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS,
+					resp != null ? resp.get(0): null)
+					);
         } catch (RecordNotFoundException ex) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(CommonResponse.from(ResponseCode.USER_DEVICE_ID_NOT_FOUND));

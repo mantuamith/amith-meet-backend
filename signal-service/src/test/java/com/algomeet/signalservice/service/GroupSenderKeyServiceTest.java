@@ -4,10 +4,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -21,16 +21,14 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.algomeet.signalservice.dto.GroupSenderKeyRequest;
 import com.algomeet.signalservice.dto.GroupSenderKeyResponse;
-import com.algomeet.signalservice.dto.GroupSenderKeysRequest;
-import com.algomeet.signalservice.dto.GroupSenderKeysResponse;
 import com.algomeet.signalservice.entity.GroupSenderKey;
-import com.algomeet.signalservice.view.GroupSenderKeyView;
 import com.algomeet.signalservice.entity.GroupSenderKeyId;
 import com.algomeet.signalservice.entity.UserDevice;
 import com.algomeet.signalservice.entity.UserDeviceId;
 import com.algomeet.signalservice.exceptions.RecordNotFoundException;
 import com.algomeet.signalservice.repository.GroupSenderKeyRepository;
 import com.algomeet.signalservice.repository.UserDeviceRepository;
+import com.algomeet.signalservice.view.GroupSenderKeyView;
 
 @ExtendWith(MockitoExtension.class)
 class GroupSenderKeyServiceTest {
@@ -50,23 +48,24 @@ class GroupSenderKeyServiceTest {
     private static final Integer SENDER_DEVICE_ID = 1;
     private static final Integer RECEIVER_DEVICE_ID = 2;
 
-    private GroupSenderKeysRequest request;
+    private List<GroupSenderKeyRequest> requests;
 
     @BeforeEach
     void setup() {
-        request = new GroupSenderKeysRequest();
+        requests = new ArrayList<>();
         
-        GroupSenderKeyRequest key = new GroupSenderKeyRequest();
-        key.setReceiverUserKey(RECEIVER_USER_KEY);
-        key.setReceiverDeviceId(RECEIVER_DEVICE_ID);
-        key.setSkdmCipher("U29tZVNhbXBsZVNlbmRlclNLRE1EYXRh"); // valid Base64
-        request.setKeys(List.of(key));
+        GroupSenderKeyRequest request = new GroupSenderKeyRequest();
+        request.setReceiverUserKey(RECEIVER_USER_KEY);
+        request.setReceiverDeviceId(RECEIVER_DEVICE_ID);
+        request.setSkdmCipher("U29tZVNhbXBsZVNlbmRlclNLRE1EYXRh"); // valid Base64
+        requests = List.of(request);
     }
 
     /* -------------------------------------------------
      * CREATE
      * ------------------------------------------------- */
-    @Test
+    @SuppressWarnings("unchecked")
+	@Test
     void create_success() {    	
     	UserDevice userDevice = new UserDevice();
     	userDevice.setId(new UserDeviceId(SENDER_USER_KEY, 1));
@@ -77,10 +76,10 @@ class GroupSenderKeyServiceTest {
         when(deviceRepository.findById(new UserDeviceId(SENDER_USER_KEY, SENDER_DEVICE_ID)))
                 .thenReturn(Optional.of(userDevice));
 
-        when(repository.save(any(GroupSenderKey.class)))
-                .thenReturn(groupSenderKey);
+        when(repository.saveAll(any(List.class)))
+                .thenReturn(List.of(groupSenderKey));
 
-        GroupSenderKeysResponse response = service.create(SENDER_USER_KEY, SENDER_DEVICE_ID, GROUP_ID, request);
+        List<GroupSenderKeyResponse> response = service.create(SENDER_USER_KEY, SENDER_DEVICE_ID, GROUP_ID, requests);
 
         assertNotNull(response);
     }
@@ -92,7 +91,7 @@ class GroupSenderKeyServiceTest {
 
         assertThrows(
                 RecordNotFoundException.class,
-                () -> service.create(SENDER_USER_KEY, SENDER_DEVICE_ID, GROUP_ID, request)
+                () -> service.create(SENDER_USER_KEY, SENDER_DEVICE_ID, GROUP_ID, requests)
         );
     }
 
