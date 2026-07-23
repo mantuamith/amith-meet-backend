@@ -32,5 +32,6 @@ public class UserProfileResponse {
     private String role;
     private Integer tenantId;
     private String lang;
+    private Integer messageRetentionDays;
     
 }

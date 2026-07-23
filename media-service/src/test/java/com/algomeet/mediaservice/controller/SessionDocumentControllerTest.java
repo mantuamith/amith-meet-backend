@@ -130,7 +130,7 @@ class SessionDocumentControllerTest {
         assertEquals(1, response.getBody().size());
         assertEquals("file-1", response.getBody().get(0).getObjectId());
         assertTrue(response.getBody().get(0).getPreSignedUrl()
-                .contains("/v1/documents/sessions/session-1/files/file-1/content?token=signed-token"));
+                .contains("/media/v1/documents/sessions/session-1/files/file-1/content?token=signed-token"));
     }
 
     @Test
@@ -151,7 +151,7 @@ class SessionDocumentControllerTest {
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals("file-1", response.getBody().getFileId());
         assertTrue(response.getBody().getPresignedUrl()
-                .contains("/v1/documents/sessions/session-1/files/file-1/content?token=signed-token"));
+                .contains("/media/v1/documents/sessions/session-1/files/file-1/content?token=signed-token"));
     }
 
     @Test
@@ -193,10 +193,91 @@ class SessionDocumentControllerTest {
     }
 
     @Test
+    void downloadDocumentRejectsProsodyTokenWhenMeetingIdMismatches() {
+        when(requestUserContext.getMeetingId()).thenReturn("other-session");
+
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class,
+                () -> controller.downloadDocument("session-1", "file-1", null));
+
+        assertEquals(HttpStatus.FORBIDDEN, exception.getStatusCode());
+    }
+
+    @Test
     void deleteDocumentReturnsOk() {
         ResponseEntity<Void> response = controller.deleteDocument("session-1", "file-1");
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         verify(sessionDocumentService).deleteDocument("session-1", "file-1", "user-1");
+    }
+
+    @Test
+    void addDocumentAllowsProsodyTokenWhenMeetingIdMatchesAndFeatureEnabled() {
+        when(requestUserContext.getMeetingId()).thenReturn("session-1");
+        when(requestUserContext.isFileUploadFeatureEnabled()).thenReturn(true);
+
+        SessionDocument document = new SessionDocument();
+        document.setFileId("file-1");
+        when(sessionDocumentService.saveDocument(eq("session-1"), any(), any(), eq("user-1"), eq("42")))
+                .thenReturn(document);
+
+        MockMultipartFile file = new MockMultipartFile("file", "spec.pdf", "application/pdf", "hello".getBytes());
+        String metadata = """
+                {"fileId":"file-1","conferenceFullName":"room@conference.example","timestamp":1741017572040,"fileSize":5}
+                """;
+
+        ResponseEntity<SessionDocumentUploadResponse> response = controller.addDocument("session-1", metadata, file);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+    }
+
+    @Test
+    void addDocumentRejectsProsodyTokenWhenMeetingIdMismatches() {
+        when(requestUserContext.getMeetingId()).thenReturn("other-session");
+
+        MockMultipartFile file = new MockMultipartFile("file", "spec.pdf", "application/pdf", "hello".getBytes());
+        String metadata = """
+                {"fileId":"file-1","conferenceFullName":"room@conference.example","timestamp":1741017572040,"fileSize":5}
+                """;
+
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class,
+                () -> controller.addDocument("session-1", metadata, file));
+
+        assertEquals(HttpStatus.FORBIDDEN, exception.getStatusCode());
+    }
+
+    @Test
+    void addDocumentRejectsProsodyTokenWhenFileUploadFeatureDisabled() {
+        when(requestUserContext.getMeetingId()).thenReturn("session-1");
+        when(requestUserContext.isFileUploadFeatureEnabled()).thenReturn(false);
+
+        MockMultipartFile file = new MockMultipartFile("file", "spec.pdf", "application/pdf", "hello".getBytes());
+        String metadata = """
+                {"fileId":"file-1","conferenceFullName":"room@conference.example","timestamp":1741017572040,"fileSize":5}
+                """;
+
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class,
+                () -> controller.addDocument("session-1", metadata, file));
+
+        assertEquals(HttpStatus.FORBIDDEN, exception.getStatusCode());
+    }
+
+    @Test
+    void deleteDocumentRejectsProsodyTokenWhenMeetingIdMismatches() {
+        when(requestUserContext.getMeetingId()).thenReturn("other-session");
+
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class,
+                () -> controller.deleteDocument("session-1", "file-1"));
+
+        assertEquals(HttpStatus.FORBIDDEN, exception.getStatusCode());
+    }
+
+    @Test
+    void listDocumentsRejectsProsodyTokenWhenMeetingIdMismatches() {
+        when(requestUserContext.getMeetingId()).thenReturn("other-session");
+
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class,
+                () -> controller.listDocuments("session-1", 0, 20));
+
+        assertEquals(HttpStatus.FORBIDDEN, exception.getStatusCode());
     }
 }

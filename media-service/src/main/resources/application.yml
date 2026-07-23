@@ -49,6 +49,7 @@ storage:
   active-upload-storage: local
   unshared-file-expiration-hours: 1
   document-access-url-expiration-minutes: 180
+  document-access-url-secret: ${PRESIGNED_URL_SECRET:cGxlYXNlLWNoYW5nZS10aGlzLWxvY2FsLWRldi1zZWNyZXQ=}
 
   local:
     dir: /tmp/media/
@@ -86,9 +87,17 @@ media:
 
 server:
   port: 8095
+  forward-headers-strategy: framework
 
 jwt:
   secret: ${JWT_SECRET:Y0h4TkFxWkd6Um9TTktOVlFobU9naFN3SzY5cWhVY08=}
+
+prosody:
+  jwt:
+    public-key-path: ${JWT_PUBLIC_KEY_PATH:/etc/ssl/certs/public-key.pem}
+    audience: file-sharing
+    issuer: prosody
+    enabled: ${ALGOMEET_JWT_FEATURE_FILE_UPLOAD:true}
 
 feign:
   client:

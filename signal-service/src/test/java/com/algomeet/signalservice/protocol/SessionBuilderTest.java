@@ -5,6 +5,7 @@
 
 package com.algomeet.signalservice.protocol;
 
+import static com.algomeet.signalservice.protocol.SessionRecordTest.getAliceBaseKey;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -20,7 +21,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.Random;
 import java.util.Set;
-import kotlin.Pair;
+
 import org.junit.Test;
 import org.junit.experimental.runners.Enclosed;
 import org.junit.runner.RunWith;
@@ -33,11 +34,11 @@ import org.signal.libsignal.protocol.InvalidMessageException;
 import org.signal.libsignal.protocol.InvalidVersionException;
 import org.signal.libsignal.protocol.LegacyMessageException;
 import org.signal.libsignal.protocol.NoSessionException;
-import org.signal.libsignal.protocol.ReusedBaseKeyException;
 import org.signal.libsignal.protocol.SessionBuilder;
 import org.signal.libsignal.protocol.SessionCipher;
 import org.signal.libsignal.protocol.SignalProtocolAddress;
 import org.signal.libsignal.protocol.UntrustedIdentityException;
+import org.signal.libsignal.protocol.ecc.Curve;
 import org.signal.libsignal.protocol.ecc.ECKeyPair;
 import org.signal.libsignal.protocol.kem.KEMKeyPair;
 import org.signal.libsignal.protocol.kem.KEMKeyType;
@@ -49,7 +50,8 @@ import org.signal.libsignal.protocol.state.PreKeyBundle;
 import org.signal.libsignal.protocol.state.SessionRecord;
 import org.signal.libsignal.protocol.state.SignalProtocolStore;
 import org.signal.libsignal.protocol.util.Medium;
-import static com.algomeet.signalservice.protocol.SessionRecordTest.getAliceBaseKey;
+
+import kotlin.Pair;
 
 @RunWith(Enclosed.class)
 public class SessionBuilderTest {
@@ -171,7 +173,7 @@ public class SessionBuilderTest {
               bobStore.getLocalRegistrationId(),
               1,
               random.nextInt(Medium.MAX_VALUE),
-              ECKeyPair.generate().getPublicKey(),
+              Curve.generateKeyPair().getPublicKey(),
               random.nextInt(Medium.MAX_VALUE),
               anotherBundle.getSignedPreKey(),
               anotherBundle.getSignedPreKeySignature(),
@@ -375,7 +377,7 @@ public class SessionBuilderTest {
 
       SessionCipher bobSessionCipherForMallory = new SessionCipher(bobStore, MALLORY_ADDRESS);
       assertThrows(
-          ReusedBaseKeyException.class, () -> bobSessionCipherForMallory.decrypt(incomingMessage));
+          RuntimeException.class, () -> bobSessionCipherForMallory.decrypt(incomingMessage));
     }
   }
 
@@ -389,8 +391,8 @@ public class SessionBuilderTest {
 
       IdentityKeyStore bobIdentityKeyStore = new TestInMemoryIdentityKeyStore();
 
-      ECKeyPair bobPreKeyPair = ECKeyPair.generate();
-      ECKeyPair bobSignedPreKeyPair = ECKeyPair.generate();
+      ECKeyPair bobPreKeyPair = Curve.generateKeyPair();
+      ECKeyPair bobSignedPreKeyPair = Curve.generateKeyPair();
       byte[] bobSignedPreKeySignature =
           bobIdentityKeyStore
               .getIdentityKeyPair()

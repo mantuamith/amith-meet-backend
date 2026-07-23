@@ -28,6 +28,7 @@ import com.algomeet.signalservice.entity.UserDevice;
 import com.algomeet.signalservice.entity.UserDeviceId;
 import com.algomeet.signalservice.enums.E2eeEventActionType;
 import com.algomeet.signalservice.exceptions.DeviceExistsException;
+import com.algomeet.signalservice.exceptions.DevicePreKeyBundleExistException;
 import com.algomeet.signalservice.exceptions.OneTimePreKeyExistsException;
 import com.algomeet.signalservice.exceptions.RecordNotFoundException;
 import com.algomeet.signalservice.mapper.KyberPreKeyMapper;
@@ -139,12 +140,21 @@ public class UserDeviceService {
 		}
 
 		//Save signed prekeys
+		if (signedPreKeyRepository.findById(new SignedPreKeyId(userKey, deviceId)).isPresent()) {
+			throw new DevicePreKeyBundleExistException("Device prekey bundle has been added already");
+		}
+		
 		SignedPreKey signedPreKey = SignedPreKeyMapper.toEntity(userKey, deviceId, request.getSignedPreKey());		
+		signedPreKey.setCreatedAt(Instant.now());
 		SignedPreKey savedSignedPreKey= signedPreKeyRepository.save(signedPreKey);
 
 		// Save kyber prekeys	
-		KyberPreKey kybePreKey = KyberPreKeyMapper.toEntity(userKey, deviceId, request.getKyberPreKey());		
-		KyberPreKey savedKyberPreKey = kyberPreKeyRepository.save(kybePreKey);
+		KyberPreKey savedKyberPreKey = null;
+		if (request.getKyberPreKey() != null) {
+			KyberPreKey kybePreKey = KyberPreKeyMapper.toEntity(userKey, deviceId, request.getKyberPreKey());	
+			kybePreKey.setCreatedAt(Instant.now());
+			savedKyberPreKey = kyberPreKeyRepository.save(kybePreKey);
+		}
 
 		// Save ontime prekeys
 		List<OneTimePreKey> otPreKeys = request.getOneTimePreKeys().stream().map(otp -> OneTimePreKeyMapper.toEntity(userKey, deviceId, otp)).toList();

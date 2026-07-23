@@ -7,6 +7,7 @@ package com.algomeet.signalservice.protocol;
 
 import org.signal.libsignal.protocol.IdentityKey;
 import org.signal.libsignal.protocol.IdentityKeyPair;
+import org.signal.libsignal.protocol.ecc.Curve;
 import org.signal.libsignal.protocol.ecc.ECKeyPair;
 import org.signal.libsignal.protocol.util.KeyHelper;
 
@@ -17,7 +18,7 @@ public class TestInMemoryIdentityKeyStore
   }
 
   private static IdentityKeyPair generateIdentityKeyPair() {
-    ECKeyPair identityKeyPairKeys = ECKeyPair.generate();
+    ECKeyPair identityKeyPairKeys = Curve.generateKeyPair();
 
     return new IdentityKeyPair(
         new IdentityKey(identityKeyPairKeys.getPublicKey()), identityKeyPairKeys.getPrivateKey());

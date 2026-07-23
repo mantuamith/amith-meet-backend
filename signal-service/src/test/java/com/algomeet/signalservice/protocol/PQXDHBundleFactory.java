@@ -8,6 +8,7 @@ package com.algomeet.signalservice.protocol;
 import java.util.Random;
 
 import org.signal.libsignal.protocol.InvalidKeyException;
+import org.signal.libsignal.protocol.ecc.Curve;
 import org.signal.libsignal.protocol.ecc.ECKeyPair;
 import org.signal.libsignal.protocol.kem.KEMKeyPair;
 import org.signal.libsignal.protocol.kem.KEMKeyType;
@@ -21,8 +22,8 @@ import org.signal.libsignal.protocol.util.Medium;
 public final class PQXDHBundleFactory implements BundleFactory {
   @Override
   public PreKeyBundle createBundle(SignalProtocolStore store) throws InvalidKeyException {
-    ECKeyPair preKeyPair = ECKeyPair.generate();
-    ECKeyPair signedPreKeyPair = ECKeyPair.generate();
+    ECKeyPair preKeyPair = Curve.generateKeyPair();
+    ECKeyPair signedPreKeyPair = Curve.generateKeyPair();
     byte[] signedPreKeySignature =
         store
             .getIdentityKeyPair()

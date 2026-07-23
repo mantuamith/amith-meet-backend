@@ -23,6 +23,7 @@ import org.signal.libsignal.protocol.NoSessionException;
 import org.signal.libsignal.protocol.SessionCipher;
 import org.signal.libsignal.protocol.SignalProtocolAddress;
 import org.signal.libsignal.protocol.UntrustedIdentityException;
+import org.signal.libsignal.protocol.ecc.Curve;
 import org.signal.libsignal.protocol.ecc.ECKeyPair;
 import org.signal.libsignal.protocol.message.CiphertextMessage;
 import org.signal.libsignal.protocol.message.SignalMessage;
@@ -110,9 +111,9 @@ public class SessionCipherTest extends TestCase {
     CiphertextMessage message2 = aliceCipher.encrypt(alicePlaintext);
 
     SessionRecord bobSession = bobStore.loadSession(aliceAddress);
-    assertFalse(bobSession.currentRatchetKeyMatches(ECKeyPair.generate().getPublicKey()));
+    assertFalse(bobSession.currentRatchetKeyMatches(Curve.generateKeyPair().getPublicKey()));
     bobSession.archiveCurrentState();
-    assertFalse(bobSession.currentRatchetKeyMatches(ECKeyPair.generate().getPublicKey()));
+    assertFalse(bobSession.currentRatchetKeyMatches(Curve.generateKeyPair().getPublicKey()));
     bobStore.storeSession(aliceAddress, bobSession);
 
     byte[] bobPlaintext2 = bobCipher.decrypt(new SignalMessage(message2.serialize()));

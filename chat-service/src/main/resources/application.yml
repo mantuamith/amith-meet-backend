@@ -52,7 +52,11 @@ spring:
 group:
     service:
       url: http://localhost:8087
-      
+
+user:
+    service:
+      url: http://localhost:8082
+
 media:
     service:
       url: http://localhost:8095

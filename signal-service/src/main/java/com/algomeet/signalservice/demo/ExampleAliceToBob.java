@@ -16,6 +16,7 @@ import org.signal.libsignal.protocol.SessionBuilder;
 import org.signal.libsignal.protocol.SessionCipher;
 import org.signal.libsignal.protocol.SignalProtocolAddress;
 import org.signal.libsignal.protocol.UntrustedIdentityException;
+import org.signal.libsignal.protocol.ecc.Curve;
 import org.signal.libsignal.protocol.ecc.ECKeyPair;
 import org.signal.libsignal.protocol.kem.KEMKeyPair;
 import org.signal.libsignal.protocol.kem.KEMKeyType;
@@ -38,7 +39,7 @@ public class ExampleAliceToBob {
 	}  
 	
 	private static IdentityKeyPair generateIdentityKeyPair() {
-		ECKeyPair identityKeyPairKeys = ECKeyPair.generate();
+		ECKeyPair identityKeyPairKeys = Curve.generateKeyPair();
 
 		return new IdentityKeyPair(
 				new IdentityKey(identityKeyPairKeys.getPublicKey()), identityKeyPairKeys.getPrivateKey());
@@ -57,8 +58,8 @@ public class ExampleAliceToBob {
 
 		// Generate bob store and keys
 		final InMemorySignalProtocolStore bobStore = new InMemorySignalProtocolStore(generateIdentityKeyPair(), generateRegistrationId());
-		ECKeyPair    bobPreKeyPair            = ECKeyPair.generate();
-		ECKeyPair    bobSignedPreKeyPair      = ECKeyPair.generate();
+		ECKeyPair    bobPreKeyPair            = Curve.generateKeyPair();
+		ECKeyPair    bobSignedPreKeyPair      = Curve.generateKeyPair();
 
 		byte[] bobSignedPreKeySignature =
 				bobStore
@@ -93,10 +94,10 @@ public class ExampleAliceToBob {
 				bobSignedPreKeyId, 
 				bobSignedPreKeyPair.getPublicKey(),
 				bobSignedPreKeySignature,
-				bobStore.getIdentityKeyPair().getPublicKey(),
+				bobStore.getIdentityKeyPair().getPublicKey() /*,
 				bobKyberPreKeyId,
 				bobKyberPreKeyPair.getPublicKey(),
-				bobKyberPreKeySignature);
+				bobKyberPreKeySignature */);
 		
 
 		aliceSessionBuilder.process(bobPreKeyBundle);
@@ -104,12 +105,16 @@ public class ExampleAliceToBob {
 		final String            originalMessage    = "L'homme est condamné à être libre";
 		SessionCipher     aliceSessionCipher = new SessionCipher(aliceStore, BOB_ADDRESS);
 		CiphertextMessage outgoingMessage    = aliceSessionCipher.encrypt(originalMessage.getBytes());
+		// Convert the binary payload into a readable Base64 string
+		String base64EncodedMessage = Base64.getEncoder().encodeToString(outgoingMessage.serialize());
 
+		System.out.println("Encrypted message (Base64): " + base64EncodedMessage);
 
 		PreKeySignalMessage incomingMessage = new PreKeySignalMessage(outgoingMessage.serialize());
 
 		//Add tp store the prekeys
 		bobStore.storePreKey(bobPreKeyId, new PreKeyRecord(bobPreKeyId, bobPreKeyPair));
+		// Sample add more pre-keys
 		bobStore.storePreKey(2, new PreKeyRecord(2, bobPreKeyPair));
 		
 		//Add tp store the signed-prekeys
@@ -117,9 +122,11 @@ public class ExampleAliceToBob {
 				System.currentTimeMillis(), bobSignedPreKeyPair, bobSignedPreKeySignature));
 
 		//Add tp store the kyber-prekeys
+		/*
 		bobStore.storeKyberPreKey(bobKyberPreKeyId, new KyberPreKeyRecord(bobPreKeyBundle.getKyberPreKeyId(), 
 				System.currentTimeMillis(), bobKyberPreKeyPair, bobKyberPreKeySignature));
-
+		*/
+		
 		SessionCipher bobSessionCipher = new SessionCipher(bobStore, ALICE_ADDRESS);
 		byte[] plaintext = bobSessionCipher.decrypt(incomingMessage);
 
@@ -141,14 +148,14 @@ public class ExampleAliceToBob {
 		}
 		
 		String serializedSignedPreKey = Base64.getEncoder().encodeToString(bobStore.loadSignedPreKeys().get(0).serialize());
-		String serializedKyberPreKey = Base64.getEncoder().encodeToString(bobStore.loadKyberPreKeys().get(0).serialize());		
+		//String serializedKyberPreKey = Base64.getEncoder().encodeToString(bobStore.loadKyberPreKeys().get(0).serialize());		
 		// Encrypt using AES & upload device keys backup to backend using API endpoint: POST /signal/backup/device-keys
 		
 		
 		// Retrieve and restore device keys backup from backend using API endpoint: GET /signal/backup/device-keys/{deviceId}
 		IdentityKeyPair restoreIdentity = new IdentityKeyPair(Base64.getDecoder().decode(serializedIdentityKey));
 		SignedPreKeyRecord restoreSignedPreKeyRecord = new SignedPreKeyRecord(Base64.getDecoder().decode(serializedSignedPreKey));
-		KyberPreKeyRecord restoreKyberPreKeyRecord = new KyberPreKeyRecord(Base64.getDecoder().decode(serializedKyberPreKey));
+		//KyberPreKeyRecord restoreKyberPreKeyRecord = new KyberPreKeyRecord(Base64.getDecoder().decode(serializedKyberPreKey));
 		// Load restore keys to Bob store
 		//bobStore.storePreKey();
 		//bobStore.storeSignedPreKey();

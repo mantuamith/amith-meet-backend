@@ -8,6 +8,7 @@ public enum ResponseCode {
     USER_DEVICE_ID_NOT_FOUND("USER_DEVICE_ID_NOT_FOUND", "user-device.id-not-found"),
     USER_DEVICE_EXISTS("USER_DEVICE_EXISTS", "user-device.already-exists"),
     ONE_TIME_PRE_KEY_EXISTS("ONE_TIME_PRE_KEY_EXISTS", "one-time-pre-key.already-exists"),
+    DEVICE_PRE_KEY_BUNDLE_EXISTS("DEVICE_PRE_KEY_BUNDLE_EXISTS", "device-pre-key-bunlde.already-exists"),
     
     SIGNED_PRE_KEY_NOT_FOUND("SIGNED_PRE_KEY_NOT_FOUND", "signed-pre-key.not-found"),
     KYBER_PRE_KEY_NOT_FOUND("KYBER_PRE_KEY_NOT_FOUND", "kyber-pre-key.not-found"),

@@ -5,7 +5,7 @@
 	<groupId>com.algomeet</groupId>
 	<artifactId>common-lib</artifactId>
 	<name>Common lib</name>
-	<version>1.0</version>
+	<version>1.0.2</version>
 	<parent>
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>

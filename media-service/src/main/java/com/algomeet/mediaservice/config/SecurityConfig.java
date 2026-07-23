@@ -35,7 +35,7 @@ public class SecurityConfig {
                 		.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(
                         		"/internal/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/v1/documents/sessions/*/files/*/content").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/media/v1/documents/sessions/*/files/*/content").permitAll()
 
                         // Swagger - start
                         .requestMatchers("/swagger-ui.html").permitAll() 
