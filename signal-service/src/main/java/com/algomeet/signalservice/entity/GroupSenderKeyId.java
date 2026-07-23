@@ -1,13 +1,16 @@
 package com.algomeet.signalservice.entity;
 
 import java.io.Serializable;
+import java.sql.Types;
 import java.util.Objects;
 import java.util.UUID;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Embeddable;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
 
 @AllArgsConstructor
 @NoArgsConstructor
@@ -24,6 +27,8 @@ public class GroupSenderKeyId implements Serializable {
     
     private Integer receiverDeviceId;    	
     
+	@JdbcTypeCode(Types.VARCHAR)
+	@Column(name = "group_id")
 	private UUID groupId;
 	@Override
     public boolean equals(Object o) {
