@@ -82,7 +82,7 @@ public class MucUnreadCountService {
 							// Step 3: Concurrently execute the covered index scans across the room batch
 							.flatMap(context -> {
 								String roomId = context.roomId;
-								UUID lastReadMid = context.cursor != null ? context.cursor.getLastReadMid() : Constants.SMALLEST_UUID_V7;
+								UUID lastReadStanzaId = context.cursor != null ? context.cursor.getLastReadSid() : Constants.SMALLEST_UUID_V7;
 								
 								// FIXED: Wrapped the synchronous blocking group cache lookups in a Callable scheduled on the worker pool
 								return Mono.fromCallable(() -> {
@@ -102,7 +102,7 @@ public class MucUnreadCountService {
 									// Re-evaluate group reference for cutoff utility safely inside isolation boundaries
 									Instant historyCutoff = MucMemberUtil.getHistoryCutoff(room, memberOpt.get());
 
-									return mucMessageRepository.countUnreadMessages(UUID.fromString(roomId), lastReadMid, userKey, historyCutoff)
+									return mucMessageRepository.countUnreadMessages(UUID.fromString(roomId), lastReadStanzaId, userKey, historyCutoff)
 											.map(count -> {
 												MucUnreadCount unreadCountDto = new MucUnreadCount();
 												unreadCountDto.setId(String.format("%s_%s", userKey, roomId));

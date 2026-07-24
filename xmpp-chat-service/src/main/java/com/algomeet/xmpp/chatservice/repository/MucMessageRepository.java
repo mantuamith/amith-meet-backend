@@ -120,7 +120,7 @@ public interface MucMessageRepository extends ReactiveMongoRepository<MucMessage
 	 * avoiding scanning private messages outside of the unread range.</p>
 	 *
 	 * @param roomId            The unique identifier of the MUC room.
-	 * @param lastReadMessageId The chronological anchor (UUIDv7) where the user left off.
+	 * @param lastReadStanzaId The chronological anchor (UUIDv7) where the user left off.
 	 * @param userKey           The target user key used to filter private messages.
 	 * @return A {@link Mono} emitting the count of unread messages.
 	 */
