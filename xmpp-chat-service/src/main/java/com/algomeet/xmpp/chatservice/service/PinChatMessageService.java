@@ -8,12 +8,12 @@ import com.algomeet.common.util.DeterministicConversationIdUtil;
 import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.document.PinChatMessage;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
-import com.algomeet.xmpp.chatservice.enums.ViewManageEnum;
+import com.algomeet.xmpp.chatservice.enums.MessageViewAction;
 import com.algomeet.xmpp.chatservice.exceptions.PinMessageNotFoundException;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.repository.PinChatMessageRepository;
 import com.algomeet.xmpp.chatservice.stanza.PinStanza;
-import com.algomeet.xmpp.chatservice.stanza.ViewManageSyncStanza;
+import com.algomeet.xmpp.chatservice.stanza.MessageViewSyncStanza;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.github.f4b6a3.uuid.UuidCreator;
@@ -61,8 +61,8 @@ public class PinChatMessageService {
                     String targetMessageIdStr = saved.getId().getMessageId().toString();
                     
                     Mono<Void> broadcast = pinChatMessage.isPinnedForEveryone()
-                            ? composeAndSendPinForEveryone(targetMessageIdStr, userKey.toString(), sessionId, peerKey.toString(), ViewManageEnum.PIN)
-                            : composeAndSendSync(targetMessageIdStr, userKey.toString(), sessionId, peerKey.toString(), ViewManageEnum.PIN);
+                            ? composeAndSendPinForEveryone(targetMessageIdStr, userKey.toString(), sessionId, peerKey.toString(), MessageViewAction.PIN)
+                            : composeAndSendSync(targetMessageIdStr, userKey.toString(), sessionId, peerKey.toString(), MessageViewAction.PIN);
                             
                     return broadcast.thenReturn(saved);
                 });
@@ -79,7 +79,7 @@ public class PinChatMessageService {
                 .flatMap(personalDeletedCount -> {
                     if (personalDeletedCount > 0) {
                         log.debug("Successfully unpinned personal message {} from conversation {}", messageId, conversationId);
-                        return composeAndSendSync(messageId.toString(), userKey.toString(), sessionId, peerKey.toString(), ViewManageEnum.UNPIN);
+                        return composeAndSendSync(messageId.toString(), userKey.toString(), sessionId, peerKey.toString(), MessageViewAction.UNPIN);
                     }
                     
                     return pinChatMessageRepository
@@ -89,7 +89,7 @@ public class PinChatMessageService {
                                     return Mono.error(new PinMessageNotFoundException("Pinned message not found."));
                                 }
                                 log.debug("Successfully unpinned global message {} from conversation {}", messageId, conversationId);
-                                return composeAndSendPinForEveryone(messageId.toString(), userKey.toString(), sessionId, peerKey.toString(), ViewManageEnum.UNPIN);
+                                return composeAndSendPinForEveryone(messageId.toString(), userKey.toString(), sessionId, peerKey.toString(), MessageViewAction.UNPIN);
                             });
                 })
                 .doOnError(err -> log.error("Failed to remove pin record for message {}", messageId, err))
@@ -112,9 +112,9 @@ public class PinChatMessageService {
      * Generates a sync stanza to push the updated pin state out to other active multi-resource 
      * client sessions belonging to the calling user.
      */
-    private Mono<Void> composeAndSendSync(String targetId, String userKey, String sessionId, String peerKey, ViewManageEnum viewManageEnum) {
+    private Mono<Void> composeAndSendSync(String targetId, String userKey, String sessionId, String peerKey, MessageViewAction viewManageEnum) {
         String id = UuidCreator.getTimeOrderedEpoch().toString();
-        ViewManageSyncStanza vmSync = ViewManageSyncStanza.builder()
+        MessageViewSyncStanza vmSync = MessageViewSyncStanza.builder()
                 .id(id)
                 .targetId(targetId)
                 .from(jidUtil.getBareJid(userKey))
@@ -133,7 +133,7 @@ public class PinChatMessageService {
      * Generates a sync stanza to push the updated pin state out globally.
      * Fires synchronization to both the initiator and the peer target context.
      */
-    private Mono<Void> composeAndSendPinForEveryone(String targetId, String userKey, String sessionId, String peerKey, ViewManageEnum viewManageEnum) {
+    private Mono<Void> composeAndSendPinForEveryone(String targetId, String userKey, String sessionId, String peerKey, MessageViewAction viewManageEnum) {
         String id = UuidCreator.getTimeOrderedEpoch().toString();
         PinStanza pinStanza = PinStanza.builder()
                 .id(id)

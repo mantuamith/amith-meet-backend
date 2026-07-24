@@ -13,7 +13,7 @@ import org.springframework.stereotype.Component;
 import com.algomeet.xmpp.chatservice.constant.Constants;
 
 @Component
-public class ViewManageStaxParser {
+public class MessageViewStaxParser {
 
     public static class ViewItem {
         public String action;
@@ -72,7 +72,7 @@ public class ViewManageStaxParser {
                     // <query>
                     if ("query".equals(localName)) {
                         String ns = reader.getNamespaceURI();
-                        if (Constants.NS_VIEW_MANAGEMENT.equals(ns)) {
+                        if (Constants.NS_MESSAGE_VIEW.equals(ns)) {
                             inQuery = true;
                         }
                     }

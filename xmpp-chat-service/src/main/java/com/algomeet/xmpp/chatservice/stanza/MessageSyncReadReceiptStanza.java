@@ -40,7 +40,7 @@ public class MessageSyncReadReceiptStanza {
 
         sb.append("type='").append(type).append("' ")
           .append("id='").append(id).append("'>")
-          .append("<sync-read-receipts xmlns='urn:algomeet:xmpp:read:0' ")
+          .append("<sync-read-receipts xmlns='urn:algomeet:read:0' ")
           .append(" id='")
           .append(targetMessageId)
         .append("' >");

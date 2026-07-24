@@ -7,7 +7,7 @@ import org.springframework.util.StringUtils;
 
 import com.algomeet.xmpp.chatservice.auth.XmppPrincipal;
 import com.algomeet.xmpp.chatservice.service.HideMucMessageService;
-import com.algomeet.xmpp.chatservice.stanza.parser.ViewManageStaxParser;
+import com.algomeet.xmpp.chatservice.stanza.parser.MessageViewStaxParser;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
 
 import io.netty.channel.ChannelHandlerContext;
@@ -25,7 +25,7 @@ public class HideMessageHandler {
 	 * Logic to hide a message. Differentiates between MUC rooms and 1-on-1 chats.
 	 * * @return A Mono<Void> that completes when the processing and notifications are finished.
 	 */
-	public Mono<Void> handleHide(ChannelHandlerContext ctx, String id, XmppPrincipal principal, ViewManageStaxParser.ViewItem item){
+	public Mono<Void> handleHide(ChannelHandlerContext ctx, String id, XmppPrincipal principal, MessageViewStaxParser.ViewItem item){
 		if (StringUtils.hasText(item.room)) {
 			// GROUP CHAT FLOW
 			return hideMucMessageService.hideMessageForUser(

@@ -12,7 +12,7 @@ import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.publisher.DeleteMessageMediaEventPublisher;
 import com.algomeet.xmpp.chatservice.routing.dispacher.LocalStanzaDispatcher;
-import com.algomeet.xmpp.chatservice.stanza.ViewManageSyncStanza;
+import com.algomeet.xmpp.chatservice.stanza.MessageViewSyncStanza;
 import com.algomeet.xmpp.chatservice.util.HidetUtil;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.github.f4b6a3.uuid.UuidCreator;
@@ -82,7 +82,7 @@ public class HideMucMessageService {
 	public Mono<Void> composeAndSendDirectSync(String targetId, XmppPrincipal principal) {
 		String id = UuidCreator.getTimeOrderedEpoch().toString();
 
-		ViewManageSyncStanza vmSync = ViewManageSyncStanza.builder()
+		MessageViewSyncStanza vmSync = MessageViewSyncStanza.builder()
 				.id(id)
 				.targetId(targetId)
 				.from(principal.getBareJid())
@@ -95,7 +95,7 @@ public class HideMucMessageService {
 	private Mono<Void> composeAndSendGroupSync(String targetId, String roomId, String userKey, String sessionId) {
 		String id = UuidCreator.getTimeOrderedEpoch().toString();
 
-		ViewManageSyncStanza vmSync = ViewManageSyncStanza.builder()
+		MessageViewSyncStanza vmSync = MessageViewSyncStanza.builder()
 				.id(id)
 				.targetId(targetId)
 				.room(roomId)

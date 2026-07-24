@@ -7,7 +7,7 @@ import com.algomeet.xmpp.chatservice.constant.Constants;
 import com.algomeet.xmpp.chatservice.constant.XmppErrorConditions;
 import com.algomeet.xmpp.chatservice.enums.XmppErrorType;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
-import com.algomeet.xmpp.chatservice.stanza.parser.ViewManageStaxParser;
+import com.algomeet.xmpp.chatservice.stanza.parser.MessageViewStaxParser;
 import com.algomeet.xmpp.chatservice.util.XmppUtil;
 
 import io.netty.channel.ChannelHandlerContext;
@@ -26,7 +26,7 @@ import reactor.core.scheduler.Schedulers;
 @Component
 @RequiredArgsConstructor
 public class XmppViewManageHandler {
-	private final ViewManageStaxParser viewManagementStaxParser;
+	private final MessageViewStaxParser viewManagementStaxParser;
 	private final XmppUtil xmppUtil;
 	private final DomainProperties domainProperties;
 	private final HideMessageHandler hideMessageHandler;
@@ -37,7 +37,7 @@ public class XmppViewManageHandler {
 	public Mono<Void> process(ChannelHandlerContext ctx, String xml, XmppPrincipal principal) {	
 		return Mono.defer(() -> {
 			try {
-				ViewManageStaxParser.ParsedIq vmIq = viewManagementStaxParser.parse(xml);
+				MessageViewStaxParser.ParsedIq vmIq = viewManagementStaxParser.parse(xml);
 
 				if (vmIq == null || vmIq.items == null || vmIq.items.isEmpty()) {
 					return Mono.empty();
@@ -82,7 +82,7 @@ public class XmppViewManageHandler {
 	 */
 	public boolean isMessageViewManagementStanza(String xml) {
 		// Small adjustment to avoid false matches on casual chat text
-		return xml.contains("xmlns=\"" + Constants.NS_VIEW_MANAGEMENT + "\"") 
-				|| xml.contains("xmlns='" + Constants.NS_VIEW_MANAGEMENT + "'");	        
+		return xml.contains("xmlns=\"" + Constants.NS_MESSAGE_VIEW + "\"") 
+				|| xml.contains("xmlns='" + Constants.NS_MESSAGE_VIEW + "'");	        
 	}
 }

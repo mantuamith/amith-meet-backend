@@ -8,13 +8,13 @@ import com.algomeet.common.service.AbstractGroupCache;
 import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.document.PinMucMessage;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
-import com.algomeet.xmpp.chatservice.enums.ViewManageEnum;
+import com.algomeet.xmpp.chatservice.enums.MessageViewAction;
 import com.algomeet.xmpp.chatservice.exceptions.PinMessageNotFoundException;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.repository.PinMucMessageRepository;
 import com.algomeet.xmpp.chatservice.routing.muc.MucMessageRouter;
 import com.algomeet.xmpp.chatservice.stanza.PinStanza;
-import com.algomeet.xmpp.chatservice.stanza.ViewManageSyncStanza;
+import com.algomeet.xmpp.chatservice.stanza.MessageViewSyncStanza;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.github.f4b6a3.uuid.UuidCreator;
@@ -61,8 +61,8 @@ public class PinMucMessageService {
                     String msgIdStr = saved.getId().getMessageId().toString();
                     
                     Mono<Void> broadcastMono = saved.isPinnedForEveryone() 
-                            ? composeAndSendPinForEveryone(msgIdStr, roomId.toString(), userKey.toString(), sessionId, ViewManageEnum.PIN)                            
-                            : composeAndSendPinSync(msgIdStr, roomId.toString(), userKey.toString(), sessionId, ViewManageEnum.PIN);
+                            ? composeAndSendPinForEveryone(msgIdStr, roomId.toString(), userKey.toString(), sessionId, MessageViewAction.PIN)                            
+                            : composeAndSendPinSync(msgIdStr, roomId.toString(), userKey.toString(), sessionId, MessageViewAction.PIN);
                     
                     return broadcastMono.thenReturn(saved);
                 });
@@ -77,7 +77,7 @@ public class PinMucMessageService {
                 .flatMap(personalDeletedCount -> {
                     if (personalDeletedCount > 0) {
                         log.debug("Successfully unpinned personal message {} from MUC room {}", messageId, groupId);
-                        return composeAndSendPinSync(messageId.toString(), groupId.toString(), userKey.toString(), sessionId, ViewManageEnum.UNPIN);
+                        return composeAndSendPinSync(messageId.toString(), groupId.toString(), userKey.toString(), sessionId, MessageViewAction.UNPIN);
                     }
                     
                     return pinMucMessageRepository
@@ -87,7 +87,7 @@ public class PinMucMessageService {
                                     return Mono.error(new PinMessageNotFoundException("Pinned MUC message not found."));
                                 }
                                 log.debug("Successfully unpinned global message {} from MUC room {}", messageId, groupId);
-                                return composeAndSendPinForEveryone(messageId.toString(), groupId.toString(), userKey.toString(), sessionId, ViewManageEnum.UNPIN);
+                                return composeAndSendPinForEveryone(messageId.toString(), groupId.toString(), userKey.toString(), sessionId, MessageViewAction.UNPIN);
                             });
                 })
                 .doOnError(err -> log.error("Failed to remove MUC pin record for message {}", messageId, err))
@@ -107,13 +107,13 @@ public class PinMucMessageService {
     /**
 	 * Generates a sync stanza to push the updated pin state to the MUC room context.
 	 */
-	private Mono<Void> composeAndSendPinSync(String targetId, String roomId, String userKey, String sessionId, ViewManageEnum viewManageEnum) {
+	private Mono<Void> composeAndSendPinSync(String targetId, String roomId, String userKey, String sessionId, MessageViewAction viewManageEnum) {
         // FIXED: Wrap the blocking groupCacheService call into a deferred callable pipeline 
         return Mono.fromCallable(() -> groupCacheService.getCachedGroup(roomId))
                 .subscribeOn(MUC_WORKER_SCHEDULER)
                 .flatMap(group -> {
                     String id = UuidCreator.getTimeOrderedEpoch().toString();
-                    ViewManageSyncStanza vmSync = ViewManageSyncStanza.builder()
+                    MessageViewSyncStanza vmSync = MessageViewSyncStanza.builder()
                             .id(id)
                             .targetId(targetId)
                             .room(roomId)				
@@ -132,7 +132,7 @@ public class PinMucMessageService {
 	/**
 	 * Generates a sync stanza to push the updated pin state out to other active multi-resource client sessions and group members.
 	 */
-	private Mono<Void> composeAndSendPinForEveryone(String targetId, String roomId, String userKey, String sessionId, ViewManageEnum viewManageEnum) {
+	private Mono<Void> composeAndSendPinForEveryone(String targetId, String roomId, String userKey, String sessionId, MessageViewAction viewManageEnum) {
         // FIXED: Wrap the blocking groupCacheService call into a deferred callable pipeline
         return Mono.fromCallable(() -> groupCacheService.getCachedGroup(roomId))
                 .subscribeOn(MUC_WORKER_SCHEDULER)
