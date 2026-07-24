@@ -45,13 +45,24 @@ public class GroupSenderKeyService {
 	private final UserDeviceRepository deviceRepository;
 	private final AbstractGroupCache groupCacheService;
 
-	public GroupSenderKeyResponse create(UUID senderUserKey, Integer senderDeviceId, UUID groupId, GroupSenderKeyRequest request) {
-		deviceRepository.findById(new UserDeviceId(senderUserKey, senderDeviceId))
-		.orElseThrow(() -> new RecordNotFoundException("User device ID not found"));
+	public List<GroupSenderKeyResponse> create(
+	        UUID senderUserKey, 
+	        Integer senderDeviceId, 
+	        UUID groupId, 
+	        List<GroupSenderKeyRequest> requests) {
 
-		GroupSenderKey entity = GroupSenderKeyMapper.toEntity(senderUserKey, senderDeviceId, groupId, request);
-		GroupSenderKey saved = repository.save(entity);
-		return GroupSenderKeyMapper.toDto(saved);
+	    deviceRepository.findById(new UserDeviceId(senderUserKey, senderDeviceId))
+	            .orElseThrow(() -> new RecordNotFoundException("User device ID not found"));
+
+	    List<GroupSenderKey> senderKeys = requests.stream()
+	            .map(key -> GroupSenderKeyMapper.toEntity(senderUserKey, senderDeviceId, groupId, key))
+	            .toList();
+
+	    List<GroupSenderKey> savedKeys = repository.saveAll(senderKeys);
+
+	    return savedKeys.stream()
+	            .map(GroupSenderKeyMapper::toDto)
+	            .toList();
 	}
 
 	@Transactional(readOnly = true)

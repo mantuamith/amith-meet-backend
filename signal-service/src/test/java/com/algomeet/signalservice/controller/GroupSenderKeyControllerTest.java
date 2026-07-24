@@ -1,17 +1,13 @@
 package com.algomeet.signalservice.controller;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -85,14 +81,14 @@ class GroupSenderKeyControllerTest {
      * ------------------------------------------------- */
     @Test
     void createGroupSenderKey_success() throws Exception {
-        GroupSenderKeyRequest request = new GroupSenderKeyRequest();       
+    	GroupSenderKeyRequest request = new GroupSenderKeyRequest();      
         request.setReceiverUserKey(UUID.fromString("22222222-2222-2222-2222-222222222222"));
         request.setReceiverDeviceId(1);
         request.setSkdmCipher("U29tZVNhbXBsZVNlbmRlclNLRE1EYXRh"); // valid Base64 string
 
-        GroupSenderKeyResponse response = new GroupSenderKeyResponse();
+        List<GroupSenderKeyResponse> response = new ArrayList<>();
 
-        when(service.create(USER_KEY, 1, GROUP_ID, request))
+        when(service.create(USER_KEY, 1, GROUP_ID, List.of(request)))
                 .thenReturn(response);
 
         mockMvc.perform(post("/signal/v2/devices/1/groups/group-1/sender-keys")
@@ -109,8 +105,8 @@ class GroupSenderKeyControllerTest {
         request.setReceiverUserKey(UUID.fromString("22222222-2222-2222-2222-222222222222"));
         request.setReceiverDeviceId(1);
         request.setSkdmCipher("U29tZVNhbXBsZVNlbmRlclNLRE1EYXRh"); // valid Base64 string
-
-        when(service.create(USER_KEY, 1, GROUP_ID, request))
+        
+        when(service.create(USER_KEY, 1, GROUP_ID, List.of(request)))
                 .thenThrow(new RecordNotFoundException("not found"));
 
         mockMvc.perform(post("/signal/v2/devices/1/groups/group-1/sender-keys")
