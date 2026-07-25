@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import com.algomeet.common.dto.Group;
 import com.algomeet.common.dto.GroupMember;
 import com.algomeet.common.redis.lock.MucMessageRetentionLockManager;
+import com.algomeet.common.redis.lock.MucMessageRetentionLockManager.LockToken;
 import com.algomeet.common.service.AbstractGroupCache;
 import com.algomeet.xmpp.chatservice.client.GroupClient;
 import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
@@ -42,7 +43,6 @@ import com.mongodb.client.result.UpdateResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
 
 @Slf4j
@@ -63,14 +63,6 @@ public class MucRoomService {
     private final JidUtil jidUtil;
     private final RemoveGroupSenderKeyPublisher removeGroupSenderKeyPublisher;
     
-    // Scaled to handle enterprise load and prevent pipeline degradation during spike intervals
-    private static final Scheduler MUC_THREAD_POOL = 
-    		Schedulers.newBoundedElastic(
-    				1000, 
-    				50000, 
-    				"muc-service-workers"
-    				);
-
     /**
      * Handles the business flow for clearing a member's history timeline.
      */
@@ -79,10 +71,9 @@ public class MucRoomService {
             Group group = groupCacheService.getCachedGroup(groupId.toString());
             return SearchUtil.findMember(group, userKey.toString());
         })
-        .subscribeOn(MUC_THREAD_POOL)
+        .subscribeOn(Schedulers.boundedElastic())
         .flatMap(memberPrevData -> 
             Mono.fromCallable(() -> groupClient.clearMemberHistoryTimeline(groupId, userKey, historyCutoff.toEpochMilli()))
-            .subscribeOn(MUC_THREAD_POOL)
             .flatMap(isCleared -> {
                 if (!isCleared) {            
                     log.warn("Remote group service reported no state changes for user {} in group {}.", userKey, groupId);
@@ -92,7 +83,7 @@ public class MucRoomService {
                 groupCacheService.evictGroup(groupId.toString());
 
                 return mucMessageRepository.findFirstByRoomIdAndCreatedAtLessThanEqualOrderByCreatedAtDesc(groupId, historyCutoff)
-                    .subscribeOn(MUC_THREAD_POOL)
+                    .subscribeOn(Schedulers.boundedElastic())
                     .map(view -> view.getId() != null ? view.getId().toString() : "")
                     .defaultIfEmpty("") 
                     .flatMap(cutoffStanzaId -> {
@@ -138,7 +129,7 @@ public class MucRoomService {
             }
             return Optional.ofNullable(group);
         })
-        .subscribeOn(MUC_THREAD_POOL)
+        .subscribeOn(Schedulers.boundedElastic())
         // 1. Execute DB/Stream purge
         .flatMap(groupOpt -> 
         	// Remove group conversation messages
@@ -183,7 +174,7 @@ public class MucRoomService {
         Instant now = Instant.now();
 
         return mucMessageRepository.updatePurgeAtByRoomId(UUID.fromString(groupId), now)
-                .subscribeOn(MUC_THREAD_POOL)
+                .subscribeOn(Schedulers.boundedElastic())
                 .doOnSuccess(count -> log.info("Successfully marked group {} conversation for purging. Modified: {}", groupId, count))
                 .onErrorResume(err -> {
                     log.error("Failed to execute purge update routine for group: {}", groupId, err);
@@ -205,7 +196,7 @@ public class MucRoomService {
                 Instant.EPOCH,
                 Constants.LARGEST_UUID_V7,
                 UUID.fromString(groupId))
-                .subscribeOn(MUC_THREAD_POOL);
+                .subscribeOn(Schedulers.boundedElastic());
     }    
 
     /**
@@ -216,20 +207,20 @@ public class MucRoomService {
 
         return Mono.usingWhen(
             Mono.fromCallable(() -> mucMessageRetentionLockManager.acquireLock(groupId))
-                .subscribeOn(MUC_THREAD_POOL)
+                .subscribeOn(Schedulers.boundedElastic())
                 .flatMap(token -> token != null 
                     ? Mono.just(token) 
                     : Mono.error(new IllegalStateException("Could not acquire retention update lock."))),
             
             token -> Mono.fromCallable(() -> groupClient.updateGroupRetention(groupId, userKey, messageRetentionDays))
-                .subscribeOn(MUC_THREAD_POOL)
+                .subscribeOn(Schedulers.boundedElastic())
                 .flatMap(success -> {
                     if (Boolean.FALSE.equals(success)) {
                         return Mono.error(new RuntimeException("Failed to update the group retention policy via client."));
                     }
                     
                     return Mono.fromCallable(() -> groupCacheService.refreshGroupCache(groupId.toString()))
-                        .subscribeOn(MUC_THREAD_POOL)
+                        .subscribeOn(Schedulers.boundedElastic())
                         .flatMap(group -> {
                             if (group == null) {
                                 return Mono.error(new GroupNotFoundException("Group not found: " + groupId));
@@ -259,13 +250,33 @@ public class MucRoomService {
                         });
                 }),
                 
-            token -> Mono.fromRunnable(() -> mucMessageRetentionLockManager.releaseLock(token)).subscribeOn(MUC_THREAD_POOL),
-            (token, error) -> Mono.fromRunnable(() -> {
-                log.error("Error during retention policy update for room: {}", groupId, error);
-                mucMessageRetentionLockManager.releaseLock(token);
-            }).subscribeOn(MUC_THREAD_POOL),
-            token -> Mono.fromRunnable(() -> mucMessageRetentionLockManager.releaseLock(token)).subscribeOn(MUC_THREAD_POOL)
+                // Safe Release on Complete
+                token -> safeReleaseLock(token, groupId),
+
+                // Safe Release on Error
+                (token, error) -> {
+                    log.error("Error during retention policy update for room: {}", groupId, error);
+                    return safeReleaseLock(token, groupId);
+                },
+
+                // Safe Release on Cancel
+                token -> safeReleaseLock(token, groupId)
         )
+        .then();
+    }
+    
+    /**
+     * Helper to guarantee non-blocking, isolated lock release during Mono.usingWhen teardown.
+     */
+    private Mono<Void> safeReleaseLock(LockToken token, UUID groupId) {
+        return Mono.fromRunnable(() -> {
+            try {
+                mucMessageRetentionLockManager.releaseLock(token);
+            } catch (Exception e) {
+                log.error("Failed to release retention lock for group {}", groupId, e);
+            }
+        })
+        .subscribeOn(Schedulers.boundedElastic())
         .then();
     }
     
@@ -278,7 +289,7 @@ public class MucRoomService {
         if (messageRetentionDays == null || messageRetentionDays == -1) {
             AggregationUpdate clearUpdate = AggregationUpdate.update().set(MucMessage.FIELD_PURGE_AT).toValue(null);
             return reactiveMongoTemplate.updateMulti(query, clearUpdate, MucMessage.class)
-                    .subscribeOn(MUC_THREAD_POOL)
+                    .subscribeOn(Schedulers.boundedElastic())
                     .map(UpdateResult::getModifiedCount);
         }
 
@@ -294,7 +305,7 @@ public class MucRoomService {
             );
 
         return reactiveMongoTemplate.updateMulti(query, pipelineUpdate, MucMessage.class)
-                .subscribeOn(MUC_THREAD_POOL)
+                .subscribeOn(Schedulers.boundedElastic())
                 .map(UpdateResult::getModifiedCount);
     }
 }

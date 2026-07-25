@@ -23,8 +23,6 @@ import com.mongodb.client.result.UpdateResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Scheduler;
-import reactor.core.scheduler.Schedulers;
 
 @Slf4j
 @Service
@@ -37,12 +35,6 @@ public class ChatMessageService {
 	private final ClusterMessagePublisher reactiveClusterMessagePublisher;
 	private final DomainProperties domainProperties;
 	private final ReactiveMongoTemplate reactiveMongoTemplate; 
-
-	/**
-	 * Since both Mongo operations here utilize fully reactive drivers, these threads handle orchestration 
-	 * and heavy in-memory data serialization/mapping rather than network-wait blocking.
-	 */
-	private static final Scheduler CHAT_DB_SCHEDULER = Schedulers.newBoundedElastic(1000, 50000, "chat-message-workers");
 
 	/**
 	 * Synchronizes dynamic user timelines, updates unread stats, and issues cross-node cluster sync signals.
@@ -73,7 +65,6 @@ public class ChatMessageService {
 		// 2. Chain operations sequentially using then() and thenMono deferral blocks
 		return syncClusterMono
 				.then(offlineMessageRepository.deleteByToAndFromAndDeliveredAtIsNotNullAndStanzaIdLessThanEqual(userKey, peerKey, cutoffStanzaId))
-				.subscribeOn(CHAT_DB_SCHEDULER)
 				.then(Mono.defer(() -> unreadCountService.syncUnreadCountByStanzaId(peerKey, userKey, cutoffMessageId, cutoffStanzaId)));
 	}
 	
@@ -97,7 +88,6 @@ public class ChatMessageService {
 	    if (messageRetentionDays == null || messageRetentionDays == -1) {
 	        AggregationUpdate clearUpdate = AggregationUpdate.update().set(OfflineMessage.FIELD_PURGE_AT).toValue(null);
 	        return reactiveMongoTemplate.updateMulti(query, clearUpdate, OfflineMessage.class)
-	                .subscribeOn(CHAT_DB_SCHEDULER)
 	                .map(UpdateResult::getModifiedCount);
 	    }
 
@@ -113,7 +103,6 @@ public class ChatMessageService {
 	        );
 
 	    return reactiveMongoTemplate.updateMulti(query, pipelineUpdate, OfflineMessage.class)
-	            .subscribeOn(CHAT_DB_SCHEDULER)
 	            .map(UpdateResult::getModifiedCount);
 	}
 }

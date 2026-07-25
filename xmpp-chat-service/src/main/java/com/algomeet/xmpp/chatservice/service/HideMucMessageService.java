@@ -20,8 +20,6 @@ import com.github.f4b6a3.uuid.UuidCreator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Scheduler;
-import reactor.core.scheduler.Schedulers;
 
 @Slf4j
 @Service
@@ -34,11 +32,8 @@ public class HideMucMessageService {
 	private final JidUtil jidUtil;
 	private final DeleteMessageMediaEventPublisher messageMediaDeleteEventPublisher;
 
-	private static final Scheduler DB_SCHEDULER = Schedulers.boundedElastic();
-
 	public Mono<Void> hideMessageForUser(UUID userKey, UUID roomId, UUID targetMessageId, String sessionId) {
 	    return xmppArchiveService.findByMessageId(targetMessageId)
-	        .subscribeOn(DB_SCHEDULER) // Sets the thread pool context for the database operations
 	        .flatMap(message -> {             	
 	            log.debug("Executing hide: Message {} in room {} by user {}", targetMessageId, roomId, userKey);
 	            

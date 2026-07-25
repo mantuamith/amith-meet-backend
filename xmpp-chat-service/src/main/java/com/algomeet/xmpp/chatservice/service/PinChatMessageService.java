@@ -12,8 +12,8 @@ import com.algomeet.xmpp.chatservice.enums.MessageViewAction;
 import com.algomeet.xmpp.chatservice.exceptions.PinMessageNotFoundException;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.repository.PinChatMessageRepository;
-import com.algomeet.xmpp.chatservice.stanza.PinStanza;
 import com.algomeet.xmpp.chatservice.stanza.MessageViewSyncStanza;
+import com.algomeet.xmpp.chatservice.stanza.PinStanza;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.github.f4b6a3.uuid.UuidCreator;
@@ -22,8 +22,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Scheduler;
-import reactor.core.scheduler.Schedulers;
 
 @Slf4j
 @Service
@@ -35,22 +33,11 @@ public class PinChatMessageService {
     private final DomainProperties domainProperties;
     private final JidUtil jidUtil;
 
-    // Scaled to 1,000 active threads and 50,000 queue bounds to safely absorb global broadcast spikes
-    private static final Scheduler CHAT_WORKER_SCHEDULER = 
-    		Schedulers.newBoundedElastic(
-    				// Max Threads: Increased from 200 to accommodate rapid blocking repository calls and E2EE session lookups
-    				1000, 
-    				// Max Queue: Expanded from 10,000 to cleanly buffer cross-cluster XMPP pin synchronization payloads
-    				50000, 
-    				"xmpp-pin-message-workers"
-    				);
-
     /**
      * Pins a new message inside a conversation context.
      */
     public Mono<PinChatMessage> pinMessage(UUID userKey, String sessionId, UUID peerKey, PinChatMessage pinChatMessage) {  	
         return pinChatMessageRepository.save(pinChatMessage)
-                .subscribeOn(CHAT_WORKER_SCHEDULER)
                 .doOnSuccess(saved -> log.debug("Successfully pinned message {} in conversation {}",                
                         saved.getId().getMessageId(), saved.getId().getConversationId()))
                 .doOnError(err -> log.error("Failed to pin message due to database constraint", err))
@@ -75,7 +62,6 @@ public class PinChatMessageService {
         String conversationId = DeterministicConversationIdUtil.getConversationId(userKey, peerKey);
 
         return pinChatMessageRepository.deleteById_ConversationIdAndId_MessageIdAndId_PinnedByAndPinnedForEveryoneIsFalse(conversationId, messageId, userKey)
-                .subscribeOn(CHAT_WORKER_SCHEDULER)
                 .flatMap(personalDeletedCount -> {
                     if (personalDeletedCount > 0) {
                         log.debug("Successfully unpinned personal message {} from conversation {}", messageId, conversationId);
@@ -103,7 +89,6 @@ public class PinChatMessageService {
         String conversationId = DeterministicConversationIdUtil.getConversationId(userKey, peerKey);
     	
         return pinChatMessageRepository.findPinnedMessages(conversationId, userKey)
-                .subscribeOn(CHAT_WORKER_SCHEDULER)
                 .doOnError(err -> log.error("Error matching indexed pin search framework for user {} in room {}", 
                 		userKey, conversationId, err));
     }   

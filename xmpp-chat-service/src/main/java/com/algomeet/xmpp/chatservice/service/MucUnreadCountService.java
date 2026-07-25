@@ -1,7 +1,6 @@
 package com.algomeet.xmpp.chatservice.service;
 
 import java.time.Instant;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -24,7 +23,6 @@ import com.algomeet.xmpp.chatservice.util.SearchUtil;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
 
 @Slf4j
@@ -35,15 +33,7 @@ public class MucUnreadCountService {
 	private final MucMessageRepository mucMessageRepository;
 	private final MucUserGroupsCacheService mucUserGroupsCacheService;
 	private final AbstractGroupCache groupCacheService;
-	
-	// Dedicated scheduler to offload blocking cache or metadata lookups
-	private static final Scheduler MUC_UNREAD_POOL = Schedulers.newBoundedElastic(
-			1000, 
-		    // Queue Size: Larger buffer to absorb concurrent login bursts
-		    50_000, 
-		    "muc-unread-workers"
-		);
-	
+		
 	/**
 	 * Aggregates and returns the active unread counts across all rooms for a specific user as a standard list.
 	 * * <p>This version explicitly blocks the underlying asynchronous stream at the termination edge, 
@@ -55,7 +45,7 @@ public class MucUnreadCountService {
 	public Mono<List<MucUnreadCount>> getUnreadCountsByUser(UUID userKey) {
 		// Step 1: Fetch the user's groups from your external client service safely on the worker pool
 		return Mono.fromCallable(() -> mucUserGroupsCacheService.getCachedGroupIds(userKey.toString()))
-				.subscribeOn(MUC_UNREAD_POOL)
+				.subscribeOn(Schedulers.boundedElastic())
 				.flatMap(roomIds -> {
 					if (CollectionUtils.isEmpty(roomIds)) {
 						return Mono.just(java.util.Collections.<MucUnreadCount>emptyList());
@@ -63,7 +53,6 @@ public class MucUnreadCountService {
 					
 					// Step 2: Assemble the reactive data pipeline
 					return mucRoomReadCursorRepository.findByUserKey(userKey)
-							.subscribeOn(MUC_UNREAD_POOL) // Ensure database extraction runs off netty loops
 							.collectList()
 							.flatMapIterable(cursorList -> {
 								// Convert the cursor list into an optimized O(1) lookup Map
@@ -90,7 +79,7 @@ public class MucUnreadCountService {
 									Group room = groupCacheService.getCachedGroup(roomId);
 									return java.util.Map.entry(room, SearchUtil.findMember(room, userKey.toString()));
 								})
-								.subscribeOn(MUC_UNREAD_POOL)
+								.subscribeOn(Schedulers.boundedElastic())
 								.flatMap(entry -> {
 									Group room = entry.getKey();
 									java.util.Optional<GroupMember> memberOpt = entry.getValue();
@@ -157,7 +146,6 @@ public class MucUnreadCountService {
 		
 		// Step 1: Look up the single cursor document for this specific user and room
 		return mucRoomReadCursorRepository.findByUserKeyAndRoomId(userKey, roomId)
-				.subscribeOn(MUC_UNREAD_POOL)
 				// Step 2: Extract the last read message ID if the cursor exists
 				.map(MucRoomReadCursor::getLastReadMid)
 				// Step 3: Fall back to an empty string (beginning of time) if no cursor is found

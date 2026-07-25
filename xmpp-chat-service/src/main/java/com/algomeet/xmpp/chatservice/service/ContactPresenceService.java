@@ -33,14 +33,14 @@ import reactor.core.scheduler.Schedulers;
  * Service responsible for synchronizing and distributing contact presence information.
  * <p>This service manages the lifecycle of distributed user states stored in Redis, 
  * ensuring that "zombie" or orphan session data is arbitrated correctly during presence pushes.</p>
- * * <p>Two main distribution flows are handled:</p>
+ * <p>Two main distribution flows are handled:</p>
  * <ul>
  * <li><b>Inbound Synchronization:</b> Initial fetch of friends' status from Redis upon login, 
  * resolving conflicts if multiple session records exist for a single contact.</li>
  * <li><b>Outbound Broadcast:</b> Real-time distribution of a user's presence (Active, Inactive, etc.) 
  * to their roster across the cluster nodes.</li>
  * </ul>
- * * @author Algomeet Core Team
+ * @author Algomeet Core Team
  */
 @Slf4j
 @Service
@@ -60,14 +60,13 @@ public class ContactPresenceService {
 	 * It acts as a primary filter for "zombie" data by using {@link #determineOverallState} 
 	 * to arbitrate between multiple session records (e.g., if an orphan session wasn't properly evicted).
 	 * </p>
-	 * * @param ctx       The Netty ChannelHandlerContext for direct WebSocket writes.
+	 * @param ctx       The Netty ChannelHandlerContext for direct WebSocket writes.
 	 * @param principal The principal of the user receiving the presence update.
 	 * @return 
 	 */
 	public Mono<Void> pushContactsPresenceToUser(ChannelHandlerContext ctx, XmppPrincipal principal) {
-	    // 1. Wrap the blocking HTTP call safely onto the elastic scheduler
-	    return Mono.fromCallable(() -> contactClient.getAcceptedContacts(UUID.fromString(principal.getUserKey())))
-	        .subscribeOn(Schedulers.boundedElastic())
+	    // 1. Wrap the blocking HTTP call safely onto the elastic scheduler while maintaining multi-tenant context
+	    return fetchAcceptedContacts(principal.getTenantId(), UUID.fromString(principal.getUserKey()))
 	        .filter(contacts -> !CollectionUtils.isEmpty(contacts))
 	        .flatMap(acceptedContacts -> {
 	            
@@ -96,10 +95,7 @@ public class ContactPresenceService {
 	                        }, 16) // Max concurrency factor
 	                        .then(); // Emits completion signal for this collection batch
 	                });
-	        })
-	        // 5. Use context-aware operators to cleanly manage Multi-Tenant ThreadLocals
-	        .doFirst(() -> TenantContext.setCurrentTenant(principal.getTenantId()))
-	        .doFinally(signalType -> TenantContext.clear());	        
+	        });       
 	}
 
 	/**
@@ -116,8 +112,7 @@ public class ContactPresenceService {
 	 */
 	public Mono<Void> broadcastPresenceToContacts(ChannelHandlerContext ctx, XmppPrincipal principal, UserState newState) {
 		// FIX: Completely eliminate ThreadLocal context leaks by treating the relationship lookup as a safe, isolated reactive step
-		return Mono.fromCallable(() -> contactClient.getAcceptedContacts(UUID.fromString(principal.getUserKey())))
-			.subscribeOn(Schedulers.boundedElastic()) // Offloads the blocking contactClient network handshake safely
+		return fetchAcceptedContacts(principal.getTenantId(), UUID.fromString(principal.getUserKey()))
 			.filter(contacts -> !CollectionUtils.isEmpty(contacts))
 			.flatMap(acceptedContacts -> {
 				
@@ -127,21 +122,31 @@ public class ContactPresenceService {
 						.state(newState)
 						.build();
 
-				// FIX: Convert the iterative dispatch into a backpressure-aware reactive stream
+				// FIX: Convert the iterative dispatch into a backpressure-aware reactive stream without blocking threads or orphaned subscriptions
 				return Flux.fromIterable(acceptedContacts)
-						.flatMap(contactUserKey -> Mono.fromRunnable(() -> {
-							clusterMessagePublisher.convertAndSendToUser(
-									UuidCreator.getTimeOrderedEpoch().toString(), 
-									contactUserKey.toString(), 
-									principal.getUserKey(), 
-									ChatType.CHAT, 
-									directPresence
-									).subscribe();
-						}).subscribeOn(Schedulers.boundedElastic()), 32) // Maintain strict concurrency boundaries on the cluster publisher
+						.flatMap(contactUserKey -> clusterMessagePublisher.convertAndSendToUser(
+								UuidCreator.getTimeOrderedEpoch().toString(), 
+								contactUserKey.toString(), 
+								principal.getUserKey(), 
+								ChatType.CHAT, 
+								directPresence
+						), 32) // Maintain strict concurrency boundaries on the cluster publisher
 						.then();
-			})
-			// FIX: Use Reactor's built-in hooks to manage ThreadLocals deterministically for the blocking parts of the chain
-			.doFirst(() -> TenantContext.setCurrentTenant(principal.getTenantId()))
-			.doFinally(signalType -> TenantContext.clear());			
+			});		
+	}
+
+	/**
+	 * Helper method to safely offload the blocking contact client HTTP handshake onto the elastic scheduler 
+	 * while ensuring TenantContext ThreadLocal variables are explicitly set and cleaned up on the target worker thread.
+	 */
+	private Mono<List<UUID>> fetchAcceptedContacts(Integer tenantId, UUID userKey) {
+		return Mono.fromCallable(() -> {
+			try {
+				TenantContext.setCurrentTenant(tenantId);
+				return contactClient.getAcceptedContacts(userKey);
+			} finally {
+				TenantContext.clear();
+			}
+		}).subscribeOn(Schedulers.boundedElastic());
 	}
 }

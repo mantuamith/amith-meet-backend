@@ -13,8 +13,8 @@ import com.algomeet.xmpp.chatservice.exceptions.PinMessageNotFoundException;
 import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.repository.PinMucMessageRepository;
 import com.algomeet.xmpp.chatservice.routing.muc.MucMessageRouter;
-import com.algomeet.xmpp.chatservice.stanza.PinStanza;
 import com.algomeet.xmpp.chatservice.stanza.MessageViewSyncStanza;
+import com.algomeet.xmpp.chatservice.stanza.PinStanza;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.github.f4b6a3.uuid.UuidCreator;
@@ -23,7 +23,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
 
 @Slf4j
@@ -37,22 +36,11 @@ public class PinMucMessageService {
     private final AbstractGroupCache groupCacheService;
     private final ClusterMessagePublisher reactiveClusterMessagePublisher;
 
-    // Uniformly scaled to 1,000 active threads and 50,000 queue slots to match production messaging service bounds
-    private static final Scheduler MUC_WORKER_SCHEDULER = 
-    		Schedulers.newBoundedElastic(
-    				// Max Threads: Increased from 200 to prevent group broadcast blocks on heavy data spikes
-    				1000, 
-    				// Max Queue: Expanded from 10,000 to cleanly protect against OutOfMemory during massive parallel fan-outs
-    				50000, 
-    				"xmpp-pin-muc-message-workers"
-    				);
-
     /**
      * Pins a new message inside a specific MUC room context.
      */
     public Mono<PinMucMessage> pinMessage(UUID userKey, UUID roomId, String sessionId, PinMucMessage pinMucMessage) {
         return pinMucMessageRepository.save(pinMucMessage)
-                .subscribeOn(MUC_WORKER_SCHEDULER)
                 .flatMap(saved -> {
                     log.debug("Successfully pinned MUC message {} in group {}", 
                             saved.getId().getMessageId(), saved.getId().getGroupId());
@@ -73,7 +61,6 @@ public class PinMucMessageService {
      */
     public Mono<Void> unpinMessage(UUID userKey, UUID groupId, UUID messageId, String sessionId) {
         return pinMucMessageRepository.deleteById_GroupIdAndId_MessageIdAndId_PinnedByAndPinnedForEveryoneIsFalse(groupId, messageId, userKey)
-                .subscribeOn(MUC_WORKER_SCHEDULER)
                 .flatMap(personalDeletedCount -> {
                     if (personalDeletedCount > 0) {
                         log.debug("Successfully unpinned personal message {} from MUC room {}", messageId, groupId);
@@ -99,7 +86,6 @@ public class PinMucMessageService {
      */
     public Flux<PinMucMessage> findPinnedMessages(UUID groupId, UUID pinnedBy) {    	
         return pinMucMessageRepository.findPinnedMessages(groupId, pinnedBy)
-                .subscribeOn(MUC_WORKER_SCHEDULER)
                 .doOnError(err -> log.error("Error matching indexed pin search framework for user {} in MUC room {}", 
                         pinnedBy, groupId, err));
     }
@@ -110,7 +96,7 @@ public class PinMucMessageService {
 	private Mono<Void> composeAndSendPinSync(String targetId, String roomId, String userKey, String sessionId, MessageViewAction viewManageEnum) {
         // FIXED: Wrap the blocking groupCacheService call into a deferred callable pipeline 
         return Mono.fromCallable(() -> groupCacheService.getCachedGroup(roomId))
-                .subscribeOn(MUC_WORKER_SCHEDULER)
+        		.subscribeOn(Schedulers.boundedElastic())
                 .flatMap(group -> {
                     String id = UuidCreator.getTimeOrderedEpoch().toString();
                     MessageViewSyncStanza vmSync = MessageViewSyncStanza.builder()
@@ -133,7 +119,7 @@ public class PinMucMessageService {
 	private Mono<Void> composeAndSendPinForEveryone(String targetId, String roomId, String userKey, String sessionId, MessageViewAction viewManageEnum) {
         // FIXED: Wrap the blocking groupCacheService call into a deferred callable pipeline
         return Mono.fromCallable(() -> groupCacheService.getCachedGroup(roomId))
-                .subscribeOn(MUC_WORKER_SCHEDULER)
+        		.subscribeOn(Schedulers.boundedElastic())
                 .flatMap(group -> {
                     String id = UuidCreator.getTimeOrderedEpoch().toString();
                     PinStanza pinStanza = PinStanza.builder()

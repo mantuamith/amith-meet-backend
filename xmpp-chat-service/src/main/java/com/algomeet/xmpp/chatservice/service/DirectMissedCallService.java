@@ -162,7 +162,6 @@ public class DirectMissedCallService {
 								}))
 								.doFinally(signalType -> TenantContext.clear()); // Assure ThreadLocal storage cleanup
 							})
-							.subscribeOn(Schedulers.boundedElastic()) // Protect Netty loop threads from Context overhead transitions
 							.then(reactiveRedisTemplate.delete(metaKey))
 							.then();
 				});
@@ -209,7 +208,7 @@ public class DirectMissedCallService {
 						clusterMessagePublisher.convertAndSendToUser(id.toString(), toUserKey, fromUserKey, ChatType.CHAT, forArchiveXml),
 						clusterMessagePublisher.convertAndSendToUser(timeoutId, toUserKey, fromUserKey, ChatType.CHAT, timeoutStanza.toXml())
 					)
-					.then(Mono.fromRunnable(() -> unreadCountService.incrementUnreadCount(fromUserKey, toUserKey)));
+					.then(unreadCountService.incrementUnreadCount(fromUserKey, toUserKey));
 				})
 				.doOnError(e -> log.error("MAM Persistence/Cluster Delivery failed for SID {}: {}", sid, e.getMessage()))
 				.then();

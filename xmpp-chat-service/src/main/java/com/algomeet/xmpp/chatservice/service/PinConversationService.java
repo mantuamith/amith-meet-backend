@@ -8,11 +8,9 @@ import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.document.PinConversation;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.enums.ConversationViewAction;
-import com.algomeet.xmpp.chatservice.properties.DomainProperties;
 import com.algomeet.xmpp.chatservice.repository.PinConversationRepository;
 import com.algomeet.xmpp.chatservice.stanza.ConversationViewSyncStanza;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
-import com.algomeet.xmpp.chatservice.util.XmppStanzaUtil;
 import com.github.f4b6a3.uuid.UuidCreator;
 
 import lombok.RequiredArgsConstructor;
@@ -26,7 +24,6 @@ import reactor.core.publisher.Mono;
 public class PinConversationService {
     private final PinConversationRepository pinConversationRepository;
     private final ClusterMessagePublisher reactiveClusterMessagePublisher;
-    private final DomainProperties domainProperties;
     private final JidUtil jidUtil;
 
     /**

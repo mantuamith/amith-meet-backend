@@ -60,7 +60,6 @@ public class MucMessageService {
 	/**
 	 * Dedicated pool tuned for high-volume Multi-User Chat room processing and fallback sync-cache operations.
 	 */
-	private static final Scheduler MUC_THREAD_POOL = Schedulers.newBoundedElastic(1000, 50000, "muc-message-workers");
 
 	public Mono<List<MucMessageResponse>> getMessagesAfter(
 	        UUID userKey,
@@ -80,7 +79,7 @@ public class MucMessageService {
 	        }
 	        return Optional.of(MucMemberUtil.getHistoryCutoff(room, member.get()));
 	    })
-	    .subscribeOn(MUC_THREAD_POOL)
+	    .publishOn(Schedulers.boundedElastic())
 	    .flatMap(cutoffOpt -> {
 	        if (cutoffOpt.isEmpty()) {
 	            return Mono.just(Collections.emptyList());
@@ -124,7 +123,7 @@ public class MucMessageService {
 	        }
 	        return Optional.of(MucMemberUtil.getHistoryCutoff(room, member.get()));
 	    })
-	    .subscribeOn(MUC_THREAD_POOL)
+	    .publishOn(Schedulers.boundedElastic())
 	    .flatMap(cutoffOpt -> {
 	        if (cutoffOpt.isEmpty()) {
 	            return Mono.just(Collections.emptyList());
@@ -165,7 +164,7 @@ public class MucMessageService {
 	        }
 	        return Optional.of(MucMemberUtil.getHistoryCutoff(group, member.get()));
 	    })
-	    .subscribeOn(MUC_THREAD_POOL)
+	    .publishOn(Schedulers.boundedElastic())
 	    .flatMap(cutoffOpt -> {
 	        if (cutoffOpt.isEmpty()) {
 	            return Mono.just(Collections.emptyList());
@@ -270,6 +269,7 @@ public class MucMessageService {
 	                return mongoTemplate.aggregate(aggregation, "muc_messages", MucMessage.class)
 	                        .map(m -> mucMessageMapper.toResponse(m, userKey))
 	                        .collectList() // Asynchronously gathers the Flux elements into a standard Java List Mono
+	                        .publishOn(Schedulers.boundedElastic())
 	                        .flatMap(resultDtos -> {
 	                            if (CollectionUtils.isEmpty(resultDtos)) {
 	                                return Mono.just(resultDtos);

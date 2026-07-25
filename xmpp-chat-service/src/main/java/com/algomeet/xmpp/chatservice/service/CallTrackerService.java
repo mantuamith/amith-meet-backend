@@ -407,10 +407,10 @@ public class CallTrackerService {
 			String payload) {
 
 		Mono<Void> offlineWorkflow = offlineMessageService.save(id, stanzaId, to, from, XmppMessageType.CHAT.getXmlValue(), payload)
-				.doOnSuccess(success -> {
+				.doOnSuccess(success -> 
 					// Increment unread message counter
-					unreadCountService.incrementUnreadCount(from, to);
-				})
+					unreadCountService.incrementUnreadCount(from, to)
+				)
 				.doOnError(e -> {
 					log.error("Storage failure for message {}: {}", id, e.getMessage(), e);
 				})
