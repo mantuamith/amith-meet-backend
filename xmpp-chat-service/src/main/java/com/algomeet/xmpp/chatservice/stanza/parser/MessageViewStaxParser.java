@@ -17,24 +17,24 @@ public class MessageViewStaxParser {
 
     public static class ViewItem {
         public String action;
-        public String room;
+        public String roomId;
         public String id;
-        public String peer;
+        public String peerKey;
 
-        public ViewItem(String action, String room, String id, String peer) {
+        public ViewItem(String action, String roomId, String id, String peerKey) {
             this.action = action;
-            this.room = room;
+            this.roomId = roomId;
             this.id = id;
-            this.peer = peer;
+            this.peerKey = peerKey;
         }
 
         @Override
         public String toString() {
             return "ViewItem{" +
                     "action='" + action + '\'' +
-                    ", room='" + room + '\'' +
+                    ", roomId='" + roomId + '\'' +
                     ", id='" + id + '\'' +
-                    ", peer='" + peer + '\'' +
+                    ", peerKey='" + peerKey + '\'' +
                     '}';
         }
     }
@@ -80,11 +80,11 @@ public class MessageViewStaxParser {
                     // <item>
                     if (inQuery && "item".equals(localName)) {
                         String action = reader.getAttributeValue(null, "action");
-                        String room = reader.getAttributeValue(null, "room");
+                        String roomId = reader.getAttributeValue(null, "room-id");
                         String id = reader.getAttributeValue(null, "id");
-                        String peer = reader.getAttributeValue(null, "peer");
+                        String peerKey = reader.getAttributeValue(null, "peer-key");
 
-                        result.items.add(new ViewItem(action, room, id, peer));
+                        result.items.add(new ViewItem(action, roomId, id, peerKey));
                     }
 
                     break;

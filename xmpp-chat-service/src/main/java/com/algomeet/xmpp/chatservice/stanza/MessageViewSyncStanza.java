@@ -17,8 +17,8 @@ public class MessageViewSyncStanza {
 	private final String id;
 	private final String type;
 	private final String action;
-	private final String room;
-	private final String peer;
+	private final String roomId;
+	private final String peerKey;
 	private final String targetId;
 
 	private MessageViewSyncStanza(Builder builder) {
@@ -27,8 +27,8 @@ public class MessageViewSyncStanza {
 		this.id = builder.id;
 		this.type = "headline"; // Standard for background sync
 		this.action = builder.action;
-		this.room = builder.room;
-		this.peer = builder.peer;
+		this.roomId = builder.roomId;
+		this.peerKey = builder.peerKey;
 		this.targetId = builder.targetId;
 		
 	}
@@ -55,14 +55,14 @@ public class MessageViewSyncStanza {
 		.append("<item ")
 		.append("action='").append(action).append("' ");
 
-		// Only append the room attribute if room is provided
-		if (room != null && !room.isBlank()) {
-			sb.append("room='").append(room).append("' ");
+		// Only append the roomId attribute if roomId is provided
+		if (roomId != null && !roomId.isBlank()) {
+			sb.append("room-id='").append(roomId).append("' ");
 		}
 		
-		// Only append the peer attribute if peer is provided
-		if (peer != null && !peer.isBlank()) {
-			sb.append("peer='").append(peer).append("' ");
+		// Only append the peerKey attribute if peerKey is provided
+		if (peerKey != null && !peerKey.isBlank()) {
+			sb.append("peer-key='").append(peerKey).append("' ");
 		}
 
 		sb.append("id='").append(targetId).append("'/>")
@@ -78,8 +78,8 @@ public class MessageViewSyncStanza {
 		private String to;
 		private String id;
 		private String action = MessageViewAction.HIDE.getValue(); // Default action
-		private String room;
-		private String peer;
+		private String roomId;
+		private String peerKey;
 		private String targetId;
 
 		public Builder from(String from) {
@@ -102,13 +102,13 @@ public class MessageViewSyncStanza {
 			return this;
 		}
 
-		public Builder room(String room) {
-			this.room = room;
+		public Builder roomId(String room) {
+			this.roomId = room;
 			return this;
 		}
 		
-		public Builder peer(String peer) {
-			this.peer = peer;
+		public Builder peerKey(String peer) {
+			this.peerKey = peer;
 			return this;
 		}
 

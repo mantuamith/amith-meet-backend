@@ -83,12 +83,15 @@ public class PinConversationController {
 		if (peerKey == null && groupId == null) {
 			throw new RuntimeException("Either peerKey or groupId request parameter must be provided.");
 		}
-		
-		UUID userKey = UUID.fromString(SecurityUtil.getUserKey());    	
+
+		UUID userKey = UUID.fromString(SecurityUtil.getUserKey());      
 		return pinConversationService.unpinConversation(userKey, peerKey, groupId, sessionId)
-				.then(Mono.fromCallable(() -> ResponseEntity
-						.ok()
-						.body(CommonResponse.from(ResponseCode.SUCCESS))));
+				.flatMap(unpinned -> {
+					if (!unpinned) {
+						return Mono.just(ResponseEntity.status(HttpStatus.NOT_FOUND).body(CommonResponse.from(ResponseCode.ERROR)));
+					}
+					return Mono.just(ResponseEntity.ok().body(CommonResponse.from(ResponseCode.SUCCESS)));
+				});
 	}
 
 	/**
@@ -97,8 +100,7 @@ public class PinConversationController {
 	 * @return
 	 */
 	@GetMapping("/pins")
-	public Mono<ResponseEntity<CommonResponse<List<PinConversationResponse>>>> findPinnedMessages(
-			@PathVariable UUID peerKey) {
+	public Mono<ResponseEntity<CommonResponse<List<PinConversationResponse>>>> findPinnedMessages() {
 
 		UUID userKey = UUID.fromString(SecurityUtil.getUserKey()); 
 		return pinConversationService.getPinnedConversations(userKey)

@@ -116,7 +116,7 @@ public class PinMucMessageService {
                     MessageViewSyncStanza vmSync = MessageViewSyncStanza.builder()
                             .id(id)
                             .targetId(targetId)
-                            .room(roomId)				
+                            .roomId(roomId)				
                             .from(jidUtil.getGroupBareJid(roomId) + "/" + userKey) 
                             .action(viewManageEnum.getValue())
                             .build();

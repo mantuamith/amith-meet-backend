@@ -24,4 +24,6 @@ public class Constants {
 	public static final String NS_CONVERSATION_VIEW = "urn:algomeet:conversation-view:0";
 		
 	public static final String NS_JINGLE = "urn:xmpp:jingle:1";
+	
+	public static final String NS_PIN_MESSAGE = "urn:algomeet:pin:0";
 }

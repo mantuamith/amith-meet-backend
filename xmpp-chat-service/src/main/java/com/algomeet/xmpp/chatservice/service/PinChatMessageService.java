@@ -118,7 +118,7 @@ public class PinChatMessageService {
                 .id(id)
                 .targetId(targetId)
                 .from(jidUtil.getBareJid(userKey))
-                .peer(peerKey)
+                .peerKey(peerKey)
                 .action(viewManageEnum.getValue())
                 .build();
 

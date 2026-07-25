@@ -143,7 +143,7 @@ public class MamUtil {
 					.id(UuidCreator.getTimeOrderedEpoch().toString())
 					.targetId(msg.getMessageId().toString()) // The message ID that should be hidden from view
 					.from(principal.getBareJid()) // Sent from the user's bare JID
-					.room(jidUtil.getGroupBareJid(msg.getRoomId().toString()))
+					.roomId(msg.getRoomId().toString())
 					// Removed to attribute to shorten the message
 					//.to(principal.getBareJid())   // Sent to self to ensure all connected resources (phone, web) sync
 					.build();

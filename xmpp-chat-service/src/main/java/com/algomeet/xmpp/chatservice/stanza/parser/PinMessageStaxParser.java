@@ -6,6 +6,8 @@ import javax.xml.stream.XMLStreamConstants;
 import javax.xml.stream.XMLStreamReader;
 import org.springframework.stereotype.Component;
 
+import com.algomeet.xmpp.chatservice.constant.Constants;
+
 @Component
 public class PinMessageStaxParser {
 
@@ -42,7 +44,7 @@ public class PinMessageStaxParser {
                 // <pin xmlns="urn:xmpp:algomeet:pin:0" ...>
                 if ("pin".equals(localName)) {
                     String ns = reader.getNamespaceURI();
-                    if ("urn:xmpp:algomeet:pin:0".equals(ns)) {
+                    if (Constants.NS_PIN_MESSAGE.equals(ns)) {
                         result.action = reader.getAttributeValue(null, "action");
                         result.id = reader.getAttributeValue(null, "id");
                         break; // Found our data, we can stop parsing early

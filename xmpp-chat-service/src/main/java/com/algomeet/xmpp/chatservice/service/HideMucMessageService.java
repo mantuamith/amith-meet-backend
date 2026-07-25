@@ -79,13 +79,14 @@ public class HideMucMessageService {
 	        .then(); 
 	}
 
-	public Mono<Void> composeAndSendDirectSync(String targetId, XmppPrincipal principal) {
+	public Mono<Void> composeAndSendDirectSync(String targetId,String peerKey, XmppPrincipal principal) {
 		String id = UuidCreator.getTimeOrderedEpoch().toString();
 
 		MessageViewSyncStanza vmSync = MessageViewSyncStanza.builder()
 				.id(id)
 				.targetId(targetId)
 				.from(principal.getBareJid())
+				.peerKey(peerKey)
 				.build();
 
 		return reactiveClusterMessagePublisher.convertAndSendToUser(id, principal.getUserKey(), principal.getUserKey(), 
@@ -98,7 +99,7 @@ public class HideMucMessageService {
 		MessageViewSyncStanza vmSync = MessageViewSyncStanza.builder()
 				.id(id)
 				.targetId(targetId)
-				.room(roomId)
+				.roomId(roomId)
 				.from(jidUtil.getBareJid(userKey))
 				.build();
 
