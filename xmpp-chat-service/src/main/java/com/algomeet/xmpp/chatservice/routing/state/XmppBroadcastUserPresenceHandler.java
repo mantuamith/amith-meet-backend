@@ -82,8 +82,6 @@ public class XmppBroadcastUserPresenceHandler {
 	                mucPresenceService.broadcastPresenceToAllJoinedGroups(ctx, userKey, newState)
 	            );
 	        })
-	        // Move processing away from Netty event loop for these operations if they hit database/IO
-	        .subscribeOn(Schedulers.boundedElastic())
 	        .doOnError(e -> log.error("Failed to broadcast presence for user {}: {}", userKey, e.getMessage()));
 	}
 }

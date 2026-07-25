@@ -28,7 +28,6 @@ import io.netty.channel.ChannelHandlerContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Schedulers;
 
 /**
  * Handler for processing accepted group invitations.
@@ -136,8 +135,6 @@ public class MucAcceptInviteEventHandler {
     private Mono<Void> saveToDatabase(String id, String roomBareJid, GroupMember sender, UUID stanzaId, String xml, Integer messageRetentionDays) {      
         return xmppArchiveService.archiveEvent(xml, id, XmppUtil.getRoomId(roomBareJid), null, 
                 sender.getUserKey(), stanzaId, messageRetentionDays)
-            // Offload the subscription context to a background worker pool
-            .subscribeOn(Schedulers.boundedElastic()) 
             .doOnError(error -> {
                 log.error("Failed to archive join event for {} in room {}", sender.getUserKey(), roomBareJid, error);
             })

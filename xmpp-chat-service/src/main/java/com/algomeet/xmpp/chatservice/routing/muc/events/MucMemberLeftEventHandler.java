@@ -197,7 +197,6 @@ public class MucMemberLeftEventHandler {
 				principal.getUserKey(),
 				stanzaId,
 				messageRetentionDays)
-		.subscribeOn(Schedulers.boundedElastic())
 	    .doOnError(e -> log.error("Failed to archive departure event log for user {} inside room {}", principal.getUserKey(), roomBareJid, e))
 	    .then();
 	}

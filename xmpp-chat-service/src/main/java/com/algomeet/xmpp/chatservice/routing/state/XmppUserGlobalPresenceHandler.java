@@ -19,7 +19,6 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.util.Attribute;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import reactor.core.scheduler.Schedulers;
 
 /**
  * <p>Maintains global reachability and coordinates session activation.</p>
@@ -106,7 +105,6 @@ public class XmppUserGlobalPresenceHandler {
 				// B. Deliver offline messages accumulated while user was disconnected
 				// FIX: Safe-route the pipeline onto elastic processing pools to guarantee Netty loop non-blocking behavior
 				offlineMessageHandler.deliverOfflineMessages(principal.getUserKey())
-						.subscribeOn(Schedulers.boundedElastic())
 						.doOnError(e -> log.error("Offline message delivery failed for user userKey={}", principal.getUserKey(), e))
 						.subscribe();
 
@@ -205,7 +203,6 @@ public class XmppUserGlobalPresenceHandler {
 						userKey,
 						msg.getStanzaXml()
 						))
-				.subscribeOn(Schedulers.boundedElastic())
 				// Collect items to ensure the buffer is cleared ONLY after all messages fully pass the delivery routing architecture
 				.collectList()
 				// Called when all buffered stanzas have been successfully replayed

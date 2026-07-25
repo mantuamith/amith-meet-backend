@@ -223,7 +223,6 @@ public class MucKickEventHandler {
 				sender.getUserKey(),
 				stanzaId,
 				messageRetentionDays)
-				.subscribeOn(Schedulers.boundedElastic())
 				.doOnError(e -> log.error("Failed to database archive kick tracking log for room {}", roomBareJid, e))
 				.then();
 	}

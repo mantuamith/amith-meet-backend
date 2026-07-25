@@ -55,8 +55,6 @@ public class XmppViewManageHandler {
 									return Mono.error(new IllegalArgumentException("Invalid action " + item.action));
 								}
 							}, 16) 
-							// 2. Threading isolated safely to one root configuration boundary
-							.subscribeOn(Schedulers.boundedElastic())
 							.doOnError(err -> {
 								log.error("Failed to process message hide actions for user {}", principal.getUserKey(), err);
 								xmppUtil.sendError(ctx, vmIq.iqId, principal.getBareJid(), domainProperties.getDomain(), 
