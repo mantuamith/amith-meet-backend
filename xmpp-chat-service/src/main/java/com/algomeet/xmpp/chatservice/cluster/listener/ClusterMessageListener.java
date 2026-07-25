@@ -14,6 +14,7 @@ import com.algomeet.xmpp.chatservice.util.ClusterSyncProtocolUtil;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.publisher.Mono;
 
 /**
  * <p>Subscriber/Listener responsible for inter-node XMPP stanza synchronization.</p>
@@ -77,7 +78,6 @@ public class ClusterMessageListener {
          *     <li>[7] shouldCarbon - "1" = true, "0" = false</li></li>
          *     <li>[8] isAckStanza - "1" = true, "0" = false</li></li>
          *     <li>[9] payload     - Raw XMPP XML stanza</li>
-
          * </ol>
          *
          * <p>{@code ClusterSyncProtocolUtil.V1_FIELD_COUNT} should be set to {@code ClusterSyncProtocolUtil.V1_FIELD_COUNT} so the split
@@ -96,36 +96,34 @@ public class ClusterMessageListener {
          * - ArrayIndexOutOfBoundsException
          */
         if (message != null 
-        		&& message.length == ClusterSyncProtocolUtil.V1_FIELD_COUNT) {
+                && message.length == ClusterSyncProtocolUtil.V1_FIELD_COUNT) {
 
-        	UUID id = UUID.fromString(message[1]);
-        	String to = message[2];
-        	String from = message[3];
-        	String chatType = message[4];
-        	boolean isAllowEcho = "1".equals(message[5]);
-        	String userSessionId = message[6];
-        	boolean shouldCarbon = "1".equals(message[7]);
-        	boolean isAckStanza = "1".equals(message[8]);
-        	String payload = message[9];
-        	
-            localStanzaDispatcher.dispatchLocally(
-            		id,
-            		to,
-            		isAllowEcho,
-            		userSessionId,
-            		payload
+            UUID id = UUID.fromString(message[1]);
+            String to = message[2];
+            String from = message[3];
+            String chatType = message[4];
+            boolean isAllowEcho = "1".equals(message[5]);
+            String userSessionId = message[6];
+            boolean shouldCarbon = "1".equals(message[7]);
+            boolean isAckStanza = "1".equals(message[8]);
+            String payload = message[9];
+            
+            // Step 1: Dispatch locally and delete offline record if it's an ACK stanza that succeeded
+            Mono<Void> dispatchTask = localStanzaDispatcher.dispatchLocally(
+                    id,
+                    to,
+                    isAllowEcho,
+                    userSessionId,
+                    payload
             )
-            // Intercept the emitted boolean when it arrives from the Netty/WebSocket pipeline
-            .doOnNext(isSuccess -> {
+            .flatMap(isSuccess -> {
                 if (Boolean.TRUE.equals(isSuccess) && isAckStanza) {
-                	// Delete if record is ACK stanza
-                	offlineMessageRepository.deleteByMessageIdAndIsAckStanzaTrue(id)
-                	.subscribe(); 
+                    // Delete if record is ACK stanza (reactively chained)
+                    return offlineMessageRepository.deleteByMessageIdAndIsAckStanzaTrue(id);
                 }
+                return Mono.empty();
             })
-            // If this is the absolute end-point of an event listener/fire-and-forget handler,
-            // keep ONE .subscribe() here. If it's inside a pipeline, remove .subscribe() and return the Mono.
-            .subscribe();
+            .then();
 
             /**
              * Message Carbons are only applicable to one-to-one chats.
@@ -143,8 +141,9 @@ public class ClusterMessageListener {
              * Therefore, only process carbon copy generation when the
              * message type is normal direct CHAT.
              */
+            Mono<Void> carbonTask = Mono.empty();
             if (ChatType.CHAT.name().equals(chatType.trim()) && !(to.equals(from))) {
-                carbonCopyHandler.handleSentMessageCarbonCopy(
+                carbonTask = carbonCopyHandler.handleSentMessageCarbonCopy(
                         from,
                         userSessionId,
                         payload,
@@ -152,9 +151,14 @@ public class ClusterMessageListener {
                 );
             }
 
-            log.info("Successfully processed cluster sync for Stanza ID: {}",
-                id
-            );
+            // Chain local dispatching and carbon copy operations sequentially in the reactive pipeline
+            dispatchTask
+                    .then(carbonTask)
+                    .doOnSuccess(v -> log.info("Successfully processed cluster sync for Stanza ID: {}", id))
+                    .subscribe(
+                    		null, // consumer for value (void)
+                    		error -> log.error("Error processing cluster sync for message ID [{}]: {}", message[1], error.getMessage(), error)
+                    		);
         }
-    }   
+    }
 }

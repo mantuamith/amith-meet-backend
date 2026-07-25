@@ -1,7 +1,6 @@
 package com.algomeet.xmpp.chatservice.routing.dispacher;
 
 import java.util.Collection;
-import java.util.List;
 import java.util.UUID;
 
 import org.springframework.stereotype.Component;

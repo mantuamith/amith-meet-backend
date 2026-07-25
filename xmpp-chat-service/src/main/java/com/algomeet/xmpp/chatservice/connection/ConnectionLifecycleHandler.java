@@ -22,6 +22,8 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 /**
  * <p>Orchestrates the lifecycle of XMPP sessions over WebSocket connections.</p>
@@ -72,7 +74,10 @@ public class ConnectionLifecycleHandler {
 			// 2. Register in Local Channel Registry (Stateful registration)
 			localChannelRegistry.register(userKey, sessionId, ctx.channel());
 			userSessionRegistry.addSession(userKey, new UserSession(sessionId, UserState.ACTIVE, Instant.now().toEpochMilli()))
-			.subscribe();
+			.subscribe(
+					null, // consumer for value (void)
+            		error -> log.error("Error registering session for user [{}]: {}", userKey, error.getMessage(), error)
+					);
 
 			// 3. Send Bind Result (Confirmation of session establishment)
 			// This informs the client of their full JID and the assigned Session ID
@@ -101,54 +106,77 @@ public class ConnectionLifecycleHandler {
 			// Persist any pending Stream Management (SM) state before tearing down the session.
 			// This allows unacknowledged stanzas / buffered messages to be restored
 			// if the client reconnects using XEP-0198 resume.
-			xmppSmBufferService.save(ctx, principal)
-			.doOnError(e -> {
-				log.error(
-						"Failed to save SM buffer for user {}: {}",
-						userKey,
-						e.getMessage()
-						);
-			})
+			Mono<Void> savePendingStreamTask = xmppSmBufferService.save(ctx, principal)
+					.onErrorResume(e -> Mono.empty()) // Ensure pipeline continues even if SM buffer save fails
+					.doOnError(e -> {
+						log.error(
+								"Failed to save SM buffer for user {}: {}",
+								userKey,
+								e.getMessage()
+								);
+					})
 
-			// Always invoked when the reactive pipeline terminates:
-			// - COMPLETE : save finished successfully
-			// - ERROR    : save failed
-			// - CANCEL   : subscription was cancelled/interrupted
-			//
-			// Used here to guarantee cleanup regardless of outcome.
-			.doFinally(signalType -> {
+					// Always invoked when the reactive pipeline terminates:
+					// - COMPLETE : save finished successfully
+					// - ERROR    : save failed
+					// - CANCEL   : subscription was cancelled/interrupted
+					//
+					// Used here to guarantee cleanup regardless of outcome.
+					.doFinally(signalType -> {
 
-				// Helpful for tracing disconnect behavior and diagnosing
-				// incomplete resumes or unexpected cancellations.
-				log.debug(
-						"Finalizing session for {} with signal: {}",
-						userKey,
-						signalType
-						);
+						// Helpful for tracing disconnect behavior and diagnosing
+						// incomplete resumes or unexpected cancellations.
+						log.debug(
+								"Finalizing session for {} with signal: {}",
+								userKey,
+								signalType
+								);
 
-				// Remove the user's channel mapping from this node.
-				// Wrapped in safeExecute so cleanup continues even if
-				// one task throws an exception.
-				safeExecute(
-						() -> localChannelRegistry.unregister(userKey, sessionId),
-						"Local Channel Registry",
-						userKey
-						);
-			})
-			.subscribe();
+						// Remove the user's channel mapping from this node.
+						// Wrapped in safeExecute so cleanup continues even if
+						// one task throws an exception.
+						safeExecute(
+								() -> localChannelRegistry.unregister(userKey, sessionId),
+								"Local Channel Registry",
+								userKey
+								);
+					});
 
 
 			log.info("Starting cleanup for session {} (User: {})", sessionId, userKey);
 			// Execute each cleanup task safely to ensure one failure doesn't block the entire teardown
-			safeExecute(() -> userSessionRegistry.removeSession(userKey, sessionId)
-					.subscribe(), "User Session Registry", userKey);
+			Mono<Void> removeUserSessionTask = userSessionRegistry.removeSession(userKey, sessionId)
+					.onErrorResume(e -> {
+						log.error("Failed to remove user session for userKey={} sessionId={}: {}", userKey, sessionId, e.getMessage(), e);
+						return Mono.empty();
+					});
 
 			// Handle ongoing dropped calls.
-			callSessionRecoveryService.handleTransportDrop(sessionId).subscribe();
+			Mono<Void> callRecoveryTask = callSessionRecoveryService.handleTransportDrop(sessionId)
+					.onErrorResume(e -> {
+						log.error("Error handling call transport drop for sessionId={}: {}", sessionId, e.getMessage(), e);
+						return Mono.empty();
+					})
+					.then();
 
 			// Broadcast user presence GONE
-			xmppBroadcastUserPresenceHandler.broadcastUserPresence(ctx, principal, UserState.GONE)
-			.subscribe();
+			Mono<Void> broadcastGoneTask = xmppBroadcastUserPresenceHandler.broadcastUserPresence(ctx, principal, UserState.GONE)
+					.onErrorResume(e -> {
+						log.error("Error broadcasting GONE presence for userKey={}: {}", userKey, e.getMessage(), e);
+						return Mono.empty();
+					});
+			
+			// Chain all teardown tasks sequentially on elastic pool to prevent Netty EventLoop blocking
+			savePendingStreamTask
+					.then(removeUserSessionTask)
+					.then(callRecoveryTask)
+					.then(broadcastGoneTask)
+					.doOnSuccess(v -> log.info("Cleanup completed for session {}", sessionId))
+					.subscribeOn(Schedulers.boundedElastic())
+					.subscribe(
+							null,
+							error -> log.error("Error during session teardown for userKey={} sessionId={}: {}", userKey, sessionId, error.getMessage(), error)
+					);
 
 			log.info("Cleanup completed for session {}", sessionId);
 		}
