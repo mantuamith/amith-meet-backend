@@ -121,11 +121,9 @@ public class PinMucMessageService {
                             .action(viewManageEnum.getValue())
                             .build();
 
-                    String stanzaId = UuidCreator.getTimeOrderedEpoch().toString();
-                    String xml = XmppStanzaUtil.insertStanzaId(vmSync.toXml(), stanzaId, domainProperties.getDomain());
                     // Sync user's other devices by sending this message to itself
                     return reactiveClusterMessagePublisher.convertAndSendToUser(
-                            id, userKey, userKey, ChatType.CHAT, false, false, xml, sessionId);
+                            id, userKey, userKey, ChatType.CHAT, false, false, vmSync.toXml(), sessionId);
                 });
 	}
 	

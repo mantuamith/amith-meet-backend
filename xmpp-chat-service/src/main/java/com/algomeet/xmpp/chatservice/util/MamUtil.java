@@ -137,7 +137,6 @@ public class MamUtil {
 	 * Builds a custom View Management Sync stanza to synchronize "hidden" state across devices.
 	 */
 	public String buildHideEventXml(MucMessage msg, XmppPrincipal principal) {
-		String xml = null;
 		try {
 			MessageViewSyncStanza vmSync = MessageViewSyncStanza.builder()
 					.id(UuidCreator.getTimeOrderedEpoch().toString())
@@ -147,15 +146,11 @@ public class MamUtil {
 					// Removed to attribute to shorten the message
 					//.to(principal.getBareJid())   // Sent to self to ensure all connected resources (phone, web) sync
 					.build();
-			// Generate a fresh monotonic UUIDv7 for the view management event itself.
-			String stanzaId = UuidCreator.getTimeOrderedEpoch().toString();
-
-			// Inject the new UUIDv7 as the stanza-id so the client can update its sync cursor.
-			xml = XmppStanzaUtil.insertStanzaId(vmSync.toXml(), stanzaId, principal.getDomain());
+			return vmSync.toXml();
 		} catch(Exception ex) {
 			log.error("Error composing View management sync stanza ", ex);
 		}
-		return xml;
+		return null;
 	}
 	
 	/**

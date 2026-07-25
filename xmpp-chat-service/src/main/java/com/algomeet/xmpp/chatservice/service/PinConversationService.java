@@ -117,11 +117,8 @@ public class PinConversationService {
 
         ConversationViewSyncStanza syncStanza = syncBuilder.build();
 
-        String stanzaId = UuidCreator.getTimeOrderedEpoch().toString();
-        String xml = XmppStanzaUtil.insertStanzaId(syncStanza.toXml(), stanzaId, domainProperties.getDomain());
-
         // Target user's bare JID so cluster publisher fans out to all active sessions/devices of the user
         return reactiveClusterMessagePublisher.convertAndSendToUser(
-                id, userKey, userKey, ChatType.CHAT, false, false, xml, sessionId);
+                id, userKey, userKey, ChatType.CHAT, false, false, syncStanza.toXml(), sessionId);
     }
 }
