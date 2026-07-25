@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.algomeet.xmpp.chatservice.controller.doc.PinConversationControllerDoc;
 import com.algomeet.xmpp.chatservice.document.PinConversation;
 import com.algomeet.xmpp.chatservice.document.PinConversationId;
 import com.algomeet.xmpp.chatservice.dto.CommonResponse;
@@ -32,7 +33,7 @@ import reactor.core.publisher.Mono;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/chat/conversations")
-public class PinConversationController {
+public class PinConversationController implements PinConversationControllerDoc{
 	private final PinConversationService pinConversationService;
 
 	/**
