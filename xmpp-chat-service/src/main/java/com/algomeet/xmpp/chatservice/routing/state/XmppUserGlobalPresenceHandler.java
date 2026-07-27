@@ -234,9 +234,18 @@ public class XmppUserGlobalPresenceHandler {
 						))
 				// Collect items to ensure the buffer is cleared ONLY after all messages fully pass the delivery routing architecture
 				.collectList()
-				// Called when all buffered stanzas have been successfully replayed
-				// Clean up buffer
-				.flatMap(completedList -> smBufferMessageService.clearBuffer(UUID.fromString(smSessionId)))
+				// Only clear the buffer if all stanzas were successfully routed (contains no false flags).
+                // If any dispatch failed, keep the buffer intact for future retry attempts.
+				.flatMap(dispatchedResults -> {
+					boolean allSuccessful = !dispatchedResults.contains(false);
+					
+					if (allSuccessful) {
+					  return smBufferMessageService.clearBuffer(UUID.fromString(smSessionId)); 
+					} 
+
+					log.warn("Partial or failed stanza replay for user: {}. Retaining buffer.", userKey);
+                    return Mono.empty();
+				})
 				.doOnSuccess(v -> log.info("Completed offline/SM buffer delivery for user: {}", userKey))
 				// Handles unexpected errors during replay (DB, routing, serialization, etc.)
 				.doOnError(e ->
