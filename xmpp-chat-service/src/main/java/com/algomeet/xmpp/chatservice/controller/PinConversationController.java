@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.algomeet.xmpp.chatservice.controller.doc.PinConversationControllerDoc;
 import com.algomeet.xmpp.chatservice.document.PinConversation;
@@ -51,7 +52,10 @@ public class PinConversationController implements PinConversationControllerDoc{
 
 		UUID userKey = UUID.fromString(SecurityUtil.getUserKey());
 		if (request.getPeerKey() == null && request.getGroupId() == null) {
-			throw new RuntimeException("Either peerKey or groupId request field must be provided.");
+			 return Mono.error(new ResponseStatusException(
+		                HttpStatus.BAD_REQUEST, 
+		                "Either peerKey or groupId request parameter must be provided."
+		        ));
 		}
 
 		UUID conversationId = request.getPeerKey() != null ? request.getPeerKey() : request.getGroupId();
@@ -81,8 +85,11 @@ public class PinConversationController implements PinConversationControllerDoc{
 			@RequestParam(value = "sessionId") String sessionId) {
 
 		if (peerKey == null && groupId == null) {
-			throw new RuntimeException("Either peerKey or groupId request parameter must be provided.");
-		}
+	        return Mono.error(new ResponseStatusException(
+	                HttpStatus.BAD_REQUEST, 
+	                "Either peerKey or groupId request parameter must be provided."
+	        ));
+	    }
 
 		UUID userKey = UUID.fromString(SecurityUtil.getUserKey());      
 		return pinConversationService.unpinConversation(userKey, peerKey, groupId, sessionId)

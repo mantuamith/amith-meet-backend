@@ -106,15 +106,15 @@ public class ConnectionLifecycleHandler {
 			// Persist any pending Stream Management (SM) state before tearing down the session.
 			// This allows unacknowledged stanzas / buffered messages to be restored
 			// if the client reconnects using XEP-0198 resume.
-			Mono<Void> savePendingStreamTask = xmppSmBufferService.save(ctx, principal)
-					.onErrorResume(e -> Mono.empty()) // Ensure pipeline continues even if SM buffer save fails
-					.doOnError(e -> {
+			Mono<Void> savePendingStreamTask = xmppSmBufferService.save(ctx, principal)					
+					.onErrorResume(e -> {
 						log.error(
 								"Failed to save SM buffer for user {}: {}",
 								userKey,
 								e.getMessage()
 								);
-					})
+						return Mono.empty();
+					}) // Ensure pipeline continues even if SM buffer save fails
 
 					// Always invoked when the reactive pipeline terminates:
 					// - COMPLETE : save finished successfully
