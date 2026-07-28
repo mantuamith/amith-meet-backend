@@ -1,5 +1,13 @@
 package com.algomeet.xmpp.chatservice.service;
 
+import static com.algomeet.xmpp.chatservice.document.UnreadCount.LAST_DECREMENT_AT;
+import static com.algomeet.xmpp.chatservice.document.UnreadCount.LAST_INCREMENT_AT;
+import static com.algomeet.xmpp.chatservice.document.UnreadCount.LAST_READ_MID;
+import static com.algomeet.xmpp.chatservice.document.UnreadCount.LAST_READ_SID;
+import static com.algomeet.xmpp.chatservice.document.UnreadCount.SENDER_KEY;
+import static com.algomeet.xmpp.chatservice.document.UnreadCount.UNREAD_COUNT;
+import static com.algomeet.xmpp.chatservice.document.UnreadCount.USER_KEY;
+
 import java.time.Instant;
 import java.util.ConcurrentModificationException;
 import java.util.UUID;
@@ -25,10 +33,7 @@ import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Scheduler;
-import reactor.core.scheduler.Schedulers;
 import reactor.util.retry.Retry;
-import static com.algomeet.xmpp.chatservice.document.UnreadCount.*;
 
 @Slf4j
 @Service
@@ -38,14 +43,6 @@ public class UnreadCountService {
 	private final DomainProperties domainProperties;
 	private final ClusterMessagePublisher reactiveClusterMessagePublisher; // FIXED: Swapped to reactive
 	private final OfflineMessageRepository offlineMessageRepository;
-
-	// Uniformly scaled to 1,000 active threads and 50,000 queue bounds to protect against lock-retry cascades
-	private static final Scheduler DB_WORKER_POOL = 
-			Schedulers.newBoundedElastic(
-					1000, 
-					50000, 
-					"unread-count-workers"
-					);
 
 	/**
 	 * Non-blocking increment of the unread count.
@@ -62,7 +59,6 @@ public class UnreadCountService {
 
 		// upsert returns the updated document
 		return reactiveMongoTemplate.upsert(query, update, UnreadCount.class)
-				.subscribeOn(DB_WORKER_POOL)
 				.then(reactiveMongoTemplate.findById(id, UnreadCount.class));
 	}
 
@@ -97,7 +93,6 @@ public class UnreadCountService {
 
 		// 1. Execute the conditional update first
 		return reactiveMongoTemplate.updateFirst(query, update, UnreadCount.class)
-				.subscribeOn(DB_WORKER_POOL)
 				// 2. Once the update completes, pull the fresh/unmodified document state back
 				.then(reactiveMongoTemplate.findById(id, UnreadCount.class));
 	}
@@ -179,7 +174,6 @@ public class UnreadCountService {
 	                    });
 	            })
 	    )
-	    .subscribeOn(DB_WORKER_POOL)
 	    // Retry mechanism handles optimistic lock collisions gracefully
 	    .retryWhen(Retry.max(3).filter(throwable -> throwable instanceof ConcurrentModificationException));
 	}
@@ -232,7 +226,6 @@ public class UnreadCountService {
 
 	            })
 	    )
-	    .subscribeOn(DB_WORKER_POOL)
 	    .retryWhen(Retry.max(3).filter(throwable -> throwable instanceof ConcurrentModificationException));
 	}
 	
@@ -290,7 +283,6 @@ public class UnreadCountService {
 	                            });
 	            })
 	    )
-	    .subscribeOn(DB_WORKER_POOL)
 	    // Retry mechanism handles optimistic lock collisions gracefully
 	    .retryWhen(Retry.max(3).filter(throwable -> throwable instanceof ConcurrentModificationException));
 	}
@@ -340,7 +332,6 @@ public class UnreadCountService {
 		Query query = new Query(Criteria.where(USER_KEY).is(UUID.fromString(userKey)));
 
 		return reactiveMongoTemplate.find(query, UnreadCount.class)
-				.subscribeOn(DB_WORKER_POOL)
 				.map(UnreadCount::getUnreadCount)
 				.reduce(0, Integer::sum);
 	}
@@ -353,8 +344,7 @@ public class UnreadCountService {
 		Query query = new Query(Criteria.where(USER_KEY).is(UUID.fromString(recipientKey))
 				.and(UNREAD_COUNT).gt(0));
 
-		return reactiveMongoTemplate.find(query, UnreadCount.class)
-				.subscribeOn(DB_WORKER_POOL);
+		return reactiveMongoTemplate.find(query, UnreadCount.class);
 	}
 
 	/**
@@ -364,7 +354,6 @@ public class UnreadCountService {
 		String id = getConversationId(senderKey, recipientKey);
 
 		return reactiveMongoTemplate.findById(id, UnreadCount.class)
-				.subscribeOn(DB_WORKER_POOL)
 				.map(UnreadCount::getUnreadCount)
 				.defaultIfEmpty(0);
 	}    
@@ -391,7 +380,6 @@ public class UnreadCountService {
 				.limit(size);
 
 		return reactiveMongoTemplate.find(query, UnreadCount.class)
-				.subscribeOn(DB_WORKER_POOL)
 				.map(UnreadCount::getId)
 				.distinct(); 
 	}

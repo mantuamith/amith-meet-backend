@@ -29,7 +29,6 @@ import io.netty.channel.ChannelHandlerContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Schedulers;
 
 /**
  * <p><strong>Call Lifecycle Tracker & Redis Orchestrator</strong></p>
@@ -286,8 +285,6 @@ public class CallLifeCycleTracker {
 	                log.debug("Successfully saved call log to database. Incrementing unread count.");
 	                return unreadCountService.incrementUnreadCount(fromUserKey, toUserKey);
 	            })
-	            // 3. Shift database/counting disk operations away from Netty's selector thread pool
-	            .subscribeOn(Schedulers.boundedElastic())
 	            .doOnError(e -> log.error("Storage/Increment failure during call log handling for SID {}: {}", sid, e.getMessage()))
 	            // 4. Chain execution downstream to fire the cluster broadcast over Redis/WebSockets
 	            .then(Mono.defer(() -> {

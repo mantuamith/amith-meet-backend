@@ -19,7 +19,6 @@ import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Scheduler;  // <--- Singular
 import reactor.core.scheduler.Schedulers; // <--- Singular package, Plural class
 
 /**
@@ -55,15 +54,6 @@ public class XmppStreamManagementStanzaHandler {
 	 * @param principal The authenticated user session.
 	 * @return A Mono signaling completion of the processing logic.
 	 */
-	
-	private static final Scheduler SM_WORKER_SCHEDULER = 
-	        Schedulers.newBoundedElastic(
-	            // Keep thread count tight to limit memory foot-print and context switching
-	            1000, 
-	            // Broaden the queue threshold to buffer mass concurrent reconnect drops safely
-	            50_000, 
-	            "xmpp-sm-workers"
-	        );
 	
 	public Mono<Void> process(ChannelHandlerContext ctx, String xml, XmppPrincipal principal) {	
 		return Mono.defer(() -> {
@@ -131,7 +121,7 @@ public class XmppStreamManagementStanzaHandler {
 			    String userKey = principal.getBareJid(); // Get the owner of the session
 			    
 			    return xmppSmRedisUtil.getSmSessionData(prevId)
-		            .subscribeOn(SM_WORKER_SCHEDULER) // Offload I/O lookup off the Netty worker thread
+		            .subscribeOn(Schedulers.boundedElastic()) // Offload I/O lookup off the Netty worker thread
 			        .filter(sessionMap -> !sessionMap.isEmpty()) 
 			        // Type Hint <sessionMap> ensures the compiler knows the final return type of the flatMap
 			        .<Long>flatMap(sessionMap -> {   

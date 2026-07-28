@@ -3,7 +3,7 @@ package com.algomeet.xmpp.chatservice.stanza;
 import java.util.Objects;
 
 import com.algomeet.xmpp.chatservice.constant.Constants;
-import com.algomeet.xmpp.chatservice.enums.ViewManageEnum;
+import com.algomeet.xmpp.chatservice.enums.ConversationViewAction;
 
 /**
  * Represents a synchronization stanza used to update message visibility 
@@ -11,26 +11,23 @@ import com.algomeet.xmpp.chatservice.enums.ViewManageEnum;
  * * Uses the 'headline' message type to ensure background processing without 
  * affecting unread message counts or triggering notifications.
  */
-public class ViewManageSyncStanza {
+public class ConversationViewSyncStanza {
 	private final String from;
 	private final String to;
 	private final String id;
 	private final String type;
 	private final String action;
-	private final String room;
-	private final String peer;
-	private final String targetId;
+	private final String roomId;
+	private final String peerKey;
 
-	private ViewManageSyncStanza(Builder builder) {
+	private ConversationViewSyncStanza(Builder builder) {
 		this.from = builder.from;
 		this.to = builder.to;
 		this.id = builder.id;
 		this.type = "headline"; // Standard for background sync
 		this.action = builder.action;
-		this.room = builder.room;
-		this.peer = builder.peer;
-		this.targetId = builder.targetId;
-		
+		this.roomId = builder.roomId;
+		this.peerKey = builder.peerKey;	
 	}
 
 	public static Builder builder() {
@@ -51,21 +48,21 @@ public class ViewManageSyncStanza {
 		}
 		sb.append("id='").append(id).append("' ")
 		.append("type='").append(type).append("'>")
-		.append("<query xmlns='" + Constants.NS_VIEW_MANAGEMENT +  "'>")
+		.append("<query xmlns='" + Constants.NS_CONVERSATION_VIEW +  "'>")
 		.append("<item ")
 		.append("action='").append(action).append("' ");
 
-		// Only append the room attribute if room is provided
-		if (room != null && !room.isBlank()) {
-			sb.append("room='").append(room).append("' ");
+		// Only append the roomId attribute if roomId is provided
+		if (roomId != null && !roomId.isBlank()) {
+			sb.append("room-id='").append(roomId).append("' ");
 		}
 		
-		// Only append the peer attribute if peer is provided
-		if (peer != null && !peer.isBlank()) {
-			sb.append("peer='").append(peer).append("' ");
+		// Only append the peerKey attribute if peerKey is provided
+		if (peerKey != null && !peerKey.isBlank()) {
+			sb.append("peer-key='").append(peerKey).append("' ");
 		}
 
-		sb.append("id='").append(targetId).append("'/>")
+		sb.append("'/>")
 		.append("</query>")
 		.append("</message>");
 
@@ -77,10 +74,9 @@ public class ViewManageSyncStanza {
 		private String from;
 		private String to;
 		private String id;
-		private String action = ViewManageEnum.HIDE.getValue(); // Default action
-		private String room;
-		private String peer;
-		private String targetId;
+		private String action = ConversationViewAction.PIN.getValue(); // Default action
+		private String roomId;
+		private String peerKey;
 
 		public Builder from(String from) {
 			this.from = from;
@@ -102,29 +98,20 @@ public class ViewManageSyncStanza {
 			return this;
 		}
 
-		public Builder room(String room) {
-			this.room = room;
+		public Builder roomId(String room) {
+			this.roomId = room;
 			return this;
 		}
 		
-		public Builder peer(String peer) {
-			this.peer = peer;
+		public Builder peerKey(String peer) {
+			this.peerKey = peer;
 			return this;
 		}
 
-		/**
-		 * The ID of the message being hidden/unhidden.
-		 */
-		public Builder targetId(String targetId) {
-			this.targetId = targetId;
-			return this;
-		}
-
-		public ViewManageSyncStanza build() {
+		public ConversationViewSyncStanza build() {
 			Objects.requireNonNull(from, "From JID is required");
 			Objects.requireNonNull(id, "Stanza ID is required");
-			Objects.requireNonNull(targetId, "Target message ID is required");
-			return new ViewManageSyncStanza(this);
+			return new ConversationViewSyncStanza(this);
 		}
 	}
 }

@@ -193,7 +193,7 @@ public class XmppSmBufferService {
      *
      * Locking by stanza id ensures only one node processes it.
      *
-     * @param id stanza id
+     * @param id message id
      * @param receiverUserKey recipient user
      * @param xml raw stanza xml
      * @return completion signal
@@ -308,7 +308,7 @@ public class XmppSmBufferService {
      * - user disconnected temporarily
      * - message must replay after resume
      *
-     * @param id stanza id
+     * @param id message id
      * @param receiverUserKey recipient user
      * @param xml raw stanza
      * @return completion signal
@@ -347,13 +347,17 @@ public class XmppSmBufferService {
                      * handling, buffer into SM replay queue.
                      */
                     if (!(msgType.supportsOfflineStorage()
-                            && XmppStanzaUtil.isArchivable(xml))) {
+                            && XmppStanzaUtil.isArchivable(xml))
+                    		
+                    		// Save groupchat messages to the SM buffer.
+                    		// Note: Direct (1:1) messages are pushed immediately when the client transitions to active state.
+                    		|| XmppMessageType.GROUPCHAT.equals(msgType)) {
 
                         return smBufferMessageService.bufferStanza(
                         		UUID.fromString(smSessionId),
                                 
                                 /**
-                                 * Generate fallback id if sender omitted stanza id.
+                                 * Generate fallback id if sender omitted message id.
                                  */
                                 id == null
                                         ? UuidCreator.getTimeOrderedEpoch()

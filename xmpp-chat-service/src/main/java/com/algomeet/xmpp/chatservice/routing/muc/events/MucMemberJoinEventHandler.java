@@ -32,7 +32,6 @@ import reactor.core.publisher.Mono;
 @RequiredArgsConstructor
 public class MucMemberJoinEventHandler {
     private final ClusterMessagePublisher clusterMessagePublisher;
-    private final MucMessageRouter mucMessageRouter;
     private final MucPresenceService mucPresenceService;
 
     /**

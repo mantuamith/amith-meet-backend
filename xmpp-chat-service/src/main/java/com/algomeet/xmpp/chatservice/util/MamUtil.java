@@ -14,7 +14,7 @@ import com.algomeet.xmpp.chatservice.enums.XmppMessageType;
 import com.algomeet.xmpp.chatservice.repository.projection.MucMessageView;
 import com.algomeet.xmpp.chatservice.stanza.MessageRetractStanza;
 import com.algomeet.xmpp.chatservice.stanza.MessageSyncConversationStanza;
-import com.algomeet.xmpp.chatservice.stanza.ViewManageSyncStanza;
+import com.algomeet.xmpp.chatservice.stanza.MessageViewSyncStanza;
 import com.github.f4b6a3.uuid.UuidCreator;
 
 import lombok.AllArgsConstructor;
@@ -137,25 +137,20 @@ public class MamUtil {
 	 * Builds a custom View Management Sync stanza to synchronize "hidden" state across devices.
 	 */
 	public String buildHideEventXml(MucMessage msg, XmppPrincipal principal) {
-		String xml = null;
 		try {
-			ViewManageSyncStanza vmSync = ViewManageSyncStanza.builder()
+			MessageViewSyncStanza vmSync = MessageViewSyncStanza.builder()
 					.id(UuidCreator.getTimeOrderedEpoch().toString())
 					.targetId(msg.getMessageId().toString()) // The message ID that should be hidden from view
 					.from(principal.getBareJid()) // Sent from the user's bare JID
-					.room(jidUtil.getGroupBareJid(msg.getRoomId().toString()))
+					.roomId(msg.getRoomId().toString())
 					// Removed to attribute to shorten the message
 					//.to(principal.getBareJid())   // Sent to self to ensure all connected resources (phone, web) sync
 					.build();
-			// Generate a fresh monotonic UUIDv7 for the view management event itself.
-			String stanzaId = UuidCreator.getTimeOrderedEpoch().toString();
-
-			// Inject the new UUIDv7 as the stanza-id so the client can update its sync cursor.
-			xml = XmppStanzaUtil.insertStanzaId(vmSync.toXml(), stanzaId, principal.getDomain());
+			return vmSync.toXml();
 		} catch(Exception ex) {
 			log.error("Error composing View management sync stanza ", ex);
 		}
-		return xml;
+		return null;
 	}
 	
 	/**

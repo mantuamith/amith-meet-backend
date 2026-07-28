@@ -4,13 +4,12 @@ import java.time.Instant;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 
-import com.algomeet.common.dto.GroupMember;
 import com.algomeet.common.dto.Group;
+import com.algomeet.common.dto.GroupMember;
 import com.algomeet.xmpp.chatservice.constant.XmppErrorConditions;
 import com.algomeet.xmpp.chatservice.enums.MucAffiliation;
 import com.algomeet.xmpp.chatservice.enums.MucEventType;
@@ -38,7 +37,6 @@ import io.netty.channel.ChannelHandlerContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Schedulers;
 
 /**
  * MUC Admin Event Handler: Add Member to Room
@@ -275,7 +273,6 @@ public class MucAddMemberEventHandler {
 				sender.getUserKey(),
 				stanzaId, 
 				messageRetentionDays)
-		.subscribeOn(Schedulers.boundedElastic()) // <-- REQUIRED to offload DB I/O
 		.doOnError(e -> log.error("Failed to archive event", e)) // <-- Always catch errors
 		.then();
 	}

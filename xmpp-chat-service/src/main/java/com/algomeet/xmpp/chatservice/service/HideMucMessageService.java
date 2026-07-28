@@ -12,7 +12,7 @@ import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
 import com.algomeet.xmpp.chatservice.enums.ChatType;
 import com.algomeet.xmpp.chatservice.publisher.DeleteMessageMediaEventPublisher;
 import com.algomeet.xmpp.chatservice.routing.dispacher.LocalStanzaDispatcher;
-import com.algomeet.xmpp.chatservice.stanza.ViewManageSyncStanza;
+import com.algomeet.xmpp.chatservice.stanza.MessageViewSyncStanza;
 import com.algomeet.xmpp.chatservice.util.HidetUtil;
 import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.github.f4b6a3.uuid.UuidCreator;
@@ -20,8 +20,6 @@ import com.github.f4b6a3.uuid.UuidCreator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Scheduler;
-import reactor.core.scheduler.Schedulers;
 
 @Slf4j
 @Service
@@ -34,16 +32,12 @@ public class HideMucMessageService {
 	private final JidUtil jidUtil;
 	private final DeleteMessageMediaEventPublisher messageMediaDeleteEventPublisher;
 
-	private static final Scheduler DB_SCHEDULER = Schedulers.boundedElastic();
-
 	public Mono<Void> hideMessageForUser(UUID userKey, UUID roomId, UUID targetMessageId, String sessionId) {
 	    return xmppArchiveService.findByMessageId(targetMessageId)
-	        .subscribeOn(DB_SCHEDULER) // Sets the thread pool context for the database operations
 	        .flatMap(message -> {             	
 	            log.debug("Executing hide: Message {} in room {} by user {}", targetMessageId, roomId, userKey);
 	            
 	            return xmppArchiveService.hideMessageForUser(targetMessageId, userKey)
-	                // Note: Removed redundant publishOn(DB_SCHEDULER) here
 	                .flatMap(updateResult -> {
 	                    if (updateResult.getMatchedCount() == 0) {
 	                        log.warn("No message found to hide for ID: {}", targetMessageId);
@@ -79,13 +73,14 @@ public class HideMucMessageService {
 	        .then(); 
 	}
 
-	public Mono<Void> composeAndSendDirectSync(String targetId, XmppPrincipal principal) {
+	public Mono<Void> composeAndSendDirectSync(String targetId,String peerKey, XmppPrincipal principal) {
 		String id = UuidCreator.getTimeOrderedEpoch().toString();
 
-		ViewManageSyncStanza vmSync = ViewManageSyncStanza.builder()
+		MessageViewSyncStanza vmSync = MessageViewSyncStanza.builder()
 				.id(id)
 				.targetId(targetId)
 				.from(principal.getBareJid())
+				.peerKey(peerKey)
 				.build();
 
 		return reactiveClusterMessagePublisher.convertAndSendToUser(id, principal.getUserKey(), principal.getUserKey(), 
@@ -95,10 +90,10 @@ public class HideMucMessageService {
 	private Mono<Void> composeAndSendGroupSync(String targetId, String roomId, String userKey, String sessionId) {
 		String id = UuidCreator.getTimeOrderedEpoch().toString();
 
-		ViewManageSyncStanza vmSync = ViewManageSyncStanza.builder()
+		MessageViewSyncStanza vmSync = MessageViewSyncStanza.builder()
 				.id(id)
 				.targetId(targetId)
-				.room(roomId)
+				.roomId(roomId)
 				.from(jidUtil.getBareJid(userKey))
 				.build();
 

@@ -18,9 +18,12 @@ public class Constants {
 	public static final UUID LARGEST_UUID_V7 = UUID.fromString("ffffffff-ffff-7fff-bfff-ffffffffffff");
 		
 	public static final Integer UNLIMITED_MESSAGE_RETENTION_DAYS = -1;
+		
+	public static final String NS_MESSAGE_VIEW = "urn:algomeet:message-view:0";
 	
-	
-	public static final String NS_VIEW_MANAGEMENT = "urn:algomeet:view-management:0";
-	
+	public static final String NS_CONVERSATION_VIEW = "urn:algomeet:conversation-view:0";
+		
 	public static final String NS_JINGLE = "urn:xmpp:jingle:1";
+	
+	public static final String NS_PIN_MESSAGE = "urn:algomeet:pin:0";
 }

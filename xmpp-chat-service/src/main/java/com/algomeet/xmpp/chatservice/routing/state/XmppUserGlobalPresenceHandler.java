@@ -19,6 +19,7 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.util.Attribute;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
 /**
@@ -70,7 +71,7 @@ public class XmppUserGlobalPresenceHandler {
 
 			// 1. Update distributed session registry so other cluster nodes
 			// can correctly reflect this user's availability
-			userSessionRegistry.updateSessionStatus(
+			Mono<Void> updateAndBroadcastPresence = userSessionRegistry.updateSessionStatus(
 					principal.getUserKey(),
 					principal.getSessionId(),
 					newState
@@ -82,47 +83,73 @@ public class XmppUserGlobalPresenceHandler {
 					principal,
 					newState
 					))
-			.subscribe();
+			.onErrorResume(e -> {
+				log.error("Failed to broadcast presence update for userKey={}: {}", principal.getUserKey(), e.getMessage(), e);
+				return Mono.empty();
+			});
 
 			// 3. Ensure "initial session sync" logic executes only once per connection
-			Attribute<Boolean> initialPresenceAttr =
-					ctx.channel().attr(XmppSessionAttributes.IS_INITIAL_PRESENCE_SENT);
+			Mono<Void> initialSyncPipeline = Mono.defer(() -> {
+				Attribute<Boolean> initialPresenceAttr =
+						ctx.channel().attr(XmppSessionAttributes.IS_INITIAL_PRESENCE_SENT);
 
-			if (initialPresenceAttr.get() == null || !initialPresenceAttr.get()) {
+				if (initialPresenceAttr.get() == null || !initialPresenceAttr.get()) {
 
-				// Check whether this session was successfully resumed via SM (XEP-0198)
-				AtomicBoolean smResumptionSuccess =
-						ctx.channel()
-						.attr(XmppSessionAttributes.SM_RESUMPTION_SUCCESS_KEY)
-						.get();
+					// Check whether this session was successfully resumed via SM (XEP-0198)
+					AtomicBoolean smResumptionSuccess =
+							ctx.channel()
+							.attr(XmppSessionAttributes.SM_RESUMPTION_SUCCESS_KEY)
+							.get();
 
-				// A. Push contact presence snapshot ("world state")
-				// Only needed for fresh sessions (not fully resumed ones)
-				if (smResumptionSuccess == null || !smResumptionSuccess.get()) {
-					xmppPresencePushHandler.pushUsersPresence(ctx, principal)
-					.subscribe();
+					// A. Push contact presence snapshot ("world state")
+					// Only needed for fresh sessions (not fully resumed ones)
+					Mono<Void> pushPresenceTask = Mono.empty();
+					if (smResumptionSuccess == null || !smResumptionSuccess.get()) {
+						pushPresenceTask = xmppPresencePushHandler.pushUsersPresence(ctx, principal)
+								.onErrorResume(e -> {
+									log.error("Error pushing contact presence snapshot for userKey={}: {}", principal.getUserKey(), e.getMessage(), e);
+									return Mono.empty();
+								});
+					}
+
+					// B. Deliver offline messages accumulated while user was disconnected
+					// FIX: Safe-route the pipeline onto elastic processing pools to guarantee Netty loop non-blocking behavior
+					Mono<Void> offlineMessagesTask = offlineMessageHandler.deliverOfflineMessages(principal.getUserKey())
+							.doOnError(e -> log.error("Offline message delivery failed for user userKey={}", principal.getUserKey(), e))
+							.onErrorResume(e -> Mono.empty()); // Swallow error so buffer delivery still proceeds
+
+					// C. Deliver buffered SM stanzas if session was successfully resumed
+					Mono<Void> bufferDeliveryTask = Mono.empty();
+					if (smResumptionSuccess != null && smResumptionSuccess.get()) {
+						bufferDeliveryTask = deliverBufferStanzas(ctx, principal)
+								.onErrorResume(e -> {
+									log.error("Error delivering buffered SM stanzas for userKey={}: {}", principal.getUserKey(), e.getMessage(), e);
+									return Mono.empty();
+								});
+					}
+
+					// Mark initial sync as completed to prevent duplicate execution
+					initialPresenceAttr.set(true);
+
+					return pushPresenceTask
+							.then(offlineMessagesTask)
+							.then(bufferDeliveryTask)
+							.doOnSuccess(v -> log.info(
+									"Session activation complete for {}. Presence sync and offline recovery executed.",
+									principal.getUserKey()
+									));
 				}
+				return Mono.empty();
+			});
 
-				// B. Deliver offline messages accumulated while user was disconnected
-				// FIX: Safe-route the pipeline onto elastic processing pools to guarantee Netty loop non-blocking behavior
-				offlineMessageHandler.deliverOfflineMessages(principal.getUserKey())
-						.subscribeOn(Schedulers.boundedElastic())
-						.doOnError(e -> log.error("Offline message delivery failed for user userKey={}", principal.getUserKey(), e))
-						.subscribe();
-
-				// C. Deliver buffered SM stanzas if session was successfully resumed
-				if (smResumptionSuccess != null && smResumptionSuccess.get()) {
-					deliverBufferStanzas(ctx, principal);
-				}
-
-				// Mark initial sync as completed to prevent duplicate execution
-				initialPresenceAttr.set(true);
-
-				log.info(
-						"Session activation complete for {}. Presence sync and offline recovery executed.",
-						principal.getUserKey()
-						);
-			}
+			// Execute update, broadcast, and initial sync sequentially on boundedElastic pool
+			updateAndBroadcastPresence
+			.then(initialSyncPipeline)
+			.subscribeOn(Schedulers.boundedElastic())
+			.subscribe(
+					null, // consumer for value (void)
+					error -> log.error("Error processing global presence for user key[{}]: {}", principal.getUserKey(), error.getMessage(), error)
+					);
 		}
 	}
 
@@ -181,7 +208,7 @@ public class XmppUserGlobalPresenceHandler {
 	 * @param ctx Netty channel context of the resumed session
 	 * @param principal authenticated XMPP user session
 	 */
-	public void deliverBufferStanzas(ChannelHandlerContext ctx, XmppPrincipal principal) {
+	public Mono<Void> deliverBufferStanzas(ChannelHandlerContext ctx, XmppPrincipal principal) {
 		String userKey = principal.getUserKey();
 
 		// SM session identifier used to retrieve buffered stanzas
@@ -191,12 +218,12 @@ public class XmppUserGlobalPresenceHandler {
 
 		if (smSessionId == null) {
 			log.warn("Skipping stanza buffer delivery: SM_ID_KEY missing from session context attributes");
-			return;
+			return Mono.empty();
 		}
 
 		// Retrieve all buffered stanzas for this SM session
 		// FIX: Replaced unordered, racing nested .subscribe loops inside doOnNext with clean flatMapSequential configurations
-		smBufferMessageService.getStanzasForResumption(UUID.fromString(smSessionId))
+		return smBufferMessageService.getStanzasForResumption(UUID.fromString(smSessionId))
 				// For each buffered stanza, immediately dispatch it to the client
 				// Replay stanza through local routing layer
 				// This ensures consistent delivery semantics (same path as live messages)
@@ -205,12 +232,20 @@ public class XmppUserGlobalPresenceHandler {
 						userKey,
 						msg.getStanzaXml()
 						))
-				.subscribeOn(Schedulers.boundedElastic())
 				// Collect items to ensure the buffer is cleared ONLY after all messages fully pass the delivery routing architecture
 				.collectList()
-				// Called when all buffered stanzas have been successfully replayed
-				// Clean up buffer
-				.flatMap(completedList -> smBufferMessageService.clearBuffer(UUID.fromString(smSessionId)))
+				// Only clear the buffer if all stanzas were successfully routed (contains no false flags).
+                // If any dispatch failed, keep the buffer intact for future retry attempts.
+				.flatMap(dispatchedResults -> {
+					boolean allSuccessful = !dispatchedResults.contains(false);
+					
+					if (allSuccessful) {
+					  return smBufferMessageService.clearBuffer(UUID.fromString(smSessionId)); 
+					} 
+
+					log.warn("Partial or failed stanza replay for user: {}. Retaining buffer.", userKey);
+                    return Mono.empty();
+				})
 				.doOnSuccess(v -> log.info("Completed offline/SM buffer delivery for user: {}", userKey))
 				// Handles unexpected errors during replay (DB, routing, serialization, etc.)
 				.doOnError(e ->
@@ -218,8 +253,6 @@ public class XmppUserGlobalPresenceHandler {
 								userKey,
 								e.getMessage(),
 								e)
-						)
-				// Triggers reactive stream execution (non-blocking)
-				.subscribe();
+						);
 	}
 }

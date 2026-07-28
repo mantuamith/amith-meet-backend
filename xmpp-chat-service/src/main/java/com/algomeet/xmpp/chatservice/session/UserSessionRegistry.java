@@ -107,7 +107,6 @@ public class UserSessionRegistry {
         String key = userKey(userKey);
 
         return hashOps().values(key)
-                .publishOn(Schedulers.parallel()) // <-- Switch context for upcoming CPU-bound parsing
                 .map(value -> {
                     try {
                         return objectMapper.readValue(value, UserSession.class);

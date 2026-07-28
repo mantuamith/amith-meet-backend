@@ -42,7 +42,6 @@ import io.netty.channel.ChannelHandlerContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
 
 /**
@@ -76,22 +75,6 @@ public class XmppMucHandler {
 	private final MucMessageReadCursorService mucMessageReadService;
 	private final MucMessageService mucMessageService;
 	private final MediaClient mediaClient;
-
-	// Scaled to 1,000 threads / 50,000 queue bounds to safely absorb large group room broadcast fan-outs and multi-cursor syncs
-	private static final Scheduler MUC_DB_SCHEDULER = 
-	        Schedulers.newBoundedElastic(
-	            1000, 
-	            50000, 
-	            "xmpp-muc-db"
-	        );
-
-	// Expanded queue bounds to 50,000 to cleanly isolate blocking Feign attachment sharing from core room message delivery loops
-	private static final Scheduler MEDIA_IO_SCHEDULER = 
-	        Schedulers.newBoundedElastic(
-	            1000, 
-	            50000, 
-	            "xmpp-media-io"
-	        );
 	
 	/**
 	 * Main entry point for MUC stanza processing.
@@ -122,7 +105,7 @@ public class XmppMucHandler {
 				TenantContext.clear(); // Clean up immediately after blocking work finishes
 			}
 		})
-		.subscribeOn(MUC_DB_SCHEDULER) // Shifting the lookup away from Netty Event Loop
+		.subscribeOn(Schedulers.boundedElastic()) // Shifting the lookup away from Netty Event Loop
 		.flatMap((AuthorizationResult auth) -> { // Explicit parameter type hint
 			Group group = auth.group;
 			Optional<GroupMember> senderMucMember = auth.senderMucMember;
@@ -178,7 +161,7 @@ public class XmppMucHandler {
 						processingPipeline = Mono.when(
 							mucMessageReadService.advanceReadCursor(UUID.fromString(principal.getUserKey()), group.getId(), messageId),
 							mucMessageService.bulkMarkRoomMessagesAsRead(messageId)
-						).subscribeOn(MUC_DB_SCHEDULER);
+						);
 					}					
 				}
 			} else if ((msgType.supportsOfflineStorage() && isArchivable)) {
@@ -195,7 +178,7 @@ public class XmppMucHandler {
 						
 						// FIX: Turn synchronous blocking Feign Client call into a lazy deferred reactive wrapper
 						processingPipeline = Mono.fromCallable(() -> shareMedias(senderMucMember.get().getUserKey(), request))
-								.subscribeOn(MEDIA_IO_SCHEDULER)
+								.subscribeOn(Schedulers.boundedElastic())
 								.flatMap(shared -> {
 									if(!shared) {
 										xmppUtil.sendError(ctx, id, fromJid, domainProperties.getDomain(), XmppErrorType.CANCEL, 
@@ -237,7 +220,6 @@ public class XmppMucHandler {
 						log.debug("MAM Archive Success: ID={} Room={}", stanzaId, toRoomId);
 						return postSaveTasks;
 					})
-					.subscribeOn(MUC_DB_SCHEDULER) // Shifting storage execution completely away from Netty Event Loop
 					.doOnError(e -> {
 						log.error("MAM Archive Failure: {}", e.getMessage(), e);
 						handleArchiveError(ctx, id, principal, e);

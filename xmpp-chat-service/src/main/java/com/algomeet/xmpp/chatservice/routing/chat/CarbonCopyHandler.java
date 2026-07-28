@@ -8,6 +8,7 @@ import com.algomeet.xmpp.chatservice.util.JidUtil;
 import com.github.f4b6a3.uuid.UuidCreator;
 
 import lombok.RequiredArgsConstructor;
+import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
 /**
@@ -62,8 +63,9 @@ public class CarbonCopyHandler {
      * @param userSessionId Session ID of the device that originally sent the message.
      *                      This session is excluded from carbon delivery.
      * @param sentStanza    Original outgoing XMPP {@code <message/>} stanza.
+     * @return 
      */
-    public void handleSentMessageCarbonCopy(
+    public Mono<Void> handleSentMessageCarbonCopy(
             String fromUserKey,
             String userSessionId,
             String sentStanza,
@@ -73,7 +75,7 @@ public class CarbonCopyHandler {
     	if (!(shouldCarbon)
     			|| !(StringUtils.hasText(fromUserKey)) 
     			|| "null".equalsIgnoreCase(fromUserKey.trim())) {
-    		return;
+    		return Mono.empty();
     	}
 
         /**
@@ -114,12 +116,12 @@ public class CarbonCopyHandler {
          * 4. session to exclude
          * 5. generated carbon stanza
          */
-        localStanzaDispatcher.dispatchLocally(
+        return localStanzaDispatcher.dispatchLocally(
         		UuidCreator.getTimeOrderedEpoch(),
                 fromUserKey,
                 false,
                 userSessionId,
                 carbonPayload
-        ).subscribeOn(Schedulers.boundedElastic()).subscribe();
+        ).then();
     }
 }

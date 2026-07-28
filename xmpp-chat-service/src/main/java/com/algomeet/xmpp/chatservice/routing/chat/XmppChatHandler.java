@@ -48,7 +48,6 @@ import io.netty.channel.ChannelHandlerContext;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
 
 @Slf4j
@@ -70,30 +69,6 @@ public class XmppChatHandler {
 	private final XmppRetractUtil xmppRetractUtil;
 	private final MediaClient mediaClient;
 	
-	// Define a dedicated thread pool for your database work so Netty doesn't starve
-	// Scaled to 1,000 threads / 50,000 queue bounds to comfortably handle multi-task flatMap processing chains
-	private static final Scheduler CHAT_DB_SCHEDULER = 
-	        Schedulers.newBoundedElastic(
-	            1000, 
-	            50000, 
-	            "xmpp-chat-db"
-	        );
-
-	// Expanded queue bounds to 50,000 to safely buffer out-of-band media batch allocations during blocking retry periods
-	private static final Scheduler MEDIA_IO_SCHEDULER = 
-	        Schedulers.newBoundedElastic(
-	            1000, 
-	            50000, 
-	            "xmpp-media-io"
-	        );
-
-	// Explicit isolation pool created specifically to decouple Push Notification (FCM/APNs) dependencies
-	private static final Scheduler PUSH_NOTIFICATION_SCHEDULER = 
-	        Schedulers.newBoundedElastic(
-	            1000, 
-	            50000, 
-	            "xmpp-push-io"
-	        );
 
 	/**
 	 * Handles 1-to-1 message routing, persistence for offline storage, 
@@ -133,7 +108,7 @@ public class XmppChatHandler {
 					
 					// FIX: Defer the blocking media client call securely onto the DB worker pool
 					processingPipeline = Mono.fromCallable(() -> shareMedias(fromUserKey, request))
-							.subscribeOn(MEDIA_IO_SCHEDULER)
+							.subscribeOn(Schedulers.boundedElastic())
 							.flatMap(shared -> {
 								if (!shared) {
 									xmppUtil.sendError(ctx, id, fromJid, domainProperties.getDomain(), XmppErrorType.CANCEL, 
@@ -271,7 +246,6 @@ public class XmppChatHandler {
 		            // Execute ALL gathered tasks asynchronously and concurrently
 		            return Mono.when(tasks);
 				})
-				.subscribeOn(CHAT_DB_SCHEDULER) // Shifting execution away from Netty Event Loop
 				.doOnError(e -> {                  
 					log.error("Storage failure for message {}: {}", id, e.getMessage(), e);
 					if (e instanceof DuplicateKeyException) {
@@ -435,7 +409,7 @@ public class XmppChatHandler {
 	            TenantContext.clear();
 	        }
 	    })
-	    .subscribeOn(PUSH_NOTIFICATION_SCHEDULER) // Offload the network/IO push operation completely
+	    .subscribeOn(Schedulers.boundedElastic()) // Offload the network/IO push operation completely
 	    .doOnError(e -> log.error("Failed to deliver reactive push notification to user key: {}", toKey, e))
 	    .then(); // Transforms Mono<Object> into a clean Mono<Void> pipeline signal
 	}

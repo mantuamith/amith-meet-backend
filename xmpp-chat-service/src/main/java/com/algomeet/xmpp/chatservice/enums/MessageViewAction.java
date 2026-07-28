@@ -6,7 +6,7 @@ import com.fasterxml.jackson.annotation.JsonValue;
  * Enumeration representing the available view management actions 
  * for chat and channel interface message states.
  */
-public enum ViewManageEnum {
+public enum MessageViewAction {
     
     /**
      * Hides a message from the user's local conversation feed window.
@@ -29,7 +29,7 @@ public enum ViewManageEnum {
     /**
      * Internal constructor linking the enum constant to its string payload representation.
      */
-    ViewManageEnum(String value) {
+    MessageViewAction(String value) {
         this.value = value;
     }
 

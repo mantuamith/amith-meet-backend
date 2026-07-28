@@ -24,7 +24,6 @@ import io.netty.channel.ChannelHandlerContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Schedulers;
 
 /**
  * Handler responsible for processing requests to "mute" an occupant.
@@ -94,7 +93,6 @@ public class MucMuteEventHandler {
 	private Mono<Void> sendSuccessResponseReactive(ChannelHandlerContext ctx, String to, String from, String id) {
 		String resp = String.format("<iq from='%s' to='%s' id='%s' type='result'/>", from, to, id);
 		return localStanzaDispatcher.dispatchLocally(to, from, resp)
-				.subscribeOn(Schedulers.boundedElastic())
 				.doOnError(e -> log.error("Failed to dispatch localized IQ mute response confirmation to {}", to, e))
 				.then();
 	}

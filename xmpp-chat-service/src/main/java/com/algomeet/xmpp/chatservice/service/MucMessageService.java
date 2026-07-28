@@ -41,7 +41,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
 
 @Slf4j
@@ -60,7 +59,6 @@ public class MucMessageService {
 	/**
 	 * Dedicated pool tuned for high-volume Multi-User Chat room processing and fallback sync-cache operations.
 	 */
-	private static final Scheduler MUC_THREAD_POOL = Schedulers.newBoundedElastic(1000, 50000, "muc-message-workers");
 
 	public Mono<List<MucMessageResponse>> getMessagesAfter(
 	        UUID userKey,
@@ -80,7 +78,7 @@ public class MucMessageService {
 	        }
 	        return Optional.of(MucMemberUtil.getHistoryCutoff(room, member.get()));
 	    })
-	    .subscribeOn(MUC_THREAD_POOL)
+	    .subscribeOn(Schedulers.boundedElastic())
 	    .flatMap(cutoffOpt -> {
 	        if (cutoffOpt.isEmpty()) {
 	            return Mono.just(Collections.emptyList());
@@ -124,7 +122,7 @@ public class MucMessageService {
 	        }
 	        return Optional.of(MucMemberUtil.getHistoryCutoff(room, member.get()));
 	    })
-	    .subscribeOn(MUC_THREAD_POOL)
+	    .subscribeOn(Schedulers.boundedElastic())
 	    .flatMap(cutoffOpt -> {
 	        if (cutoffOpt.isEmpty()) {
 	            return Mono.just(Collections.emptyList());
@@ -165,7 +163,7 @@ public class MucMessageService {
 	        }
 	        return Optional.of(MucMemberUtil.getHistoryCutoff(group, member.get()));
 	    })
-	    .subscribeOn(MUC_THREAD_POOL)
+	    .subscribeOn(Schedulers.boundedElastic())
 	    .flatMap(cutoffOpt -> {
 	        if (cutoffOpt.isEmpty()) {
 	            return Mono.just(Collections.emptyList());
@@ -276,15 +274,17 @@ public class MucMessageService {
 	                            }
 
 	                            // 5. Apply filters in-memory (Assuming this mutates the list elements or modifies the collection)
-	                            filterConversationsByVisibilityAndCutoff(userKey, resultDtos, groupIds);
-	                            
-	                            // Re-verify after filtering step
-	                            if (CollectionUtils.isEmpty(resultDtos)) {
-	                                return Mono.just(resultDtos);
-	                            }
+	                            return Mono.fromRunnable(() -> filterConversationsByVisibilityAndCutoff(userKey, resultDtos, groupIds))
+	                                    .subscribeOn(Schedulers.boundedElastic())
+	                                    .then(Mono.defer(() -> {
+	                                        // Re-verify after filtering step
+	                                        if (CollectionUtils.isEmpty(resultDtos)) {
+	                                            return Mono.just(resultDtos);
+	                                        }
 
-	                            // 6. Properly chain the asynchronous read-cursor enrichment step into the stream graph
-	                            return retrieveAndSetReaders(resultDtos);
+	                                        // 6. Chain the asynchronous read-cursor enrichment step
+	                                        return retrieveAndSetReaders(resultDtos);
+	                                    }));
 	                        });
 	            });
 	}

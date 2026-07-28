@@ -1,7 +1,6 @@
 package com.algomeet.xmpp.chatservice.routing.dispacher;
 
 import java.util.Collection;
-import java.util.List;
 import java.util.UUID;
 
 import org.springframework.stereotype.Component;
@@ -19,8 +18,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import reactor.core.publisher.Sinks;
-import reactor.core.publisher.Sinks.EmitFailureHandler;
 
 /**
  * Responsible for delivering XMPP stanzas to locally connected sessions
@@ -151,50 +148,48 @@ public class LocalStanzaDispatcher {
 	 * - Push message into Netty outbound pipeline
 	 * - Handle async success/failure callbacks
 	 * - Trigger SM buffer fallback on failure (if enabled)
-	 */
+	 */	
 	private Mono<Boolean> writeAndFlush(Channel targetChannel, UUID id, String to, String payload) {
-	    Sinks.One<Boolean> sink = Sinks.one();
-
-	    targetChannel.writeAndFlush(new TextWebSocketFrame(payload))
-	    .addListener((ChannelFuture future) -> {
-	        if (future.isSuccess()) {
-	            log.debug("Message delivered. channel={}", targetChannel.id());
-	            // Use FAIL_FAST to handle highly concurrent edge cases gracefully
-	            sink.emitValue(true, EmitFailureHandler.FAIL_FAST);
-	            return;
+	    return Mono.<Boolean>create(sink -> {
+	        targetChannel.writeAndFlush(new TextWebSocketFrame(payload))
+	            .addListener((ChannelFuture future) -> {
+	                if (future.isSuccess()) {
+	                    log.debug("Message delivered. channel={}", targetChannel.id());
+	                    sink.success(true);
+	                } else {
+	                    Channel ch = future.channel();
+	                    Throwable cause = future.cause();
+	                    log.warn("Delivery failed active={}, open={}, cause={}",
+	                            ch.isActive(), ch.isOpen(),
+	                            cause != null ? cause.toString() : "Unknown");
+	                    
+	                    // Signal delivery failure to downstream operators
+	                    sink.success(false);
+	                }
+	            });
+	    })
+	    .flatMap(delivered -> {
+	        if (delivered) {
+	            return Mono.just(true);
 	        }
 	        
-	        // Emit immediately
-            sink.emitValue(false, EmitFailureHandler.FAIL_FAST);
-
-	        // Failure Path
-	        Channel ch = future.channel();
-	        log.warn("Delivery failed active={}, open={}, cause={}",
-	                ch.isActive(), ch.isOpen(),
-	                future.cause() != null ? future.cause().toString() : "Unknown");
-
-	        try {
-	            String smSessionId = targetChannel.attr(XmppSessionAttributes.SM_ID_KEY).get();
-
-	            // CRITICAL FIX: Bind the database fallback to the sink context 
-	            // without creating a completely separate unmanaged thread subscription
-	            xmppSmBufferService.saveStanza(id, to, payload, smSessionId)
-	                    .doOnSuccess(v -> {
-	                        log.debug("Fallback storage completed for missed stanza: {}", id);
-
-	                    })
-	                    .doOnError(err -> {
-	                        log.error("Severe: SM Backup failed for user: {}", to, err);
-	                        sink.emitError(err, EmitFailureHandler.FAIL_FAST);
-	                    })
-	                    .subscribe();
-	        } catch (Exception ex) {
-	            // Safety net: If reading attributes throws a NullPointerException or similar,
-	            // make sure the sink still fires so downstream threads don't hang!
-	            log.error("Fatal failure backing-up stanza for stream management resume: {}", id, ex);
-	        }
+	        // Handle database fallback reactively when delivery fails
+	        return handleFallbackStorage(targetChannel, id, to, payload)
+	                .thenReturn(false); // Return false indicating delivery failed, but fallback finished
 	    });
+	}
 
-	    return sink.asMono();
+	private Mono<Void> handleFallbackStorage(Channel targetChannel, UUID id, String to, String payload) {
+	    return Mono.defer(() -> {
+	        String smSessionId = targetChannel.attr(XmppSessionAttributes.SM_ID_KEY).get();
+	        if (smSessionId == null) {
+	            log.warn("SM_ID_KEY attribute missing on channel={}", targetChannel.id());
+	            return Mono.empty();
+	        }
+	        return xmppSmBufferService.saveStanza(id, to, payload, smSessionId);
+	    })
+	    .doOnSuccess(v -> log.debug("Fallback storage completed for missed stanza: {}", id))
+	    .doOnError(err -> log.error("Severe: SM Backup failed for user: {}", to, err))
+	    .onErrorComplete(); // Prevent fallback errors from crashing the main stream if you want to swallow them safely
 	}
 }

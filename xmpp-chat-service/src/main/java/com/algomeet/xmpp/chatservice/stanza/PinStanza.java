@@ -2,6 +2,8 @@ package com.algomeet.xmpp.chatservice.stanza;
 
 import java.util.Objects;
 
+import com.algomeet.xmpp.chatservice.constant.Constants;
+
 /**
  * Represents an XMPP stanza used to notify users when a message is pinned or unpinned.
  * Uses the 'headline' message type to target a specific recipient connection context.
@@ -44,7 +46,7 @@ public class PinStanza {
 		}
 		
 		sb.append("type='").append(type).append("'>")
-		  .append("<pin xmlns='urn:xmpp:algomeet:pin:0' ")
+		  .append("<pin xmlns='").append(Constants.NS_PIN_MESSAGE).append("' ")
 		  .append("action='").append(action).append("' ")
 		  .append("id='").append(targetId).append("' />")
 		  .append("</message>");

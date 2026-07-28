@@ -16,7 +16,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
-import com.algomeet.common.dto.Group;
 import com.algomeet.common.dto.GroupMember;
 import com.algomeet.common.service.AbstractGroupCache;
 import com.algomeet.multitenancy.context.TenantContext;
@@ -160,12 +159,9 @@ public class MucMissedCallService {
 										String fromJid = jidUtil.getGroupBareJid(session.getCaller().toString());
 										String toJid = jidUtil.getBareJid(session.getCaller().toString());
 
-										sendGroupChatMissedCallStanza(fromJid, toJid, session.getSid(), 
-												session.getCallType(), session.getRoomId().toString());
-
 										log.info("Call SID {} fully processed. Notification sent to {}", session.getSid(), toJid);
-
-										return Mono.empty();
+										return sendGroupChatMissedCallStanza(fromJid, toJid, session.getSid(), 
+												session.getCallType(), session.getRoomId().toString());
 									})
 									.then();
 
