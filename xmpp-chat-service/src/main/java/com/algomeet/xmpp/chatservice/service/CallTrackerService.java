@@ -407,19 +407,19 @@ public class CallTrackerService {
 			String payload) {
 
 		Mono<Void> offlineWorkflow = offlineMessageService.save(id, stanzaId, to, from, XmppMessageType.CHAT.getXmlValue(), payload)
-				.doOnSuccess(success -> 
-					// Increment unread message counter
-					unreadCountService.incrementUnreadCount(from, to)
-				)
+				.flatMap(savedMsg -> unreadCountService.incrementUnreadCount(from, to))
 				.doOnError(e -> {
 					log.error("Storage failure for message {}: {}", id, e.getMessage(), e);
 				})
+	            .onErrorResume(e -> Mono.empty())
 				.then();
 
 		/**
 		 * Push immediately to connected nodes/users.
 		 */
 		Mono<Void> clusterWorkflow = clusterMessagePublisher.convertAndSendToUser(id.toString(), to, from, chatType, payload)
+				.doOnError(e -> log.error("Cluster delivery failure for message {}: {}", id, e.getMessage(), e))
+				.onErrorResume(e -> Mono.empty())
 				.then();
 
 		// Keep workflows paired together reactively without blocking threads
