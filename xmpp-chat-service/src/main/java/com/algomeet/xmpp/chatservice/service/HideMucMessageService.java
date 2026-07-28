@@ -38,7 +38,6 @@ public class HideMucMessageService {
 	            log.debug("Executing hide: Message {} in room {} by user {}", targetMessageId, roomId, userKey);
 	            
 	            return xmppArchiveService.hideMessageForUser(targetMessageId, userKey)
-	                // Note: Removed redundant publishOn(DB_SCHEDULER) here
 	                .flatMap(updateResult -> {
 	                    if (updateResult.getMatchedCount() == 0) {
 	                        log.warn("No message found to hide for ID: {}", targetMessageId);
