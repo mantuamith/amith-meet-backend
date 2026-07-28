@@ -77,7 +77,7 @@ public interface PinConversationControllerDoc {
 			content = @Content(mediaType = "application/json")
 		)
 	})
-	public Mono<ResponseEntity<CommonResponse<Void>>> unpinMessage(
+	public Mono<ResponseEntity<CommonResponse<Void>>> unpinConversation(
 			@Parameter(description = "The UUID of the direct 1-to-1 chat peer (Required if groupId is null)", example = "a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d")
 			@RequestParam(required = false) UUID peerKey, 
 			
@@ -106,5 +106,5 @@ public interface PinConversationControllerDoc {
 			content = @Content(mediaType = "application/json")
 		)
 	})
-	public Mono<ResponseEntity<CommonResponse<List<PinConversationResponse>>>> findPinnedMessages();
+	public Mono<ResponseEntity<CommonResponse<List<PinConversationResponse>>>> findPinnedConversations();
 }

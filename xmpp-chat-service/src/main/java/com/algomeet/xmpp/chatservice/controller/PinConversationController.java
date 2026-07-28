@@ -79,7 +79,7 @@ public class PinConversationController implements PinConversationControllerDoc{
 	 * Remove a pin mapping constraint from a chat window.
 	 */
 	@DeleteMapping("/pin")
-	public Mono<ResponseEntity<CommonResponse<Void>>> unpinMessage(
+	public Mono<ResponseEntity<CommonResponse<Void>>> unpinConversation(
 			@RequestParam(required = false) UUID peerKey,             
 			@RequestParam(required = false) UUID groupId,
 			@RequestParam(value = "sessionId") String sessionId) {
@@ -107,7 +107,7 @@ public class PinConversationController implements PinConversationControllerDoc{
 	 * @return
 	 */
 	@GetMapping("/pins")
-	public Mono<ResponseEntity<CommonResponse<List<PinConversationResponse>>>> findPinnedMessages() {
+	public Mono<ResponseEntity<CommonResponse<List<PinConversationResponse>>>> findPinnedConversations() {
 
 		UUID userKey = UUID.fromString(SecurityUtil.getUserKey()); 
 		return pinConversationService.getPinnedConversations(userKey)
