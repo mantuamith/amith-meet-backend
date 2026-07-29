@@ -11,10 +11,11 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class PinConversationId implements Serializable {
+public class ConversationPreferenceId implements Serializable {
     private static final long serialVersionUID = 1L;
-
+    private UUID userKey;
+    
     /** Either peer key for direct(1:1) chat or group Id for group chat */
     private UUID conversationId;
-    private UUID pinnedBy;
+
 }

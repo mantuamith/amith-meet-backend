@@ -16,7 +16,27 @@ public enum ConversationViewAction {
     /**
      * Removes an active pin assignment from a previously pinned conversation.
      */
-    UNPIN("unpin");
+    UNPIN("unpin"),
+	
+	/**
+     * Archives a conversation to make it persistently visible within the chat scope.
+     */
+    ARCHIVE("archive"),
+    
+    /**
+     * Removes an active archive assignment from a previously archived conversation.
+     */
+    UNARCHIVE("unarchive"),
+	
+	/**
+     * Mutes a conversation to make it persistently visible within the chat scope.
+     */
+    MUTE("mute"),
+    
+    /**
+     * Removes an active mute assignment from a previously muted conversation.
+     */
+    UNMUTE("unmute");
 
     // The lower-case string literal value transmitted over the API boundary
     private final String value;

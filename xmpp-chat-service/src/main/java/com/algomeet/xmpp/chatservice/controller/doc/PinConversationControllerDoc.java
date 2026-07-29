@@ -90,6 +90,7 @@ public interface PinConversationControllerDoc {
 	/**
 	 * Get user pinned conversations
 	 */
+	@Deprecated
 	@Operation(
 		summary = "Get user pinned conversations", 
 		description = "Retrieves all currently active pinned conversations associated with the authenticated user."
