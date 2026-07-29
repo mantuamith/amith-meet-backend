@@ -47,12 +47,12 @@ public class GroupSenderKeyControllerV3 implements GroupSenderKeyControllerV3Doc
             @Validated @RequestBody GroupSenderKeyRequest request) {
 
         try {
-            return ResponseEntity.ok(
-                    CommonResponse.from(
-                            ResponseCode.SUCCESS,
-                            service.create(currentUserKey(), senderDeviceId, groupId, request)
-                    )
-            );
+        	
+			List<GroupSenderKeyResponse> resp = service.create(currentUserKey(), senderDeviceId, groupId, List.of(request));
+			
+			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS,
+					resp != null ? resp.get(0): null)
+					);
         } catch (RecordNotFoundException ex) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(CommonResponse.from(ResponseCode.USER_DEVICE_ID_NOT_FOUND));

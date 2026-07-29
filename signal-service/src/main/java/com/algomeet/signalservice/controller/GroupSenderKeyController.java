@@ -41,9 +41,11 @@ public class GroupSenderKeyController implements GroupSenderKeyControllerDoc{
 			@Validated @RequestBody GroupSenderKeyRequest request) {
 		try {
 			UUID senderUserKey = UUID.fromString(SecurityUtil.getUserKey());
-
+			
+			List<GroupSenderKeyResponse> resp = service.create(senderUserKey, senderDeviceId, groupId, List.of(request));
+			
 			return ResponseEntity.ok(CommonResponse.from(ResponseCode.SUCCESS,
-					service.create(senderUserKey, senderDeviceId, groupId, request))
+					resp != null ? resp.get(0): null)
 					);
 		} catch(RecordNotFoundException ex) {
 			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
