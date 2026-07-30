@@ -32,7 +32,7 @@ public class MuteConversationService {
 
         return conversationPreferenceRepository.findById(muteConversation.getId())
             .flatMap(existing -> {       
-            	existing.setMuted(muteConversation.getArchived());
+            	existing.setMuted(muteConversation.getMuted());
             	existing.setMuteUntil(muteConversation.getMuteUntil());                	
             	existing.setUpdatedAt(Instant.now());
 
@@ -76,8 +76,8 @@ public class MuteConversationService {
         return conversationPreferenceRepository.findById(prefId)
             .flatMap(convPreference -> {
                 // Early return if it's already not pinned
-                if (convPreference.getArchived() == null || !convPreference.getArchived()) {
-                    return Mono.just(false);
+                if (convPreference.getMuted() == null || !convPreference.getMuted()) {
+                    return Mono.just(true);
                 }
 
                 convPreference.setMuted(false);

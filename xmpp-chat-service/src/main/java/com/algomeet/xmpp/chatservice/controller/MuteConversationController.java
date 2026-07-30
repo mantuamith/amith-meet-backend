@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.algomeet.xmpp.chatservice.controller.doc.MuteConversationControllerDoc;
 import com.algomeet.xmpp.chatservice.document.ConversationPreference;
 import com.algomeet.xmpp.chatservice.document.ConversationPreferenceId;
 import com.algomeet.xmpp.chatservice.dto.MuteConversationRequest;
@@ -30,7 +31,7 @@ import reactor.core.publisher.Mono;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/chat/conversations")
-public class MuteConversationController {
+public class MuteConversationController implements MuteConversationControllerDoc {
 	private final MuteConversationService muteConversationService;
 
 	/**
@@ -52,7 +53,7 @@ public class MuteConversationController {
 		UUID conversationId = request.getPeerKey() != null ? request.getPeerKey() : request.getGroupId();
 
 		ConversationPreference document = ConversationPreference.builder()
-				.id(new ConversationPreferenceId(conversationId, userKey))				
+				.id(new ConversationPreferenceId(userKey, conversationId))				
 				.peerKey(request.getPeerKey())
 				.groupId(request.getGroupId())
 				.muted(true)
@@ -72,7 +73,7 @@ public class MuteConversationController {
 	/**
 	 * Remove a mute mapping constraint from a chat window.
 	 */
-	@DeleteMapping("/unmute")
+	@DeleteMapping("/mute")
 	public Mono<ResponseEntity<CommonResponse<Void>>> unpinConversation(
 	        @RequestParam(required = false) UUID peerKey,             
 	        @RequestParam(required = false) UUID groupId,
@@ -99,6 +100,7 @@ public class MuteConversationController {
 		return MuteConversationResponse.builder()
 				.peerKey(doc.getPeerKey())				
 				.groupId(doc.getGroupId())
+				.muteUntil(doc.getMuteUntil() != null ? doc.getMuteUntil().toEpochMilli() : null)
 				.createdAt(createdAtEpoch)
 				.build();
 	}

@@ -35,9 +35,6 @@ public class ConversationPreference {
 	private Boolean archived;
 	private Instant archivedAt;
 
-	// MongoDB uses this field to calculate the expiration.
-	// Ensure this is set to Instant.now() or new Date() when saving.
-	// It is used also for XEP-0203 Delayed Delivery stamp
 	@Builder.Default
 	private Instant createdAt = Instant.now(); 
 	

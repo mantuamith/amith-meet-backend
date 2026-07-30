@@ -54,7 +54,7 @@ public class PinConversationController implements PinConversationControllerDoc{
 		UUID conversationId = request.getPeerKey() != null ? request.getPeerKey() : request.getGroupId();
 
 		ConversationPreference document = ConversationPreference.builder()
-				.id(new ConversationPreferenceId(conversationId, userKey))				
+				.id(new ConversationPreferenceId(userKey, conversationId))				
 				.peerKey(request.getPeerKey())
 				.groupId(request.getGroupId())
 				.pinned(true)

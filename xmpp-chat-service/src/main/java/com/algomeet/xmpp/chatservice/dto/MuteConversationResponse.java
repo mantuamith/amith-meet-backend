@@ -15,5 +15,6 @@ public class MuteConversationResponse {
 	private UUID peerKey;	
 	private UUID groupId;	
 
+	private Long muteUntil;
 	private Long createdAt;
 }

@@ -78,7 +78,7 @@ public class ArchiveConversationService {
             .flatMap(convPreference -> {
                 // Early return if it's already not pinned
                 if (convPreference.getArchived() == null || !convPreference.getArchived()) {
-                    return Mono.just(false);
+                    return Mono.just(true);
                 }
 
                 convPreference.setArchived(false);

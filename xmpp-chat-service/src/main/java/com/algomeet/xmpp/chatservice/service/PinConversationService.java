@@ -30,7 +30,7 @@ public class PinConversationService {
      */
     public Flux<ConversationPreference> getPinnedConversations(UUID userKey) {
         log.debug("Fetching pinned conversations for user: {}", userKey);
-        return conversationPreferenceRepository.findPinnedConversation(userKey)
+        return conversationPreferenceRepository.findById_UserKeyOrderByPinnedSeqAsc(userKey)
                 .doOnError(ex -> log.error("Error fetching pinned conversations for user: {}", userKey, ex));
     }
 
@@ -92,7 +92,7 @@ public class PinConversationService {
             .flatMap(convPreference -> {
                 // Early return if it's already not pinned
                 if (convPreference.getPinned() == null || !convPreference.getPinned()) {
-                    return Mono.just(false);
+                    return Mono.just(true);
                 }
 
                 convPreference.setPinned(false);

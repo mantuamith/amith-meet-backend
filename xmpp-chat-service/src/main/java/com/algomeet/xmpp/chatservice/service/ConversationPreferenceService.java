@@ -1,5 +1,7 @@
 package com.algomeet.xmpp.chatservice.service;
 
+import java.util.UUID;
+
 import org.springframework.stereotype.Service;
 
 import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
@@ -13,6 +15,7 @@ import com.github.f4b6a3.uuid.UuidCreator;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 @Slf4j
@@ -74,4 +77,10 @@ public class ConversationPreferenceService {
         return reactiveClusterMessagePublisher.convertAndSendToUser(
                 id, userKey, userKey, ChatType.CHAT, false, false, syncStanza.toXml(), sessionId);
     }
+    
+    public Flux<ConversationPreference> getConversationPreferences(UUID userKey) {
+    	log.info("userKey={}", userKey);
+    	return conversationPreferenceRepository.findById_UserKeyOrderByPinnedSeqAsc(userKey);
+    }
+    
 }
