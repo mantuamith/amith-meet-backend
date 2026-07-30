@@ -1,17 +1,14 @@
 package com.algomeet.xmpp.chatservice.service;
 
+import java.time.Instant;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 
-import com.algomeet.xmpp.chatservice.cluster.publisher.ClusterMessagePublisher;
-import com.algomeet.xmpp.chatservice.document.PinConversation;
-import com.algomeet.xmpp.chatservice.enums.ChatType;
+import com.algomeet.xmpp.chatservice.document.ConversationPreference;
+import com.algomeet.xmpp.chatservice.document.ConversationPreferenceId;
 import com.algomeet.xmpp.chatservice.enums.ConversationViewAction;
-import com.algomeet.xmpp.chatservice.repository.PinConversationRepository;
-import com.algomeet.xmpp.chatservice.stanza.ConversationViewSyncStanza;
-import com.algomeet.xmpp.chatservice.util.JidUtil;
-import com.github.f4b6a3.uuid.UuidCreator;
+import com.algomeet.xmpp.chatservice.repository.ConversationPreferenceRepository;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,43 +19,58 @@ import reactor.core.publisher.Mono;
 @Service
 @RequiredArgsConstructor
 public class PinConversationService {
-    private final PinConversationRepository pinConversationRepository;
-    private final ClusterMessagePublisher reactiveClusterMessagePublisher;
-    private final JidUtil jidUtil;
+	private final ConversationPreferenceService convPreferenceService;
+    private final ConversationPreferenceRepository conversationPreferenceRepository;
 
     /**
      * Retrieves all pinned conversations for a specific user, ordered by sequence ascending.
      *
      * @param userKey The UUID of the user who pinned the conversations.
-     * @return Flux of PinConversation items.
+     * @return Flux of ConversationPreference items.
      */
-    public Flux<PinConversation> getPinnedConversations(UUID userKey) {
+    public Flux<ConversationPreference> getPinnedConversations(UUID userKey) {
         log.debug("Fetching pinned conversations for user: {}", userKey);
-        return pinConversationRepository.findPinnedConversation(userKey)
+        return conversationPreferenceRepository.findById_UserKeyOrderByPinnedSeqAsc(userKey)
                 .doOnError(ex -> log.error("Error fetching pinned conversations for user: {}", userKey, ex));
     }
 
     /**
      * Pins a conversation for a user. If already pinned, updates or returns existing.
      *
-     * @param pinConversation The PinConversation document to save.
-     * @return Mono containing the saved PinConversation.
+     * @param pinConversation The ConversationPreference document to save.
+     * @return Mono containing the saved ConversationPreference.
      */
-    public Mono<PinConversation> pinConversation(PinConversation pinConversation, String sessionId) {
-    	log.debug("Pinning conversation: {}", pinConversation);
+    public Mono<ConversationPreference> pinConversation(ConversationPreference pinConversation, String sessionId) {
+        log.debug("Pinning conversation: {}", pinConversation);
 
-    	return pinConversationRepository.save(pinConversation)
-    			.flatMap(saved -> {
-    				String userKey = saved.getId().getPinnedBy().toString();
-    				String peerKeyStr = saved.getPeerKey() != null ? saved.getPeerKey().toString() : null;
-    				String roomIdStr = saved.getGroupId() != null ? saved.getGroupId().toString() : null;
+        return conversationPreferenceRepository.findById(pinConversation.getId())
+            .flatMap(existing -> {
+                // Update fields on the existing document so we preserve flags like 'muted' or 'archived'             
+            	existing.setPinned(pinConversation.getPinned());
+            	existing.setPinnedSeq(pinConversation.getPinnedSeq());
+            	existing.setPinnedAt(pinConversation.getPinnedAt());
+            	existing.setUpdatedAt(Instant.now());
 
-    				return composeAndSendSync(userKey, sessionId, peerKeyStr, roomIdStr, ConversationViewAction.PIN)
-    						.doOnError(ex -> log.error("Failed to send sync stanza for pinned conversation: {}", saved.getId(), ex))
-    						.doOnSuccess(v -> log.info("Successfully sent sync stanza for conversation pin ID: {}", saved.getId()))
-    						.thenReturn(saved);
-    			})
-    			.doOnError(ex -> log.error("Failed to pin conversation: {}", pinConversation, ex));
+            	return conversationPreferenceRepository.save(existing);
+            })
+            .switchIfEmpty(Mono.defer(() -> {
+                // If record doesn't exist yet, set timestamp and save as a new document
+                if (pinConversation.getCreatedAt() == null) {
+                    pinConversation.setCreatedAt(Instant.now());
+                }
+                return conversationPreferenceRepository.save(pinConversation);
+            }))
+            .flatMap(saved -> {
+                String userKey = saved.getId().getUserKey().toString();
+                String peerKeyStr = saved.getPeerKey() != null ? saved.getPeerKey().toString() : null;
+                String roomIdStr = saved.getGroupId() != null ? saved.getGroupId().toString() : null;
+
+                return convPreferenceService.composeAndSendSync(userKey, sessionId, peerKeyStr, roomIdStr, ConversationViewAction.PIN)
+                        .doOnError(ex -> log.error("Failed to send sync stanza for pinned conversation: {}", saved.getId(), ex))
+                        .doOnSuccess(v -> log.info("Successfully sent sync stanza for conversation pin ID: {}", saved.getId()))
+                        .thenReturn(saved);
+            })
+            .doOnError(ex -> log.error("Failed to pin conversation: {}", pinConversation, ex));
     }
 
     /**
@@ -74,48 +86,27 @@ public class PinConversationService {
 
         String peerKeyStr = peerKey != null ? peerKey.toString() : null;
         String groupIdStr = groupId != null ? groupId.toString() : null;
+        ConversationPreferenceId prefId = new ConversationPreferenceId(userKey, conversationId);
 
-        return pinConversationRepository.deleteById_ConversationIdAndId_PinnedBy(conversationId, userKey)
-                .flatMap(deletedCount -> {
-                    boolean deleted = deletedCount > 0;
-                    if (!deleted) {
-                        log.warn("No pinned conversation found to delete for conversationId: {} and user: {}", conversationId, userKey);
-                        return Mono.just(false);
-                    }
+        return conversationPreferenceRepository.findById(prefId)
+            .flatMap(convPreference -> {
+                // Early return if it's already not pinned
+                if (convPreference.getPinned() == null || !convPreference.getPinned()) {
+                    return Mono.just(true);
+                }
 
-                    log.info("Unpinned conversationId: {} for user: {}", conversationId, userKey);
+                convPreference.setPinned(false);
+                convPreference.setPinnedSeq(null);
+                convPreference.setPinnedAt(null);
+                convPreference.setUpdatedAt(Instant.now());
 
-                    // Properly chain sync sending into the reactive pipeline with UNPIN action
-                    return composeAndSendSync(userKey.toString(), sessionId, peerKeyStr, groupIdStr, ConversationViewAction.UNPIN)
-                            .doOnError(ex -> log.error("Failed to send unpin sync stanza for user: {}, conversationId: {}", userKey, conversationId, ex))
-                            .onErrorComplete() // Ensures unpin success boolean is still returned even if sync broadcast fails
-                            .thenReturn(true);
-                })
-                .doOnError(ex -> log.error("Error unpinning conversationId: {} for user: {}", conversationId, userKey, ex));
-    } 
-        
-    /**
-     * Constructs and broadcasts the headline synchronization stanza to all user devices.
-     */
-    private Mono<Void> composeAndSendSync(String userKey, String sessionId, String peerKey, String roomId, ConversationViewAction action) {
-        String id = UuidCreator.getTimeOrderedEpoch().toString();
-
-        ConversationViewSyncStanza.Builder syncBuilder = ConversationViewSyncStanza.builder()
-                .id(id)
-                .from(jidUtil.getBareJid(userKey))
-                .action(action.getValue());
-
-        if (peerKey != null) {
-            syncBuilder.peerKey(peerKey);
-        }
-        if (roomId != null) {
-            syncBuilder.roomId(roomId);
-        }
-
-        ConversationViewSyncStanza syncStanza = syncBuilder.build();
-
-        // Target user's bare JID so cluster publisher fans out to all active sessions/devices of the user
-        return reactiveClusterMessagePublisher.convertAndSendToUser(
-                id, userKey, userKey, ChatType.CHAT, false, false, syncStanza.toXml(), sessionId);
-    }
+                // Single centralized call: saves if still muted/archived, deletes if totally clear
+                return convPreferenceService.saveOrCleanUp(convPreference)
+                    .then(convPreferenceService.composeAndSendSync(userKey.toString(), sessionId, peerKeyStr, groupIdStr, ConversationViewAction.UNPIN))
+                    .doOnError(ex -> log.error("Failed to send unpin sync stanza for user: {}, conversationId: {}", userKey, conversationId, ex))
+                    .onErrorComplete()
+                    .thenReturn(true);
+            })
+            .defaultIfEmpty(false);
+    }    
 }

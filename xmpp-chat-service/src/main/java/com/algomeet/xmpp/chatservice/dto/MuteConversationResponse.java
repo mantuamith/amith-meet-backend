@@ -11,10 +11,10 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class PinConversationResponse {
+public class MuteConversationResponse {
 	private UUID peerKey;	
 	private UUID groupId;	
 
-	private UUID seq;
+	private Long muteUntil;
 	private Long createdAt;
 }
